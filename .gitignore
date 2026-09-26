@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local data store (JSON driver) — replaced by MongoDB later
 /.data
+
+# Local rollback snapshots (never deploy or commit)
+/work[0-9]*/
