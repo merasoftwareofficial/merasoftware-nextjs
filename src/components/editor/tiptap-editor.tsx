@@ -1,0 +1,154 @@
+"use client";
+
+import { EditorContent, useEditor } from "@tiptap/react";
+import { useState } from "react";
+import { editorExtensions, emptyDoc, NORMAL_REL, SPONSORED_REL, UGC_REL } from "./extensions";
+
+type LinkRel = "normal" | "ugc" | "sponsored";
+
+const REL_VALUE: Record<LinkRel, string> = {
+  normal: NORMAL_REL,
+  ugc: UGC_REL,
+  sponsored: SPONSORED_REL,
+};
+
+export function TiptapEditor({
+  value,
+  onChange,
+  placeholder = "Start writing…",
+}: {
+  value?: unknown;
+  onChange: (doc: unknown) => void;
+  placeholder?: string;
+}) {
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkRel, setLinkRel] = useState<LinkRel>("normal");
+
+  const editor = useEditor({
+    extensions: editorExtensions,
+    content: (value as object) ?? emptyDoc,
+    // Next renders this component on the server first; Tiptap needs to know.
+    immediatelyRender: false,
+    editorProps: { attributes: { class: "tiptap-surface", "data-placeholder": placeholder } },
+    onUpdate: ({ editor: instance }) => onChange(instance.getJSON()),
+  });
+
+  if (!editor) return <div className="tiptap-loading">Loading editor…</div>;
+
+  const active = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
+
+  function applyLink() {
+    if (!editor) return;
+    const url = linkUrl.trim();
+    if (!url) {
+      editor.chain().focus().unsetLink().run();
+    } else {
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange("link")
+        .setLink({ href: url, rel: REL_VALUE[linkRel], target: "_blank" })
+        .run();
+    }
+    setLinkOpen(false);
+    setLinkUrl("");
+  }
+
+  function addImage() {
+    if (!editor) return;
+    const url = window.prompt("Image URL");
+    if (!url) return;
+    const alt = window.prompt("Describe the image (alt text, important for SEO)") ?? "";
+    editor.chain().focus().setImage({ src: url, alt }).run();
+  }
+
+  return (
+    <div className="tiptap-wrap">
+      <div className="tiptap-toolbar">
+        <button type="button" className={active("bold") ? "on" : ""} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
+          <b>B</b>
+        </button>
+        <button type="button" className={active("italic") ? "on" : ""} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic">
+          <i>I</i>
+        </button>
+        <button type="button" className={active("strike") ? "on" : ""} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strikethrough">
+          <s>S</s>
+        </button>
+
+        <span className="tiptap-divider" />
+
+        {[2, 3, 4].map(level => (
+          <button
+            key={level}
+            type="button"
+            className={active("heading", { level }) ? "on" : ""}
+            onClick={() => editor.chain().focus().toggleHeading({ level: level as 2 | 3 | 4 }).run()}
+            title={`Heading ${level}`}
+          >
+            H{level}
+          </button>
+        ))}
+
+        <span className="tiptap-divider" />
+
+        <button type="button" className={active("bulletList") ? "on" : ""} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet list">
+          • List
+        </button>
+        <button type="button" className={active("orderedList") ? "on" : ""} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered list">
+          1. List
+        </button>
+        <button type="button" className={active("blockquote") ? "on" : ""} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote">
+          &ldquo; Quote
+        </button>
+        <button type="button" className={active("codeBlock") ? "on" : ""} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code block">
+          Code
+        </button>
+
+        <span className="tiptap-divider" />
+
+        <button type="button" className={active("link") ? "on" : ""} onClick={() => setLinkOpen(open => !open)} title="Add link">
+          Link
+        </button>
+        <button type="button" onClick={addImage} title="Insert image by URL">
+          Image
+        </button>
+
+        <span className="tiptap-divider" />
+
+        <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">
+          ↶
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">
+          ↷
+        </button>
+      </div>
+
+      {linkOpen ? (
+        <div className="tiptap-link-bar">
+          <input
+            value={linkUrl}
+            onChange={event => setLinkUrl(event.target.value)}
+            placeholder="https://example.com — leave empty to remove the link"
+            onKeyDown={event => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                applyLink();
+              }
+            }}
+          />
+          <select value={linkRel} onChange={event => setLinkRel(event.target.value as LinkRel)}>
+            <option value="normal">Normal link</option>
+            <option value="ugc">User content (rel=ugc)</option>
+            <option value="sponsored">Paid / sponsored</option>
+          </select>
+          <button type="button" className="admin-button" onClick={applyLink}>
+            Apply
+          </button>
+        </div>
+      ) : null}
+
+      <EditorContent editor={editor} />
+    </div>
+  );
+}

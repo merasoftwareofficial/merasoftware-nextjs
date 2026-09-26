@@ -1,0 +1,2 @@
+import { PageHero } from "@/components/page-hero";import { SiteFooter } from "@/components/site-footer";import { SiteHeader } from "@/components/site-header";
+export const metadata={title:"Saved Posts"};export default function Saved(){return <><SiteHeader/><main><PageHero eyebrow="YOUR ACCOUNT" title="Saved posts." text="Articles you save with the bookmark button will appear here after member login is connected."/></main><SiteFooter/></>}

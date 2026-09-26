@@ -1,0 +1,2 @@
+import { SiteHeader } from "@/components/site-header";import { SiteFooter } from "@/components/site-footer";import { PageHero } from "@/components/page-hero";
+export default async function Topic({params}:{params:Promise<{slug:string}>}){const {slug}=await params;const title=slug.replaceAll("-"," ");return <><SiteHeader/><main><PageHero eyebrow="TOPIC" title={title} text="Official articles and approved community content for this topic will appear here."/></main><SiteFooter/></>}

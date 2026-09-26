@@ -1,0 +1,1 @@
+export function Field({ label, placeholder, large = false }: { label: string; placeholder: string; large?: boolean }) { return <label className="admin-field"><span>{label}</span>{large ? <textarea placeholder={placeholder} rows={6} /> : <input placeholder={placeholder} />}</label>; }
