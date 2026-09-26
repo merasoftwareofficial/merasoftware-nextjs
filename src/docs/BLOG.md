@@ -13,10 +13,10 @@ A real blog and community that earns SEO traffic and brings useful members toget
 ```text
 UI pages → /api/* routes → repo layer → driver
                                         ├── json-driver  (now)
-                                        └── mongo-driver (later, stub)
+                                        └── mongo-driver (implemented)
 ```
 
-Data lives server-side in `.data/*.json` (gitignored): `blogs`, `users`, `comments`, `reactions`, `saved`, `reports`, and `settings` (one row, `_id: "site"`). Field names mirror `src/models/`, so migration is: implement `mongo-driver.ts`, set `DATA_DRIVER=mongo`. Nothing else changes.
+Local default data lives server-side in `.data/*.json` (gitignored). MongoDB mode stores blogs, users, comments, reactions, saved posts, reports and settings in Mongoose collections. Set `DATA_DRIVER=mongo` and `MONGODB_URI`; database name defaults to `merasoftware` and can be overridden with `MONGODB_DB`. DB-backed pages render per request, so deployment build does not need Atlas access.
 
 Deferred until credentials exist: Cloudinary (image URL + alt field in use), Firebase (development sign-in in use), Vercel.
 
@@ -39,7 +39,6 @@ Copy `src/app/api/blogs/[id]/route.ts` when writing a new route — it carries t
 - **StarterKit already bundles Link.** Configure it through `StarterKit.configure({ link })`; adding the package separately warns about duplicates.
 - **Editor and renderer must share `src/components/editor/extensions.ts`,** or authors and readers see different output.
 - **Turbopack serves stale caches.** It has falsely reported "Module not found" for files on disk and served pre-fix pages. `rm -rf .next` and restart before trusting a confusing result.
-- **`npm run build` fails here for a reason unrelated to the app** — see Known issue.
 - **`blogInputSchema` validates `slug` before the route slugifies it.** A form must send an already-valid slug; sending a raw title returns 400. Both forms slugify client-side.
 - **Never `rm -rf .next` while a dev server is running.** It leaves that process serving from a directory that no longer exists, and every authenticated page starts redirecting to `/login` as though the session were broken. Stop the server first.
 - **A `.data` write is only visible to other module instances because `read()` checks the file mtime.** Do not "optimise" that check away — see the B3 note in Completed work for what breaks.
@@ -139,17 +138,20 @@ Why it is needed: the whole point of the blog is search traffic, and none of it 
 
 Delivered: a real sitemap, JSON-LD on articles, profiles and the blog listing, search on `/blog` and `/community`, ranked related posts, and the full permission pass. Detail in Completed work below.
 
-### Next — migration
+### Next — online integrations
 
 Nothing in B1–B5 is outstanding. What remains is the move off local development:
 
 - Real Firebase auth, replacing the cookie session in `src/lib/auth.ts` and closing the `POST /api/auth` role gap under Security
-- `mongo-driver.ts` implemented, then `DATA_DRIVER=mongo`
 - Cloudinary upload, replacing the image URL + alt fields
-- Vercel deploy, and the build question under Known issue
+- Vercel deploy with `DATA_DRIVER=mongo` and `MONGODB_URI`
 - The `/admin/*` pages that are still static forms, if the owner wants them working
 
 ## Completed work
+
+### MongoDB persistence — DONE
+
+Implemented every repo operation in `mongo-driver.ts`, added the User model, normalized Mongo ids and dates for existing APIs, and made database-backed pages request-rendered. Verified `npm run build` succeeds with local `DATA_DRIVER=mongo` and without contacting Atlas during build.
 
 ### B1 — data and session foundation
 
@@ -202,12 +204,6 @@ Mark the step DONE in Full plan, move the NEXT marker, and update Status. Add a 
 
 Write the newest step in full — the next person needs the detail while it is fresh. Once the step after it is done, cut it back to a short summary: what was built and what was verified. The before/after of a finished step is a record of problems that no longer exist, and the code says what the code is now. Delete whatever your work made untrue.
 
-## Known issue
+## Deployment note
 
-`npm run build` does not complete on this machine. `npm run dev` is unaffected, and `npx tsc --noEmit` passes clean.
-
-The original failure was `InvariantError: Expected workStore to be initialized` on `/account/saved`, isolated to the drive: the same source built cleanly on `C:\` and failed on `E:\` with `src` byte-identical to the backup.
-
-Re-checked after B5, with `/account/saved` rewritten. **That error no longer appears.** The build now dies earlier instead, with `Insufficient system resources (os error 1450)` reading `node_modules`, a nonsense 37 TB allocation request, and a V8 heap abort — with roughly 2 GB free of 14 GB. Isolated the same way: swapping `src` for the pre-B4 backup fails identically, so it is not the blog code.
-
-So the workStore error may be gone or may only be hidden behind the resource failure — **it is unverified either way**. Settle it on a machine with free memory, or on Vercel, before trusting a build. Do not rewrite app code to chase it.
+Build succeeds with `DATA_DRIVER=mongo`. Vercel still needs `MONGODB_URI` and `DATA_DRIVER=mongo` set for Production (and Preview if used); keep MongoDB Network Access configured for the deployment source.

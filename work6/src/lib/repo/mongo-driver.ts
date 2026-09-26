@@ -331,7 +331,7 @@ const reports: DataDriver["reports"] = {
   },
 };
 
-const SETTINGS_DEFAULTS = { commentDefault: "visible", commentsEnabled: true } as const;
+const SETTINGS_DEFAULTS = { _id: "site", commentDefault: "visible", commentsEnabled: true } as const;
 const settings: DataDriver["settings"] = {
   async get() {
     await connectMongo();

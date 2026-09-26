@@ -7,12 +7,7 @@ export async function connectMongo() {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error("MONGODB_URI is required. Add a local MongoDB connection string to .env.local.");
   if (cached.conn) return cached.conn;
-  cached.promise ??= mongoose
-    .connect(uri, { dbName: process.env.MONGODB_DB || "merasoftware" })
-    .catch(error => {
-      cached.promise = null;
-      throw error;
-    });
+  cached.promise ??= mongoose.connect(uri, { dbName: process.env.MONGODB_DB || "merasoftware" });
   cached.conn = await cached.promise;
   return cached.conn;
 }

@@ -3,7 +3,7 @@
 - Project: `E:\Allprojects\merasoftware`.
 - Brand/domain/email: Mera Software / `merasoftware.com` / `contact@merasoftware.com`.
 - One Next.js full-stack project. Local real data now; Vercel + MongoDB Atlas + Firebase + Cloudinary later.
-- Storage today is the repo layer in `src/lib/repo/` writing to `.data/*.json`. Never import a driver directly, and never add LocalStorage as a data store — swapping to MongoDB must stay a one-line `DATA_DRIVER` change.
+- Storage uses the repo layer in `src/lib/repo/`. Local default is JSON in `.data/*.json`; set `DATA_DRIVER=mongo` with `MONGODB_URI` to use MongoDB. Never import a driver directly or add LocalStorage as a data store.
 - Do not claim mock UI or unconfigured integrations are functional.
 - Light/dark theme: black and gray with green-lime accents. No large bright/neon-lime surfaces; use gray instead.
 - Keep text readable; do not use extra-small text.
