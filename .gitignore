@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Local rollback snapshots (never deploy or commit)
 /work[0-9]*/
+
+.vercel
+.env*

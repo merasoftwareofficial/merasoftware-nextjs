@@ -34,8 +34,8 @@ export class AuthError extends Error {
   }
 }
 
-/** The signed-in user, or null. Never throws — safe for public pages. */
-export async function getSessionUser(): Promise<User | null> {
+/** The signed-in user plus their portal roles, or null. Never throws — safe for public pages. */
+export async function getSession(): Promise<{ user: User; portalRoles: string[] } | null> {
   const store = await cookies();
   const token = store.get(PORTAL_COOKIE)?.value;
   if (!token) return null;
@@ -48,7 +48,16 @@ export async function getSessionUser(): Promise<User | null> {
   if (user.banned) return null;
 
   // A portal admin is always an admin here; derived per request, never stored, so it ends when the portal role does.
-  return account.roles.includes("admin") ? { ...user, role: "admin" } : user;
+  // Portal roles come from the portal on every request (cached 60 s) and are never stored on the website user.
+  return {
+    user: account.roles.includes("admin") ? { ...user, role: "admin" } : user,
+    portalRoles: account.roles,
+  };
+}
+
+/** The signed-in user, or null. Never throws — safe for public pages. */
+export async function getSessionUser(): Promise<User | null> {
+  return (await getSession())?.user ?? null;
 }
 
 /** The signed-in user, or throws 401. Use in any route that writes data. */

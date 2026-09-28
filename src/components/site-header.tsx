@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { getSessionUser } from "@/lib/auth";
-import { portalAddresses } from "@/lib/portal";
+import { getSession } from "@/lib/auth";
+import { portalAddresses, portalEntryFor } from "@/lib/portal";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionMenu } from "@/components/session-menu";
 
@@ -10,11 +10,16 @@ import { SessionMenu } from "@/components/session-menu";
  * rest of every page can still be prerendered — only this slot is dynamic.
  */
 async function SessionSlot() {
-  const user = await getSessionUser();
+  const session = await getSession();
+  const { apiUrl, portalUrl } = portalAddresses();
+  const user = session?.user;
+  // Portal admin shows "admin" (already the role here), a portal customer "customer", everyone else their blog role.
+  const badge = user?.role !== "admin" && session?.portalRoles.includes("customer") ? "customer" : user?.role;
   return (
     <SessionMenu
-      user={user ? { displayName: user.displayName, username: user.username, role: user.role } : null}
-      portalApiUrl={portalAddresses().apiUrl}
+      user={user && badge ? { displayName: user.displayName, username: user.username, role: user.role, badge } : null}
+      portal={session ? portalEntryFor(session.portalRoles, portalUrl) : null}
+      portalApiUrl={apiUrl}
     />
   );
 }

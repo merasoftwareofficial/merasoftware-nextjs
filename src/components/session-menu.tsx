@@ -5,9 +5,18 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
-type SessionUser = { displayName: string; username: string; role: Role };
+type SessionUser = { displayName: string; username: string; role: Role; badge: string };
+type PortalEntry = { label: string; href: string };
 
-export function SessionMenu({ user, portalApiUrl }: { user: SessionUser | null; portalApiUrl: string }) {
+export function SessionMenu({
+  user,
+  portal,
+  portalApiUrl,
+}: {
+  user: SessionUser | null;
+  portal: PortalEntry | null;
+  portalApiUrl: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   // Pointer that started the last click. A mouse opens the menu by hovering,
@@ -57,10 +66,18 @@ export function SessionMenu({ user, portalApiUrl }: { user: SessionUser | null; 
         }}
       >
         <b>{user.displayName}</b>
-        <small>{user.role}</small>
+        <small>{user.badge}</small>
       </button>
       {open ? (
         <div className="session-dropdown">
+          {portal ? (
+            <>
+              <p className="session-group">Portal</p>
+              {/* A full page load: the portal is another app on the same shared cookie. */}
+              <a href={portal.href}>{portal.label}</a>
+              <p className="session-group">Website</p>
+            </>
+          ) : null}
           <Link href={`/members/${user.username}`} onClick={() => setOpen(false)}>
             My profile
           </Link>

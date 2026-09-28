@@ -38,6 +38,16 @@ export function portalAddresses() {
   };
 }
 
+/**
+ * The portal screen this account can open, or null. Only `admin` and `customer`
+ * have portal screens (frontend/src/routes/RoleBasedRouter.js); paths match its route files.
+ */
+export function portalEntryFor(roles: string[], portalUrl: string) {
+  if (roles.includes("admin")) return { label: "Portal admin panel", href: `${portalUrl}/admin-panel/dashboard` };
+  if (roles.includes("customer")) return { label: "My Portal", href: `${portalUrl}/dashboard` };
+  return null;
+}
+
 /** Where sign-in may return to: a path on this site or a page on the portal — never another site. */
 export function safeNextTarget(raw: string | undefined, portalUrl: string) {
   if (!raw) return "/";

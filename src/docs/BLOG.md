@@ -18,7 +18,7 @@ UI pages → /api/* routes → repo layer → driver
 
 Local default data lives server-side in `.data/*.json` (gitignored). MongoDB mode stores blogs, users, comments, reactions, saved posts, reports and settings in Mongoose collections. Set `DATA_DRIVER=mongo` and `MONGODB_URI`; database name defaults to `merasoftware` and can be overridden with `MONGODB_DB`. DB-backed pages render per request, so deployment build does not need Atlas access.
 
-Not implemented: Cloudinary uploads (image URL + alt fields are used), real login (development sign-in is used until the portal login in `login.md` replaces it), and Vercel deployment.
+Not implemented: Cloudinary uploads (image URL + alt fields are used). Login comes from the client portal — see `login.md`.
 
 ## Rules
 
@@ -75,13 +75,13 @@ A new comment is `visible` or `pending` depending on `effectiveMode()` in `comme
 
 Cloudinary secrets stay server-side. Verify token and role on every protected call; never trust a client-supplied role or user id.
 
-**Current gap:** `POST /api/auth` accepts a `role` in the body, so anyone can sign in as admin. Deliberate — it lets one browser test every role — and it dies when the portal login (`login.md` Step 1) replaces the session read in `src/lib/auth.ts`.
+The session is the client portal's signed `token` cookie, verified in `src/lib/auth.ts` / `src/lib/portal.ts` (`login.md`). The old development sign-in (`POST /api/auth` with a role in the body) is removed; blog roles are set at `/admin/users`.
 
 `GET /api/settings` is public because the article page needs to know whether comments are open; only `PATCH` requires admin. Nothing secret lives in that row.
 
 ## Status
 
-B1 to B5 are done and MongoDB persistence is implemented. Remaining integrations are the shared portal login (`login.md`), Cloudinary uploads, and Vercel deployment.
+B1 to B5 are done and MongoDB persistence is implemented. Login is shared with the client portal (`login.md`); remaining integration is Cloudinary uploads.
 
 Working today: `/login`, `/blog` (with search), `/blog/[slug]`, official post CRUD with the Tiptap editor, SEO and visibility controls, `rel="ugc"`/`sponsored` links, metadata, JSON-LD and ranked related posts. Members write at `/community/write` and submit for review; moderators decide at `/admin/blog/review`; approved posts list on `/community`, `/discussions`, `/topics/[slug]` and `/members/[username]`. Readers comment, reply, react and save; moderators work at `/admin/comments`; an admin sets the comment defaults at `/admin/settings`.
 
@@ -97,7 +97,7 @@ Given in conversation on 25 Sep 2026. These override the original plan where the
 
 - **Storage:** repo layer + server-side JSON, not MongoDB first and not LocalStorage. Reason accepted: working functionality now, one-file migration later.
 - **Editor:** Tiptap.
-- **Auth:** development sign-in with a role picker, shaped like Firebase.
+- **Auth:** development sign-in with a role picker, shaped like Firebase. (Replaced by the client-portal login on 27 Sep 2026 — see `login.md`.)
 - **Build order:** step by step, not everything at once. B2 was taken as one piece because a half-built blog cannot be tested end to end.
 - **Slug stays editable after publish.** Raised as a risk — changing a published slug 404s every existing link — and the owner chose to leave it as is.
 - **Docs must stay short and effective,** and must carry the owner's decisions rather than the agent's own conclusions.
@@ -146,9 +146,7 @@ Delivered: a real sitemap, JSON-LD on articles, profiles and the blog listing, s
 
 Nothing in B1–B5 is outstanding. What remains is the move off local development:
 
-- Shared login with the client portal, replacing the cookie session in `src/lib/auth.ts` and closing the `POST /api/auth` role gap under Security — plan and status in `login.md`
 - Cloudinary upload, replacing the image URL + alt fields
-- Vercel deploy with `DATA_DRIVER=mongo` and `MONGODB_URI`
 - The `/admin/*` pages that are still static forms, if the owner wants them working
 
 ## Completed work

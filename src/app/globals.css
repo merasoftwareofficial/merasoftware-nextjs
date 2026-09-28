@@ -37,6 +37,8 @@
 .session-dropdown a,.session-dropdown button{display:block;width:100%;text-align:left;padding:10px 12px;font-size:13px;font-weight:600;color:var(--ink);background:transparent;border:0;border-radius:4px;cursor:pointer}
 .session-dropdown a:hover,.session-dropdown button:hover{background:var(--surface)}
 .session-dropdown button{border-top:1px solid var(--line);border-radius:0 0 4px 4px;margin-top:4px;color:var(--muted)}
+.session-group{margin:0;padding:10px 12px 4px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)}
+.session-group+a+.session-group{margin-top:4px;border-top:1px solid var(--line);padding-top:12px}
 .session-loading{display:inline-block;width:78px;height:34px;border-radius:100px;background:var(--surface)}
 
 /* Tiptap editor. */
