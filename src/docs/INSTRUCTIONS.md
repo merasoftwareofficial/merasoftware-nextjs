@@ -2,8 +2,11 @@
 
 - Project: `E:\Allprojects\merasoftware`.
 - Brand/domain/email: Mera Software / `merasoftware.com` / `contact@merasoftware.com`.
-- One Next.js full-stack project. Local real data now; Vercel + MongoDB Atlas + Firebase + Cloudinary later.
-- Storage uses the repo layer in `src/lib/repo/`. Local default is JSON in `.data/*.json`; set `DATA_DRIVER=mongo` with `MONGODB_URI` to use MongoDB. Never import a driver directly or add LocalStorage as a data store.
+- One Next.js full-stack project. JSON and MongoDB drivers are implemented; Vercel deployment and Cloudinary uploads are not configured yet. Firebase Auth is on hold — login will come from the client portal (`login.md`). MongoDB build and connection ping pass; live CRUD still needs verification.
+- Storage uses `src/lib/repo/`. JSON in `.data/*.json` is the local default; MongoDB mode uses `DATA_DRIVER=mongo` and `MONGODB_URI` (database defaults to `merasoftware`). Never import a driver directly or add LocalStorage as a data store.
+- This repo's `origin` is `merasoftwareofficial/merasoftware-nextjs`; `main` is synced. Push permission belongs to each GitHub repo separately. Use the `merasoftwareofficial` account; for a `Vast-Academy` repo, invite it with Write access and accept the invite first.
+- Verified 26 Sep 2026: `merasoftware-new/frontend` pushed and is synced; `account-android-app/AccountApp` push dry-run passed. Access to `merasoftware-new/backend` and `account-android-app/backend` is not verified. These live in separate folders/repos; check `origin` before pushing.
+- Keep `.env.local` and numbered `workN` rollback folders out of commits.
 - Do not claim mock UI or unconfigured integrations are functional.
 - Light/dark theme: black and gray with green-lime accents. No large bright/neon-lime surfaces; use gray instead.
 - Keep text readable; do not use extra-small text.

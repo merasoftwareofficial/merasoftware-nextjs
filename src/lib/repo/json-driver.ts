@@ -199,6 +199,9 @@ const users: UserRepo = {
     const target = username.toLowerCase();
     return read<User>("users").find(row => row.username.toLowerCase() === target) ?? null;
   },
+  async findByPortalUserId(portalUserId) {
+    return read<User>("users").find(row => row.portalUserId === portalUserId) ?? null;
+  },
   async list() {
     return read<User>("users");
   },

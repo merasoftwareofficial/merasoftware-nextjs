@@ -2,7 +2,7 @@
 
 Code-state snapshot only. Rules, traps and what is built live in `BLOG.md` — read that first and do not repeat it here.
 
-Updated 26 Sep 2026, after MongoDB driver implementation.
+Updated 26 Sep 2026, after MongoDB and Git access verification.
 
 ## Stack
 
@@ -10,7 +10,7 @@ Next.js 16.3.6 (Turbopack) · TypeScript · Tailwind · Tiptap 3.31 · Zod · Mo
 
 `npm run build` passes with `DATA_DRIVER=mongo`; database-backed pages render on request, so build does not need Atlas access.
 
-ESLint reports 7 problems, all pre-existing and none from B4 or B5: 2 errors in `admin/blog/blog-form.tsx` (`react-hooks/set-state-in-effect` on the slug effect, from B2) and 5 unused-variable warnings on deliberately underscore-prefixed names.
+Last recorded ESLint run reported 7 issues before the MongoDB driver work: 2 errors in `admin/blog/blog-form.tsx` and 5 unused-variable warnings. Lint has not been rerun after MongoDB changes.
 
 ## Known weak points in the code
 

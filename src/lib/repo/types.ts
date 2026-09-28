@@ -71,6 +71,8 @@ export interface User {
   role: Role;
   bio?: string;
   banned: boolean;
+  /** The client portal's user `_id` this website profile belongs to. */
+  portalUserId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,6 +149,7 @@ export interface UserRepo {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
   findByUsername(username: string): Promise<User | null>;
+  findByPortalUserId(portalUserId: string): Promise<User | null>;
   list(): Promise<User[]>;
   create(data: Omit<User, "_id" | "createdAt" | "updatedAt">): Promise<User>;
   update(id: string, patch: Partial<User>): Promise<User | null>;

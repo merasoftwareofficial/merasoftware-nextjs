@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth";
+import { portalAddresses } from "@/lib/portal";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionMenu } from "@/components/session-menu";
 
@@ -13,6 +14,7 @@ async function SessionSlot() {
   return (
     <SessionMenu
       user={user ? { displayName: user.displayName, username: user.username, role: user.role } : null}
+      portalApiUrl={portalAddresses().apiUrl}
     />
   );
 }

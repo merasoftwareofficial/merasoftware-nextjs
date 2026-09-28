@@ -170,6 +170,11 @@ const users: DataDriver["users"] = {
     const row = await User.findOne({ username: username.trim().toLowerCase() }).lean();
     return row ? userRecord(row as unknown as Record<string, unknown>) : null;
   },
+  async findByPortalUserId(portalUserId) {
+    await connectMongo();
+    const row = await User.findOne({ portalUserId }).lean();
+    return row ? userRecord(row as unknown as Record<string, unknown>) : null;
+  },
   async list() {
     await connectMongo();
     const rows = await User.find().sort({ createdAt: 1 }).lean();

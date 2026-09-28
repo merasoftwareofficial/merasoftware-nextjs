@@ -1,22 +1,16 @@
 /**
  * Session and permission layer.
  *
- * DEVELOPMENT AUTH — not production security. A signed-in user is stored in a
- * httpOnly cookie holding a user id; there is no password check yet. This
- * exists so every role-gated flow (member submit, moderator approve, admin
- * publish) can be built and tested before Firebase is configured.
- *
- * Migration: replace readSession() with a Firebase ID-token verification
- * (src/lib/firebase-admin.ts already has verifyIdToken wired). requireUser()
- * and requireRole() keep their signatures, so no caller changes.
+ * Signing in happens against the client portal, which sets its `token` cookie.
+ * getSessionUser() turns that cookie into the website's own user record; every
+ * page and route reads the session through this file only. See src/lib/portal.ts.
  */
 
 import { cookies } from "next/headers";
-import { userRepo, type Role, type User } from "@/lib/repo";
+import { getPortalAccount, PORTAL_COOKIE, websiteUserFor } from "@/lib/portal";
+import type { Role, User } from "@/lib/repo";
 
 export type { Role, User };
-
-export const SESSION_COOKIE = "ms_session";
 
 /** Role ranking. A role satisfies any requirement at or below its own level. */
 const RANK: Record<Role, number> = {
@@ -43,12 +37,18 @@ export class AuthError extends Error {
 /** The signed-in user, or null. Never throws — safe for public pages. */
 export async function getSessionUser(): Promise<User | null> {
   const store = await cookies();
-  const userId = store.get(SESSION_COOKIE)?.value;
-  if (!userId) return null;
+  const token = store.get(PORTAL_COOKIE)?.value;
+  if (!token) return null;
 
-  const user = await userRepo.findById(userId);
-  if (!user || user.banned) return null;
-  return user;
+  const account = await getPortalAccount(token);
+  // Guests are 24-hour portal demo accounts, not website members (owner decision).
+  if (!account || account.isGuest) return null;
+
+  const user = await websiteUserFor(account);
+  if (user.banned) return null;
+
+  // A portal admin is always an admin here; derived per request, never stored, so it ends when the portal role does.
+  return account.roles.includes("admin") ? { ...user, role: "admin" } : user;
 }
 
 /** The signed-in user, or throws 401. Use in any route that writes data. */

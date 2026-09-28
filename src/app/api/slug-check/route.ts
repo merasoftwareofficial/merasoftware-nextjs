@@ -6,7 +6,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { errorResponse, slugify } from "@/lib/api";
+import { errorResponse } from "@/lib/api";
+import { slugify } from "@/lib/slug";
 import { requireUser } from "@/lib/auth";
 import { blogRepo } from "@/lib/repo";
 

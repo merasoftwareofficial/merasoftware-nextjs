@@ -8,6 +8,7 @@ const UserSchema = new Schema(
     role: { type: String, enum: ["visitor", "member", "moderator", "editor", "admin"], required: true },
     bio: { type: String, trim: true },
     banned: { type: Boolean, default: false },
+    portalUserId: { type: String, unique: true, sparse: true },
   },
   { timestamps: true },
 );

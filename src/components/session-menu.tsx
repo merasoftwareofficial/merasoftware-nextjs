@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
 type SessionUser = { displayName: string; username: string; role: Role };
 
-export function SessionMenu({ user }: { user: SessionUser | null }) {
+export function SessionMenu({ user, portalApiUrl }: { user: SessionUser | null; portalApiUrl: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Pointer that started the last click. A mouse opens the menu by hovering,
+  // so its click must not toggle it shut; touch and keyboard still toggle.
+  const lastPointer = useRef("");
 
   if (!user) {
     return (
@@ -20,7 +23,8 @@ export function SessionMenu({ user }: { user: SessionUser | null }) {
   }
 
   async function signOut() {
-    await fetch("/api/auth", { method: "DELETE" });
+    // The portal owns the shared cookie, so signing out here signs out of the portal too.
+    await fetch(`${portalApiUrl}/api/userLogout`, { credentials: "include" });
     setOpen(false);
     router.push("/");
     router.refresh();
@@ -29,8 +33,29 @@ export function SessionMenu({ user }: { user: SessionUser | null }) {
   const staff = user.role !== "member";
 
   return (
-    <div className="session-menu">
-      <button type="button" className="session-trigger" onClick={() => setOpen(value => !value)}>
+    <div
+      className="session-menu"
+      onPointerEnter={event => {
+        if (event.pointerType === "mouse") setOpen(true);
+      }}
+      onPointerLeave={event => {
+        if (event.pointerType === "mouse") setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="session-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onPointerDown={event => {
+          lastPointer.current = event.pointerType;
+        }}
+        onClick={() => {
+          const mouse = lastPointer.current === "mouse";
+          lastPointer.current = "";
+          setOpen(value => (mouse ? true : !value));
+        }}
+      >
         <b>{user.displayName}</b>
         <small>{user.role}</small>
       </button>

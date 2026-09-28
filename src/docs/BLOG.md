@@ -18,7 +18,7 @@ UI pages → /api/* routes → repo layer → driver
 
 Local default data lives server-side in `.data/*.json` (gitignored). MongoDB mode stores blogs, users, comments, reactions, saved posts, reports and settings in Mongoose collections. Set `DATA_DRIVER=mongo` and `MONGODB_URI`; database name defaults to `merasoftware` and can be overridden with `MONGODB_DB`. DB-backed pages render per request, so deployment build does not need Atlas access.
 
-Deferred until credentials exist: Cloudinary (image URL + alt field in use), Firebase (development sign-in in use), Vercel.
+Not implemented: Cloudinary uploads (image URL + alt fields are used), real login (development sign-in is used until the portal login in `login.md` replaces it), and Vercel deployment.
 
 ## Rules
 
@@ -38,13 +38,13 @@ Copy `src/app/api/blogs/[id]/route.ts` when writing a new route — it carries t
 - **Tiptap `generateHTML` throws `window is not defined` on the server.** Use `renderToHTMLString` from `@tiptap/static-renderer`, as `rich-content.tsx` does.
 - **StarterKit already bundles Link.** Configure it through `StarterKit.configure({ link })`; adding the package separately warns about duplicates.
 - **Editor and renderer must share `src/components/editor/extensions.ts`,** or authors and readers see different output.
-- **Turbopack serves stale caches.** It has falsely reported "Module not found" for files on disk and served pre-fix pages. `rm -rf .next` and restart before trusting a confusing result.
+- **Turbopack can serve stale caches.** Stop the dev server before clearing `.next`; in PowerShell use `Remove-Item -Recurse -Force .next`, then restart before trusting a confusing result.
 - **`blogInputSchema` validates `slug` before the route slugifies it.** A form must send an already-valid slug; sending a raw title returns 400. Both forms slugify client-side.
 - **Never `rm -rf .next` while a dev server is running.** It leaves that process serving from a directory that no longer exists, and every authenticated page starts redirecting to `/login` as though the session were broken. Stop the server first.
 - **A `.data` write is only visible to other module instances because `read()` checks the file mtime.** Do not "optimise" that check away — see the B3 note in Completed work for what breaks.
 - **A search term is echoed back into the search input's `value`,** so asserting that a page does not contain a word is not proof the post is hidden. Assert on the post's title or its card link instead. This produced two false failures in the B5 run.
 - **`MetadataRoute.Sitemap` entries built through `.map()` widen `changeFrequency` to `string` and stop compiling.** Annotate the array with `satisfies` before mapping, as `sitemap.ts` does.
-- **The dev server on this machine dies under memory pressure** — the next request gets `ECONNREFUSED` rather than an error in the log. Restart it and re-run; it is not a code fault. See Known issue.
+- **The dev server on this machine can die under memory pressure** — the next request may get `ECONNREFUSED` rather than an error in the log. Restart it and re-run before treating that as a code fault.
 
 ## Roles and flow
 
@@ -75,13 +75,13 @@ A new comment is `visible` or `pending` depending on `effectiveMode()` in `comme
 
 Cloudinary secrets stay server-side. Verify token and role on every protected call; never trust a client-supplied role or user id.
 
-**Current gap:** `POST /api/auth` accepts a `role` in the body, so anyone can sign in as admin. Deliberate — it lets one browser test every role — and it dies when Firebase replaces the session read in `src/lib/auth.ts`.
+**Current gap:** `POST /api/auth` accepts a `role` in the body, so anyone can sign in as admin. Deliberate — it lets one browser test every role — and it dies when the portal login (`login.md` Step 1) replaces the session read in `src/lib/auth.ts`.
 
 `GET /api/settings` is public because the article page needs to know whether comments are open; only `PATCH` requires admin. Nothing secret lives in that row.
 
 ## Status
 
-B1 to B5 are all done. The blog is feature-complete for local use; what is left is the migration — real Firebase auth, the MongoDB driver, Cloudinary, and Vercel.
+B1 to B5 are done and MongoDB persistence is implemented. Remaining integrations are the shared portal login (`login.md`), Cloudinary uploads, and Vercel deployment.
 
 Working today: `/login`, `/blog` (with search), `/blog/[slug]`, official post CRUD with the Tiptap editor, SEO and visibility controls, `rel="ugc"`/`sponsored` links, metadata, JSON-LD and ranked related posts. Members write at `/community/write` and submit for review; moderators decide at `/admin/blog/review`; approved posts list on `/community`, `/discussions`, `/topics/[slug]` and `/members/[username]`. Readers comment, reply, react and save; moderators work at `/admin/comments`; an admin sets the comment defaults at `/admin/settings`.
 
@@ -109,6 +109,10 @@ Given in conversation on 26 Sep 2026, during B4:
 - **An editor or admin must also be able to set comments on a post while writing or editing it,** independently of the site default.
 - **An admin must be able to remove any comment.**
 - **Refinements to those three were deferred:** "isse baad mein behtar kar sakte hain". The agent chose the open questions for now — per-post control is editor-and-above so a member's post follows the site default, and a moderator hides while only an admin deletes. Both are one line each in `comment-rules.ts` if the owner wants them different.
+
+Given in conversation on 27 Sep 2026:
+
+- **No Firebase Auth work for now.** Login comes from the client portal instead — see `login.md`, which holds that plan.
 
 ## Full plan — B1 to B5
 
@@ -142,7 +146,7 @@ Delivered: a real sitemap, JSON-LD on articles, profiles and the blog listing, s
 
 Nothing in B1–B5 is outstanding. What remains is the move off local development:
 
-- Real Firebase auth, replacing the cookie session in `src/lib/auth.ts` and closing the `POST /api/auth` role gap under Security
+- Shared login with the client portal, replacing the cookie session in `src/lib/auth.ts` and closing the `POST /api/auth` role gap under Security — plan and status in `login.md`
 - Cloudinary upload, replacing the image URL + alt fields
 - Vercel deploy with `DATA_DRIVER=mongo` and `MONGODB_URI`
 - The `/admin/*` pages that are still static forms, if the owner wants them working
@@ -151,11 +155,11 @@ Nothing in B1–B5 is outstanding. What remains is the move off local developmen
 
 ### MongoDB persistence — DONE
 
-Implemented every repo operation in `mongo-driver.ts`, added the User model, normalized Mongo ids and dates for existing APIs, and made database-backed pages request-rendered. Verified `npm run build` succeeds with local `DATA_DRIVER=mongo` and without contacting Atlas during build.
+Implemented every repo operation in `mongo-driver.ts`, added the User model, normalized Mongo ids and dates for existing APIs, and made database-backed pages request-rendered. Verified `npm run build` with `DATA_DRIVER=mongo` and a read-only Atlas ping; no sample records were inserted. Live CRUD against Atlas has not been exercised yet.
 
 ### B1 — data and session foundation
 
-Built `src/lib/repo/` (driver selector + JSON driver + Mongo stub), `src/lib/auth.ts` (cookie session, 5-level role rank), `/login`, and `src/lib/api.ts` for one error convention. Replaced Mongoose models and a `firebase-admin` that threw on every call. Verified: 22 driver tests, 7 HTTP auth tests.
+Built `src/lib/repo/` (driver selector + JSON driver; Mongo driver implemented later), `src/lib/auth.ts` (cookie session, 5-level role rank), `/login`, and `src/lib/api.ts` for one error convention. Replaced an earlier `firebase-admin` flow that threw on every call. Verified: 22 driver tests, 7 HTTP auth tests.
 
 ### B2 — official blog
 
@@ -175,7 +179,7 @@ Built on the existing repos, which were left alone:
 - `components/blog/comments.tsx` (one level of replies, moderation and report buttons in place) and `reactions.tsx`. Both get their initial state as props from the server page, so the thread is in the HTML and no button flashes wrong.
 - `admin/comments/page.tsx` + `comment-actions.tsx`, and `admin/settings/comment-settings.tsx` — the only part of that settings page wired to storage.
 - `/account/saved` rewritten from a placeholder into the real list.
-- New `settingsRepo` through the whole data layer (`types.ts`, `json-driver.ts`, the Mongo stub, `index.ts`), plus `Blog.comments` and `models/Comment.ts`. This is the one repo B4 added — the engagement repos already existed.
+- New `settingsRepo` through the data layer (`types.ts`, `json-driver.ts`, `index.ts`), plus `Blog.comments` and `models/Comment.ts`. This is the one repo B4 added — the engagement repos already existed.
 
 Fixed on the way: `models/Blog.ts` was missing `reviewNote`, so the Mongoose shape had drifted from the repo type it is supposed to mirror.
 

@@ -4,7 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { errorResponse, slugify } from "@/lib/api";
+import { errorResponse } from "@/lib/api";
+import { slugify } from "@/lib/slug";
 import { atLeast, getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, initialState, isReadable } from "@/lib/blog-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";

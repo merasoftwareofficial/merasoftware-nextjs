@@ -19,15 +19,10 @@
 .auth-field{display:block;margin-bottom:18px}
 .auth-field span{display:block;font-size:14px;font-weight:700;margin-bottom:8px}
 .auth-field input{width:100%;padding:13px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:3px;font:15px Arial}
-.auth-roles{border:0;padding:0;margin:26px 0 8px}
-.auth-roles legend{font-size:14px;font-weight:700;margin-bottom:10px;padding:0}
-.role-option{display:grid;grid-template-columns:auto 1fr;gap:4px 11px;align-items:center;padding:13px 15px;margin-bottom:9px;background:var(--paper);border:1px solid var(--line);border-radius:4px;cursor:pointer}
-.role-option.selected{border-color:#8fad18;background:var(--surface)}
-.role-option input{margin:0;accent-color:#8fad18}
-.role-option b{font-size:14px}
-.role-option small{grid-column:2;color:var(--muted);font-size:13px}
 .auth-error{margin:18px 0 0;padding:12px 14px;background:#4a2222;color:#ffd7d7;border-radius:4px;font-size:14px}
 .auth-submit{width:100%;margin-top:22px;padding:15px}
+.auth-switch{margin:22px 0 0;color:var(--muted);font-size:15px}
+.auth-switch button{font:inherit;font-weight:700;color:var(--ink);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .auth-submit:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:600px){.auth-card{padding:26px 20px}.auth-card h1{font-size:29px}}
 
@@ -38,6 +33,7 @@
 .session-trigger b{font-size:13px;font-weight:800;line-height:1.2}
 .session-trigger small{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)}
 .session-dropdown{position:absolute;right:0;top:calc(100% + 8px);z-index:40;min-width:200px;background:var(--card);border:1px solid var(--line);border-radius:5px;padding:6px;box-shadow:0 14px 34px rgba(0,0,0,.18)}
+.session-dropdown::before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px}
 .session-dropdown a,.session-dropdown button{display:block;width:100%;text-align:left;padding:10px 12px;font-size:13px;font-weight:600;color:var(--ink);background:transparent;border:0;border-radius:4px;cursor:pointer}
 .session-dropdown a:hover,.session-dropdown button:hover{background:var(--surface)}
 .session-dropdown button{border-top:1px solid var(--line);border-radius:0 0 4px 4px;margin-top:4px;color:var(--muted)}
