@@ -39,6 +39,15 @@
 .session-dropdown button{border-top:1px solid var(--line);border-radius:0 0 4px 4px;margin-top:4px;color:var(--muted)}
 .session-group{margin:0;padding:10px 12px 4px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)}
 .session-group+a+.session-group{margin-top:4px;border-top:1px solid var(--line);padding-top:12px}
+.my-posts{display:grid;gap:14px;max-width:860px}
+.my-post{background:var(--card);border:1px solid var(--line);padding:22px 24px}
+.my-post-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.my-post-meta small{color:var(--muted);font-size:12px;text-transform:capitalize}
+.my-post h3{font-size:24px;line-height:1.1;margin:14px 0 8px}
+.my-post>p{color:var(--muted);font-size:14px;line-height:1.55;margin:0}
+.my-post .my-post-note{margin-top:12px;padding:10px 12px;background:var(--surface);color:var(--ink)}
+.my-post-actions{display:flex;align-items:center;gap:22px;margin-top:16px;flex-wrap:wrap}
+.my-post-delete{background:transparent;border:0;padding:0;font-size:13px;font-weight:800;color:#b4453a;cursor:pointer}
 .session-loading{display:inline-block;width:78px;height:34px;border-radius:100px;background:var(--surface)}
 
 /* Tiptap editor. */
