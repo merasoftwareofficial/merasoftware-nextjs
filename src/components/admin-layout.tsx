@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { atLeast, type Role } from "@/lib/auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /** Every nav entry, with the lowest role that may open it. */
 const navigation: [label: string, href: string, minimum: Role][] = [
@@ -21,7 +22,7 @@ const navigation: [label: string, href: string, minimum: Role][] = [
  */
 export function AdminLayout({ children, role = "visitor" }: { children: React.ReactNode; role?: Role }) {
   const visible = navigation.filter(([, , minimum]) => atLeast(role, minimum));
-  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand" href="/"><span>mera</span>software<span className="brand-dot">.</span></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<Link href="/">View website ↗</Link></aside>{children}</div>;
+  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand" href="/"><span>mera</span>software<span className="brand-dot">.</span></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}</div>;
 }
 
 export function AdminHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
