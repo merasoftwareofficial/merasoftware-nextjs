@@ -8,15 +8,69 @@
  *   DATA_DRIVER=mongo  MongoDB through Mongoose    (after migration)
  */
 
+import { publishedState } from "@/lib/publish-rules";
 import { jsonDriver } from "./json-driver";
 import { mongoDriver } from "./mongo-driver";
-import type { DataDriver } from "./types";
+import type { BlogRepo, DataDriver } from "./types";
 
 const driverName = process.env.DATA_DRIVER === "mongo" ? "mongo" : "json";
 
 const driver: DataDriver = driverName === "mongo" ? mongoDriver : jsonDriver;
 
-export const blogRepo = driver.blogs;
+/**
+ * Scheduled posts go live on the first blog read after their time.
+ *
+ * There is no background job: Vercel Hobby cron runs once a day at most, and a
+ * post only has to be live when someone asks for it. Every read below runs this
+ * first, so no page, feed or API can miss a due post. At most once a minute per
+ * server instance, so a post can appear up to a minute late.
+ */
+const DUE_CHECK_MS = 60_000;
+let lastDueCheck = 0;
+let dueCheck: Promise<void> = Promise.resolve();
+
+async function publishDuePosts() {
+  const now = Date.now();
+  const scheduled = await driver.blogs.list({ status: "scheduled" });
+  for (const post of scheduled) {
+    if (post.scheduledFor && Date.parse(post.scheduledFor) <= now) {
+      // The patch depends only on the post, so two instances racing here write the same thing.
+      await driver.blogs.update(post._id, publishedState(post, undefined, post.scheduledFor));
+    }
+  }
+}
+
+function ensureDuePublished() {
+  if (Date.now() - lastDueCheck >= DUE_CHECK_MS) {
+    lastDueCheck = Date.now();
+    dueCheck = publishDuePosts().catch(error => {
+      // A failed check must not break the page; the next read tries again.
+      lastDueCheck = 0;
+      console.error("[schedule] publishing due posts failed", error);
+    });
+  }
+  return dueCheck;
+}
+
+export const blogRepo: BlogRepo = {
+  ...driver.blogs,
+  async list(query) {
+    await ensureDuePublished();
+    return driver.blogs.list(query);
+  },
+  async count(query) {
+    await ensureDuePublished();
+    return driver.blogs.count(query);
+  },
+  async findById(id) {
+    await ensureDuePublished();
+    return driver.blogs.findById(id);
+  },
+  async findBySlug(slug) {
+    await ensureDuePublished();
+    return driver.blogs.findBySlug(slug);
+  },
+};
 export const userRepo = driver.users;
 export const commentRepo = driver.comments;
 export const reactionRepo = driver.reactions;

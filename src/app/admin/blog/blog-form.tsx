@@ -35,6 +35,17 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * A stored UTC time as a datetime-local value in the viewer's own timezone.
+ * The input has no timezone, so slicing the ISO string showed UTC as if it
+ * were local (5½ hours early in India) and re-saving shifted it further.
+ */
+function localInput(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
 function draftFrom(blog?: Blog): Draft {
   return {
     title: blog?.title ?? "",
@@ -52,7 +63,7 @@ function draftFrom(blog?: Blog): Draft {
     visibility: blog?.visibility ?? "public",
     comments: blog?.comments ?? "default",
     showViews: blog?.showViews ?? "default",
-    scheduledFor: blog?.scheduledFor?.slice(0, 16) ?? "",
+    scheduledFor: localInput(blog?.scheduledFor),
   };
 }
 
@@ -178,15 +189,21 @@ export function BlogForm({
       return;
     }
 
+    // Publishing or scheduling finishes the job, so go back to the list, which says what happened.
+    if (action === "publish" || action === "schedule") {
+      router.push(`/admin/blog?${new URLSearchParams({ done: action, post: data.slug })}`);
+      router.refresh();
+      return;
+    }
+
     setStatus(data.status);
+    if (action === "unpublish") set("scheduledFor", "");
     setMessage(
-      action === "publish"
-        ? "Published. It is now live on the blog."
-        : action === "schedule"
-          ? "Scheduled."
-          : action === "submit"
-            ? "Submitted for review."
-            : "Updated.",
+      action === "submit"
+        ? "Submitted for review."
+        : action === "unpublish" && status === "scheduled"
+          ? "Schedule cancelled. The post is a draft again."
+          : "Updated.",
     );
     router.refresh();
     if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
@@ -299,10 +316,17 @@ export function BlogForm({
             placeholder="Search result summary"
           />
         </label>
-        <label className="admin-field">
-          <span>Canonical URL (optional)</span>
-          <input value={draft.canonical} onChange={event => set("canonical", event.target.value)} placeholder="https://merasoftware.com/blog/…" />
-        </label>
+        {/* The post's own address is used automatically; this only overrides it. */}
+        <details className="admin-advanced" open={!!draft.canonical}>
+          <summary>Advanced</summary>
+          <label className="admin-field">
+            <span>Canonical URL — leave empty</span>
+            <input value={draft.canonical} onChange={event => set("canonical", event.target.value)} placeholder="Filled automatically from the post's URL" />
+            <small className="field-hint">
+              Only fill this if the article was first published on another website — then paste that page&apos;s address.
+            </small>
+          </label>
+        </details>
 
         {canPublish ? (
           <label className="admin-field">
@@ -332,7 +356,7 @@ export function BlogForm({
         <section className="admin-seo">
           <h2>Schedule</h2>
           <label className="admin-field">
-            <span>Publish at</span>
+            <span>Publish at (your local time)</span>
             <input type="datetime-local" value={draft.scheduledFor} onChange={event => set("scheduledFor", event.target.value)} />
           </label>
         </section>
@@ -369,6 +393,11 @@ export function BlogForm({
             {status === "published" ? (
               <button className="admin-button secondary" type="button" onClick={() => runAction("unpublish")} disabled={busy}>
                 Unpublish
+              </button>
+            ) : null}
+            {status === "scheduled" ? (
+              <button className="admin-button secondary" type="button" onClick={() => runAction("unpublish")} disabled={busy}>
+                Cancel schedule
               </button>
             ) : null}
             <button className="admin-button" type="button" onClick={() => runAction("publish")} disabled={busy}>

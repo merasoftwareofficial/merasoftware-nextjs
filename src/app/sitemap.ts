@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next";
 import { services } from "@/lib/site-data";
 import { blogRepo, userRepo } from "@/lib/repo";
-
-const SITE = "https://merasoftware.com";
+import { SITE_URL as SITE } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 

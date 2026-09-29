@@ -19,7 +19,7 @@
 - No Firebase Auth work for now (27 Sep 2026). B's login is what replaces A's development sign-in.
 - After sign-in, return the user to what they signed in for (27 Sep 2026). Header sign-in stays on the page; a portal link goes to the portal; an action such as writing a review resumes that action. The role decides what the user can open (portal, blog panel, features), not where sign-in lands.
 - "Create account" on the website is for the blog only, for now (27 Sep 2026). Portal users are not created from the website — the business creates them (admin panel, lead convert).
-- For now only the system and structure are being built — no changes to the website's content or UI (27 Sep 2026). A "My Portal" link waits for that UI work.
+- For now only the system and structure are being built — no changes to the website's content or UI (27 Sep 2026). Exception approved on 28 Sep 2026: the header account menu shows the portal link and the portal role (details in `BLOG.md`).
 - Guests (portal demo accounts) are signed out on the website, and the portal status check is cached briefly (27 Sep 2026).
 - B stores a plaintext copy of passwords (`STORE_PLAIN_PASSWORD: true`, `config/accessControlConfig.js`) — owner-accepted risk, not to be changed unless the owner says so.
 
@@ -38,10 +38,11 @@
 ## How the login works now
 
 - Website `/login` (`src/app/login/login-form.tsx`) posts from the browser to the portal's `/api/signin` or `/api/signup`; the portal sets the `token` cookie (`COOKIE_DOMAIN=.merasoftware.com` live, host-only on localhost).
-- Website `getSessionUser()` (`src/lib/auth.ts` → `src/lib/portal.ts`) verifies that JWT with `TOKEN_SECRET_KEY`, asks the portal `GET /api/user-details` for roles, guest flag and ban (cached 60 s), then finds, links or creates the website user by `portalUserId`. A portal admin is website admin by derivation, never stored.
+- Website `getSession()` / `getSessionUser()` (`src/lib/auth.ts` → `src/lib/portal.ts`) verifies that JWT with `TOKEN_SECRET_KEY`, asks the portal `GET /api/user-details` for roles, guest flag and ban (cached 60 s), then finds, links or creates the website user by `portalUserId`. A portal admin is website admin by derivation, never stored.
 - Portal sign-up creates a blog-only `member` (no portal screens). Portal roles are granted only by an admin through `/api/addRole`; the portal's Add Customer/Admin/Developer/Partner buttons use `frontend/src/helpers/createAccountWithRole.js`.
 - Sign-out calls the portal's `/api/userLogout`; the portal drops its cached user on a 401 (`frontend/src/AppContent.js`).
 - Blog roles and bans: website `/admin/users` → `PATCH /api/users/[id]`.
+- The website header shows the portal link by portal role (admin → portal admin panel, customer → My Portal) from `getSession()` in `src/lib/auth.ts`; roles and menu rules are in `BLOG.md`.
 - Settings the website needs (Vercel and `.env.local`): `TOKEN_SECRET_KEY` (exactly the backend's value), `PORTAL_API_URL`, `PORTAL_URL`, `MONGODB_URI`, `DATA_DRIVER`. Without them the build fails on `/login` (this happened on 28 Sep 2026).
 - Settings the backend needs on Render: `MONGODB_URI`, `TOKEN_SECRET_KEY`, `RESEND_API_KEY`, `FROM_EMAIL`, `FROM_NAME`, `ADMIN_EMAIL`, `ADMIN_DASHBOARD_URL`, `FORNTEND_URL` (spelled as in the code), `KEEP_ALIVE_URL`, `COOKIE_DOMAIN`, `EXTERNAL_UPLOAD_TOKEN_SECRET`, `GOOGLE_DRIVE_CREDENTIALS_PATH` + secret file `google-drive-credentials.json`, and `ENABLE_CRONS=true` on production only.
 
@@ -53,19 +54,22 @@
 
 ## Pending work
 
-### Finish going live (as of 28 Sep 2026)
+### Finish going live
 
-1. **Check the website redeploy.** The owner added `TOKEN_SECRET_KEY` on Vercel and redeployed on 28 Sep; not yet verified. `www.merasoftware.com/login` must show "Create an account", not "DEVELOPMENT SIGN IN" — the old page still lets anyone pick the admin role.
-2. **Render settings.** On 28 Sep the new backend was missing `COOKIE_DOMAIN`, `ADMIN_DASHBOARD_URL` and `KEEP_ALIVE_URL`; confirm they are added. `MONGODB_URI` must point at `merasoftware-db`.
-3. **Crons.** Suspend the old Render backend first, then set `ENABLE_CRONS=true` on the new one. The old one runs crons with no switch, so both on means renewals run twice.
-4. **`portal.merasoftware.com` → new portal.** Add the Cloudflare TXT record `_vercel` shown in the portal project's Vercel Domains page, verify, then point the `portal` CNAME at the target Vercel gives. Until then `portal.*` serves the old portal frontend from another Vercel account, whose Add Customer/Admin buttons now create blog-only members against the new backend.
-5. **Decide the portal's own login page.** It holds "Forgot password?" and "Login as Guest" (demo). Redirecting it to the website login would remove both — owner's call.
-6. **Local testing** needs an account in `merasoftware-dev`: create one at `localhost:3000/login`, then make it admin in that database.
-7. The rollback folders `E:\merasoftware-new\work7`–`work14` are from before the fixes, which are now committed and deployed — delete when the owner wants.
+1. **Render settings.** On 28 Sep the new backend was missing `COOKIE_DOMAIN`, `ADMIN_DASHBOARD_URL` and `KEEP_ALIVE_URL`; confirm they are added. `MONGODB_URI` must point at `merasoftware-db`.
+2. **Crons.** Suspend the old Render backend first, then set `ENABLE_CRONS=true` on the new one. The old one runs crons with no switch, so both on means renewals run twice.
+3. **`portal.merasoftware.com` → new portal.** Add the Cloudflare TXT record `_vercel` shown in the portal project's Vercel Domains page, verify, then point the `portal` CNAME at the target Vercel gives. Until then `portal.*` serves the old portal frontend from another Vercel account, whose Add Customer/Admin buttons now create blog-only members against the new backend.
+4. **Decide the portal's own login page.** It holds "Forgot password?" (a dead `href="#"` link — no reset exists anywhere) and "Login as Guest" (demo). Redirecting it to the website login would remove both — owner's call.
+5. **Local testing** needs an account in `merasoftware-dev` (it has no users, so live accounts get "User not found" locally): create one at `localhost:3000/login`, then make it admin in that database.
+6. The rollback folders `E:\merasoftware-new\work7`–`work14` are from before the fixes, which are now committed and deployed — delete when the owner wants.
 
 ### Waits for the UI work
 
-- "My Portal" link in the website header, and website sections that send users to the portal with `/login?next=<portal URL>`.
+- Website sections that send users to the portal with `/login?next=<portal URL>`.
+
+### Found, not fixed
+
+- **Signin is case-sensitive on email.** Signup stores the email lowercased; `backend/controller/user/userSignIn.js` looks it up as typed, so `Name@Gmail.com` gets "User not found". One-line fix, awaiting the owner.
 
 ### Open issues on B — found, not fixed, need an owner call
 

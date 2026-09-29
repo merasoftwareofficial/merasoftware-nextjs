@@ -16,7 +16,7 @@ import {
   visibleStatuses,
 } from "@/lib/comment-rules";
 import { blogRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
-import { articleLd, breadcrumbLd, jsonLd } from "@/lib/structured-data";
+import { articleLd, breadcrumbLd, jsonLd, SITE_NAME, SITE_URL } from "@/lib/structured-data";
 import { formatViews, viewsVisible } from "@/lib/view-rules";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +28,13 @@ export async function generateMetadata({ params }: Params) {
   const post = await blogRepo.findBySlug(slug);
   if (!post) return { title: "Article" };
 
+  // A post is its own canonical unless the editor says it first appeared elsewhere.
+  const canonical = post.seo?.canonical || `${SITE_URL}/blog/${post.slug}`;
+
   return {
     title: post.seo?.title || post.title,
     description: post.seo?.description || post.excerpt,
-    alternates: post.seo?.canonical ? { canonical: post.seo.canonical } : undefined,
+    alternates: { canonical },
     // Members-only, private and unlisted posts must never be indexed, and a
     // community post stays out of the index until a moderator allows it.
     robots: post.noIndex || post.visibility !== "public" ? { index: false, follow: false } : undefined,
@@ -39,6 +42,8 @@ export async function generateMetadata({ params }: Params) {
       title: post.seo?.title || post.title,
       description: post.seo?.description || post.excerpt,
       type: "article",
+      url: canonical,
+      siteName: SITE_NAME,
       publishedTime: post.publishedAt,
       authors: [post.authorName],
       images: post.featuredImage?.url ? [post.featuredImage.url] : undefined,

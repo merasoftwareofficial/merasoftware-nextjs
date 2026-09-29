@@ -182,7 +182,9 @@ const blogs: BlogRepo = {
     const rows = read<Blog>("blogs");
     const index = rows.findIndex(row => row._id === blogId);
     if (index === -1) return;
-    rows[index] = { ...rows[index], [field]: Math.max(0, rows[index][field] + by), updatedAt: now() };
+    // Not updatedAt: a reaction or save is not an edit, and updatedAt is the
+    // article's dateModified for search engines and the sitemap.
+    rows[index] = { ...rows[index], [field]: Math.max(0, rows[index][field] + by) };
     write("blogs", rows);
   },
 };

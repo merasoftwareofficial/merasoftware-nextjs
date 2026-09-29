@@ -147,7 +147,7 @@ export interface BlogRepo {
   create(data: NewBlog): Promise<Blog>;
   update(id: string, patch: Partial<Blog>): Promise<Blog | null>;
   remove(id: string): Promise<boolean>;
-  /** Atomic counter change used by reactions and saves. */
+  /** Atomic counter change used by reactions and saves. Leaves updatedAt alone. */
   incr(id: string, field: "helpfulCount" | "insightfulCount" | "saveCount", by: number): Promise<void>;
 }
 

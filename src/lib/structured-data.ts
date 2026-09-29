@@ -12,7 +12,13 @@
 
 import type { Blog, User } from "@/lib/repo";
 
-export const SITE_URL = "https://merasoftware.com";
+/**
+ * The site's one public address. Vercel redirects merasoftware.com to www
+ * (308), so every canonical, sitemap and structured-data URL uses www — a URL
+ * that redirects is never the canonical one. Layout, sitemap and robots read
+ * this constant; do not write the domain anywhere else.
+ */
+export const SITE_URL = "https://www.merasoftware.com";
 export const SITE_NAME = "Mera Software";
 
 /** The publisher block every Article repeats. */

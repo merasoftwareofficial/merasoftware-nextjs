@@ -99,6 +99,8 @@
 .admin-row-actions{display:flex;gap:14px;white-space:nowrap}
 .slug-taken{color:var(--pn-bad);font-style:normal;font-weight:700}
 .slug-free{color:var(--pn-good);font-style:normal;font-weight:700}
+.admin-advanced{margin-bottom:20px}.admin-advanced summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--pn-soft);margin-bottom:14px}
+.field-hint{display:block;margin-top:8px;font-size:14px;line-height:1.5;color:var(--pn-muted)}
 .form-error{margin:18px 0 0;padding:12px 14px;background:var(--pn-err-bg);color:var(--pn-err);border-radius:4px;font-size:14px}
 .form-message{margin:18px 0 0;padding:12px 14px;background:var(--pn-ok-bg);color:var(--pn-ok);border-radius:4px;font-size:14px}
 .form-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end;margin-top:26px}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
+import { DoneNotice } from "@/components/done-notice";
 import { atLeast, requireStaffPage } from "@/lib/auth";
 import { blogRepo, viewRepo, type BlogStatus } from "@/lib/repo";
 import { dayKey } from "@/lib/view-rules";
@@ -31,10 +32,37 @@ function when(value?: string) {
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default async function BlogAdmin({ searchParams }: { searchParams: Promise<{ status?: string; sort?: string }> }) {
+/**
+ * Server pages render in UTC on Vercel, so a schedule is shown in India time
+ * explicitly — the same clock the editor picked it on.
+ */
+function scheduledAt(value?: string) {
+  if (!value) return "";
+  return new Date(value).toLocaleString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** Shown after the editor form sends the user back here, completed with the post's title. */
+const DONE_MESSAGE: Record<string, (title: string) => string> = {
+  publish: title => `“${title}” is published and live on the blog.`,
+  schedule: title => `“${title}” is scheduled. It goes live at the time shown in the list.`,
+};
+
+export default async function BlogAdmin({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; sort?: string; done?: string; post?: string }>;
+}) {
   const user = await requireStaffPage("/admin/blog");
 
-  const { status, sort } = await searchParams;
+  const { status, sort, done, post: doneSlug } = await searchParams;
+  const donePost = done && Object.hasOwn(DONE_MESSAGE, done) && doneSlug ? await blogRepo.findBySlug(doneSlug) : null;
   const byViews = sort === "views";
 
   // Staff only (requireStaffPage); members follow their own posts at /account/posts.
@@ -76,6 +104,13 @@ export default async function BlogAdmin({ searchParams }: { searchParams: Promis
         }
       />
 
+      {done && donePost ? (
+        <DoneNotice
+          message={DONE_MESSAGE[done](donePost.title)}
+          href={donePost.status === "published" ? `/blog/${donePost.slug}` : undefined}
+        />
+      ) : null}
+
       <div className="admin-filters">
         {FILTERS.map(filter => (
           <Link
@@ -107,6 +142,7 @@ export default async function BlogAdmin({ searchParams }: { searchParams: Promis
             <span className={`status ${STATUS_CLASS[post.status]}`} key="s">
               {post.status}
               {post.status === "published" && post.noIndex ? " · noindex" : ""}
+              {post.status === "scheduled" && post.scheduledFor ? ` · ${scheduledAt(post.scheduledFor)} IST` : ""}
             </span>,
             (post.viewCount ?? 0).toLocaleString("en-IN"),
             (week[post._id] ?? 0).toLocaleString("en-IN"),

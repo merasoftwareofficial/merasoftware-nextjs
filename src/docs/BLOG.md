@@ -1,211 +1,137 @@
-# Blog & Community
+# Blog, Community & Panel
 
-> **Keep this document short.** Every line must earn its place: complete, but never padded. When you learn something that contradicts what is here, correct it and delete what is now wrong — a stale line is worse than no line. Add a fact only if the next person would waste time without it.
+> **Keep this document short.** Every line must earn its place. When something here becomes untrue, correct it and delete the stale line. Owner's rule: **remove finished work** — keep only how the system works, the owner's decisions and what is still pending.
 >
-> **Record what the owner decides, not what you conclude.** When a decision, correction or requirement is given in conversation, write it here as it was given, so it survives the session. Do not add your own opinions, suggestions or findings the owner has not approved — this document is the owner's standing instructions, not a private notebook.
+> **Record what the owner decides, not what you conclude.** Owner instructions given in conversation go here as given. Your own suggestions go under "Proposed" until the owner approves them.
+
+Read with: `INSTRUCTIONS.md` (project rules), `login.md` (one login with the client portal — SSOT for login and hosting), `CODE_AUDIT.md` (code weak points).
 
 ## Goal
 
-A real blog and community that earns SEO traffic and brings useful members together. Never a spam or paid-backlink site.
+A real blog and community that earns SEO traffic and brings useful members together — never a spam or paid-backlink site. The management panel (`/admin`) runs the website for staff.
+
+## How the owner wants you to work
+
+- **Understand → short review → owner's "yes" → code → owner review → docs.** Before any coding, say in short Hinglish what you understood and what you will change, and wait. "analyze / batao / explain" means read-only; "haan / yes / proceed / start working" means code. Update docs only after the owner is happy, and never reword an owner decision.
+- **Evidence first.** Verify by running, not by reading. Several code-reading theories were wrong; running found the real causes (see Traps).
+- **Backup** every file you change into the next numbered `workN/` folder (same relative path) and add that folder to `tsconfig.json` `exclude`. Last used: `work26`.
+- **One step at a time;** each step is reviewed by the owner before the next.
+- **Only what was asked.** Speed work is deferred by the owner ("abhi sirf working aur functionality") unless a feature needs it.
+- **Never touch the owner's running servers** (website `:3000`, portal frontend `:3001`, portal backend `:8080`).
+
+### How to test without touching real data
+
+- The local `.env.local` points at the **production website database** (`merasoftware`, `DATA_DRIVER=mongo`). Never test against it.
+- Test in a throwaway copy: copy `src public package.json next.config.ts tsconfig.json postcss.config.mjs next-env.d.ts .env.local` to `E:\Allprojects\merasoftware-verify-tmp`, junction its `node_modules` to the real one (must be on E: — a C: copy fails to resolve Next's client files), and run `next dev --webpack -p 3010` with env overrides `MONGODB_DB=merasoftware-fix-test`, `PORTAL_API_URL=http://localhost:8090`, `PORTAL_URL=http://localhost:3001`, `TOKEN_SECRET_KEY` (same value as the backend's), `VIEW_HASH_SECRET=<any test string>`. For a JSON-driver run set `DATA_DRIVER=json` (data goes to the copy's `.data/`).
+- Run the portal backend a second time on port 8090 with `MONGODB_URI` retargeted from `merasoftware-dev` to `merasoftware-fix-test` and `ENABLE_CRONS=false`, passed as env — never edit its `.env`.
+- The website and portal databases are on **different Atlas clusters**, so both can be called `merasoftware-fix-test` without sharing a `users` collection.
+- Sign test accounts up through the backend (`/api/signup`, lowercase emails — see Traps), sign in to get the `token` cookie, and send it to the site. Make a portal admin by setting `roles: ["admin"]` on the fix-test backend DB.
+- Headless Chrome counts as a bot for views; override the user agent. In Git Bash set `MSYS_NO_PATHCONV=1`, or arguments like `/admin` turn into Windows paths.
+- Stop your test servers and delete the temp folder (remove the junction first, never its target) when done.
 
 ## Architecture
 
 ```text
-UI pages → /api/* routes → repo layer → driver
-                                        ├── json-driver  (now)
-                                        └── mongo-driver (implemented)
+UI pages → /api/* routes → repo layer (src/lib/repo) → json-driver (.data/*.json) | mongo-driver (Atlas)
 ```
 
-Local default data lives server-side in `.data/*.json` (gitignored). MongoDB mode stores blogs, users, comments, reactions, saved posts, reports and settings in Mongoose collections. Set `DATA_DRIVER=mongo` and `MONGODB_URI`; database name defaults to `merasoftware` and can be overridden with `MONGODB_DB`. DB-backed pages render per request, so deployment build does not need Atlas access.
-
-Not implemented: Cloudinary uploads (image URL + alt fields are used). Login comes from the client portal — see `login.md`.
+Production runs `DATA_DRIVER=mongo` (database `merasoftware`). Login comes from the client portal (`login.md`). Cloudinary uploads are not built; images are URL + alt fields.
 
 ## Rules
 
-1. **Import from `@/lib/repo`, never a driver file.** Direct imports defeat the one-file migration and no test will catch it.
-2. **No LocalStorage as a data store.** Rejected because the blog needs server rendering for SEO, moderation needs one shared store, and every page would need rewriting at migration. Fine for a per-viewer convenience like a remembered filter.
-3. **Permission logic lives in `src/lib/blog-rules.ts`.** `canRunAction`, `canEdit`, `canDelete`, `isReadable` — shared by API and UI so they cannot disagree.
-4. **Import auth from `@/lib/auth`, never `@/lib/firebase-admin`.** The latter throws on every call; no credentials exist.
-5. **Do not rename repo fields.** They match the Mongoose model on purpose.
-6. **Verify by running, not by reading.** Every claim in Completed work was checked with a live call. Three code-reading theories were wrong in one session.
-7. **Back up to `workN` before changing files,** and add the new folder to `tsconfig.json` `exclude`.
-8. **Emit structured data only where the page is indexable.** `src/lib/structured-data.ts` builds it; the page decides. Describing a noindex, members-only or unpublished post to a crawler contradicts what the page shows.
+1. **Import from `@/lib/repo`, never a driver file.** Both drivers implement `src/lib/repo/types.ts`; a new repo method goes in types + both drivers.
+2. **No LocalStorage as a data store** (SSR/SEO, one shared moderation store). Fine for per-viewer conveniences like the theme choice.
+3. **Rules live in one file per area** and are shared by API and UI: `blog-rules.ts` (posts), `comment-rules.ts` (comments), `view-rules.ts` (views).
+4. **Auth only through `@/lib/auth`.** Never `@/lib/firebase-admin` (throws on every call).
+5. **Do not rename repo fields;** they mirror the Mongoose models. New fields need the model, the type and both drivers.
+6. **Every `/admin/*` page calls `requireStaffPage(path, minimum)` itself.** Not the layout: a Next 16 layout does not re-run on client navigation (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, "Layouts and auth checks").
+7. **Emit structured data only where the page is indexable.**
+8. **Copy `src/app/api/blogs/[id]/route.ts`** when writing a new route — it carries the error, auth and permission conventions.
+9. **Security:** check session and role on every protected call; never trust a role or user id sent by the client; secrets stay server-side and are never pasted into chat. `GET /api/settings` is public on purpose (nothing secret in it); only `PATCH` needs admin.
 
-Copy `src/app/api/blogs/[id]/route.ts` when writing a new route — it carries the error, auth and permission conventions the others follow.
+## Earlier owner decisions (25–27 Sep 2026)
+
+- Editor: Tiptap. Build step by step.
+- **A slug stays editable after publish.** The risk (changing it breaks every old link) was raised; the owner chose to keep it.
+- Comment defaults are controlled from the admin panel, not code; an editor/admin can set comments per post; an admin can remove any comment. Refinements were deferred ("isse baad mein behtar kar sakte hain").
+- No Firebase Auth for now — login comes from the client portal (`login.md`).
+- Docs stay short and carry the owner's decisions, not the agent's conclusions.
+
+## Roles and access (owner decisions, 28–29 Sep 2026)
+
+| Role | What they get |
+|---|---|
+| Visitor | Reads public posts. No login. Any action (comment, save, write) sends them to `/login` and back. |
+| Member | A signed-in reader who can also write. Reads members-only posts, comments, reacts, saves, reports, writes community/discussion posts that **always need approval**. **No management panel** — their area is the account menu: My profile, My posts (`/account/posts`), Saved posts, Write a post. |
+| Moderator | Panel: overview, blog posts, review queue, comments. Approves/rejects member posts. Cannot write official posts. |
+| Editor ("publisher") | Everything content: writes and publishes official posts directly, review queue, comments, site-content pages. Not Settings or Users. |
+| Admin | Everything, including Settings and Users. |
+
+- **Signup makes a member instantly, no approval** — owner agreed ("aise hi sahi, signup par member ban jaye"). Control is post review, not signup review.
+- **Publisher = editor, granted manually** by an admin at `/admin/users` (role dropdown). Owner: "manual hi sahi" — no automatic promotion rules for now. The user must have signed in to the website once to appear in the list.
+- **Two separate roles per person:** portal role (customer/admin/…) lives in the portal; blog role lives on the website. A portal admin is always website admin (derived, never stored). Portal access is never granted by website signup. A blog helper must never be made a portal admin — portal admins see payments and client passwords.
+- **Header menu:** label shows Admin / Customer / blog role. Dropdown has a PORTAL section (portal admin → "Portal admin panel" `PORTAL_URL/admin-panel/dashboard`; customer → "My Portal" `PORTAL_URL/dashboard`) and a WEBSITE section. Built from `getSession()` in `src/lib/auth.ts`, which returns portal roles alongside the user (never stored).
+
+## Content flow
+
+```text
+Member: Write → Draft → Submit → Pending → (moderator) Approve → Published | Reject / Request changes → back to the author with a note
+Editor/Admin: write official → Publish directly
+```
+
+Types `official · community · discussion`. Visibility `public · members (login, noindex) · private · unlisted (link only)`. Status `draft · pending · published · scheduled · rejected · archived`. A community post starts `noindex`; the moderator decides indexing on approve. Comment mode per post `default · open · moderated · closed`; site defaults at `/admin/settings`; moderators hide, only admins delete.
+
+## Views and stats (owner decisions, 29 Sep 2026)
+
+Owner: every post's readership must be known; at least the admin sees views per post in the panel, and the admin can choose to show views under posts.
+
+- **One view per visitor per post per 24 hours** (owner chose this). Visitor = HMAC of IP + user agent + post with `VIEW_HASH_SECRET`, stored 24 h only (`viewseens`, TTL index). No raw IP is stored.
+- Not counted: the author, staff (moderator and up), bots/headless/empty user agents, unpublished or unreadable posts, prefetches (the count is sent by `ViewBeacon` after the page opens).
+- Daily totals kept in `viewdays` for future graphs. A view never changes the post's `updatedAt`.
+- Panel blog list: Views · 7 days · Helpful · Insightful · Saves, plus "Most viewed" order.
+- Public count: site switch at `/admin/settings` (default **off**) + per-post Default/Show/Hide (editor and up).
+- `/blog` shows "Popular this week" (top 3, no counts). Related reading breaks score ties by views.
+- Without `VIEW_HASH_SECRET` nothing is counted and the server logs one warning; the site still works.
+
+## Management panel theme (owner decision, 29 Sep 2026)
+
+The panel follows the website's light/dark Theme switch (one saved choice for both; button in the panel nav). Panel colours are `--pn-*` tokens in `globals.css`: their `:root` defaults are the old dark values so panel classes reused on website pages (`admin-empty`, `status`, `form-error`…) look unchanged; inside `.admin-shell` they switch with the theme.
+
+## Pending
+
+- **Owner review** of the changes in `work21`–`work24` (roll back from those folders if the owner rejects one).
+- **Owner action:** add `VIEW_HASH_SECRET` (any long random string) on Vercel; until then no views are counted.
+
+## Next work (planned with the owner)
+
+1. **Signin email case bug** (portal backend, one line) — see `login.md` "Found, not fixed". Awaiting the owner's go.
+2. **`/admin/users` improvements:** confirm before a role change, portal-role column, a record of who changed which role and when, search/filter.
+3. **Account safety (needs portal backend work):** password reset (the portal's "Forgot password?" is a dead `href="#"`), email verification (the backend's unused OTP routes need review first), rate limit / captcha on signup and login.
+4. **Language versions** — agreed design: each language version is its own post (own slug, SEO, views, status) linked by `language` + `translationGroup`; "Add translation" in the blog form copies the original; "Read in: English | हिन्दी" switch; `hreflang` tags; group total in the panel. **Blocked on owner decisions:** which languages, URL shape (`/hi/blog/slug` or other), blog content only or the whole site.
+
+## Open owner decisions
+
+1. Remove Leads from editors? (Leads are customer contact data, not content.)
+2. May a moderator approve their own post? (Code allows it today.)
+3. Reactions and saves change a post's `updatedAt` through `blogRepo.incr()` — fix?
+4. Point local `.env.local` at a separate dev database instead of production?
+
+## Later, when the site grows
+
+Speed (live responses carry `x-vercel-id: bom1::iad1`, so pages are built in the US, while both Atlas clusters answer the owner's PC in about 32 ms, i.e. they are in India — moving Vercel functions to `bom1` is the likely main fix, not yet measured; also parallel queries on `/admin` and one session lookup per request) · rules and an "apply" flow for becoming publisher/moderator · "trusted writer" · recommendations from reading history · AI content matching.
 
 ## Traps already hit
 
-- **Tiptap `generateHTML` throws `window is not defined` on the server.** Use `renderToHTMLString` from `@tiptap/static-renderer`, as `rich-content.tsx` does.
-- **StarterKit already bundles Link.** Configure it through `StarterKit.configure({ link })`; adding the package separately warns about duplicates.
-- **Editor and renderer must share `src/components/editor/extensions.ts`,** or authors and readers see different output.
-- **Turbopack can serve stale caches.** Stop the dev server before clearing `.next`; in PowerShell use `Remove-Item -Recurse -Force .next`, then restart before trusting a confusing result.
-- **`blogInputSchema` validates `slug` before the route slugifies it.** A form must send an already-valid slug; sending a raw title returns 400. Both forms slugify client-side.
-- **Never `rm -rf .next` while a dev server is running.** It leaves that process serving from a directory that no longer exists, and every authenticated page starts redirecting to `/login` as though the session were broken. Stop the server first.
-- **A `.data` write is only visible to other module instances because `read()` checks the file mtime.** Do not "optimise" that check away — see the B3 note in Completed work for what breaks.
-- **A search term is echoed back into the search input's `value`,** so asserting that a page does not contain a word is not proof the post is hidden. Assert on the post's title or its card link instead. This produced two false failures in the B5 run.
-- **`MetadataRoute.Sitemap` entries built through `.map()` widen `changeFrequency` to `string` and stop compiling.** Annotate the array with `satisfies` before mapping, as `sitemap.ts` does.
-- **The dev server on this machine can die under memory pressure** — the next request may get `ECONNREFUSED` rather than an error in the log. Restart it and re-run before treating that as a code fault.
-
-## Roles and flow
-
-```text
-Visitor   read public content
-Member    login, profile, comments, reactions, saves, draft/submit
-Moderator review posts, comments, reports
-Editor    manage and publish official posts
-Admin     full control
-
-Member: Write → Draft → Submit → Approve/Reject/Request changes → Publish
-```
-
-Members never publish directly. Enforced in `blog-rules.ts`: `publish` requires `editor`, and `/api/blogs` forces a member's type to community or discussion.
-
-Types: `official` · `community` · `discussion`
-Visibility: `public` · `members` (login, noindex) · `private` (author/admin) · `unlisted` (link only, noindex, out of listings)
-Status: `draft` · `pending` · `published` · `scheduled` · `rejected` · `archived`
-
-Community posts start `noindex` by design — a moderator makes one indexable via the `index` flag on approve.
-
-Comment status: `visible` · `hidden` (moderator, reversible) · `pending` (waiting for approval)
-Comment mode per post: `default` (follow the site setting) · `open` · `moderated` · `closed`
-
-A new comment is `visible` or `pending` depending on `effectiveMode()` in `comment-rules.ts` — the post's own mode, or the site setting when the post says `default`. An admin sets that default at `/admin/settings`; an editor sets a post's own mode in the blog form. A moderator hides and shows; only an admin deletes, and deleting takes the replies with it.
-
-## Security
-
-Cloudinary secrets stay server-side. Verify token and role on every protected call; never trust a client-supplied role or user id.
-
-The session is the client portal's signed `token` cookie, verified in `src/lib/auth.ts` / `src/lib/portal.ts` (`login.md`). The old development sign-in (`POST /api/auth` with a role in the body) is removed; blog roles are set at `/admin/users`.
-
-`GET /api/settings` is public because the article page needs to know whether comments are open; only `PATCH` requires admin. Nothing secret lives in that row.
-
-## Status
-
-B1 to B5 are done and MongoDB persistence is implemented. Login is shared with the client portal (`login.md`); remaining integration is Cloudinary uploads.
-
-Working today: `/login`, `/blog` (with search), `/blog/[slug]`, official post CRUD with the Tiptap editor, SEO and visibility controls, `rel="ugc"`/`sponsored` links, metadata, JSON-LD and ranked related posts. Members write at `/community/write` and submit for review; moderators decide at `/admin/blog/review`; approved posts list on `/community`, `/discussions`, `/topics/[slug]` and `/members/[username]`. Readers comment, reply, react and save; moderators work at `/admin/comments`; an admin sets the comment defaults at `/admin/settings`.
-
-Most `/admin/*` pages outside `blog/`, `comments/` and the comment block of `settings/` are still static forms with no handlers.
-
-A community or discussion post is read at `/blog/[slug]` — that page never filtered by type, so no separate route was needed.
-
-`.data` is empty on a fresh checkout — an empty `/blog` means no post has been written, not a broken page.
-
-## Owner decisions
-
-Given in conversation on 25 Sep 2026. These override the original plan where they differ.
-
-- **Storage:** repo layer + server-side JSON, not MongoDB first and not LocalStorage. Reason accepted: working functionality now, one-file migration later.
-- **Editor:** Tiptap.
-- **Auth:** development sign-in with a role picker, shaped like Firebase. (Replaced by the client-portal login on 27 Sep 2026 — see `login.md`.)
-- **Build order:** step by step, not everything at once. B2 was taken as one piece because a half-built blog cannot be tested end to end.
-- **Slug stays editable after publish.** Raised as a risk — changing a published slug 404s every existing link — and the owner chose to leave it as is.
-- **Docs must stay short and effective,** and must carry the owner's decisions rather than the agent's own conclusions.
-- **Backups:** numbered `workN` folder before each step.
-
-Given in conversation on 26 Sep 2026, during B4:
-
-- **The comment default must be controlled from the admin panel,** not fixed in code — asked for when the agent proposed hardcoding it.
-- **An editor or admin must also be able to set comments on a post while writing or editing it,** independently of the site default.
-- **An admin must be able to remove any comment.**
-- **Refinements to those three were deferred:** "isse baad mein behtar kar sakte hain". The agent chose the open questions for now — per-post control is editor-and-above so a member's post follows the site default, and a moderator hides while only an admin deletes. Both are one line each in `comment-rules.ts` if the owner wants them different.
-
-Given in conversation on 27 Sep 2026:
-
-- **No Firebase Auth work for now.** Login comes from the client portal instead — see `login.md`, which holds that plan.
-
-## Full plan — B1 to B5
-
-### B1 — data and session foundation · DONE
-
-Needed because nothing else can be built until there is somewhere to store posts and a way to know who is acting. Delivered: repo layer, cookie session with roles, `/login`, shared error handling. Detail in Completed work below.
-
-### B2 — official blog · DONE
-
-Needed because this is the part the business actually uses — writing and publishing articles that bring search traffic. Delivered: Tiptap editor, blog APIs with a 9-action status route, permission rules, working admin form and list, real public pages. Detail in Completed work below.
-
-### B3 — community and moderation · DONE
-
-Why it is needed: members writing content is what makes this a community rather than a company blog, and the moderation queue is what stops it becoming a spam and backlink site.
-
-Delivered: member submission form, the review queue with the index decision, real community/discussion/topic listings, member profiles. Detail in Completed work below.
-
-### B4 — comments, reactions, saved posts · DONE
-
-Why it is needed: without these a reader has no reason to return, and the engagement routes were broken.
-
-Delivered: comment and report APIs, threaded comments and reaction buttons on the article, the `/admin/comments` moderation queue, a real `/account/saved`, and the two broken engagement routes moved onto the repo layer. Comment defaults became owner-controlled — see Owner decisions. Detail in Completed work below.
-
-### B5 — SEO and finishing · DONE
-
-Why it is needed: the whole point of the blog is search traffic, and none of it counts until search engines can read and trust the pages.
-
-Delivered: a real sitemap, JSON-LD on articles, profiles and the blog listing, search on `/blog` and `/community`, ranked related posts, and the full permission pass. Detail in Completed work below.
-
-### Next — online integrations
-
-Nothing in B1–B5 is outstanding. What remains is the move off local development:
-
-- Cloudinary upload, replacing the image URL + alt fields
-- The `/admin/*` pages that are still static forms, if the owner wants them working
-
-## Completed work
-
-### MongoDB persistence — DONE
-
-Implemented every repo operation in `mongo-driver.ts`, added the User model, normalized Mongo ids and dates for existing APIs, and made database-backed pages request-rendered. Verified `npm run build` with `DATA_DRIVER=mongo` and a read-only Atlas ping; no sample records were inserted. Live CRUD against Atlas has not been exercised yet.
-
-### B1 — data and session foundation
-
-Built `src/lib/repo/` (driver selector + JSON driver; Mongo driver implemented later), `src/lib/auth.ts` (cookie session, 5-level role rank), `/login`, and `src/lib/api.ts` for one error convention. Replaced an earlier `firebase-admin` flow that threw on every call. Verified: 22 driver tests, 7 HTTP auth tests.
-
-### B2 — official blog
-
-Built the blog APIs (`api/blogs`, `api/blogs/[id]`, its 9-action `status` route, `api/slug-check`), `src/lib/blog-rules.ts`, the Tiptap editor and renderer over a shared `extensions.ts`, the admin form and list, and real `/blog` + `/blog/[slug]`. Replaced hardcoded posts everywhere, including the homepage journal and `site-data.ts`. Verified: 21 HTTP tests.
-
-### B3 — community and moderation
-
-Built `components/community-form.tsx` and `/community/write` (login-gated, `?edit=<slug>` reopens the author's own draft or rejected post), the `admin/blog/review` queue with the index decision, the `/community`, `/discussions` and `/topics/[slug]` listings, and `/members/[username]`. Replaced the fake `community-write-demo.tsx` and the placeholder pages. Fixed the `json-driver` cache that made an API write invisible until a restart — the mtime check in `read()` is that fix, and the Traps note above says why it must stay. Verified: 49 HTTP checks across four roles.
-
-### B4 — comments, reactions, saved posts
-
-Built on the existing repos, which were left alone:
-
-- `src/lib/comment-rules.ts` — the permission and validation home, matching `blog-rules.ts`. `effectiveMode()` is the one that matters: a post set to `default` follows the site setting, a post an editor set to open / moderated / closed keeps its own choice.
-- `api/comments` + `api/comments/[id]`, `api/reports` + `api/reports/[id]`, `api/settings`.
-- `/api/reactions` and `/api/saved-posts` rewritten onto the repo layer — they imported firebase-admin and Mongoose and threw on every call. Both now toggle a row and move the counter with `blogRepo.incr()`.
-- `components/blog/comments.tsx` (one level of replies, moderation and report buttons in place) and `reactions.tsx`. Both get their initial state as props from the server page, so the thread is in the HTML and no button flashes wrong.
-- `admin/comments/page.tsx` + `comment-actions.tsx`, and `admin/settings/comment-settings.tsx` — the only part of that settings page wired to storage.
-- `/account/saved` rewritten from a placeholder into the real list.
-- New `settingsRepo` through the data layer (`types.ts`, `json-driver.ts`, `index.ts`), plus `Blog.comments` and `models/Comment.ts`. This is the one repo B4 added — the engagement repos already existed.
-
-Fixed on the way: `models/Blog.ts` was missing `reviewNote`, so the Mongoose shape had drifted from the repo type it is supposed to mirror.
-
-Verified: 90 HTTP checks across four roles, run twice. Comment create, reply, and reply-to-a-reply refused; hide / show / approve; **the admin default flips a new comment between visible and pending**; a post's own mode beats the site default; the site switch closes comments everywhere; a member's attempt to set `comments` on their own post is ignored server-side; author and admin delete, moderator and other members cannot; deleting a parent takes its replies; reaction toggle both ways with the counter landing back where it started; two members both counted; save / unsave and list isolation; report to queue to resolve; and every page and nav entry per role.
-
-### B5 — SEO and finishing
-
-- `src/app/sitemap.ts` — was one hardcoded homepage URL. Now static pages, services, every published + public + not-noIndex post, the topic pages that an indexable post actually uses, and the profiles of authors with an indexable post. Everything else — members-only, private, unlisted, draft, and a community post before a moderator ticks index — stays out.
-- `src/lib/structured-data.ts` — `articleLd`, `personLd`, `organisationLd`, `breadcrumbLd`, and `jsonLd()` which renders one block and escapes `<` so a title containing markup cannot close the script tag. Mounted on `/blog/[slug]`, `/members/[username]` and `/blog`.
-- **Structured data is emitted only where the page is genuinely indexable** — published, public, not noIndex. Describing a noindex or members-only post to a crawler contradicts what that page is allowed to show.
-- `components/blog/search-box.tsx` on `/blog` and `/community`. The term lives in the URL, so a search is a real page that can be bookmarked and shared, and the results are server-rendered. It calls the repo's own `search` filter, so the MongoDB driver can answer it with a query.
-- Related posts on `/blog/[slug]` are now ranked, not filtered: same category scores 3, each shared tag 1, recency breaks ties. The old category-only filter gave a post with no category nothing at all.
-
-Fixed on the way:
-
-| Defect | Fix |
-|---|---|
-| **`/admin` had no session check.** Every other admin page redirects, so the overview was the one way for a signed-out visitor to see the admin shell | `getSessionUser()` and a redirect to `/login?next=/admin`, matching the other pages |
-| The same page showed hardcoded stats — "PUBLISHED POSTS 03", "OPEN LEADS 00" — on a workspace claiming to be live | Counts read from the repo, and the moderation tiles only render for a moderator |
-
-Verified: 116 HTTP checks, run twice, on top of B4's 90 re-run as a regression. Sitemap includes every indexable post and excludes each of members-only, private, unlisted, draft and noindex by fixture; a community post appears only after approve with `index`. JSON-LD parses, carries an absolute URL, a Person author and the Organization publisher, emits no nulls, and is absent from a members-only or noindex page. Search finds a post by title and by tag, reports an empty result, and never leaks a private post to a visitor or another member. Related posts include a tag-only match and never link to themselves. The permission pass covers four visibilities against signed-out, member, moderator and admin on the page, the listing and the API, every admin page against every role, and the write actions — submit, approve, publish, edit and delete.
-
-## When you finish a step
-
-Mark the step DONE in Full plan, move the NEXT marker, and update Status. Add a Completed work entry naming the exact files built, the defects you fixed, and what you verified with how many checks.
-
-Write the newest step in full — the next person needs the detail while it is fresh. Once the step after it is done, cut it back to a short summary: what was built and what was verified. The before/after of a finished step is a record of problems that no longer exist, and the code says what the code is now. Delete whatever your work made untrue.
-
-## Deployment note
-
-Build succeeds with `DATA_DRIVER=mongo`. Vercel still needs `MONGODB_URI` and `DATA_DRIVER=mongo` set for Production (and Preview if used); keep MongoDB Network Access configured for the deployment source.
+- **Local `.env.local` is production data** (see testing).
+- **MongoDB rejects one path in both `$set` and `$setOnInsert`** ("would create a conflict"); `settings.update` leaves patched keys out of the insert defaults. Test on the Mongo driver, not only JSON — JSON hides this.
+- **`blogRepo.incr()` sets `updatedAt`.** Views use `viewRepo.record()` (Mongo `timestamps: false`) so reading a post never marks it updated.
+- **Signin is case-sensitive on email** (`login.md`) — use lowercase emails in tests.
+- **A user id scraped from page HTML/RSC data is unreliable** — twice it returned one id for every row. Read ids from the store.
+- **Turbopack can serve stale caches.** Stop the dev server, then `Remove-Item -Recurse -Force .next`, then restart. Never delete `.next` while a server runs.
+- **First open of a page in `next dev` compiles it** (2–21 s, `/admin` slowest). Not a production problem.
+- **Tiptap:** use `renderToHTMLString` from `@tiptap/static-renderer` on the server; StarterKit already bundles Link; editor and renderer share `src/components/editor/extensions.ts`.
+- **`blogInputSchema` validates `slug` before the route slugifies it** — forms must send a valid slug.
+- **A `.data` write is seen by other module instances only because `read()` checks the file mtime** — keep that check.
+- **A search term is echoed into the search input** — assert on titles or links, not on absence of a word.
+- **`MetadataRoute.Sitemap` via `.map()` needs `satisfies`** or `changeFrequency` widens to `string`.
+- **`src/app/admin/blog/blog-form.tsx` has 2 old ESLint errors** (setState in effect) — not from recent work.

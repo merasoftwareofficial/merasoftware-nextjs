@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { canRunAction, statusActionSchema, statusFor } from "@/lib/blog-rules";
+import { publishedState } from "@/lib/publish-rules";
 import { blogRepo, type Blog } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
@@ -35,11 +36,7 @@ export async function POST(request: Request, { params }: Params) {
     const patch: Partial<Blog> = { status };
 
     if (action === "publish" || action === "approve") {
-      patch.publishedAt = blog.publishedAt ?? new Date().toISOString();
-      patch.scheduledFor = undefined;
-      // Official posts are indexable on publish. Community posts stay noindex
-      // unless the moderator explicitly marks this one as worth indexing.
-      patch.noIndex = blog.type === "official" ? false : index !== true;
+      Object.assign(patch, publishedState(blog, index));
     }
 
     if (action === "schedule") {
@@ -54,6 +51,8 @@ export async function POST(request: Request, { params }: Params) {
 
     if (action === "unpublish" || action === "archive") {
       patch.noIndex = true;
+      // Unpublish is also "Cancel schedule"; the old date must not come back in the form.
+      patch.scheduledFor = undefined;
     }
 
     if (action === "reject" || action === "request-changes") {

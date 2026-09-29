@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SITE_NAME, SITE_URL } from "@/lib/structured-data";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,10 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://merasoftware.com"),
+  metadataBase: new URL(SITE_URL),
   title: { default: "Mera Software | Digital Growth Partner", template: "%s | Mera Software" },
   description: "Web development, SEO and performance marketing for growing businesses.",
-  openGraph: { title: "Mera Software | Digital Growth Partner", description: "Web development, SEO and performance marketing for growing businesses.", type: "website" },
+  openGraph: { title: "Mera Software | Digital Growth Partner", description: "Web development, SEO and performance marketing for growing businesses.", type: "website", siteName: SITE_NAME },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

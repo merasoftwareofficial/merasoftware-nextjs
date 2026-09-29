@@ -130,7 +130,16 @@ const blogs: DataDriver["blogs"] = {
     if (!_id) return null;
     await connectMongo();
     const { _id: _ignoredId, createdAt: _ignoredCreated, updatedAt: _ignoredUpdated, ...safePatch } = patch;
-    const row = await Blog.findByIdAndUpdate(_id, { $set: safePatch }, { new: true, runValidators: true }).lean();
+    // Mongoose drops undefined from $set, so `scheduledFor: undefined` left the
+    // old date behind. Undefined means "remove", as it does in the JSON driver.
+    const entries = Object.entries(safePatch);
+    const $set = Object.fromEntries(entries.filter(([, value]) => value !== undefined));
+    const $unset = Object.fromEntries(entries.filter(([, value]) => value === undefined).map(([key]) => [key, ""]));
+    const row = await Blog.findByIdAndUpdate(
+      _id,
+      Object.keys($unset).length ? { $set, $unset } : { $set },
+      { new: true, runValidators: true },
+    ).lean();
     return row ? blogRecord(row as unknown as Record<string, unknown>) : null;
   },
 
@@ -146,9 +155,14 @@ const blogs: DataDriver["blogs"] = {
     const _id = objectId(id);
     if (!_id) return;
     await connectMongo();
+    // timestamps: false — a reaction or save is not an edit, and updatedAt is
+    // the article's dateModified for search engines and the sitemap.
+    // updatePipeline: Mongoose 9 refuses an array update without it, which
+    // made every reaction and save fail on the Mongo driver.
     await Blog.updateOne(
       { _id },
-      [{ $set: { [field]: { $max: [0, { $add: [{ $ifNull: [`$${field}`, 0] }, by] }] }, updatedAt: "$$NOW" } }],
+      [{ $set: { [field]: { $max: [0, { $add: [{ $ifNull: [`$${field}`, 0] }, by] }] } } }],
+      { timestamps: false, updatePipeline: true },
     );
   },
 };
