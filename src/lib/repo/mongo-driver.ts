@@ -6,6 +6,7 @@ import { Blog } from "@/models/Blog";
 import { Comment, Report, Settings } from "@/models/Comment";
 import { Reaction, SavedPost } from "@/models/Engagement";
 import { User } from "@/models/User";
+import { ViewDay, ViewSeen } from "@/models/View";
 import type {
   Blog as BlogRecord,
   BlogQuery,
@@ -336,7 +337,7 @@ const reports: DataDriver["reports"] = {
   },
 };
 
-const SETTINGS_DEFAULTS = { commentDefault: "visible", commentsEnabled: true } as const;
+const SETTINGS_DEFAULTS = { commentDefault: "visible", commentsEnabled: true, viewsPublic: false } as const;
 const settings: DataDriver["settings"] = {
   async get() {
     await connectMongo();
@@ -358,4 +359,49 @@ const settings: DataDriver["settings"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings };
+const SEEN_FOR_MS = 24 * 60 * 60 * 1000;
+const isDuplicateKey = (error: unknown) => (error as { code?: number })?.code === 11000;
+
+const views: DataDriver["views"] = {
+  async record(blogId, visitorKey, day) {
+    const _id = objectId(blogId);
+    if (!_id) return false;
+    await connectMongo();
+
+    // Claim the key: insert it, or take over one whose 24 hours are up but the
+    // TTL monitor (which runs about once a minute) has not removed yet. A key
+    // still inside its 24 hours fails the filter, the upsert then collides on
+    // _id, and the view is not counted.
+    const cutoff = new Date(Date.now() - SEEN_FOR_MS);
+    try {
+      await ViewSeen.updateOne({ _id: visitorKey, at: { $lte: cutoff } }, { $set: { at: new Date() } }, { upsert: true });
+    } catch (error) {
+      if (isDuplicateKey(error)) return false;
+      throw error;
+    }
+
+    try {
+      await ViewDay.updateOne({ blogId, day }, { $inc: { count: 1 } }, { upsert: true });
+    } catch (error) {
+      // Two first views of the day raced on the upsert; the row exists now.
+      if (!isDuplicateKey(error)) throw error;
+      await ViewDay.updateOne({ blogId, day }, { $inc: { count: 1 } });
+    }
+    // timestamps: false — a view must leave updatedAt alone.
+    await Blog.updateOne({ _id }, { $inc: { viewCount: 1 } }, { timestamps: false });
+    return true;
+  },
+
+  async sumSince(day, blogIds) {
+    await connectMongo();
+    const match: Record<string, unknown> = { day: { $gte: day } };
+    if (blogIds) match.blogId = { $in: blogIds };
+    const rows: { _id: string; total: number }[] = await ViewDay.aggregate([
+      { $match: match },
+      { $group: { _id: "$blogId", total: { $sum: "$count" } } },
+    ]);
+    return Object.fromEntries(rows.map(row => [row._id, row.total]));
+  },
+};
+
+export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, views };

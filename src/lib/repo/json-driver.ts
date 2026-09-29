@@ -32,11 +32,12 @@ import type {
   SettingsRepo,
   User,
   UserRepo,
+  ViewRepo,
 } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings";
+type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "viewSeen" | "viewDays";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -151,6 +152,7 @@ const blogs: BlogRepo = {
       helpfulCount: 0,
       insightfulCount: 0,
       saveCount: 0,
+      viewCount: 0,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -357,6 +359,7 @@ const SETTINGS_DEFAULTS: Omit<Settings, "updatedAt"> = {
   _id: "site",
   commentDefault: "visible",
   commentsEnabled: true,
+  viewsPublic: false,
 };
 
 const settings: SettingsRepo = {
@@ -372,4 +375,45 @@ const settings: SettingsRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings };
+/* ---------------------------------------------------------------- views -- */
+
+const SEEN_FOR_MS = 24 * 60 * 60 * 1000;
+
+type SeenRow = { _id: string; at: string };
+type DayRow = { _id: string; blogId: string; day: string; count: number };
+
+const views: ViewRepo = {
+  async record(blogId, visitorKey, day) {
+    const cutoff = Date.now() - SEEN_FOR_MS;
+    // Expired keys are dropped on every write, standing in for MongoDB's TTL index.
+    const seen = read<SeenRow>("viewSeen").filter(row => Date.parse(row.at) > cutoff);
+    if (seen.some(row => row._id === visitorKey)) return false;
+    write("viewSeen", [...seen, { _id: visitorKey, at: now() }]);
+
+    const days = read<DayRow>("viewDays");
+    const index = days.findIndex(row => row.blogId === blogId && row.day === day);
+    if (index === -1) days.push({ _id: id(), blogId, day, count: 1 });
+    else days[index] = { ...days[index], count: days[index].count + 1 };
+    write("viewDays", days);
+
+    // Not incr(): a view must leave updatedAt alone.
+    const rows = read<Blog>("blogs");
+    const blogIndex = rows.findIndex(row => row._id === blogId);
+    if (blogIndex !== -1) {
+      rows[blogIndex] = { ...rows[blogIndex], viewCount: (rows[blogIndex].viewCount ?? 0) + 1 };
+      write("blogs", rows);
+    }
+    return true;
+  },
+
+  async sumSince(day, blogIds) {
+    const totals: Record<string, number> = {};
+    for (const row of read<DayRow>("viewDays")) {
+      if (row.day < day || (blogIds && !blogIds.includes(row.blogId))) continue;
+      totals[row.blogId] = (totals[row.blogId] ?? 0) + row.count;
+    }
+    return totals;
+  },
+};
+
+export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, views };

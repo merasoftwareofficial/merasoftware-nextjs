@@ -43,7 +43,7 @@ export default async function Write({
           />
           <section className="content-section container">
             <div className="admin-empty">
-              <Link className="text-link" href="/admin/blog">
+              <Link className="text-link" href="/account/posts">
                 Back to my posts <span>→</span>
               </Link>
             </div>

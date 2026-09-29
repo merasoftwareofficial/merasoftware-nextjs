@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
-import { getSessionUser } from "@/lib/auth";
+import { requireStaffPage } from "@/lib/auth";
 import { canEdit } from "@/lib/blog-rules";
 import { blogRepo } from "@/lib/repo";
 import { BlogForm } from "../../blog-form";
 
 export default async function EditBlog({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const user = await getSessionUser();
-  if (!user) redirect(`/login?next=/admin/blog/${slug}/edit`);
+  const user = await requireStaffPage(`/admin/blog/${slug}/edit`);
 
   const blog = await blogRepo.findBySlug(slug);
   if (!blog) notFound();

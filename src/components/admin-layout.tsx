@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 /** Every nav entry, with the lowest role that may open it. */
 const navigation: [label: string, href: string, minimum: Role][] = [
-  ["Overview", "/admin", "member"], ["Blog posts", "/admin/blog", "member"],
+  ["Overview", "/admin", "moderator"], ["Blog posts", "/admin/blog", "moderator"],
   ["Review queue", "/admin/blog/review", "moderator"],
   ["Comments", "/admin/comments", "moderator"],
   ["Categories & tags", "/admin/categories", "editor"],
@@ -16,9 +16,9 @@ const navigation: [label: string, href: string, minimum: Role][] = [
 ];
 
 /**
- * `role` comes from the signed-in user. A member writing community posts uses
- * this same shell, so hiding what they cannot open keeps them out of pages that
- * would only answer "Not allowed" — the pages still check for themselves.
+ * `role` comes from the signed-in user. The panel is staff-only; hiding what a
+ * role cannot open keeps them out of pages that would only answer "Not allowed"
+ * — every page still checks for itself (requireStaffPage).
  */
 export function AdminLayout({ children, role = "visitor" }: { children: React.ReactNode; role?: Role }) {
   const visible = navigation.filter(([, , minimum]) => atLeast(role, minimum));

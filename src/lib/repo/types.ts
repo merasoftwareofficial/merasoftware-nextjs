@@ -20,6 +20,8 @@ export type CommentStatus = "visible" | "hidden" | "pending";
  * per-post decision an editor made and the site setting must not override.
  */
 export type CommentMode = "default" | "open" | "moderated" | "closed";
+/** Whether readers see a post's view count. `default` follows the site setting. */
+export type ViewMode = "default" | "show" | "hide";
 
 export interface FeaturedImage {
   url: string;
@@ -59,6 +61,10 @@ export interface Blog {
   reviewNote?: string;
   /** Per-post comment control. Absent or "default" follows the site setting. */
   comments?: CommentMode;
+  /** Counted views (view-rules.ts). Absent on posts created before view counting. */
+  viewCount?: number;
+  /** Per-post control of the public view count. Absent or "default" follows the site setting. */
+  showViews?: ViewMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -130,7 +136,7 @@ export interface BlogQuery {
 
 export type NewBlog = Omit<
   Blog,
-  "_id" | "createdAt" | "updatedAt" | "helpfulCount" | "insightfulCount" | "saveCount"
+  "_id" | "createdAt" | "updatedAt" | "helpfulCount" | "insightfulCount" | "saveCount" | "viewCount"
 >;
 
 export interface BlogRepo {
@@ -178,6 +184,18 @@ export interface SavedRepo {
   remove(id: string): Promise<boolean>;
 }
 
+/**
+ * Blog view counting. A visitor key is a keyed hash made in view-rules.ts and
+ * kept for 24 hours only, so one visitor counts once per post per 24 hours.
+ * Counting never touches the post's updatedAt.
+ */
+export interface ViewRepo {
+  /** Counts one view unless this key was seen for the post in the last 24 hours. True when counted. */
+  record(blogId: string, visitorKey: string, day: string): Promise<boolean>;
+  /** Views per post on `day` (YYYY-MM-DD) and later; only the given posts when `blogIds` is passed. */
+  sumSince(day: string, blogIds?: string[]): Promise<Record<string, number>>;
+}
+
 export interface ReportRepo {
   list(resolved?: boolean): Promise<Report[]>;
   create(data: Omit<Report, "_id" | "createdAt">): Promise<Report>;
@@ -196,6 +214,8 @@ export interface Settings {
   commentDefault: Extract<CommentStatus, "visible" | "pending">;
   /** Turns comments off across the whole site, whatever a post says. */
   commentsEnabled: boolean;
+  /** Shows the view count under posts that say "default". Off unless an admin turns it on. */
+  viewsPublic: boolean;
   updatedAt: string;
 }
 
@@ -212,4 +232,5 @@ export interface DataDriver {
   saved: SavedRepo;
   reports: ReportRepo;
   settings: SettingsRepo;
+  views: ViewRepo;
 }

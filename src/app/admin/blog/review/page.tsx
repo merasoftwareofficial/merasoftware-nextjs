@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
-import { atLeast, getSessionUser } from "@/lib/auth";
+import { atLeast, requireStaffPage } from "@/lib/auth";
 import { blogRepo } from "@/lib/repo";
 import { ReviewActions } from "./review-actions";
 
@@ -17,8 +16,7 @@ export const metadata = { title: "Review queue" };
  * server-side whatever this page shows.
  */
 export default async function ReviewQueue() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin/blog/review");
+  const user = await requireStaffPage("/admin/blog/review");
 
   // Members must never see other people's unpublished work.
   if (!atLeast(user.role, "moderator")) {

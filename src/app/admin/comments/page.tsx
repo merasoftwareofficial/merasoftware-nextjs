@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
-import { atLeast, getSessionUser } from "@/lib/auth";
+import { atLeast, requireStaffPage } from "@/lib/auth";
 import { canDeleteAnyComment } from "@/lib/comment-rules";
 import { blogRepo, commentRepo, reportRepo, userRepo, type CommentStatus } from "@/lib/repo";
 import { CommentActions, ReportActions } from "./comment-actions";
@@ -32,8 +31,7 @@ export default async function CommentsAdmin({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin/comments");
+  const user = await requireStaffPage("/admin/comments");
 
   if (!atLeast(user.role, "moderator")) {
     return (

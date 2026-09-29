@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
-import { atLeast, getSessionUser } from "@/lib/auth";
+import { atLeast, requireStaffPage } from "@/lib/auth";
 import { userRepo } from "@/lib/repo";
 import { UserActions } from "./user-actions";
 
@@ -17,8 +16,7 @@ function when(value: string) {
  * client portal (src/docs/login.md); this page manages only the website profile.
  */
 export default async function UsersAdmin() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin/users");
+  const user = await requireStaffPage("/admin/users");
 
   if (!atLeast(user.role, "admin")) {
     return (

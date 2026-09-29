@@ -16,6 +16,7 @@ import { settingsRepo } from "@/lib/repo";
 const patchSchema = z.object({
   commentDefault: z.enum(["visible", "pending"]).optional(),
   commentsEnabled: z.boolean().optional(),
+  viewsPublic: z.boolean().optional(),
 });
 
 export async function GET() {

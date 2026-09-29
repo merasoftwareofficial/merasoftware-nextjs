@@ -7,6 +7,7 @@
  */
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getPortalAccount, PORTAL_COOKIE, websiteUserFor } from "@/lib/portal";
 import type { Role, User } from "@/lib/repo";
 
@@ -73,6 +74,20 @@ export async function requireRole(minimum: Role): Promise<User> {
   if (!atLeast(user.role, minimum)) {
     throw new AuthError("You do not have permission to do this.", 403);
   }
+  return user;
+}
+
+/**
+ * Guard for every management-panel page (the panel is for staff only).
+ * Signed out → sign in and come back; a member → their own posts; staff
+ * below `minimum` → the panel overview. Called by each page, not the layout,
+ * because a layout is not re-run on client navigation.
+ */
+export async function requireStaffPage(next: string, minimum: Role = "moderator"): Promise<User> {
+  const user = await getSessionUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(next)}`);
+  if (!atLeast(user.role, "moderator")) redirect("/account/posts");
+  if (!atLeast(user.role, minimum)) redirect("/admin");
   return user;
 }
 

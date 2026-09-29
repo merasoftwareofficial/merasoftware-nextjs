@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Comments } from "@/components/blog/comments";
 import { Reactions } from "@/components/blog/reactions";
+import { ViewBeacon } from "@/components/blog/view-beacon";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/comment-rules";
 import { blogRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
 import { articleLd, breadcrumbLd, jsonLd } from "@/lib/structured-data";
+import { formatViews, viewsVisible } from "@/lib/view-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +97,7 @@ export default async function Article({ params }: Params) {
   // with no category showing nothing. A shared category is the strongest
   // signal, then each shared tag, then recency as the tie-break. Anything
   // scoring zero is only used to fill the row when there is nothing better.
+  // Among equal scores the more-read post comes first, then the newer one.
   const pool = (await blogRepo.list({ type: post.type, status: "published" })).filter(
     item => item._id !== post._id && item.visibility === "public" && !item.noIndex,
   );
@@ -108,7 +111,7 @@ export default async function Article({ params }: Params) {
 
   const related = pool
     .map(item => ({ item, value: score(item) }))
-    .sort((a, b) => b.value - a.value)
+    .sort((a, b) => b.value - a.value || (b.item.viewCount ?? 0) - (a.item.viewCount ?? 0))
     .slice(0, 3)
     .map(entry => entry.item);
 
@@ -159,7 +162,9 @@ export default async function Article({ params }: Params) {
             ) : (
               post.authorName
             )}
+            {post.status === "published" && viewsVisible(post, settings) ? ` · ${formatViews(post.viewCount ?? 0)}` : null}
           </p>
+          {post.status === "published" ? <ViewBeacon blogId={post._id} /> : null}
           {post.status !== "published" ? (
             <p className="preview-flag">Preview — this post is {post.status} and not public yet.</p>
           ) : null}

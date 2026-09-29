@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
-import { atLeast, getSessionUser } from "@/lib/auth";
+import { atLeast, requireStaffPage } from "@/lib/auth";
 import { activeDriver, blogRepo, commentRepo, reportRepo } from "@/lib/repo";
 
 export const metadata = { title: "Admin workspace" };
@@ -15,8 +14,7 @@ export const metadata = { title: "Admin workspace" };
  * invented numbers is worse than one showing none.
  */
 export default async function Admin() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin");
+  const user = await requireStaffPage("/admin");
 
   const published = await blogRepo.count({ status: "published" });
   const canReview = atLeast(user.role, "moderator");

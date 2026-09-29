@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
-import type { Blog, BlogType, CommentMode, Role, Visibility } from "@/lib/repo/types";
+import type { Blog, BlogType, CommentMode, Role, ViewMode, Visibility } from "@/lib/repo/types";
 
 type Draft = {
   title: string;
@@ -21,6 +21,7 @@ type Draft = {
   canonical: string;
   visibility: Visibility;
   comments: CommentMode;
+  showViews: ViewMode;
   scheduledFor: string;
 };
 
@@ -50,6 +51,7 @@ function draftFrom(blog?: Blog): Draft {
     canonical: blog?.seo?.canonical ?? "",
     visibility: blog?.visibility ?? "public",
     comments: blog?.comments ?? "default",
+    showViews: blog?.showViews ?? "default",
     scheduledFor: blog?.scheduledFor?.slice(0, 16) ?? "",
   };
 }
@@ -108,6 +110,7 @@ export function BlogForm({
       // Only an editor sees the control; anyone else leaves the post on the
       // site default, which is what the API would force anyway.
       comments: draft.comments,
+      showViews: draft.showViews,
       category: draft.category || undefined,
       tags: draft.tags.split(",").map(tag => tag.trim()).filter(Boolean),
       featuredImage: draft.imageUrl ? { url: draft.imageUrl, publicId: "", alt: draft.imageAlt } : undefined,
@@ -309,6 +312,17 @@ export function BlogForm({
               <option value="open">Open — comments appear straight away</option>
               <option value="moderated">Moderated — hold each one for review</option>
               <option value="closed">Closed — no new comments</option>
+            </select>
+          </label>
+        ) : null}
+
+        {canPublish ? (
+          <label className="admin-field">
+            <span>View count on this post</span>
+            <select value={draft.showViews} onChange={event => set("showViews", event.target.value as ViewMode)}>
+              <option value="default">Site default — follow the setting in Site settings</option>
+              <option value="show">Show — readers see how many views it has</option>
+              <option value="hide">Hide — only the panel shows its views</option>
             </select>
           </label>
         ) : null}

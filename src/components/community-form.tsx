@@ -164,7 +164,7 @@ export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: 
           out of search engines until it is approved.
         </p>
         <div className="editor-actions" style={{ justifyContent: "center" }}>
-          <Link className="admin-button secondary" href="/admin/blog">
+          <Link className="admin-button secondary" href="/account/posts">
             See my posts
           </Link>
           <Link className="admin-button" href={`/community/write?type=${type}`} onClick={() => setDone(false)}>

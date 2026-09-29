@@ -1,16 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { Field } from "@/components/admin-form";
-import { atLeast, getSessionUser } from "@/lib/auth";
+import { atLeast, requireStaffPage } from "@/lib/auth";
 import { settingsRepo } from "@/lib/repo";
 import { CommentSettings } from "./comment-settings";
+import { ViewSettings } from "./view-settings";
 
 export const metadata = { title: "Site settings" };
 
 export default async function Settings() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin/settings");
+  const user = await requireStaffPage("/admin/settings");
 
   if (!atLeast(user.role, "admin")) {
     return (
@@ -38,8 +37,9 @@ export default async function Settings() {
         description="Global details used across the website, SEO and contact points."
       />
 
-      {/* Wired to storage. Everything below it is still a placeholder form. */}
+      {/* Wired to storage. Everything below them is still a placeholder form. */}
       <CommentSettings settings={settings} />
+      <ViewSettings settings={settings} />
 
       <form className="admin-form">
         <div className="form-columns">

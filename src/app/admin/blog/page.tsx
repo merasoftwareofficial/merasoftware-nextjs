@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
-import { atLeast, getSessionUser } from "@/lib/auth";
-import { blogRepo, type BlogStatus } from "@/lib/repo";
+import { atLeast, requireStaffPage } from "@/lib/auth";
+import { blogRepo, viewRepo, type BlogStatus } from "@/lib/repo";
+import { dayKey } from "@/lib/view-rules";
 
 export const metadata = { title: "Blog posts" };
 
@@ -31,17 +31,25 @@ function when(value?: string) {
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default async function BlogAdmin({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin/blog");
+export default async function BlogAdmin({ searchParams }: { searchParams: Promise<{ status?: string; sort?: string }> }) {
+  const user = await requireStaffPage("/admin/blog");
 
-  const { status } = await searchParams;
+  const { status, sort } = await searchParams;
+  const byViews = sort === "views";
 
-  // Members see only their own posts; staff see everything.
-  const posts = await blogRepo.list({
-    status: status ? (status as BlogStatus) : undefined,
-    authorId: user.role === "member" ? user._id : undefined,
-  });
+  // Staff only (requireStaffPage); members follow their own posts at /account/posts.
+  const posts = await blogRepo.list({ status: status ? (status as BlogStatus) : undefined });
+  // Views over the last 7 days (today and the six before), for the listed posts.
+  const week = posts.length ? await viewRepo.sumSince(dayKey(6), posts.map(post => post._id)) : {};
+  if (byViews) posts.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+  // Filter chips keep the chosen order, and the order toggle keeps the filter.
+  const href = (nextStatus: string, nextSort: string) => {
+    const query = new URLSearchParams();
+    if (nextStatus) query.set("status", nextStatus);
+    if (nextSort) query.set("sort", nextSort);
+    const text = query.toString();
+    return text ? `/admin/blog?${text}` : "/admin/blog";
+  };
 
   // Moderators get a link to the queue carrying the number waiting for them.
   const canReview = atLeast(user.role, "moderator");
@@ -72,12 +80,15 @@ export default async function BlogAdmin({ searchParams }: { searchParams: Promis
         {FILTERS.map(filter => (
           <Link
             key={filter.value}
-            href={filter.value ? `/admin/blog?status=${filter.value}` : "/admin/blog"}
+            href={href(filter.value, byViews ? "views" : "")}
             className={(status ?? "") === filter.value ? "filter-chip on" : "filter-chip"}
           >
             {filter.label}
           </Link>
         ))}
+        <Link className={byViews ? "filter-chip on" : "filter-chip"} href={href(status ?? "", byViews ? "" : "views")}>
+          {byViews ? "Most viewed ✓" : "Most viewed"}
+        </Link>
       </div>
 
       {posts.length === 0 ? (
@@ -88,7 +99,7 @@ export default async function BlogAdmin({ searchParams }: { searchParams: Promis
         </div>
       ) : (
         <AdminTable
-          headers={["TITLE", "TYPE", "CATEGORY", "STATUS", "UPDATED", "ACTION"]}
+          headers={["TITLE", "TYPE", "CATEGORY", "STATUS", "VIEWS", "7 DAYS", "HELPFUL", "INSIGHTFUL", "SAVES", "UPDATED", "ACTION"]}
           rows={posts.map(post => [
             post.title,
             post.type,
@@ -97,6 +108,11 @@ export default async function BlogAdmin({ searchParams }: { searchParams: Promis
               {post.status}
               {post.status === "published" && post.noIndex ? " · noindex" : ""}
             </span>,
+            (post.viewCount ?? 0).toLocaleString("en-IN"),
+            (week[post._id] ?? 0).toLocaleString("en-IN"),
+            post.helpfulCount ?? 0,
+            post.insightfulCount ?? 0,
+            post.saveCount ?? 0,
             when(post.updatedAt),
             <span className="admin-row-actions" key="a">
               <Link className="admin-action" href={`/admin/blog/${post.slug}/edit`}>

@@ -6,8 +6,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
-import { blogRepo } from "@/lib/repo";
+import { blogRepo, viewRepo } from "@/lib/repo";
 import { breadcrumbLd, jsonLd, organisationLd } from "@/lib/structured-data";
+import { dayKey } from "@/lib/view-rules";
 
 export const metadata = {
   title: "Insights",
@@ -30,6 +31,18 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
   // with a query instead of filtering in memory.
   const posts = (await blogRepo.list({ type: "official", status: "published", search: term || undefined }))
     .filter(post => post.visibility !== "unlisted" && isReadable(post, viewer));
+
+  // Most-read articles of the last 7 days (today and the six before), drawn from
+  // the same list so nothing hidden can surface. The counts themselves are not
+  // shown here: whether readers see view counts is the admin's setting.
+  let popular: typeof posts = [];
+  if (!term && posts.length) {
+    const week = await viewRepo.sumSince(dayKey(6), posts.map(post => post._id));
+    popular = posts
+      .filter(post => (week[post._id] ?? 0) > 0)
+      .sort((a, b) => week[b._id] - week[a._id])
+      .slice(0, 3);
+  }
 
   return (
     <>
@@ -55,6 +68,24 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
           <Suspense fallback={null}>
             <SearchBox />
           </Suspense>
+
+          {popular.length ? (
+            <section className="popular-week" aria-labelledby="popular-week-title">
+              <p className="eyebrow" id="popular-week-title">
+                <i /> POPULAR THIS WEEK
+              </p>
+              <ol>
+                {popular.map(post => (
+                  <li key={post._id}>
+                    <Link href={`/blog/${post.slug}`}>
+                      <b>{post.title}</b>
+                      <span>{post.category ?? "Insights"}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
 
           {term ? (
             <p className="search-summary">

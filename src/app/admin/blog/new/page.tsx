@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
-import { getSessionUser } from "@/lib/auth";
+import { requireStaffPage } from "@/lib/auth";
 import { BlogForm } from "../blog-form";
 
 export const metadata = { title: "New article" };
 
 export default async function NewBlog() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login?next=/admin/blog/new");
+  const user = await requireStaffPage("/admin/blog/new");
 
   return (
     <main className="admin-main">

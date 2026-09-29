@@ -9,5 +9,6 @@ const BlogSchema = new Schema({
   category: String, tags: [String], featuredImage: { url: String, publicId: String, alt: String }, seo: { title: String, description: String, canonical: String },
   publishedAt: Date, scheduledFor: Date, noIndex: { type: Boolean, default: true },
   reviewNote: String, comments: { type: String, enum: ["default", "open", "moderated", "closed"], default: "default" }, helpfulCount: { type: Number, default: 0 }, insightfulCount: { type: Number, default: 0 }, saveCount: { type: Number, default: 0 },
+  viewCount: { type: Number, default: 0 }, showViews: { type: String, enum: ["default", "show", "hide"], default: "default" },
 }, { timestamps: true });
 export const Blog = models.Blog || model("Blog", BlogSchema);

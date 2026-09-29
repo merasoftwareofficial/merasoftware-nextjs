@@ -39,6 +39,8 @@ export const blogInputSchema = z.object({
   scheduledFor: z.string().datetime().optional(),
   /** Per-post comment control. Only an editor may set it; see comment-rules.ts. */
   comments: z.enum(["default", "open", "moderated", "closed"]).optional(),
+  /** Per-post view count visibility. Only an editor may set it; see view-rules.ts. */
+  showViews: z.enum(["default", "show", "hide"]).optional(),
 });
 
 export type BlogInput = z.infer<typeof blogInputSchema>;

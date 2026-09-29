@@ -23,6 +23,7 @@ export const reactionRepo = driver.reactions;
 export const savedRepo = driver.saved;
 export const reportRepo = driver.reports;
 export const settingsRepo = driver.settings;
+export const viewRepo = driver.views;
 
 /** Which store is active. Shown on the admin overview so the stage is never unclear. */
 export const activeDriver = driverName;

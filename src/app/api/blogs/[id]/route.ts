@@ -10,6 +10,7 @@ import { slugify } from "@/lib/slug";
 import { getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, canDelete, canEdit, isReadable } from "@/lib/blog-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
+import { canSetViewMode } from "@/lib/view-rules";
 import { blogRepo } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
@@ -52,9 +53,13 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     // Type and author are not editable through this route, and only an editor
-    // may change how a post handles comments.
-    const { type: _type, comments, ...rest } = data;
-    const patch = canSetCommentMode(user) && comments ? { ...rest, comments } : rest;
+    // may change how a post handles comments or shows its view count.
+    const { type: _type, comments, showViews, ...rest } = data;
+    const patch = {
+      ...rest,
+      ...(canSetCommentMode(user) && comments ? { comments } : {}),
+      ...(canSetViewMode(user) && showViews ? { showViews } : {}),
+    };
     const updated = await blogRepo.update(id, patch);
     return NextResponse.json(updated);
   } catch (error) {
