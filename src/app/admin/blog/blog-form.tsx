@@ -1,10 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
-import type { Blog, BlogType, CommentMode, Role, ViewMode, Visibility } from "@/lib/repo/types";
+import { RichContent } from "@/components/editor/rich-content";
+import { publishingBriefWarnings } from "@/lib/content-rules";
+import { SITE_URL } from "@/lib/structured-data";
+import type { Blog, BlogType, CommentMode, Role, Settings, ViewMode, Visibility } from "@/lib/repo/types";
+import styles from "./blog-preview.module.css";
 
 type Draft = {
   title: string;
@@ -71,10 +75,12 @@ export function BlogForm({
   blog,
   type = "official",
   role,
+  commentDefaults,
 }: {
   blog?: Blog;
   type?: BlogType;
   role: Role;
+  commentDefaults: Pick<Settings, "commentsEnabled" | "commentDefault">;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(blog));
@@ -84,31 +90,44 @@ export function BlogForm({
   const [busy, setBusy] = useState(false);
   const [postId, setPostId] = useState(blog?._id ?? "");
   const [status, setStatus] = useState(blog?.status ?? "draft");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [reviewAction, setReviewAction] = useState<{ action: string; extra: Record<string, unknown> } | null>(null);
+  const previewRef = useRef<HTMLElement>(null);
 
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setDraft(current => ({ ...current, [key]: value }));
-
-  // Slug follows the title until the author edits it by hand.
   useEffect(() => {
-    if (!draft.slugTouched) setDraft(current => ({ ...current, slug: slugify(current.title) }));
-  }, [draft.title, draft.slugTouched]);
+    if (previewOpen) previewRef.current?.scrollIntoView({ block: "start" });
+  }, [previewOpen, reviewAction]);
+
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
+    setReviewAction(null);
+    setDraft(current => ({
+      ...current,
+      [key]: value,
+      ...(key === "title" && !current.slugTouched ? { slug: slugify(String(value)) } : {}),
+    }));
+  };
 
   // Live availability check, debounced so typing does not spam the API.
   useEffect(() => {
-    if (!draft.slug) {
-      setSlugFree(null);
-      return;
-    }
+    let active = true;
     const timer = setTimeout(async () => {
+      if (!draft.slug) { setSlugFree(null); return; }
       const query = new URLSearchParams({ slug: draft.slug });
       if (postId) query.set("id", postId);
-      const response = await fetch(`/api/slug-check?${query}`);
-      if (response.ok) setSlugFree((await response.json()).available);
+      try {
+        const response = await fetch(`/api/slug-check?${query}`);
+        const data = response.ok ? await response.json() : null;
+        if (active) setSlugFree(data?.available ?? null);
+      } catch { if (active) setSlugFree(null); }
     }, 400);
-    return () => clearTimeout(timer);
+    return () => { active = false; clearTimeout(timer); };
   }, [draft.slug, postId]);
 
   const canPublish = role === "editor" || role === "admin";
+  const briefWarnings = publishingBriefWarnings(draft.content);
+  const commentsSummary = !commentDefaults.commentsEnabled ? "Closed (site-wide)"
+    : draft.comments === "default" ? `Site default (${commentDefaults.commentDefault === "pending" ? "Moderated" : "Open"})`
+    : draft.comments === "closed" ? "Closed" : draft.comments === "moderated" ? "Moderated" : "Open";
 
   function body() {
     return {
@@ -124,7 +143,7 @@ export function BlogForm({
       showViews: draft.showViews,
       category: draft.category || undefined,
       tags: draft.tags.split(",").map(tag => tag.trim()).filter(Boolean),
-      featuredImage: draft.imageUrl ? { url: draft.imageUrl, publicId: "", alt: draft.imageAlt } : undefined,
+      featuredImage: { url: draft.imageUrl, publicId: blog?.featuredImage?.publicId ?? "", alt: draft.imageAlt },
       seo: { title: draft.seoTitle, description: draft.seoDescription, canonical: draft.canonical },
     };
   }
@@ -158,55 +177,72 @@ export function BlogForm({
     return data._id;
   }
 
-  async function runAction(action: string, extra: Record<string, unknown> = {}) {
+  async function runAction(action: string, extra: Record<string, unknown> = {}, reviewed = false) {
+    const needsReview = ["publish", "schedule"].includes(action)
+      || (action === "save-draft" && ["published", "scheduled"].includes(status));
+    if (needsReview && !reviewed) {
+      setReviewAction({ action, extra });
+      setPreviewOpen(true);
+      return;
+    }
     setBusy(true);
     setMessage("");
+    setError("");
+    try {
 
-    const id = await persist();
-    if (!id) {
-      setBusy(false);
-      return;
-    }
+      // Unpublishing must not first save unreviewed edits onto the live article.
+      const id = action === "unpublish" ? postId : await persist();
+      if (!id) {
+        setBusy(false);
+        return;
+      }
 
-    if (action === "save-draft") {
-      setMessage("Draft saved.");
+      if (action === "save-draft") {
+        setMessage(status === "published" ? "Published article updated." : status === "scheduled" ? "Scheduled article updated." : "Changes saved.");
+        setReviewAction(null);
+        setBusy(false);
+        router.refresh();
+        if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
+        return;
+      }
+
+      const response = await fetch(`/api/blogs/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const data = await response.json();
+
       setBusy(false);
+      if (!response.ok) {
+        setError(data.error ?? "Could not update the post.");
+        return;
+      }
+
+      // Publishing or scheduling finishes the job, so go back to the list, which says what happened.
+      if (action === "publish" || action === "schedule") {
+        router.push(`/admin/blog?${new URLSearchParams({ done: action, post: data.slug })}`);
+        router.refresh();
+        return;
+      }
+
+      setStatus(data.status);
+      setReviewAction(null);
+      if (action === "unpublish") set("scheduledFor", "");
+      setMessage(
+        action === "submit"
+          ? "Submitted for review."
+          : action === "unpublish" && status === "scheduled"
+            ? "Schedule cancelled. The post is a draft again."
+            : "Updated.",
+      );
       router.refresh();
       if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
-      return;
+    } catch {
+      setError("Could not save the article. Check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
-
-    const response = await fetch(`/api/blogs/${id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ...extra }),
-    });
-    const data = await response.json();
-
-    setBusy(false);
-    if (!response.ok) {
-      setError(data.error ?? "Could not update the post.");
-      return;
-    }
-
-    // Publishing or scheduling finishes the job, so go back to the list, which says what happened.
-    if (action === "publish" || action === "schedule") {
-      router.push(`/admin/blog?${new URLSearchParams({ done: action, post: data.slug })}`);
-      router.refresh();
-      return;
-    }
-
-    setStatus(data.status);
-    if (action === "unpublish") set("scheduledFor", "");
-    setMessage(
-      action === "submit"
-        ? "Submitted for review."
-        : action === "unpublish" && status === "scheduled"
-          ? "Schedule cancelled. The post is a draft again."
-          : "Updated.",
-    );
-    router.refresh();
-    if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
   }
 
   async function remove() {
@@ -269,7 +305,11 @@ export function BlogForm({
 
       <div className="admin-field">
         <span>Article content</span>
+        <p className="field-hint">Write only what readers should see. Add SEO details, image details and publishing settings in the fields below.</p>
         <TiptapEditor value={draft.content} onChange={content => set("content", content)} />
+        {briefWarnings.length > 0 ? (
+          <p className="form-error" role="status">Possible publishing instructions in the article: {briefWarnings.join(", ")}. Review this text before publishing; it will be visible to readers.</p>
+        ) : null}
       </div>
 
       <section className="admin-seo">
@@ -365,6 +405,39 @@ export function BlogForm({
       {error ? <p className="form-error">{error}</p> : null}
       {message ? <p className="form-message">{message}</p> : null}
 
+      {status === "published" ? <p className="field-hint">Updating this article changes the live page. To take it offline first, choose Unpublish.</p> : null}
+
+      {previewOpen ? (
+        <section className={`admin-seo ${styles.preview}`} aria-label="Article preview" ref={previewRef}>
+          <h2>Review before publishing</h2>
+          <dl>
+            <dt>SEO title</dt><dd>{draft.seoTitle || draft.title} | Mera Software</dd>
+            <dt>Meta description</dt><dd>{draft.seoDescription || draft.excerpt}</dd>
+            <dt>Canonical URL</dt><dd>{draft.canonical || `${SITE_URL}/blog/${draft.slug}`}</dd>
+            <dt>Visibility</dt><dd>{draft.visibility}</dd>
+            <dt>Comments</dt><dd>{commentsSummary}</dd>
+            <dt>Featured image</dt><dd>{draft.imageUrl ? draft.imageAlt || "Alt text is missing" : "No featured image selected"}</dd>
+            <dt>Publication</dt><dd>{!reviewAction ? `Current status: ${status}` : reviewAction.action === "schedule" ? `Scheduled for ${new Date(draft.scheduledFor).toLocaleString()}` : status === "scheduled" && reviewAction.action === "save-draft" ? `Keeps the saved schedule: ${blog?.scheduledFor ? new Date(blog.scheduledFor).toLocaleString() : "scheduled"}` : status === "published" ? "Updates the live article immediately" : "Publish makes this article live immediately"}</dd>
+          </dl>
+          {briefWarnings.length > 0 ? <p className="form-error">Review these possible instructions in the reader preview: {briefWarnings.join(", ")}. Nothing is removed automatically.</p> : null}
+          <article className={styles.article}>
+            <h2>{draft.title}</h2>
+            <p>{draft.excerpt}</p>
+            {draft.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={draft.imageUrl} alt={draft.imageAlt} style={{ maxWidth: "100%" }} />
+            ) : null}
+            <RichContent content={draft.content} />
+          </article>
+          <div className="form-actions">
+            <button className="admin-button secondary" type="button" onClick={() => { setPreviewOpen(false); setReviewAction(null); }}>Close preview</button>
+            {reviewAction ? <button className="admin-button" type="button" disabled={busy} onClick={() => runAction(reviewAction.action, reviewAction.extra, true)}>
+              {busy ? "Working…" : reviewAction.action === "schedule" ? "Confirm schedule" : reviewAction.action === "save-draft" ? "Confirm update" : "Confirm publish"}
+            </button> : null}
+          </div>
+        </section>
+      ) : null}
+
       <div className="form-actions">
         <span className={`status status-${status === "published" ? "live" : "draft"}`}>{status}</span>
 
@@ -374,8 +447,11 @@ export function BlogForm({
           </button>
         ) : null}
 
+        <button className="admin-button secondary" type="button" onClick={() => { setPreviewOpen(true); setReviewAction(null); }} disabled={busy}>
+          Preview article
+        </button>
         <button className="admin-button secondary" type="button" onClick={() => runAction("save-draft")} disabled={busy}>
-          Save draft
+          {status === "published" ? "Update published article" : status === "scheduled" ? "Update scheduled article" : status === "draft" ? "Save draft" : "Save changes"}
         </button>
 
         {canPublish ? (
@@ -400,9 +476,9 @@ export function BlogForm({
                 Cancel schedule
               </button>
             ) : null}
-            <button className="admin-button" type="button" onClick={() => runAction("publish")} disabled={busy}>
+            {status !== "published" ? <button className="admin-button" type="button" onClick={() => runAction("publish")} disabled={busy}>
               {busy ? "Working…" : "Publish article →"}
-            </button>
+            </button> : null}
           </>
         ) : (
           <button className="admin-button" type="button" onClick={() => runAction("submit")} disabled={busy}>

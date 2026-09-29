@@ -9,6 +9,7 @@
  */
 
 import { publishedState } from "@/lib/publish-rules";
+import { validArticleDocument } from "@/lib/content-rules";
 import { jsonDriver } from "./json-driver";
 import { mongoDriver } from "./mongo-driver";
 import type { BlogRepo, DataDriver } from "./types";
@@ -34,6 +35,8 @@ async function publishDuePosts() {
   const scheduled = await driver.blogs.list({ status: "scheduled" });
   for (const post of scheduled) {
     if (post.scheduledFor && Date.parse(post.scheduledFor) <= now) {
+      // A legacy invalid draft must neither publish nor block the other due posts.
+      if (!validArticleDocument(post.content)) continue;
       // The patch depends only on the post, so two instances racing here write the same thing.
       await driver.blogs.update(post._id, publishedState(post, undefined, post.scheduledFor));
     }

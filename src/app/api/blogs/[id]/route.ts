@@ -6,12 +6,14 @@
 
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
+import { blogResponse } from "@/lib/blog-response";
+import { articleContentSchema } from "@/lib/content-rules";
 import { slugify } from "@/lib/slug";
 import { getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, canDelete, canEdit, isReadable } from "@/lib/blog-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
-import { blogRepo } from "@/lib/repo";
+import { blogRepo, settingsRepo } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,7 +26,7 @@ export async function GET(_request: Request, { params }: Params) {
     if (!blog || !isReadable(blog, viewer)) {
       return NextResponse.json({ error: "Post not found." }, { status: 404 });
     }
-    return NextResponse.json(blog);
+    return NextResponse.json(blogResponse(blog, viewer, await settingsRepo.get()));
   } catch (error) {
     return errorResponse(error);
   }
@@ -60,6 +62,9 @@ export async function PATCH(request: Request, { params }: Params) {
       ...(canSetCommentMode(user) && comments ? { comments } : {}),
       ...(canSetViewMode(user) && showViews ? { showViews } : {}),
     };
+    if (blog.status === "published" || blog.status === "scheduled") {
+      articleContentSchema.parse(patch.content ?? blog.content);
+    }
     const updated = await blogRepo.update(id, patch);
     return NextResponse.json(updated);
   } catch (error) {

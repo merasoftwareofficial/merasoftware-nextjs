@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
 import { canEdit } from "@/lib/blog-rules";
-import { blogRepo } from "@/lib/repo";
+import { blogRepo, settingsRepo } from "@/lib/repo";
 import { BlogForm } from "../../blog-form";
 
 export default async function EditBlog({ params }: { params: Promise<{ slug: string }> }) {
@@ -11,6 +11,7 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
   const user = await requireStaffPage(`/admin/blog/${slug}/edit`);
 
   const blog = await blogRepo.findBySlug(slug);
+  const settings = await settingsRepo.get();
   if (!blog) notFound();
 
   if (!canEdit(user, blog)) {
@@ -41,7 +42,7 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
           <b>Moderator note:</b> {blog.reviewNote}
         </div>
       ) : null}
-      <BlogForm blog={blog} type={blog.type} role={user.role} />
+      <BlogForm blog={blog} type={blog.type} role={user.role} commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }} />
     </main>
   );
 }

@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { articleContentSchema } from "@/lib/content-rules";
 import { atLeast, type Role } from "@/lib/auth";
 import type { Blog, BlogStatus, User } from "@/lib/repo";
 
@@ -17,7 +18,7 @@ export const blogInputSchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "use lowercase letters, numbers and hyphens only")
     .max(120),
   excerpt: z.string().trim().min(20, "needs at least 20 characters").max(400),
-  content: z.unknown(),
+  content: articleContentSchema,
   type: z.enum(["official", "community", "discussion"]),
   visibility: z.enum(["public", "members", "private", "unlisted"]).default("public"),
   category: z.string().trim().max(60).optional(),

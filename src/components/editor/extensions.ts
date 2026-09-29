@@ -37,7 +37,9 @@ export const emptyDoc = { type: "doc", content: [{ type: "paragraph" }] };
 /** True when a Tiptap document has no visible text. */
 export function isEmptyDoc(doc: unknown): boolean {
   if (!doc || typeof doc !== "object") return true;
-  const content = (doc as { content?: unknown[] }).content;
-  if (!Array.isArray(content) || content.length === 0) return true;
-  return JSON.stringify(content).replace(/[^a-z0-9]/gi, "").length === 0;
+  const node = doc as { type?: string; text?: unknown; content?: unknown[] };
+  if (node.type === "text" && typeof node.text === "string") {
+    return node.text.replace(/[\s\u200B-\u200D\uFEFF]/gu, "").length === 0;
+  }
+  return !Array.isArray(node.content) || node.content.every(isEmptyDoc);
 }

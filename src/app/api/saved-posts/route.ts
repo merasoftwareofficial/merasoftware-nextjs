@@ -11,7 +11,8 @@ import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
-import { blogRepo, savedRepo } from "@/lib/repo";
+import { blogResponse } from "@/lib/blog-response";
+import { blogRepo, savedRepo, settingsRepo } from "@/lib/repo";
 
 const schema = z.object({ blogId: z.string().min(1) });
 
@@ -19,13 +20,14 @@ export async function GET() {
   try {
     const user = await requireUser();
     const rows = await savedRepo.listByUser(user._id);
+    const settings = await settingsRepo.get();
 
     // A post that was deleted or is no longer readable drops out of the list
     // rather than showing as a broken row.
     const posts = [];
     for (const row of rows) {
       const blog = await blogRepo.findById(row.blogId);
-      if (blog && isReadable(blog, user)) posts.push(blog);
+      if (blog && isReadable(blog, user)) posts.push(blogResponse(blog, user, settings));
     }
 
     return NextResponse.json({ posts });

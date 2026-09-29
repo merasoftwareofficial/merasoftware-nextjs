@@ -5,12 +5,13 @@
 
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
+import { blogResponse } from "@/lib/blog-response";
 import { slugify } from "@/lib/slug";
 import { atLeast, getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, initialState, isReadable } from "@/lib/blog-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
-import { blogRepo, type BlogQuery, type BlogStatus, type BlogType } from "@/lib/repo";
+import { blogRepo, settingsRepo, type BlogQuery, type BlogStatus, type BlogType } from "@/lib/repo";
 
 export async function GET(request: Request) {
   try {
@@ -41,7 +42,11 @@ export async function GET(request: Request) {
     }
 
     const rows = await blogRepo.list(query);
-    return NextResponse.json(rows.filter(row => isReadable(row, viewer)));
+    const settings = await settingsRepo.get();
+    return NextResponse.json(rows
+      .filter(row => isReadable(row, viewer))
+      .filter(row => row.visibility !== "unlisted" || viewer?._id === row.authorId || atLeast(viewer?.role ?? "visitor", "moderator"))
+      .map(row => blogResponse(row, viewer, settings)));
   } catch (error) {
     return errorResponse(error);
   }

@@ -14,6 +14,7 @@ import { errorResponse } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { canRunAction, statusActionSchema, statusFor } from "@/lib/blog-rules";
 import { publishedState } from "@/lib/publish-rules";
+import { articleContentSchema } from "@/lib/content-rules";
 import { blogRepo, type Blog } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,6 +41,7 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     if (action === "schedule") {
+      articleContentSchema.parse(blog.content);
       if (!scheduledFor) {
         return NextResponse.json({ error: "A schedule date is required." }, { status: 400 });
       }
@@ -61,6 +63,7 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     if (action === "submit") {
+      articleContentSchema.parse(blog.content);
       patch.reviewNote = "";
     }
 

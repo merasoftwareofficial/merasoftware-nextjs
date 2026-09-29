@@ -8,9 +8,11 @@
  */
 
 import type { Blog } from "@/lib/repo/types";
+import { articleContentSchema } from "@/lib/content-rules";
 
 /** `index` is the moderator's choice on approve; `at` is the go-live time. */
 export function publishedState(blog: Blog, index?: boolean, at = new Date().toISOString()): Partial<Blog> {
+  articleContentSchema.parse(blog.content);
   return {
     status: "published",
     // A post that was live before keeps its first publish date.
