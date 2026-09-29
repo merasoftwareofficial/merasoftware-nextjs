@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";
+import { MobileMenu } from "@/components/mobile-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionMenu } from "@/components/session-menu";
 
@@ -24,6 +25,15 @@ async function SessionSlot() {
   );
 }
 
+/** The main pages, shared by the inline nav and the phone menu. */
+const NAV_LINKS: [label: string, href: string][] = [
+  ["Services", "/services"],
+  ["Work", "/work"],
+  ["Blog", "/blog"],
+  ["Community", "/community"],
+  ["About", "/about"],
+];
+
 export function SiteHeader({ dark = false }: { dark?: boolean }) {
   return (
     <header className={`site-header ${dark ? "header-dark" : ""}`}>
@@ -32,11 +42,11 @@ export function SiteHeader({ dark = false }: { dark?: boolean }) {
           <span>mera</span>software<span className="brand-dot">.</span>
         </Link>
         <nav>
-          <Link href="/services">Services</Link>
-          <Link href="/work">Work</Link>
-          <Link href="/blog">Blog</Link>
-          <Link href="/community">Community</Link>
-          <Link href="/about">About</Link>
+          {NAV_LINKS.map(([label, href]) => (
+            <Link key={href} href={href}>
+              {label}
+            </Link>
+          ))}
         </nav>
         <div className="header-actions">
           <ThemeToggle />
@@ -46,6 +56,7 @@ export function SiteHeader({ dark = false }: { dark?: boolean }) {
           <Link className="nav-cta" href="/contact">
             Let&apos;s talk <span>↗</span>
           </Link>
+          <MobileMenu links={NAV_LINKS} />
         </div>
       </div>
     </header>
