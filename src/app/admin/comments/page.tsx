@@ -54,16 +54,26 @@ export default async function CommentsAdmin({
   }
 
   const { status } = await searchParams;
-  const comments = await commentRepo.list(status ? (status as CommentStatus) : undefined);
-  const reports = await reportRepo.list(false);
   const canDelete = canDeleteAnyComment(user);
-  const waiting = (await commentRepo.list("pending")).length;
+  const [comments, reports, waiting] = await Promise.all([
+    commentRepo.list(status ? (status as CommentStatus) : undefined),
+    reportRepo.list(false),
+    commentRepo.list("pending").then(rows => rows.length),
+  ]);
 
   // Each row names the post it belongs to, so a moderator can judge it in
-  // context without opening every article.
+  // context without opening every article. Posts and reporters are read in
+  // one query each, not one per row.
+  const [posts, reporters] = await Promise.all([
+    blogRepo.findByIds(comments.map(comment => comment.blogId)),
+    userRepo.findByIds(reports.map(report => report.userId)),
+  ]);
+  const postById = new Map(posts.map(post => [post._id, post]));
+  const reporterById = new Map(reporters.map(reporter => [reporter._id, reporter]));
+
   const rows = [];
   for (const comment of comments) {
-    const post = await blogRepo.findById(comment.blogId);
+    const post = postById.get(comment.blogId);
     rows.push([
       <span key="body" className="comment-cell">
         <b>{comment.userName}</b>
@@ -87,7 +97,7 @@ export default async function CommentsAdmin({
 
   const reportRows = [];
   for (const report of reports) {
-    const reporter = await userRepo.findById(report.userId);
+    const reporter = reporterById.get(report.userId);
     reportRows.push([
       report.targetType,
       report.reason,

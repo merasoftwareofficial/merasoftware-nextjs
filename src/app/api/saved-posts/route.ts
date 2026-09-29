@@ -19,14 +19,15 @@ const schema = z.object({ blogId: z.string().min(1) });
 export async function GET() {
   try {
     const user = await requireUser();
-    const rows = await savedRepo.listByUser(user._id);
-    const settings = await settingsRepo.get();
+    const [rows, settings] = await Promise.all([savedRepo.listByUser(user._id), settingsRepo.get()]);
 
     // A post that was deleted or is no longer readable drops out of the list
-    // rather than showing as a broken row.
+    // rather than showing as a broken row. One read for all of them, kept in
+    // saved order.
+    const byId = new Map((await blogRepo.findByIds(rows.map(row => row.blogId))).map(blog => [blog._id, blog]));
     const posts = [];
     for (const row of rows) {
-      const blog = await blogRepo.findById(row.blogId);
+      const blog = byId.get(row.blogId);
       if (blog && isReadable(blog, user)) posts.push(blogResponse(blog, user, settings));
     }
 
@@ -41,12 +42,11 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const { blogId } = schema.parse(await request.json());
 
-    const blog = await blogRepo.findById(blogId);
+    // Independent reads, so they go together; the write order below is unchanged.
+    const [blog, existing] = await Promise.all([blogRepo.findById(blogId), savedRepo.find(user._id, blogId)]);
     if (!blog || !isReadable(blog, user)) {
       return NextResponse.json({ error: "Post not found." }, { status: 404 });
     }
-
-    const existing = await savedRepo.find(user._id, blogId);
 
     if (existing) {
       await savedRepo.remove(existing._id);

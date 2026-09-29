@@ -131,6 +131,10 @@ const blogs: BlogRepo = {
     return query.limit === undefined ? rows.slice(skip) : rows.slice(skip, skip + query.limit);
   },
 
+  async listCards(query: BlogQuery = {}) {
+    return (await blogs.list(query)).map(({ content: _content, ...card }) => card);
+  },
+
   async count(query: BlogQuery = {}) {
     const { limit: _limit, skip: _skip, ...rest } = query;
     return (await blogs.list(rest)).length;
@@ -138,6 +142,11 @@ const blogs: BlogRepo = {
 
   async findById(blogId) {
     return read<Blog>("blogs").find(row => row._id === blogId) ?? null;
+  },
+
+  async findByIds(blogIds) {
+    const wanted = new Set(blogIds);
+    return read<Blog>("blogs").filter(row => wanted.has(row._id));
   },
 
   async findBySlug(slug) {
@@ -181,11 +190,13 @@ const blogs: BlogRepo = {
   async incr(blogId, field, by) {
     const rows = read<Blog>("blogs");
     const index = rows.findIndex(row => row._id === blogId);
-    if (index === -1) return;
+    if (index === -1) return null;
     // Not updatedAt: a reaction or save is not an edit, and updatedAt is the
     // article's dateModified for search engines and the sitemap.
-    rows[index] = { ...rows[index], [field]: Math.max(0, rows[index][field] + by) };
+    const value = Math.max(0, rows[index][field] + by);
+    rows[index] = { ...rows[index], [field]: value };
     write("blogs", rows);
+    return value;
   },
 };
 
@@ -194,6 +205,10 @@ const blogs: BlogRepo = {
 const users: UserRepo = {
   async findById(userId) {
     return read<User>("users").find(row => row._id === userId) ?? null;
+  },
+  async findByIds(userIds) {
+    const wanted = new Set(userIds);
+    return read<User>("users").filter(row => wanted.has(row._id));
   },
   async findByEmail(email) {
     const target = email.toLowerCase();

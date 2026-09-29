@@ -45,26 +45,26 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const { blogId, reaction } = schema.parse(await request.json());
 
-    const blog = await blogRepo.findById(blogId);
+    // Independent reads, so they go together; the write order below is unchanged.
+    const [blog, existing] = await Promise.all([
+      blogRepo.findById(blogId),
+      reactionRepo.find(user._id, blogId, reaction),
+    ]);
     if (!blog || !isReadable(blog, user)) {
       return NextResponse.json({ error: "Post not found." }, { status: 404 });
     }
 
-    const existing = await reactionRepo.find(user._id, blogId, reaction);
-
+    let count: number | null;
     if (existing) {
       await reactionRepo.remove(existing._id);
-      await blogRepo.incr(blogId, COUNTER[reaction], -1);
+      count = await blogRepo.incr(blogId, COUNTER[reaction], -1);
     } else {
       await reactionRepo.create({ userId: user._id, targetId: blogId, reaction });
-      await blogRepo.incr(blogId, COUNTER[reaction], 1);
+      count = await blogRepo.incr(blogId, COUNTER[reaction], 1);
     }
 
-    const after = await blogRepo.findById(blogId);
-    return NextResponse.json({
-      active: !existing,
-      count: after ? after[COUNTER[reaction]] : 0,
-    });
+    // incr() returns the new total, so no second read of the post.
+    return NextResponse.json({ active: !existing, count: count ?? 0 });
   } catch (error) {
     return errorResponse(error);
   }

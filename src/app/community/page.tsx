@@ -28,7 +28,7 @@ export default async function Community({ searchParams }: { searchParams: Promis
   const { q } = await searchParams;
   const term = q?.trim() ?? "";
 
-  const posts = (await blogRepo.list({ type: "community", status: "published", search: term || undefined })).filter(
+  const posts = (await blogRepo.listCards({ type: "community", status: "published", search: term || undefined })).filter(
     post => post.visibility !== "unlisted" && isReadable(post, viewer),
   );
 

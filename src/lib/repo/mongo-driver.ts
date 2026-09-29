@@ -55,54 +55,53 @@ function statusFilter(status?: CommentStatus | CommentStatus[]) {
   return status === undefined ? {} : { status: Array.isArray(status) ? { $in: status } : status };
 }
 
+/** The MongoDB filter for a BlogQuery; list, listCards and count share it. */
+function blogFilter(query: BlogQuery) {
+  const filter: Record<string, unknown> = {};
+  for (const key of ["type", "status", "visibility"] as const) {
+    const value = query[key];
+    if (value !== undefined) filter[key] = Array.isArray(value) ? { $in: value } : value;
+  }
+  if (query.category !== undefined) filter.category = query.category;
+  if (query.tag !== undefined) filter.tags = query.tag;
+  if (query.authorId !== undefined) filter.authorId = query.authorId;
+  if (query.noIndex !== undefined) filter.noIndex = query.noIndex;
+  if (query.search?.trim()) {
+    const safe = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(safe, "i");
+    filter.$or = [{ title: pattern }, { excerpt: pattern }, { tags: pattern }];
+  }
+  return filter;
+}
+
+/** Newest first, as list() documents. `withContent: false` leaves the body in the database. */
+async function blogRows(query: BlogQuery, withContent: boolean) {
+  await connectMongo();
+  const skip = Math.max(0, query.skip ?? 0);
+  const pipeline: PipelineStage[] = [
+    { $match: blogFilter(query) },
+    { $addFields: { _sortDate: { $ifNull: ["$publishedAt", "$updatedAt"] } } },
+    { $sort: { _sortDate: -1, _id: -1 } },
+    { $skip: skip },
+  ];
+  if (query.limit !== undefined) pipeline.push({ $limit: Math.max(0, query.limit) });
+  pipeline.push({ $project: withContent ? { _sortDate: 0 } : { _sortDate: 0, content: 0 } });
+  const rows = await Blog.aggregate(pipeline);
+  return rows.map((row: Record<string, unknown>) => blogRecord(row));
+}
+
 const blogs: DataDriver["blogs"] = {
   async list(query: BlogQuery = {}) {
-    await connectMongo();
-    const filter: Record<string, unknown> = {};
-    for (const key of ["type", "status", "visibility"] as const) {
-      const value = query[key];
-      if (value !== undefined) filter[key] = Array.isArray(value) ? { $in: value } : value;
-    }
-    if (query.category !== undefined) filter.category = query.category;
-    if (query.tag !== undefined) filter.tags = query.tag;
-    if (query.authorId !== undefined) filter.authorId = query.authorId;
-    if (query.noIndex !== undefined) filter.noIndex = query.noIndex;
-    if (query.search?.trim()) {
-      const safe = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(safe, "i");
-      filter.$or = [{ title: pattern }, { excerpt: pattern }, { tags: pattern }];
-    }
+    return blogRows(query, true);
+  },
 
-    const skip = Math.max(0, query.skip ?? 0);
-    const pipeline: PipelineStage[] = [
-      { $match: filter },
-      { $addFields: { _sortDate: { $ifNull: ["$publishedAt", "$updatedAt"] } } },
-      { $sort: { _sortDate: -1, _id: -1 } },
-      { $skip: skip },
-    ];
-    if (query.limit !== undefined) pipeline.push({ $limit: Math.max(0, query.limit) });
-    pipeline.push({ $project: { _sortDate: 0 } });
-    const rows = await Blog.aggregate(pipeline);
-    return rows.map((row: Record<string, unknown>) => blogRecord(row));
+  async listCards(query: BlogQuery = {}) {
+    return blogRows(query, false);
   },
 
   async count(query: BlogQuery = {}) {
     await connectMongo();
-    const filter: Record<string, unknown> = {};
-    for (const key of ["type", "status", "visibility"] as const) {
-      const value = query[key];
-      if (value !== undefined) filter[key] = Array.isArray(value) ? { $in: value } : value;
-    }
-    if (query.category !== undefined) filter.category = query.category;
-    if (query.tag !== undefined) filter.tags = query.tag;
-    if (query.authorId !== undefined) filter.authorId = query.authorId;
-    if (query.noIndex !== undefined) filter.noIndex = query.noIndex;
-    if (query.search?.trim()) {
-      const safe = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(safe, "i");
-      filter.$or = [{ title: pattern }, { excerpt: pattern }, { tags: pattern }];
-    }
-    return Blog.countDocuments(filter);
+    return Blog.countDocuments(blogFilter(query));
   },
 
   async findById(id) {
@@ -111,6 +110,14 @@ const blogs: DataDriver["blogs"] = {
     await connectMongo();
     const row = await Blog.findById(_id).lean();
     return row ? blogRecord(row as unknown as Record<string, unknown>) : null;
+  },
+
+  async findByIds(ids) {
+    const _ids = [...new Set(ids)].map(objectId).filter((id): id is Types.ObjectId => id !== null);
+    if (!_ids.length) return [];
+    await connectMongo();
+    const rows = await Blog.find({ _id: { $in: _ids } }).lean();
+    return rows.map((row: Record<string, unknown>) => blogRecord(row));
   },
 
   async findBySlug(slug) {
@@ -153,17 +160,19 @@ const blogs: DataDriver["blogs"] = {
 
   async incr(id, field, by) {
     const _id = objectId(id);
-    if (!_id) return;
+    if (!_id) return null;
     await connectMongo();
     // timestamps: false — a reaction or save is not an edit, and updatedAt is
     // the article's dateModified for search engines and the sitemap.
     // updatePipeline: Mongoose 9 refuses an array update without it, which
     // made every reaction and save fail on the Mongo driver.
-    await Blog.updateOne(
+    // Returns the new value, so a caller needs no second read for the count.
+    const row = await Blog.findOneAndUpdate(
       { _id },
       [{ $set: { [field]: { $max: [0, { $add: [{ $ifNull: [`$${field}`, 0] }, by] }] } } }],
-      { timestamps: false, updatePipeline: true },
-    );
+      { returnDocument: "after", projection: { [field]: 1 }, timestamps: false, updatePipeline: true },
+    ).lean();
+    return row ? Number((row as Record<string, unknown>)[field] ?? 0) : null;
   },
 };
 
@@ -174,6 +183,13 @@ const users: DataDriver["users"] = {
     await connectMongo();
     const row = await User.findById(_id).lean();
     return row ? userRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async findByIds(ids) {
+    const _ids = [...new Set(ids)].map(objectId).filter((id): id is Types.ObjectId => id !== null);
+    if (!_ids.length) return [];
+    await connectMongo();
+    const rows = await User.find({ _id: { $in: _ids } }).lean();
+    return rows.map((row: Record<string, unknown>) => userRecord(row));
   },
   async findByEmail(email) {
     await connectMongo();
@@ -355,11 +371,11 @@ const SETTINGS_DEFAULTS = { commentDefault: "visible", commentsEnabled: true, vi
 const settings: DataDriver["settings"] = {
   async get() {
     await connectMongo();
-    const row = await Settings.findOneAndUpdate(
-      { _id: "site" },
-      { $setOnInsert: SETTINGS_DEFAULTS },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    ).lean();
+    // A plain read: pages call this on every article view. Until an admin first
+    // saves, the row does not exist and the defaults apply — the same answer the
+    // JSON driver gives; update() creates the row.
+    const row = await Settings.findById("site").lean();
+    if (!row) return { _id: "site", ...SETTINGS_DEFAULTS, updatedAt: new Date().toISOString() };
     return serialize(row as never) as SettingsRecord;
   },
   async update(patch) {

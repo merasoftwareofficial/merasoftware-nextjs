@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { Comments } from "@/components/blog/comments";
 import { Reactions } from "@/components/blog/reactions";
 import { ViewBeacon } from "@/components/blog/view-beacon";
@@ -23,9 +24,12 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ slug: string }> };
 
+/** The metadata and the page both need the post; cache() makes it one read per request. */
+const getPost = cache((slug: string) => blogRepo.findBySlug(slug));
+
 export async function generateMetadata({ params }: Params) {
   const { slug } = await params;
-  const post = await blogRepo.findBySlug(slug);
+  const post = await getPost(slug);
   if (!post) return { title: "Article" };
 
   // A post is its own canonical unless the editor says it first appeared elsewhere.
@@ -58,8 +62,7 @@ function when(value?: string) {
 
 export default async function Article({ params }: Params) {
   const { slug } = await params;
-  const viewer = await getSessionUser();
-  const post = await blogRepo.findBySlug(slug);
+  const [viewer, post] = await Promise.all([getSessionUser(), getPost(slug)]);
 
   if (!post) notFound();
 
@@ -91,9 +94,22 @@ export default async function Article({ params }: Params) {
     notFound();
   }
 
+  // Everything below depends only on the post and the viewer, so it is read in
+  // one round instead of six one after another.
+  //
   // The byline links to the author's profile. Blog rows store authorId, not the
   // username, so the user is looked up; a deleted author just loses the link.
-  const author = await userRepo.findById(post.authorId);
+  //
+  // Engagement state is read here rather than fetched by the components, so
+  // the thread is in the server HTML and the buttons render already correct.
+  const [author, candidates, settings, comments, myReactions, savedRow] = await Promise.all([
+    userRepo.findById(post.authorId),
+    blogRepo.listCards({ type: post.type, status: "published", visibility: "public" }),
+    settingsRepo.get(),
+    commentRepo.listByBlog(post._id, visibleStatuses(viewer, post)),
+    viewer ? reactionRepo.listByUser(viewer._id, [post._id]) : Promise.resolve([]),
+    viewer ? savedRepo.find(viewer._id, post._id) : Promise.resolve(null),
+  ]);
 
   // Related posts stay within the same kind of content: an official article
   // suggests articles, a community post suggests community work.
@@ -103,9 +119,9 @@ export default async function Article({ params }: Params) {
   // signal, then each shared tag, then recency as the tie-break. Anything
   // scoring zero is only used to fill the row when there is nothing better.
   // Among equal scores the more-read post comes first, then the newer one.
-  const pool = (await blogRepo.list({ type: post.type, status: "published" })).filter(
-    item => item._id !== post._id && item.visibility === "public" && !item.noIndex,
-  );
+  // noIndex stays a check here: posts saved before the field existed lack it,
+  // and a `noIndex: false` query would drop them.
+  const pool = candidates.filter(item => item._id !== post._id && !item.noIndex);
 
   const score = (item: (typeof pool)[number]) => {
     let value = 0;
@@ -119,13 +135,6 @@ export default async function Article({ params }: Params) {
     .sort((a, b) => b.value - a.value || (b.item.viewCount ?? 0) - (a.item.viewCount ?? 0))
     .slice(0, 3)
     .map(entry => entry.item);
-
-  // Engagement state is read here rather than fetched by the components, so
-  // the thread is in the server HTML and the buttons render already correct.
-  const settings = await settingsRepo.get();
-  const comments = await commentRepo.listByBlog(post._id, visibleStatuses(viewer, post));
-  const myReactions = viewer ? await reactionRepo.listByUser(viewer._id, [post._id]) : [];
-  const savedRow = viewer ? await savedRepo.find(viewer._id, post._id) : null;
 
   // Structured data only where the page is genuinely public and indexable.
   // Describing a noindex or members-only post to a crawler contradicts what it

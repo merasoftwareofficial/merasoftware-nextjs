@@ -42,7 +42,7 @@ export default async function MemberProfile({ params }: Params) {
 
   if (!member || member.banned) notFound();
 
-  const posts = (await blogRepo.list({ authorId: member._id, status: "published" })).filter(
+  const posts = (await blogRepo.listCards({ authorId: member._id, status: "published" })).filter(
     post => post.visibility !== "unlisted" && isReadable(post, viewer),
   );
 

@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { canDelete, canEdit } from "@/lib/blog-rules";
-import { blogRepo, type Blog, type BlogStatus } from "@/lib/repo";
+import { blogRepo, type BlogCard, type BlogStatus } from "@/lib/repo";
 import { DeleteDraft } from "./delete-draft";
 
 export const metadata = { title: "My Posts", robots: { index: false, follow: false } };
@@ -26,7 +26,7 @@ function when(value?: string) {
 }
 
 /** Where the author edits this post: members through the community form, official posts in the panel. */
-function editHref(post: Blog) {
+function editHref(post: BlogCard) {
   return post.type === "official" ? `/admin/blog/${post.slug}/edit` : `/community/write?edit=${post.slug}`;
 }
 
@@ -38,7 +38,7 @@ export default async function MyPosts() {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/account/posts");
 
-  const posts = await blogRepo.list({ authorId: user._id });
+  const posts = await blogRepo.listCards({ authorId: user._id });
 
   return (
     <>

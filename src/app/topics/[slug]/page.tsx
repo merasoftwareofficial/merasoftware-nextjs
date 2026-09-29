@@ -35,7 +35,7 @@ export default async function Topic({ params }: Params) {
   const { slug } = await params;
   const viewer = await getSessionUser();
 
-  const posts = (await blogRepo.list({ status: "published" })).filter(
+  const posts = (await blogRepo.listCards({ status: "published" })).filter(
     post =>
       post.visibility !== "unlisted" &&
       isReadable(post, viewer) &&

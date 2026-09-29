@@ -29,7 +29,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
   // Unlisted posts are reachable by link but must not appear in listings.
   // The search itself runs in the repo, so the MongoDB driver can answer it
   // with a query instead of filtering in memory.
-  const posts = (await blogRepo.list({ type: "official", status: "published", search: term || undefined }))
+  const posts = (await blogRepo.listCards({ type: "official", status: "published", search: term || undefined }))
     .filter(post => post.visibility !== "unlisted" && isReadable(post, viewer));
 
   // Most-read articles of the last 7 days (today and the six before), drawn from

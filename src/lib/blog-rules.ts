@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { articleContentSchema } from "@/lib/content-rules";
 import { atLeast, type Role } from "@/lib/auth";
-import type { Blog, BlogStatus, User } from "@/lib/repo";
+import type { Blog, BlogCard, BlogStatus, User } from "@/lib/repo";
 
 export const blogInputSchema = z.object({
   title: z.string().trim().min(8, "needs at least 8 characters").max(160),
@@ -111,14 +111,14 @@ export function canRunAction(user: User, blog: Blog, action: StatusAction) {
 }
 
 /** May this user edit the post body? */
-export function canEdit(user: User, blog: Blog) {
+export function canEdit(user: User, blog: BlogCard) {
   if (blog.authorId === user._id && blog.status !== "published") return true;
   if (blog.type === "official") return atLeast(user.role, "editor");
   return atLeast(user.role, "moderator");
 }
 
 /** May this user delete the post? */
-export function canDelete(user: User, blog: Blog) {
+export function canDelete(user: User, blog: BlogCard) {
   if (blog.authorId === user._id && blog.status === "draft") return true;
   return atLeast(user.role, "admin");
 }
@@ -136,7 +136,7 @@ export function initialState(_type: BlogInput["type"], _user: User) {
 }
 
 /** Can this post be shown to this viewer? Used by every public page. */
-export function isReadable(blog: Blog, viewer: User | null) {
+export function isReadable(blog: BlogCard, viewer: User | null) {
   if (viewer && (blog.authorId === viewer._id || atLeast(viewer.role, "moderator"))) return true;
   if (blog.status !== "published") return false;
   if (blog.visibility === "private") return false;

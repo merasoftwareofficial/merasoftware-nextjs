@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * contradiction crawlers treat as a quality signal, so this filter matters.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const posts = (await blogRepo.list({ status: "published", visibility: "public", noIndex: false })).filter(
+  const posts = (await blogRepo.listCards({ status: "published", visibility: "public", noIndex: false })).filter(
     post => post.visibility === "public",
   );
 
@@ -64,10 +64,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // A member profile is listed once that member has an indexable post; a
   // banned account is dropped, matching what /members/[username] serves.
-  const authorIds = new Set(posts.map(post => post.authorId));
+  // One read for every author, in the order their posts first appear.
+  const authorIds = [...new Set(posts.map(post => post.authorId))];
+  const authors = new Map((await userRepo.findByIds(authorIds)).map(author => [author._id, author]));
   const memberPages: MetadataRoute.Sitemap = [];
   for (const authorId of authorIds) {
-    const author = await userRepo.findById(authorId);
+    const author = authors.get(authorId);
     if (!author || author.banned) continue;
     memberPages.push({
       url: `${SITE}/members/${author.username}`,

@@ -10,8 +10,7 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const user = await requireStaffPage(`/admin/blog/${slug}/edit`);
 
-  const blog = await blogRepo.findBySlug(slug);
-  const settings = await settingsRepo.get();
+  const [blog, settings] = await Promise.all([blogRepo.findBySlug(slug), settingsRepo.get()]);
   if (!blog) notFound();
 
   if (!canEdit(user, blog)) {

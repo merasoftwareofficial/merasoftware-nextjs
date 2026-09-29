@@ -62,11 +62,18 @@ export default async function BlogAdmin({
   const user = await requireStaffPage("/admin/blog");
 
   const { status, sort, done, post: doneSlug } = await searchParams;
-  const donePost = done && Object.hasOwn(DONE_MESSAGE, done) && doneSlug ? await blogRepo.findBySlug(doneSlug) : null;
   const byViews = sort === "views";
 
-  // Staff only (requireStaffPage); members follow their own posts at /account/posts.
-  const posts = await blogRepo.list({ status: status ? (status as BlogStatus) : undefined });
+  // Moderators get a link to the queue carrying the number waiting for them.
+  const canReview = atLeast(user.role, "moderator");
+
+  // Independent reads go together. Staff only (requireStaffPage); members
+  // follow their own posts at /account/posts.
+  const [donePost, posts, waiting] = await Promise.all([
+    done && Object.hasOwn(DONE_MESSAGE, done) && doneSlug ? blogRepo.findBySlug(doneSlug) : null,
+    blogRepo.listCards({ status: status ? (status as BlogStatus) : undefined }),
+    canReview ? blogRepo.count({ status: "pending" }) : 0,
+  ]);
   // Views over the last 7 days (today and the six before), for the listed posts.
   const week = posts.length ? await viewRepo.sumSince(dayKey(6), posts.map(post => post._id)) : {};
   if (byViews) posts.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
@@ -78,10 +85,6 @@ export default async function BlogAdmin({
     const text = query.toString();
     return text ? `/admin/blog?${text}` : "/admin/blog";
   };
-
-  // Moderators get a link to the queue carrying the number waiting for them.
-  const canReview = atLeast(user.role, "moderator");
-  const waiting = canReview ? await blogRepo.count({ status: "pending" }) : 0;
 
   return (
     <main className="admin-main">

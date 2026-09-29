@@ -8,6 +8,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { getPortalAccount, PORTAL_COOKIE, websiteUserFor } from "@/lib/portal";
 import type { Role, User } from "@/lib/repo";
 
@@ -35,8 +36,15 @@ export class AuthError extends Error {
   }
 }
 
-/** The signed-in user plus their portal roles, or null. Never throws — safe for public pages. */
-export async function getSession(): Promise<{ user: User; portalRoles: string[] } | null> {
+/**
+ * The signed-in user plus their portal roles, or null. Never throws — safe for public pages.
+ *
+ * Memoised for one server render with React cache(): the header, a layout and
+ * the page all ask, and without it each ask was its own portal check and user
+ * lookup. It never outlives the request, so a role change still shows on the
+ * next one. Where there is no render to memoise in, it simply runs each time.
+ */
+export const getSession = cache(async function getSession(): Promise<{ user: User; portalRoles: string[] } | null> {
   const store = await cookies();
   const token = store.get(PORTAL_COOKIE)?.value;
   if (!token) return null;
@@ -54,7 +62,7 @@ export async function getSession(): Promise<{ user: User; portalRoles: string[] 
     user: account.roles.includes("admin") ? { ...user, role: "admin" } : user,
     portalRoles: account.roles,
   };
-}
+});
 
 /** The signed-in user, or null. Never throws — safe for public pages. */
 export async function getSessionUser(): Promise<User | null> {

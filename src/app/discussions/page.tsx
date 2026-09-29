@@ -24,7 +24,7 @@ function when(value?: string) {
 export default async function Discussions() {
   const viewer = await getSessionUser();
 
-  const posts = (await blogRepo.list({ type: "discussion", status: "published" })).filter(
+  const posts = (await blogRepo.listCards({ type: "discussion", status: "published" })).filter(
     post => post.visibility !== "unlisted" && isReadable(post, viewer),
   );
 

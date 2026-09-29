@@ -16,10 +16,12 @@ export default async function Saved() {
 
   // A saved post that was deleted, unpublished or made private drops out of
   // the list rather than showing as a broken row.
+  // The posts are read in one query, then put back in saved order (newest first).
   const rows = await savedRepo.listByUser(user._id);
+  const byId = new Map((await blogRepo.findByIds(rows.map(row => row.blogId))).map(post => [post._id, post]));
   const posts: Blog[] = [];
   for (const row of rows) {
-    const post = await blogRepo.findById(row.blogId);
+    const post = byId.get(row.blogId);
     if (post && isReadable(post, user)) posts.push(post);
   }
 

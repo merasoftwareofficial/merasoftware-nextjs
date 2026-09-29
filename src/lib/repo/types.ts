@@ -69,6 +69,12 @@ export interface Blog {
   updatedAt: string;
 }
 
+/**
+ * A post without its body, for lists. The Tiptap document is the heaviest
+ * field and no list shows it, so listCards() leaves it in the database.
+ */
+export type BlogCard = Omit<Blog, "content">;
+
 export interface User {
   _id: string;
   email: string;
@@ -141,18 +147,27 @@ export type NewBlog = Omit<
 
 export interface BlogRepo {
   list(query?: BlogQuery): Promise<Blog[]>;
+  /** Same filters and order as list(), without each post's content. */
+  listCards(query?: BlogQuery): Promise<BlogCard[]>;
   count(query?: BlogQuery): Promise<number>;
   findById(id: string): Promise<Blog | null>;
+  /** The posts that exist among these ids, in one read. Order is not guaranteed. */
+  findByIds(ids: string[]): Promise<Blog[]>;
   findBySlug(slug: string): Promise<Blog | null>;
   create(data: NewBlog): Promise<Blog>;
   update(id: string, patch: Partial<Blog>): Promise<Blog | null>;
   remove(id: string): Promise<boolean>;
-  /** Atomic counter change used by reactions and saves. Leaves updatedAt alone. */
-  incr(id: string, field: "helpfulCount" | "insightfulCount" | "saveCount", by: number): Promise<void>;
+  /**
+   * Atomic counter change used by reactions and saves. Leaves updatedAt alone.
+   * Returns the counter's new value, or null when the post does not exist.
+   */
+  incr(id: string, field: "helpfulCount" | "insightfulCount" | "saveCount", by: number): Promise<number | null>;
 }
 
 export interface UserRepo {
   findById(id: string): Promise<User | null>;
+  /** The users that exist among these ids, in one read. Order is not guaranteed. */
+  findByIds(ids: string[]): Promise<User[]>;
   findByEmail(email: string): Promise<User | null>;
   findByUsername(username: string): Promise<User | null>;
   findByPortalUserId(portalUserId: string): Promise<User | null>;

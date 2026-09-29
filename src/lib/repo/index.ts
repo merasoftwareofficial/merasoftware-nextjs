@@ -61,6 +61,10 @@ export const blogRepo: BlogRepo = {
     await ensureDuePublished();
     return driver.blogs.list(query);
   },
+  async listCards(query) {
+    await ensureDuePublished();
+    return driver.blogs.listCards(query);
+  },
   async count(query) {
     await ensureDuePublished();
     return driver.blogs.count(query);
@@ -68,6 +72,10 @@ export const blogRepo: BlogRepo = {
   async findById(id) {
     await ensureDuePublished();
     return driver.blogs.findById(id);
+  },
+  async findByIds(ids) {
+    await ensureDuePublished();
+    return driver.blogs.findByIds(ids);
   },
   async findBySlug(slug) {
     await ensureDuePublished();

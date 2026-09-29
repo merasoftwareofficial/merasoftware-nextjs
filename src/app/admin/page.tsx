@@ -16,12 +16,15 @@ export const metadata = { title: "Admin workspace" };
 export default async function Admin() {
   const user = await requireStaffPage("/admin");
 
-  const published = await blogRepo.count({ status: "published" });
+  // Five independent counts, read together rather than one after another.
   const canReview = atLeast(user.role, "moderator");
-  const pendingPosts = canReview ? await blogRepo.count({ status: "pending" }) : 0;
-  const pendingComments = canReview ? (await commentRepo.list("pending")).length : 0;
-  const openReports = canReview ? (await reportRepo.list(false)).length : 0;
-  const mine = await blogRepo.count({ authorId: user._id });
+  const [published, pendingPosts, pendingComments, openReports, mine] = await Promise.all([
+    blogRepo.count({ status: "published" }),
+    canReview ? blogRepo.count({ status: "pending" }) : 0,
+    canReview ? commentRepo.list("pending").then(rows => rows.length) : 0,
+    canReview ? reportRepo.list(false).then(rows => rows.length) : 0,
+    blogRepo.count({ authorId: user._id }),
+  ]);
 
   const pad = (value: number) => String(value).padStart(2, "0");
 
