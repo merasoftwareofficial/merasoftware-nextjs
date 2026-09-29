@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { atLeast, requireStaffPage } from "@/lib/auth";
 import { activeDriver, blogRepo, commentRepo, reportRepo } from "@/lib/repo";

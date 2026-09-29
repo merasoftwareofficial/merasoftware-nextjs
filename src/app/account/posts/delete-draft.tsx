@@ -5,11 +5,11 @@
  * (canDelete in blog-rules.ts); this only asks for confirmation first.
  */
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 
 export function DeleteDraft({ id }: { id: string }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 

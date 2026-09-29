@@ -7,7 +7,7 @@
  * enforced in one place — this component only chooses which buttons to offer.
  */
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 
 export function CommentActions({
@@ -19,7 +19,7 @@ export function CommentActions({
   status: string;
   canDelete: boolean;
 }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -81,7 +81,7 @@ export function CommentActions({
 }
 
 export function ReportActions({ id, resolved }: { id: string; resolved: boolean }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 

@@ -213,3 +213,16 @@
 .search-box input:focus{outline:none;border-color:#8fad18}
 .search-summary{margin:-10px 0 24px;font-size:15px;color:var(--muted)}
 @media(max-width:700px){.search-box{flex-wrap:wrap}.search-box input{flex:1 1 100%}}
+
+/* Page loading (src/components/loading): one bar for every page and panel tab.
+   Only transform and opacity animate, so it never re-lays out the page. It
+   appears after 120ms, so fast navigations never flash it. */
+:root{--loader:#8fad18}html[data-theme="dark"]{--loader:#b7d938}@media(prefers-color-scheme:dark){html:not([data-theme="light"]){--loader:#b7d938}}
+.nav-progress{position:fixed;top:0;left:0;right:0;z-index:1000;height:3px;background:var(--loader);transform:scaleX(0);transform-origin:left;opacity:0;pointer-events:none}
+.nav-progress.is-busy{animation:nav-progress-in .2s ease .12s forwards,nav-progress-grow 10s cubic-bezier(.1,.7,.2,1) .12s forwards}
+.nav-progress.is-done{transform:scaleX(1);animation:nav-progress-out .3s ease forwards}
+@keyframes nav-progress-in{to{opacity:1}}
+@keyframes nav-progress-grow{from{transform:scaleX(.1)}to{transform:scaleX(.92)}}
+@keyframes nav-progress-out{0%,50%{opacity:1}to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.nav-progress.is-busy{transform:scaleX(1);animation:nav-progress-in .2s ease .12s forwards}.nav-progress.is-done{animation:none;opacity:0}}
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}

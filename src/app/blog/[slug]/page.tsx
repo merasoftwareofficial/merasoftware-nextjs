@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { Comments } from "@/components/blog/comments";

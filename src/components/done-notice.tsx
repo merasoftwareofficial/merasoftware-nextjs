@@ -7,7 +7,7 @@
  * announce the same publish again.
  */
 
-import Link from "next/link";
+import Link from "@/components/link";
 import { useEffect } from "react";
 
 export function DoneNotice({ message, href }: { message: string; href?: string }) {

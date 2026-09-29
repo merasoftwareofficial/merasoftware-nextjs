@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { Field } from "@/components/admin-form";
 import { atLeast, requireStaffPage } from "@/lib/auth";

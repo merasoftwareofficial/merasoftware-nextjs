@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { atLeast, requireStaffPage } from "@/lib/auth";

@@ -1,3 +1,3 @@
-import Link from "next/link";
+import Link from "@/components/link";
 
 export function SiteFooter() { return <footer className="site-footer"><div className="container footer-top"><div><Link className="brand" href="/"><span>mera</span>software<span className="brand-dot">.</span></Link><p>Digital marketing, software &amp; web development for businesses moving forward.</p></div><div><p className="footer-label">EXPLORE</p><Link href="/services">Services</Link><Link href="/work">Our work</Link><Link href="/blog">Blog</Link></div><div><p className="footer-label">CONTACT</p><a href="mailto:contact@merasoftware.com">contact@merasoftware.com</a><Link href="/contact">Start a project ↗</Link></div></div><div className="container footer-bottom"><span>© 2026 Mera Software</span><Link href="/privacy">Privacy</Link><Link href="/admin">Admin</Link></div></footer>; }

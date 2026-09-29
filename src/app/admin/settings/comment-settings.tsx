@@ -9,12 +9,12 @@
  * moderated or closed keeps its own choice — see effectiveMode().
  */
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Settings } from "@/lib/repo";
 
 export function CommentSettings({ settings }: { settings: Settings }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [enabled, setEnabled] = useState(settings.commentsEnabled);
   const [hold, setHold] = useState(settings.commentDefault === "pending");
   const [busy, setBusy] = useState(false);

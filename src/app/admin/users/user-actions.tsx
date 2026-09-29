@@ -5,14 +5,14 @@
  * this (admin only, never on yourself); this component only offers the controls.
  */
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
 const ROLES: Role[] = ["member", "moderator", "editor", "admin"];
 
 export function UserActions({ id, role, banned }: { id: string; role: Role; banned: boolean }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 

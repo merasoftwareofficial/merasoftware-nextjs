@@ -8,7 +8,7 @@
  * that the API's own reply is the truth, because two tabs can disagree.
  */
 
-import Link from "next/link";
+import Link from "@/components/link";
 import { useState } from "react";
 
 type Props = {

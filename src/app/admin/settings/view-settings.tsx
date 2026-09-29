@@ -5,12 +5,12 @@
  * set to "show" or "hide" keeps its own choice — see viewsVisible().
  */
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Settings } from "@/lib/repo";
 
 export function ViewSettings({ settings }: { settings: Settings }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [visible, setVisible] = useState(settings.viewsPublic === true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

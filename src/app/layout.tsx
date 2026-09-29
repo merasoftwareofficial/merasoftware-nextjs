@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NavigationProgress } from "@/components/loading/navigation";
 import { SITE_NAME, SITE_URL } from "@/lib/structured-data";
 import "./globals.css";
 
@@ -26,7 +27,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en-IN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* One loading bar for every page and panel tab; see src/components/loading. */}
+        <NavigationProgress />
+        {children}
+      </body>
     </html>
   );
 }

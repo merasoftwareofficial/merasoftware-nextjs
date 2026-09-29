@@ -9,7 +9,7 @@
  * pages. The panel closes on navigation, Escape and a tap outside it.
  */
 
-import Link from "next/link";
+import Link from "@/components/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 

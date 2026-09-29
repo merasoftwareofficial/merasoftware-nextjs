@@ -9,13 +9,13 @@
  * index choice.
  */
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 
 type Decision = "reject" | "request-changes";
 
 export function ReviewActions({ id, type }: { id: string; type: string }) {
-  const router = useRouter();
+  const router = useNavigate();
 
   // Community and discussion posts stay out of search unless the moderator
   // decides this one is worth indexing. Official posts are indexed on publish.

@@ -13,8 +13,8 @@
  * only when a moderator approves it.
  */
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/link";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
@@ -51,7 +51,7 @@ const COPY: Record<"community" | "discussion", { label: string; titleHint: strin
 };
 
 export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: "community" | "discussion" }) {
-  const router = useRouter();
+  const router = useNavigate();
 
   // Type is fixed once a post exists — changing it would move it between listings.
   const [type, setType] = useState<"community" | "discussion">((blog?.type as "community" | "discussion") ?? initialType);

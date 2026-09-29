@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";

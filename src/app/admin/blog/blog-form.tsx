@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useEffect, useRef, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
@@ -82,7 +82,7 @@ export function BlogForm({
   role: Role;
   commentDefaults: Pick<Settings, "commentsEnabled" | "commentDefault">;
 }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(blog));
   const [slugFree, setSlugFree] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");

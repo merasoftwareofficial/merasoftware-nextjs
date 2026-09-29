@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { Suspense } from "react";
 import { SearchBox } from "@/components/blog/search-box";
 import { PageHero } from "@/components/page-hero";

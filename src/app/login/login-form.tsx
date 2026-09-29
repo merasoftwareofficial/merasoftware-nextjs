@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 
 type Mode = "signin" | "signup";
@@ -12,7 +12,7 @@ type PortalReply = { success?: boolean; message?: string; data?: { mustResetPass
  * portal, which sets the shared `token` cookie (src/docs/login.md).
  */
 export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; portalApiUrl: string; portalUrl: string }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -33,14 +33,14 @@ export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; por
   function goOn(reply: PortalReply) {
     // Accounts created from a lead share a starting password; the portal owns that reset page.
     if (reply.data?.mustResetPassword) {
-      window.location.href = new URL("/set-new-password", portalUrl).toString();
+      router.assign(new URL("/set-new-password", portalUrl).toString());
       return;
     }
     if (next.startsWith("/")) {
       router.push(next);
       router.refresh();
     } else {
-      window.location.href = next;
+      router.assign(next);
     }
   }
 

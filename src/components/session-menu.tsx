@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/link";
+import { useNavigate } from "@/components/loading/navigation";
 import { useRef, useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
@@ -17,7 +17,7 @@ export function SessionMenu({
   portal: PortalEntry | null;
   portalApiUrl: string;
 }) {
-  const router = useRouter();
+  const router = useNavigate();
   const [open, setOpen] = useState(false);
   // Pointer that started the last click. A mouse opens the menu by hovering,
   // so its click must not toggle it shut; touch and keyboard still toggle.

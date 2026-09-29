@@ -11,7 +11,7 @@
  * flags passed in only decide which buttons are worth showing.
  */
 
-import Link from "next/link";
+import Link from "@/components/link";
 import { useState } from "react";
 import type { Comment } from "@/lib/repo";
 

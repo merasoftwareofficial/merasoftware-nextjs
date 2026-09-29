@@ -8,11 +8,12 @@
  * are rendered on the server, which a client-only filter would lose.
  */
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useNavigate } from "@/components/loading/navigation";
 import { useState } from "react";
 
 export function SearchBox({ action = "/blog", placeholder = "Search articles" }: { action?: string; placeholder?: string }) {
-  const router = useRouter();
+  const router = useNavigate();
   const params = useSearchParams();
   const [term, setTerm] = useState(params.get("q") ?? "");
 
