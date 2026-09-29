@@ -4,26 +4,30 @@
  * Page-loading state for the whole site: the single source of truth.
  *
  * Every way of changing page reports here — a click on <Link> (see
- * src/components/link.tsx) and useNavigate() below for push, replace, refresh
- * and full-page jumps — and <NavigationProgress /> in the root layout draws the
- * one bar for all of them. ESLint blocks importing next/link or useRouter
- * anywhere else, so a new page or panel tab is covered without extra work.
+ * src/components/link.tsx), useNavigate() below for push, replace and refresh,
+ * and leavePage()/onLeaveClick for jumps to another document — and
+ * <NavigationProgress /> in the root layout draws the one bar for all of them.
+ * ESLint blocks importing next/link or useRouter anywhere else, so a new page
+ * or panel tab is covered without extra work.
  *
  * Nothing here touches the server: it only reflects navigations the router is
  * already doing.
  */
 
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useSyncExternalStore, useTransition } from "react";
+import type { MouseEvent } from "react";
 
 /** Below this, a navigation counts as instant: no bar appears and none finishes. */
 const SHOW_AFTER_MS = 120;
 /** How long a visible bar takes to run to full width and fade once the page is in. */
 const FINISH_MS = 300;
+/** A navigation nothing can report the end of is dropped after this, so the bar never sticks. */
+const DETACHED_GIVE_UP_MS = 10_000;
 
 type Phase = "idle" | "busy" | "done";
 
-/** How many navigations are in flight. Only ever changed in pairs by usePendingSignal. */
+/** How many navigations are in flight. Only ever changed in start/stop pairs. */
 let inFlight = 0;
 let phase: Phase = "idle";
 let startedAt = 0;
@@ -52,6 +56,29 @@ function stop() {
   finishTimer = setTimeout(() => setPhase("idle"), FINISH_MS);
 }
 
+/**
+ * Navigations started by a click rather than a transition: a <Link> click, or
+ * a jump to another document. They end when the route changes, when a page
+ * left for another document comes back from the browser's back/forward cache,
+ * or after DETACHED_GIVE_UP_MS.
+ */
+const detached = new Set<() => void>();
+
+function startDetached() {
+  start();
+  const finish = () => {
+    if (!detached.delete(finish)) return;
+    clearTimeout(timer);
+    stop();
+  };
+  const timer = setTimeout(finish, DETACHED_GIVE_UP_MS);
+  detached.add(finish);
+}
+
+function endDetached() {
+  for (const finish of [...detached]) finish();
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -61,9 +88,10 @@ function subscribe(listener: () => void) {
 
 const currentPhase = () => phase;
 const idleOnServer = (): Phase => "idle";
+const currentRoute = () => window.location.pathname + window.location.search;
 
 /** Counts one navigation for as long as `pending` is true, and always undoes it. */
-export function usePendingSignal(pending: boolean) {
+function usePendingSignal(pending: boolean) {
   useEffect(() => {
     if (!pending) return;
     start();
@@ -71,8 +99,42 @@ export function usePendingSignal(pending: boolean) {
   }, [pending]);
 }
 
-/** A jump to another document (another site, or a hard load) cannot report its end. */
-const FULL_PAGE_GIVE_UP_MS = 10_000;
+/**
+ * A click the browser will follow in this tab. Clicks that open a new tab or
+ * window, or that a handler cancelled, leave this page where it is.
+ */
+function isPlainClick(event: MouseEvent<HTMLAnchorElement>) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+  const target = event.currentTarget.target;
+  return !target || target === "_self";
+}
+
+/** True when following `href` would change the route; a link to the current page never does. */
+function leadsElsewhere(href: string) {
+  const target = new URL(href, window.location.href);
+  return target.origin === window.location.origin && target.pathname + target.search !== currentRoute();
+}
+
+/**
+ * onClick for the site's <Link>: starts the bar at the click itself.
+ *
+ * The bar is not tied to the link's own state because a link can be gone in
+ * the same render its navigation starts — a dropdown or phone menu closes as
+ * it is clicked. It ends when the route changes (RouteWatcher).
+ */
+export function onNavigateClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
+  if (isPlainClick(event) && leadsElsewhere(href)) startDetached();
+}
+
+/** Starts the bar for a jump to another document; it runs until the browser unloads this page. */
+export function leavePage() {
+  startDetached();
+}
+
+/** onClick for a plain <a> that leaves this app (the portal, for example). */
+export function onLeaveClick(event: MouseEvent<HTMLAnchorElement>) {
+  if (isPlainClick(event)) leavePage();
+}
 
 /**
  * The router, with every navigation shown on the loading bar.
@@ -84,15 +146,7 @@ const FULL_PAGE_GIVE_UP_MS = 10_000;
 export function useNavigate() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [leaving, setLeaving] = useState(false);
-  usePendingSignal(pending || leaving);
-
-  useEffect(() => {
-    if (!leaving) return;
-    // Normally the page unloads first; this only clears the bar if it does not.
-    const timer = setTimeout(() => setLeaving(false), FULL_PAGE_GIVE_UP_MS);
-    return () => clearTimeout(timer);
-  }, [leaving]);
+  usePendingSignal(pending);
 
   return useMemo(
     () => ({
@@ -102,12 +156,20 @@ export function useNavigate() {
       refresh: () => startTransition(() => router.refresh()),
       /** Leaves this app (e.g. for the portal): the bar runs until the browser unloads the page. */
       assign: (url: string) => {
-        setLeaving(true);
+        leavePage();
         window.location.href = url;
       },
     }),
     [router, pending],
   );
+}
+
+/** Ends detached navigations whenever the route actually changes. */
+function RouteWatcher() {
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  useEffect(endDetached, [pathname, search]);
+  return null;
 }
 
 /**
@@ -119,12 +181,25 @@ export function useNavigate() {
  */
 export function NavigationProgress() {
   const current = useSyncExternalStore(subscribe, currentPhase, idleOnServer);
+
+  useEffect(() => {
+    // A page left for another document can come back from the back/forward
+    // cache with its bar still running; it has arrived, so end it.
+    const onShow = (event: PageTransitionEvent) => event.persisted && endDetached();
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
   return (
     <>
       <div className={`nav-progress${current === "idle" ? "" : ` is-${current}`}`} aria-hidden="true" />
       <span className="visually-hidden" role="status">
         {current === "busy" ? "Loading page…" : ""}
       </span>
+      {/* useSearchParams needs a Suspense boundary to keep static pages static. */}
+      <Suspense fallback={null}>
+        <RouteWatcher />
+      </Suspense>
     </>
   );
 }

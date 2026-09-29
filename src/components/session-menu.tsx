@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "@/components/link";
-import { useNavigate } from "@/components/loading/navigation";
+import { onLeaveClick, useNavigate } from "@/components/loading/navigation";
 import { useRef, useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
@@ -74,7 +74,9 @@ export function SessionMenu({
             <>
               <p className="session-group">Portal</p>
               {/* A full page load: the portal is another app on the same shared cookie. */}
-              <a href={portal.href}>{portal.label}</a>
+              <a href={portal.href} onClick={onLeaveClick}>
+                {portal.label}
+              </a>
               <p className="session-group">Website</p>
             </>
           ) : null}

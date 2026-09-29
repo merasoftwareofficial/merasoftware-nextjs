@@ -3,27 +3,28 @@
 /**
  * The site's only Link: next/link plus the page-loading bar.
  *
- * Use it exactly like next/link. While a click is navigating, it reports to
- * src/components/loading/navigation.tsx, which draws the bar. ESLint blocks
- * next/link everywhere else so no link can skip the bar.
+ * Use it like next/link. The click itself starts the bar (see onNavigateClick
+ * in src/components/loading/navigation.tsx), so it works even when the link is
+ * gone a moment later, as in a menu that closes on click. `href` is a string so
+ * every link can be checked; ESLint blocks next/link everywhere else so no link
+ * can skip the bar.
  */
 
-import NextLink, { useLinkStatus } from "next/link";
+import NextLink from "next/link";
 import type { ComponentProps } from "react";
-import { usePendingSignal } from "@/components/loading/navigation";
+import { onNavigateClick } from "@/components/loading/navigation";
 
-/** Renders nothing: reading the link's status must not add an element to its layout. */
-function PendingSignal() {
-  const { pending } = useLinkStatus();
-  usePendingSignal(pending);
-  return null;
-}
+type LinkProps = Omit<ComponentProps<typeof NextLink>, "href"> & { href: string };
 
-export default function Link({ children, ...props }: ComponentProps<typeof NextLink>) {
+export default function Link({ href, onClick, ...props }: LinkProps) {
   return (
-    <NextLink {...props}>
-      {children}
-      <PendingSignal />
-    </NextLink>
+    <NextLink
+      {...props}
+      href={href}
+      onClick={event => {
+        onClick?.(event);
+        onNavigateClick(event, href);
+      }}
+    />
   );
 }
