@@ -350,9 +350,12 @@ const settings: DataDriver["settings"] = {
   },
   async update(patch) {
     await connectMongo();
+    // MongoDB rejects one path in both $set and $setOnInsert ("would create a
+    // conflict"), so the insert defaults leave out whatever this patch sets.
+    const insertDefaults = Object.fromEntries(Object.entries(SETTINGS_DEFAULTS).filter(([key]) => !(key in patch)));
     const row = await Settings.findOneAndUpdate(
       { _id: "site" },
-      { $set: patch, $setOnInsert: SETTINGS_DEFAULTS },
+      { $set: patch, $setOnInsert: insertDefaults },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     ).lean();
     return serialize(row as never) as SettingsRecord;
