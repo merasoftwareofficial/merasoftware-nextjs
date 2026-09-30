@@ -2,7 +2,7 @@
 
 - Project: `E:\Allprojects\merasoftware`.
 - Brand/domain/email: Mera Software / `merasoftware.com` / `contact@merasoftware.com`.
-- One Next.js full-stack project, deployed on Vercel (`merasoftware-nextjs`, see `login.md`) on the MongoDB driver. Cloudinary uploads are not configured yet. Firebase Auth is on hold — login comes from the client portal (`login.md`).
+- One Next.js full-stack project, deployed on Vercel (`merasoftware-nextjs`, see `login.md`) on the MongoDB driver. Cloudinary has a verified server connection and `/admin/media` upload test (`CLOUDINARY.md`); blog/editor upload integration is pending. Firebase Auth is on hold — login comes from the client portal (`login.md`).
 - Storage uses `src/lib/repo/`. JSON in `.data/*.json` is the local default; MongoDB mode uses `DATA_DRIVER=mongo` and `MONGODB_URI` (database defaults to `merasoftware`). Never import a driver directly or add LocalStorage as a data store.
 - This repo's `origin` is `merasoftwareofficial/merasoftware-nextjs`; `main` is synced. Push permission belongs to each GitHub repo separately. Use the `merasoftwareofficial` account; for a `Vast-Academy` repo, invite it with Write access and accept the invite first.
 - The client portal lives in `E:\Allprojects\frontend` (`merasoftwareofficial/merasoftware-frontend-portal`) and `E:\Allprojects\backend` (`merasoftwareofficial/merasoftware-backend`) since 28 Sep 2026. `account-android-app/AccountApp` push dry-run passed on 26 Sep 2026; access to `account-android-app/backend` is not verified. These live in separate folders/repos; check `origin` before pushing.

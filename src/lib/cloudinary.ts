@@ -1,0 +1,74 @@
+import "server-only";
+
+import { v2 as cloudinary } from "cloudinary";
+import { MAX_IMAGE_UPLOAD_BYTES, type UploadedImage } from "./cloudinary-types";
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`Missing Cloudinary configuration: ${name}`);
+  return value;
+}
+
+/** Configure only when called, so builds do not require live credentials. */
+export function getCloudinary() {
+  cloudinary.config({
+    cloud_name: requiredEnv("CLOUDINARY_CLOUD_NAME"),
+    api_key: requiredEnv("CLOUDINARY_API_KEY"),
+    api_secret: requiredEnv("CLOUDINARY_API_SECRET"),
+    secure: true,
+  });
+  return cloudinary;
+}
+
+/**
+ * Upload image bytes to the configured Dynamic folder using the Node.js runtime.
+ * Callers must authorize the user before calling this function and save the
+ * returned URL/publicId themselves. Accept bytes only, never a user-provided URL.
+ */
+export async function uploadCloudinaryImage(bytes: Buffer): Promise<UploadedImage> {
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+    throw new Error("Choose a non-empty image file.");
+  }
+  if (bytes.length > MAX_IMAGE_UPLOAD_BYTES) {
+    throw new Error("Images must be 10 MB or smaller.");
+  }
+
+  const client = getCloudinary();
+  const assetFolder = requiredEnv("CLOUDINARY_ASSET_FOLDER");
+
+  return new Promise((resolve, reject) => {
+    const stream = client.uploader.upload_stream(
+      {
+        resource_type: "image",
+        type: "upload",
+        asset_folder: assetFolder,
+        allowed_formats: ["jpg", "jpeg", "png", "webp", "gif", "avif"],
+        overwrite: false,
+        timeout: 60_000,
+      },
+      (error, result) => {
+        if (error) {
+          // Do not propagate provider details or credentials to a future API response.
+          reject(new Error("Cloudinary image upload failed. Please try again."));
+          return;
+        }
+        if (!result) {
+          reject(new Error("Cloudinary returned no upload result."));
+          return;
+        }
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id,
+          assetId: result.asset_id,
+          assetFolder: result.asset_folder,
+          width: result.width,
+          height: result.height,
+          format: result.format,
+          bytes: result.bytes,
+        });
+      },
+    );
+    stream.on("error", () => reject(new Error("Cloudinary image upload failed. Please try again.")));
+    stream.end(bytes);
+  });
+}

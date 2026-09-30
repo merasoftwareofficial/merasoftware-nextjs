@@ -1,0 +1,205 @@
+{
+  "_id": {
+    "$oid": "6abbbc91adb050288c6240dd"
+  },
+  "title": "A Good-Looking Website Is Not Always a Working Website",
+  "slug": "good-looking-website-not-working",
+  "excerpt": "A website can look professional and still fail to generate enquiries. Learn why clear content, proper structure, and SEO matter more than design alone.",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "One thing we often notice while working with business websites is this:"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "The website looks good, but the business is still not getting enquiries."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "The problem is usually not the design."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "A customer may search for a service on Google, but if Google cannot clearly understand "
+          },
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "what you offer, where you provide it, and which page should appear for that search"
+          },
+          {
+            "type": "text",
+            "text": ", your website may never reach that customer."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "For example, a business may offer five different services but explain all of them in a few lines on the homepage. To the business owner, everything looks clear. To a search engine — and sometimes even to the customer — it may not be."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "This is where SEO actually starts."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Not with repeating keywords everywhere, but with making every important page answer three simple questions:"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "What is this page about?"
+          },
+          {
+            "type": "hardBreak"
+          },
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "Who is it useful for?"
+          },
+          {
+            "type": "hardBreak"
+          },
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "What should the visitor do next?"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "A website should not only look professional."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "It should help the right customer "
+          },
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "find you, understand you, and contact you."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "That small difference is what turns a website from an online brochure into a business tool."
+          }
+        ]
+      }
+    ]
+  },
+  "authorId": "6ab80285d9778f61fe2a2a3b",
+  "authorName": "sandeep",
+  "type": "official",
+  "visibility": "public",
+  "status": "published",
+  "category": "SEO",
+  "tags": [
+    "Website SEO",
+    "Business Website",
+    "User Experience",
+    "SEO Basics"
+  ],
+  "seo": {
+    "title": "Good-Looking Website But No Enquiries? Here’s Why",
+    "description": "Your website may look professional but still fail to generate enquiries. Learn how SEO, clear content, and website structure help customers find your business.",
+    "canonical": ""
+  },
+  "noIndex": false,
+  "comments": "closed",
+  "helpfulCount": 0,
+  "insightfulCount": 0,
+  "saveCount": 0,
+  "viewCount": 0,
+  "showViews": "hide",
+  "createdAt": {
+    "$date": "2026-09-29T13:26:41.520Z"
+  },
+  "updatedAt": {
+    "$date": "2026-09-29T16:11:36.119Z"
+  },
+  "__v": 0,
+  "scheduledFor": {
+    "$date": "2026-09-29T13:35:00Z"
+  },
+  "publishedAt": {
+    "$date": "2026-09-29T13:35:10.437Z"
+  }
+}

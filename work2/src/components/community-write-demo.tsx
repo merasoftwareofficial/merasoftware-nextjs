@@ -1,8 +1,0 @@
-"use client";
-import { useState } from "react";
-
-export function CommunityWriteDemo() {
-  const [title, setTitle] = useState(""); const [type, setType] = useState("Community article"); const [submitted, setSubmitted] = useState(false);
-  if (submitted) return <section className="submission-result"><span>✓</span><h2>Submitted for review</h2><p>Your post is now shown as <b>Pending review</b>. In the real database phase, an admin/moderator will approve, reject or request changes.</p><button className="button button-dark" onClick={() => setSubmitted(false)}>Write another post <span>→</span></button></section>;
-  return <form className="community-editor" onSubmit={(event) => { event.preventDefault(); setSubmitted(true); }}><div className="editor-toolbar"><b>NEW CONTRIBUTION</b><span>Draft saved locally for this preview</span></div><label>Post type<select value={type} onChange={event => setType(event.target.value)}><option>Community article</option><option>Discussion</option></select></label><label>Title<input value={title} onChange={event => setTitle(event.target.value)} placeholder="Write a clear, useful title" required /></label><label>Topic<select><option>SEO</option><option>Website development</option><option>Google Ads</option><option>Business growth</option></select></label><label>Content<textarea placeholder="Share original, practical knowledge with the community..." rows={9} required /></label><div className="editor-note">Posts are reviewed before public publishing. Spam, copied and backlink-only content is rejected.</div><div className="editor-actions"><button className="admin-button secondary" type="button">Save draft</button><button className="admin-button" type="submit">Submit for review →</button></div></form>;
-}

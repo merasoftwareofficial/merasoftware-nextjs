@@ -35,7 +35,7 @@ A real blog and community that earns SEO traffic and brings useful members toget
 UI pages → /api/* routes → repo layer (src/lib/repo) → json-driver (.data/*.json) | mongo-driver (Atlas)
 ```
 
-Production runs `DATA_DRIVER=mongo` (database `merasoftware`). Login comes from the client portal (`login.md`). Cloudinary uploads are not built; images are URL + alt fields.
+Production runs `DATA_DRIVER=mongo` (database `merasoftware`). Login comes from the client portal (`login.md`). Cloudinary's server connection and `/admin/media` upload test are ready (`CLOUDINARY.md`); blog/editor upload integration is pending, so images there still use URL + alt fields.
 
 ## Rules
 

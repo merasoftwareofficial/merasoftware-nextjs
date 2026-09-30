@@ -1,2 +1,0 @@
-import { AdminHeader } from "@/components/admin-layout";import { AdminTable } from "@/components/admin-table";import { faqs } from "@/lib/site-data";
-export default function FaqsAdmin(){return <main className="admin-main"><AdminHeader eyebrow="SITE CONTENT" title="FAQs" description="Create clear answers for sales objections and organic search opportunities." action={<button className="admin-button">New FAQ +</button>}/><AdminTable headers={["QUESTION","LOCATION","ACTION"]} rows={faqs.map(([question])=>[question,"Contact page","Edit →"])}/></main>}
