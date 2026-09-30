@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {/* One loading bar for every page and panel tab; see src/components/loading. */}
+        {/* One page loader for every page and panel tab; see src/components/loading. */}
         <NavigationProgress />
         {children}
       </body>
