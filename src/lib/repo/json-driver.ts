@@ -441,6 +441,7 @@ const SETTINGS_DEFAULTS: Omit<Settings, "updatedAt"> = {
   viewsPublic: false,
   shareEnabled: true,
   sharePlatforms: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
+  categoriesSeeded: false,
 };
 
 const settings: SettingsRepo = {

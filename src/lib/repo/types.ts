@@ -334,6 +334,8 @@ export interface Settings {
   shareEnabled: boolean;
   /** Which share buttons show. The phone's own share sheet is not listed; it follows shareEnabled. */
   sharePlatforms: Exclude<SharePlatform, "native">[];
+  /** Set once the category list was first filled from the names posts already carried (repo/index.ts). */
+  categoriesSeeded: boolean;
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
   homepageContent?: HomepageContent;
   updatedAt: string;

@@ -36,6 +36,7 @@ const SettingsSchema = new Schema({
     type: [{ type: String, enum: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"] }],
     default: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
   },
+  categoriesSeeded: { type: Boolean, default: false },
   homepageImages: { type: Schema.Types.Mixed, default: {} },
   homepageContent: { type: Schema.Types.Mixed },
 }, { timestamps: true, _id: false });

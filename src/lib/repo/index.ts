@@ -11,9 +11,10 @@
 import { publishedState } from "@/lib/publish-rules";
 import { validArticleDocument } from "@/lib/content-rules";
 import { notifyPostChange } from "@/lib/indexnow";
+import { categoryNameSchema, categorySlug } from "@/lib/category-rules";
 import { jsonDriver } from "./json-driver";
 import { mongoDriver } from "./mongo-driver";
-import type { BlogRepo, DataDriver } from "./types";
+import type { BlogRepo, CategoryRepo, DataDriver } from "./types";
 
 const driverName = process.env.DATA_DRIVER === "mongo" ? "mongo" : "json";
 
@@ -102,7 +103,73 @@ export const blogRepo: BlogRepo = {
     return removed;
   },
 };
-export const categoryRepo = driver.categories;
+/**
+ * The topics the member form offered before the category list existed. They
+ * are part of the first list, open to members, so that form keeps its choices.
+ */
+const OLD_MEMBER_TOPICS = ["SEO", "Website development", "Google Ads", "Digital marketing", "Business growth"];
+
+/**
+ * Fills the category list once, on its first read, from what the site already
+ * used: every category name on posts, plus OLD_MEMBER_TOPICS.
+ *
+ * - A category already in the list (added by hand) is left exactly as it is.
+ * - Spellings of one name ("SEO", "seo") make one category, named as most posts
+ *   spell it. Posts are never changed here: the other spellings, and names with
+ *   odd spacing, stay under "Found only on posts" for an admin to move.
+ * - Runs once per site: settings.categoriesSeeded is set afterwards, so a
+ *   category an admin later deletes is not brought back. If it fails, the next
+ *   read tries again; what was already created is skipped then.
+ */
+async function seedCategories() {
+  if ((await driver.settings.get()).categoriesSeeded) return;
+
+  const existing = await driver.categories.list();
+  const taken = new Set(existing.map(category => category.slug));
+  const wanted = new Map<string, { name: string; count: number; membersCanUse: boolean }>();
+
+  for (const [name, count] of Object.entries(await driver.blogs.categoryCounts())) {
+    const clean = categoryNameSchema.safeParse(name);
+    if (!clean.success || clean.data !== name) continue;
+    const slug = categorySlug(name);
+    const current = wanted.get(slug);
+    if (!taken.has(slug) && (!current || count > current.count)) wanted.set(slug, { name, count, membersCanUse: false });
+  }
+  for (const name of OLD_MEMBER_TOPICS) {
+    const slug = categorySlug(name);
+    if (taken.has(slug)) continue;
+    wanted.set(slug, { name: wanted.get(slug)?.name ?? name, count: 0, membersCanUse: true });
+  }
+
+  for (const [slug, { name, membersCanUse }] of wanted) {
+    try {
+      await driver.categories.create({ name, slug, membersCanUse, archived: false, formerSlugs: [] });
+    } catch (error) {
+      // Another server instance seeding at the same moment created it first.
+      if (!(error instanceof Error && error.message.includes("already exists"))) throw error;
+    }
+  }
+  await driver.settings.update({ categoriesSeeded: true });
+}
+
+let categorySeed: Promise<void> | null = null;
+
+function ensureCategoriesSeeded() {
+  categorySeed ??= seedCategories().catch(error => {
+    // A failed seed must not break the page; the next read tries again.
+    categorySeed = null;
+    console.error("[categories] filling the first category list failed", error);
+  });
+  return categorySeed;
+}
+
+export const categoryRepo: CategoryRepo = {
+  ...driver.categories,
+  async list() {
+    await ensureCategoriesSeeded();
+    return driver.categories.list();
+  },
+};
 export const userRepo = driver.users;
 export const commentRepo = driver.comments;
 export const reactionRepo = driver.reactions;

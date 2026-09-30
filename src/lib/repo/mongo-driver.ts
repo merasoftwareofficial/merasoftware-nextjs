@@ -448,6 +448,7 @@ const SETTINGS_DEFAULTS = {
   viewsPublic: false,
   shareEnabled: true,
   sharePlatforms: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
+  categoriesSeeded: false,
 } as const;
 
 /**
