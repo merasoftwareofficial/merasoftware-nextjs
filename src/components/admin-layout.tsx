@@ -2,20 +2,15 @@ import Link from "@/components/link";
 import { atLeast, type Role } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-/**
- * Every nav entry, with the lowest role that may open it.
- *
- * Only screens that save what they show are listed. Services, Portfolio,
- * Testimonials, FAQs and Leads are still placeholder
- * screens whose buttons save nothing, so they stay out of the menu until each
- * is built for real; their routes are left in place.
- */
+/** Every nav entry, with the lowest role that may open it. */
 const navigation: [label: string, href: string, minimum: Role][] = [
   ["Overview", "/admin", "moderator"], ["Blog posts", "/admin/blog", "moderator"],
   ["Review queue", "/admin/blog/review", "moderator"],
   ["Categories", "/admin/categories", "admin"],
   ["Comments", "/admin/comments", "moderator"],
-  ["Homepage", "/admin/homepage", "editor"],
+  ["Homepage", "/admin/homepage", "editor"], ["Services", "/admin/services", "editor"],
+  ["Portfolio", "/admin/portfolio", "editor"], ["Testimonials", "/admin/testimonials", "editor"],
+  ["FAQs", "/admin/faqs", "editor"], ["Leads", "/admin/leads", "editor"],
   ["Media library", "/admin/media", "editor"], ["Site settings", "/admin/settings", "admin"],
   ["Users", "/admin/users", "admin"],
 ];

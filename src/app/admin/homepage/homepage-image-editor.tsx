@@ -6,13 +6,12 @@ import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
 import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/cloudinary-types";
 import { LinkPicker } from "@/components/link-picker";
-import { FEATURES } from "@/lib/features";
 import type { LinkGroup } from "@/lib/link-options";
 import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset } from "@/lib/repo/types";
 
 type ImageMap = Partial<Record<HomeImageSlot, HomepageImage>>;
 type CopyKey = keyof HomepageContent;
-const sections = ([
+const sections: { key: CopyKey; label: string; note: string }[] = [
   { key: "hero", label: "Hero", note: "Main heading, buttons and artwork" },
   { key: "marquee", label: "Moving service strip", note: "Scrolling text below the hero" },
   { key: "services", label: "Services", note: "Section heading and service items" },
@@ -20,8 +19,7 @@ const sections = ([
   { key: "work", label: "Selected work", note: "Project cards and their images" },
   { key: "insights", label: "Insights", note: "Section heading and fallback text" },
   { key: "contact", label: "Contact CTA", note: "Heading and button" },
-  // The homepage does not show "Selected work" while the portfolio is off (lib/features.ts).
-] satisfies { key: CopyKey; label: string; note: string }[]).filter(section => section.key !== "work" || FEATURES.portfolio);
+];
 
 const imageSlots: {
   key: HomeImageSlot;
