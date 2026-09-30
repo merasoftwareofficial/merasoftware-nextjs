@@ -7,6 +7,7 @@ import { Comment, Report, Settings } from "@/models/Comment";
 import { Reaction, SavedPost } from "@/models/Engagement";
 import { User } from "@/models/User";
 import { ViewDay, ViewSeen } from "@/models/View";
+import { MediaAssetModel } from "@/models/Media";
 import type {
   Blog as BlogRecord,
   BlogQuery,
@@ -375,7 +376,7 @@ const settings: DataDriver["settings"] = {
     // saves, the row does not exist and the defaults apply — the same answer the
     // JSON driver gives; update() creates the row.
     const row = await Settings.findById("site").lean();
-    if (!row) return { _id: "site", ...SETTINGS_DEFAULTS, updatedAt: new Date().toISOString() };
+    if (!row) return { _id: "site", ...SETTINGS_DEFAULTS, homepageImages: {}, updatedAt: new Date().toISOString() };
     return serialize(row as never) as SettingsRecord;
   },
   async update(patch) {
@@ -389,6 +390,31 @@ const settings: DataDriver["settings"] = {
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     ).lean();
     return serialize(row as never) as SettingsRecord;
+  },
+};
+
+const media: DataDriver["media"] = {
+  async list() {
+    await connectMongo();
+    const rows = await MediaAssetModel.find().sort({ createdAt: -1 }).lean();
+    return rows.map(row => serialize(row as never) as import("./types").MediaAsset);
+  },
+  async findByIds(ids) {
+    const validIds = ids.filter(id => Types.ObjectId.isValid(id));
+    if (!validIds.length) return [];
+    await connectMongo();
+    const rows = await MediaAssetModel.find({ _id: { $in: validIds } }).lean();
+    return rows.map(row => serialize(row as never) as import("./types").MediaAsset);
+  },
+  async findByChecksum(sha256) {
+    await connectMongo();
+    const row = await MediaAssetModel.findOne({ sha256 }).lean();
+    return row ? serialize(row as never) as import("./types").MediaAsset : null;
+  },
+  async create(data) {
+    await connectMongo();
+    const row = await MediaAssetModel.create(data);
+    return serialize(row.toObject() as never) as import("./types").MediaAsset;
   },
 };
 
@@ -437,4 +463,4 @@ const views: DataDriver["views"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, views };
+export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views };

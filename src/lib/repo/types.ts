@@ -29,6 +29,31 @@ export interface FeaturedImage {
   alt: string;
 }
 
+export interface MediaAsset {
+  _id: string;
+  sha256: string;
+  url: string;
+  publicId: string;
+  assetId: string;
+  assetFolder: string;
+  width: number;
+  height: number;
+  format: string;
+  bytes: number;
+  altText: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type HomeImageSlot = "hero" | "work-northstar" | "work-oasis";
+
+export interface HomepageImage {
+  assetId: string;
+  alt: string;
+  focalX: number;
+  focalY: number;
+}
+
 export interface Seo {
   title: string;
   description: string;
@@ -231,12 +256,20 @@ export interface Settings {
   commentsEnabled: boolean;
   /** Shows the view count under posts that say "default". Off unless an admin turns it on. */
   viewsPublic: boolean;
+  homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
   updatedAt: string;
 }
 
 export interface SettingsRepo {
   get(): Promise<Settings>;
   update(patch: Partial<Omit<Settings, "_id" | "updatedAt">>): Promise<Settings>;
+}
+
+export interface MediaRepo {
+  list(): Promise<MediaAsset[]>;
+  findByIds(ids: string[]): Promise<MediaAsset[]>;
+  findByChecksum(sha256: string): Promise<MediaAsset | null>;
+  create(data: Omit<MediaAsset, "_id" | "createdAt" | "updatedAt">): Promise<MediaAsset>;
 }
 
 export interface DataDriver {
@@ -247,5 +280,6 @@ export interface DataDriver {
   saved: SavedRepo;
   reports: ReportRepo;
   settings: SettingsRepo;
+  media: MediaRepo;
   views: ViewRepo;
 }

@@ -1,3 +1,16 @@
-import { requireStaffPage } from "@/lib/auth";import { AdminHeader } from "@/components/admin-layout";import { Field } from "@/components/admin-form";
-const sections=["Hero","Services","Point of view","Selected work","Insights","Contact CTA"];
-export default async function Homepage(){await requireStaffPage("/admin/homepage","editor");return <main className="admin-main"><AdminHeader eyebrow="SITE CONTENT" title="Homepage" description="Manage the message, visibility and order of your homepage sections."/><div className="admin-sort-list">{sections.map((section,index)=><div key={section}><span>0{index+1}</span><b>{section}</b><small>Visible</small><button type="button">Edit</button><i>↕</i></div>)}</div><form className="admin-form"><h2>Hero content</h2><Field label="Eyebrow" placeholder="DIGITAL GROWTH PARTNER"/><Field label="Hero heading" placeholder="Make your digital presence impossible to ignore." large/><Field label="Supporting copy" placeholder="We help ambitious businesses..." large/><div className="form-actions"><button className="admin-button" type="button">Save homepage changes</button></div></form></main>}
+import { AdminHeader } from "@/components/admin-layout";
+import { requireStaffPage } from "@/lib/auth";
+import { mediaRepo, settingsRepo } from "@/lib/repo";
+import { HomepageImageEditor } from "./homepage-image-editor";
+
+export default async function Homepage() {
+  await requireStaffPage("/admin/homepage", "editor");
+  const [settings, assets] = await Promise.all([settingsRepo.get(), mediaRepo.list()]);
+
+  return (
+    <main className="admin-main">
+      <AdminHeader eyebrow="SITE CONTENT" title="Homepage images" description="Add and position images in the existing homepage design." />
+      <HomepageImageEditor initialImages={settings.homepageImages ?? {}} assets={assets} />
+    </main>
+  );
+}

@@ -20,6 +20,7 @@ import type {
   CommentRepo,
   CommentStatus,
   DataDriver,
+  MediaAsset,
   NewBlog,
   Reaction,
   ReactionKind,
@@ -37,7 +38,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "viewSeen" | "viewDays";
+type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -392,6 +393,29 @@ const settings: SettingsRepo = {
   },
 };
 
+const media: DataDriver["media"] = {
+  async list() {
+    return read<MediaAsset>("media").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  async findByIds(ids) {
+    const wanted = new Set(ids);
+    return read<MediaAsset>("media").filter(asset => wanted.has(asset._id));
+  },
+  async findByChecksum(sha256) {
+    return read<MediaAsset>("media").find(asset => asset.sha256 === sha256) ?? null;
+  },
+  async create(data) {
+    const rows = read<MediaAsset>("media");
+    if (rows.some(asset => asset.publicId === data.publicId)) throw new Error("This image is already in the media library.");
+    if (rows.some(asset => asset.sha256 === data.sha256)) throw new Error("An identical image is already in the media library.");
+    const stamp = now();
+    const row: MediaAsset = { ...data, _id: id(), createdAt: stamp, updatedAt: stamp };
+    rows.push(row);
+    write("media", rows);
+    return row;
+  },
+};
+
 /* ---------------------------------------------------------------- views -- */
 
 const SEEN_FOR_MS = 24 * 60 * 60 * 1000;
@@ -433,4 +457,4 @@ const views: ViewRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, views };
+export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views };

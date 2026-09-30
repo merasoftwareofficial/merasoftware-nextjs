@@ -72,3 +72,15 @@ export async function uploadCloudinaryImage(bytes: Buffer): Promise<UploadedImag
     stream.end(bytes);
   });
 }
+
+/** Remove a just-uploaded asset when a concurrent request already stored the same file. */
+export async function deleteCloudinaryImage(publicId: string): Promise<void> {
+  try {
+    const result = await getCloudinary().uploader.destroy(publicId, { resource_type: "image", type: "upload", invalidate: true });
+    if (result.result !== "ok" && result.result !== "not found") {
+      throw new Error("Cloudinary cleanup did not complete.");
+    }
+  } catch {
+    throw new Error("Cloudinary cleanup failed.");
+  }
+}

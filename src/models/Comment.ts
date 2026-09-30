@@ -31,6 +31,7 @@ const SettingsSchema = new Schema({
   commentDefault: { type: String, enum: ["visible", "pending"], default: "visible" },
   commentsEnabled: { type: Boolean, default: true },
   viewsPublic: { type: Boolean, default: false },
+  homepageImages: { type: Schema.Types.Mixed, default: {} },
 }, { timestamps: true, _id: false });
 
 export const Comment = models.Comment || model("Comment", CommentSchema);
