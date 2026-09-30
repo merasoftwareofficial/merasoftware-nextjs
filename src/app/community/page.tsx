@@ -6,12 +6,21 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { robotsFor } from "@/lib/indexability";
+import { listingIndexable } from "@/lib/indexable-posts";
 import { blogRepo } from "@/lib/repo";
 
-export const metadata = {
-  title: "Community",
-  description: "Practical articles written by Mera Software members and approved by our moderators.",
-};
+type Search = { searchParams: Promise<{ q?: string }> };
+
+/** Indexed while it lists an indexable post; a search result page never is. */
+export async function generateMetadata({ searchParams }: Search) {
+  const { q } = await searchParams;
+  return {
+    title: "Community",
+    description: "Practical articles written by Mera Software members and approved by our moderators.",
+    robots: robotsFor(!q?.trim() && (await listingIndexable("community"))),
+  };
+}
 export const dynamic = "force-dynamic";
 
 function when(value?: string) {
@@ -23,7 +32,7 @@ function when(value?: string) {
  * Approved member articles. Only published community posts appear, and unlisted
  * ones are reachable by link but never listed — the same rule /blog follows.
  */
-export default async function Community({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function Community({ searchParams }: Search) {
   const viewer = await getSessionUser();
   const { q } = await searchParams;
   const term = q?.trim() ?? "";

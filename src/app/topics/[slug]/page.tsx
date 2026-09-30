@@ -4,6 +4,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { robotsFor } from "@/lib/indexability";
+import { topicIndexable } from "@/lib/indexable-posts";
 import { blogRepo } from "@/lib/repo";
 import { topicLabel as label, topicMatches } from "@/lib/topic-slug";
 
@@ -16,6 +18,8 @@ export async function generateMetadata({ params }: Params) {
   return {
     title: `${label(slug)} — topic`,
     description: `Articles and community posts about ${label(slug)} from Mera Software.`,
+    // Opens to search by itself once enough indexable posts share this topic.
+    robots: robotsFor(await topicIndexable(slug)),
   };
 }
 

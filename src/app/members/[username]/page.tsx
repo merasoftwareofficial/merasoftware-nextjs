@@ -5,6 +5,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { robotsFor } from "@/lib/indexability";
+import { memberIndexable } from "@/lib/indexable-posts";
 import { blogRepo, userRepo } from "@/lib/repo";
 import { breadcrumbLd, jsonLd, personLd } from "@/lib/structured-data";
 
@@ -20,6 +22,8 @@ export async function generateMetadata({ params }: Params) {
   return {
     title: `${member.displayName} — member`,
     description: member.bio || `Posts by ${member.displayName} on the Mera Software community.`,
+    // Opens to search by itself once the member has an indexable post.
+    robots: robotsFor(!member.banned && (await memberIndexable(member._id))),
   };
 }
 

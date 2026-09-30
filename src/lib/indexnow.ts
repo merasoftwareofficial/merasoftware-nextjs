@@ -11,14 +11,17 @@
  * Rules:
  * - Only the live site sends. Local and preview deployments never do, or
  *   search engines would be told about URLs that are not public.
- * - Only posts a crawler may index are sent: published, public, not noindex —
- *   the same filter as sitemap.xml. A post that just stopped being indexable
- *   is sent once more, so the engines re-crawl and drop it.
+ * - Only posts a crawler may index are sent (indexability.ts, the same rule
+ *   as sitemap.xml). A post that just stopped being indexable is sent once
+ *   more, so the engines re-crawl and drop it. Its listing and topic pages go
+ *   with it, since their content changed too; each of those says for itself
+ *   whether it is indexable, so a page that just closed is dropped the same way.
  * - It never delays or breaks a save. The request goes out after the response
  *   and a failure is only logged.
  */
 
 import { after } from "next/server";
+import { LISTING_PATH, isIndexable, topicPathsOf } from "@/lib/indexability";
 import type { Blog } from "@/lib/repo/types";
 import { SITE_URL } from "@/lib/structured-data";
 
@@ -37,11 +40,6 @@ function enabled() {
   return process.env.VERCEL_ENV === "production" && indexNowKey() !== null;
 }
 
-/** The same test sitemap.xml uses to list a post. */
-export function isIndexable(post: Pick<Blog, "status" | "visibility" | "noIndex">) {
-  return post.status === "published" && post.visibility === "public" && !post.noIndex;
-}
-
 /**
  * Report a change to one post. `before` is the post as it was (null when it is
  * new), `after` as it is now (null when it was deleted).
@@ -50,8 +48,12 @@ export function notifyPostChange(before: Blog | null, now: Blog | null) {
   const urls = new Set<string>();
   // Indexable now: announce its address. Indexable before: announce the old
   // address too, which covers unpublish, noindex, delete and a changed slug.
-  if (now && isIndexable(now)) urls.add(`${SITE_URL}/blog/${now.slug}`);
-  if (before && isIndexable(before)) urls.add(`${SITE_URL}/blog/${before.slug}`);
+  for (const post of [before, now]) {
+    if (!post || !isIndexable(post)) continue;
+    urls.add(`${SITE_URL}/blog/${post.slug}`);
+    urls.add(`${SITE_URL}${LISTING_PATH[post.type]}`);
+    topicPathsOf(post).forEach(path => urls.add(`${SITE_URL}${path}`));
+  }
   if (urls.size) submit([...urls]);
 }
 

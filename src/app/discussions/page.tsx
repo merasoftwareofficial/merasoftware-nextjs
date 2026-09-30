@@ -4,12 +4,18 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { robotsFor } from "@/lib/indexability";
+import { listingIndexable } from "@/lib/indexable-posts";
 import { blogRepo } from "@/lib/repo";
 
-export const metadata = {
-  title: "Discussions",
-  description: "Questions and practical answers about websites, SEO, ads and digital growth.",
-};
+/** Indexed while it lists an indexable discussion. */
+export async function generateMetadata() {
+  return {
+    title: "Discussions",
+    description: "Questions and practical answers about websites, SEO, ads and digital growth.",
+    robots: robotsFor(await listingIndexable("discussion")),
+  };
+}
 export const dynamic = "force-dynamic";
 
 function when(value?: string) {

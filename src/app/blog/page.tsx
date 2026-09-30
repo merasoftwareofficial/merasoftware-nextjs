@@ -6,14 +6,23 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { robotsFor } from "@/lib/indexability";
+import { listingIndexable } from "@/lib/indexable-posts";
 import { blogRepo, viewRepo } from "@/lib/repo";
 import { breadcrumbLd, jsonLd, organisationLd } from "@/lib/structured-data";
 import { dayKey } from "@/lib/view-rules";
 
-export const metadata = {
-  title: "Insights",
-  description: "Clear thinking about websites, search and growth from Mera Software.",
-};
+type Search = { searchParams: Promise<{ q?: string }> };
+
+/** Indexed while it lists an indexable article; a search result page never is. */
+export async function generateMetadata({ searchParams }: Search) {
+  const { q } = await searchParams;
+  return {
+    title: "Insights",
+    description: "Clear thinking about websites, search and growth from Mera Software.",
+    robots: robotsFor(!q?.trim() && (await listingIndexable("official"))),
+  };
+}
 export const dynamic = "force-dynamic";
 
 function when(value?: string) {
@@ -21,7 +30,7 @@ function when(value?: string) {
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
-export default async function BlogPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function BlogPage({ searchParams }: Search) {
   const viewer = await getSessionUser();
   const { q } = await searchParams;
   const term = q?.trim() ?? "";

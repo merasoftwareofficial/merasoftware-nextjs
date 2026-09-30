@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { services } from "@/lib/site-data";
-import { blogRepo, userRepo, type BlogCard } from "@/lib/repo";
+import { LISTING_PATH, MIN_POSTS, topicPathsOf } from "@/lib/indexability";
+import { indexablePosts } from "@/lib/indexable-posts";
+import { userRepo, type BlogCard } from "@/lib/repo";
 import { SITE_URL as SITE } from "@/lib/structured-data";
-import { topicPath } from "@/lib/topic-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +15,15 @@ export const dynamic = "force-dynamic";
  * and unlisted posts out, and keeps community posts out until a moderator
  * ticks the index box on approval. Submitting a page that says noindex is a
  * contradiction crawlers treat as a quality signal, so this filter matters.
+ *
+ * Every rule comes from indexability.ts, the same one each page's robots tag
+ * reads, so a listing, topic or member page joins this file by itself once it
+ * has enough posts and leaves it by itself when it no longer does.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const posts = (await blogRepo.listCards({ status: "published", visibility: "public", noIndex: false })).filter(
-    post => post.visibility === "public",
-  );
+  // Filtered in memory, not with a `noIndex: false` query: posts saved before
+  // that field existed lack it, and the query would silently drop them.
+  const posts = await indexablePosts();
 
   // lastmod is only worth sending when it is true: a crawler that sees every
   // page "changed today" on every fetch stops trusting the field, and then a
@@ -31,13 +36,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: SITE, lastModified: newest, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/services`, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE}/work`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE}/blog`, lastModified: newestOf("official"), changeFrequency: "daily", priority: 0.8 },
-    { url: `${SITE}/community`, lastModified: newestOf("community"), changeFrequency: "daily", priority: 0.7 },
-    { url: `${SITE}/discussions`, lastModified: newestOf("discussion"), changeFrequency: "daily", priority: 0.7 },
     { url: `${SITE}/about`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/contact`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/privacy`, changeFrequency: "yearly", priority: 0.3 },
   ];
+
+  // A listing page is listed only while it has something to list.
+  const listingPages: MetadataRoute.Sitemap = (
+    [
+      ["official", 0.8],
+      ["community", 0.7],
+      ["discussion", 0.7],
+    ] as const
+  )
+    .filter(([type]) => posts.filter(post => post.type === type).length >= MIN_POSTS.listing)
+    .map(([type, priority]) => ({
+      url: `${SITE}${LISTING_PATH[type]}`,
+      lastModified: newestOf(type),
+      changeFrequency: "daily",
+      priority,
+    }));
 
   const servicePages: MetadataRoute.Sitemap = services.map(service => ({
     url: `${SITE}/services/${service.slug}`,
@@ -52,23 +70,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: post.type === "official" ? 0.9 : 0.6,
   }));
 
-  // Topic pages are worth indexing only where an indexable post actually uses
-  // that category or tag, otherwise the sitemap fills with empty pages.
-  // Keyed by path so a category and a tag with the same name list once.
+  // A topic page is listed once enough indexable posts use that category or
+  // tag; below that it only repeats the article it links to.
+  // Keyed by path so a category and a tag with the same name count once.
   const topics = new Map<string, BlogCard[]>();
   for (const post of posts) {
-    const paths = new Set([...(post.category ? [post.category] : []), ...post.tags].map(topicPath));
-    for (const path of paths) topics.set(path, [...(topics.get(path) ?? []), post]);
+    for (const path of topicPathsOf(post)) topics.set(path, [...(topics.get(path) ?? []), post]);
   }
-  const topicPages: MetadataRoute.Sitemap = [...topics].map(([path, topicPosts]) => ({
-    url: `${SITE}${path}`,
-    lastModified: latest(topicPosts),
-    changeFrequency: "weekly",
-    priority: 0.5,
-  }));
+  const topicPages: MetadataRoute.Sitemap = [...topics]
+    .filter(([, topicPosts]) => topicPosts.length >= MIN_POSTS.topic)
+    .map(([path, topicPosts]) => ({
+      url: `${SITE}${path}`,
+      lastModified: latest(topicPosts),
+      changeFrequency: "weekly",
+      priority: 0.5,
+    }));
 
-  // A member profile is listed once that member has an indexable post; a
-  // banned account is dropped, matching what /members/[username] serves.
+  // A member profile is listed once that member has enough indexable posts
+  // (MIN_POSTS.member); a banned account is dropped, matching what
+  // /members/[username] serves.
   // One read for every author, in the order their posts first appear.
   const authorIds = [...new Set(posts.map(post => post.authorId))];
   const authors = new Map((await userRepo.findByIds(authorIds)).map(author => [author._id, author]));
@@ -76,15 +96,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const authorId of authorIds) {
     const author = authors.get(authorId);
     if (!author || author.banned) continue;
+    const authorPosts = posts.filter(post => post.authorId === authorId);
+    if (authorPosts.length < MIN_POSTS.member) continue;
     memberPages.push({
       url: `${SITE}/members/${encodeURIComponent(author.username)}`,
-      lastModified: latest(posts.filter(post => post.authorId === authorId)),
+      lastModified: latest(authorPosts),
       changeFrequency: "weekly",
       priority: 0.4,
     });
   }
 
-  return [...staticPages, ...servicePages, ...postPages, ...topicPages, ...memberPages];
+  return [...staticPages, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages];
 }
 
 /** The most recent edit among these posts, or undefined when there are none. */
