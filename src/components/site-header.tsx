@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";
 import { MobileMenu } from "@/components/mobile-menu";
+import { FEATURES } from "@/lib/features";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionMenu } from "@/components/session-menu";
 
@@ -28,7 +29,7 @@ async function SessionSlot() {
 /** The main pages, shared by the inline nav and the phone menu. */
 const NAV_LINKS: [label: string, href: string][] = [
   ["Services", "/services"],
-  ["Work", "/work"],
+  ...(FEATURES.portfolio ? [["Work", "/work"] as [string, string]] : []),
   ["Blog", "/blog"],
   ["Community", "/community"],
   ["About", "/about"],

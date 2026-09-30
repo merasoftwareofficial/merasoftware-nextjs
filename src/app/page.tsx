@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { DEFAULT_HOMEPAGE_CONTENT, resolveHomepageContent } from "@/lib/homepage-content";
 import { blogRepo, mediaRepo, settingsRepo } from "@/lib/repo";
+import { FEATURES } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="work-preview section">
+      {FEATURES.portfolio ? <section className="work-preview section">
         <div className="container">
           <div className="section-top">
             <p className="eyebrow"><i /> {content.work.eyebrow}</p>
@@ -85,7 +86,7 @@ export default async function Home() {
             </article>;
           })}</div>
         </div>
-      </section>
+      </section> : null}
 
       <section className="section container">
         <div className="section-top">

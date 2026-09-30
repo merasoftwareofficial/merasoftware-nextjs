@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { services } from "@/lib/site-data";
+import { FEATURES } from "@/lib/features";
 import { LISTING_PATH, MIN_POSTS, topicPathsOf } from "@/lib/indexability";
 import { indexablePosts } from "@/lib/indexable-posts";
 import { userRepo, type BlogCard } from "@/lib/repo";
@@ -35,7 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: SITE, lastModified: newest, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/services`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${SITE}/work`, changeFrequency: "monthly", priority: 0.8 },
+    ...(FEATURES.portfolio ? [{ url: `${SITE}/work`, changeFrequency: "monthly" as const, priority: 0.8 }] : []),
     { url: `${SITE}/about`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/contact`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/privacy`, changeFrequency: "yearly", priority: 0.3 },

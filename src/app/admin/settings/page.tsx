@@ -1,6 +1,5 @@
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
-import { Field } from "@/components/admin-form";
 import { atLeast, requireStaffPage } from "@/lib/auth";
 import { settingsRepo } from "@/lib/repo";
 import { CommentSettings } from "./comment-settings";
@@ -35,36 +34,18 @@ export default async function Settings() {
     <main className="admin-main">
       <AdminHeader
         eyebrow="SITE SETTINGS"
-        title="Business details"
-        description="Global details used across the website, SEO and contact points."
+        title="Site settings"
+        description="Comments, view counts and share buttons across the blog."
       />
 
-      {/* Wired to storage. Everything below them is still a placeholder form. */}
+      {/*
+        The business-details form (name, email, WhatsApp, default SEO
+        description, social profiles) was a placeholder that saved nothing, so
+        it is gone until it is built for real with a store behind it.
+      */}
       <CommentSettings settings={settings} />
       <ViewSettings settings={settings} />
       <ShareSettings settings={settings} options={SHARE_BUTTONS} />
-
-      <form className="admin-form">
-        <div className="form-columns">
-          <Field label="Business name" placeholder="Mera Software" />
-          <Field label="Contact email" placeholder="contact@merasoftware.com" />
-        </div>
-        <div className="form-columns">
-          <Field label="Website URL" placeholder="https://merasoftware.com" />
-          <Field label="WhatsApp number" placeholder="Add when ready" />
-        </div>
-        <Field label="Default SEO description" placeholder="Web development, SEO and performance marketing..." large />
-        <section className="admin-seo">
-          <h2>Social profiles</h2>
-          <div className="form-columns">
-            <Field label="LinkedIn URL" placeholder="https://linkedin.com/..." />
-            <Field label="Instagram URL" placeholder="https://instagram.com/..." />
-          </div>
-        </section>
-        <button className="admin-button" type="button">
-          Save settings
-        </button>
-      </form>
     </main>
   );
 }
