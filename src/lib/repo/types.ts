@@ -61,6 +61,17 @@ export interface HomepageImage {
   focalY: number;
 }
 
+/** Editable copy for the existing homepage layout. Keep styling in the page. */
+export interface HomepageContent {
+  hero: { eyebrow: string; headingBefore: string; headingEmphasis: string; headingAfter: string; description: string; primaryLabel: string; primaryHref: string; secondaryLabel: string; secondaryHref: string; signalLabel: string; signalPrimary: string; signalSecondary: string };
+  marquee: string[];
+  services: { eyebrow: string; sideNote: string; headingBefore: string; headingEmphasis: string; headingAfter: string; items: { slug: string; title: string; description: string }[] };
+  pointOfView: { eyebrow: string; headingLineOne: string; headingBefore: string; headingEmphasis: string; headingAfter: string; description: string };
+  work: { eyebrow: string; allLabel: string; headingBefore: string; headingEmphasis: string; headingAfter: string; cards: { tag: string; titleLineOne: string; titleLineTwo: string; description: string }[] };
+  insights: { eyebrow: string; allLabel: string; headingBefore: string; headingEmphasis: string; headingAfter: string; fallbackLineOne: string; fallbackLineTwo: string };
+  contact: { eyebrow: string; headingLineOne: string; headingEmphasis: string; buttonLabel: string; buttonHref: string };
+}
+
 export interface Seo {
   title: string;
   description: string;
@@ -284,6 +295,7 @@ export interface Settings {
   /** Which share buttons show. The phone's own share sheet is not listed; it follows shareEnabled. */
   sharePlatforms: Exclude<SharePlatform, "native">[];
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
+  homepageContent?: HomepageContent;
   updatedAt: string;
 }
 

@@ -37,6 +37,7 @@ const SettingsSchema = new Schema({
     default: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
   },
   homepageImages: { type: Schema.Types.Mixed, default: {} },
+  homepageContent: { type: Schema.Types.Mixed },
 }, { timestamps: true, _id: false });
 
 export const Comment = models.Comment || model("Comment", CommentSchema);
