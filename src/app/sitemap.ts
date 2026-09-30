@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
 import { services } from "@/lib/site-data";
-import { blogRepo, userRepo } from "@/lib/repo";
+import { blogRepo, userRepo, type BlogCard } from "@/lib/repo";
 import { SITE_URL as SITE } from "@/lib/structured-data";
+import { topicPath } from "@/lib/topic-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -19,24 +20,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     post => post.visibility === "public",
   );
 
-  const staticPages: MetadataRoute.Sitemap = ([
-    { url: SITE, changeFrequency: "weekly", priority: 1 },
+  // lastmod is only worth sending when it is true: a crawler that sees every
+  // page "changed today" on every fetch stops trusting the field, and then a
+  // new post no longer stands out. So a list page carries the date of the
+  // newest post it shows, and a page with no such date sends none.
+  const newest = latest(posts);
+  const newestOf = (type: BlogCard["type"]) => latest(posts.filter(post => post.type === type));
+
+  const staticPages: MetadataRoute.Sitemap = [
+    { url: SITE, lastModified: newest, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/services`, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE}/work`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${SITE}/blog`, changeFrequency: "daily", priority: 0.8 },
-    { url: `${SITE}/community`, changeFrequency: "daily", priority: 0.7 },
-    { url: `${SITE}/discussions`, changeFrequency: "daily", priority: 0.7 },
+    { url: `${SITE}/blog`, lastModified: newestOf("official"), changeFrequency: "daily", priority: 0.8 },
+    { url: `${SITE}/community`, lastModified: newestOf("community"), changeFrequency: "daily", priority: 0.7 },
+    { url: `${SITE}/discussions`, lastModified: newestOf("discussion"), changeFrequency: "daily", priority: 0.7 },
     { url: `${SITE}/about`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/contact`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/privacy`, changeFrequency: "yearly", priority: 0.3 },
-  ] satisfies Omit<MetadataRoute.Sitemap[number], "lastModified">[]).map(entry => ({
-    ...entry,
-    lastModified: new Date(),
-  }));
+  ];
 
   const servicePages: MetadataRoute.Sitemap = services.map(service => ({
     url: `${SITE}/services/${service.slug}`,
-    lastModified: new Date(),
     changeFrequency: "monthly",
     priority: 0.8,
   }));
@@ -50,14 +54,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Topic pages are worth indexing only where an indexable post actually uses
   // that category or tag, otherwise the sitemap fills with empty pages.
-  const topics = new Set<string>();
+  // Keyed by path so a category and a tag with the same name list once.
+  const topics = new Map<string, BlogCard[]>();
   for (const post of posts) {
-    if (post.category) topics.add(topicSlug(post.category));
-    post.tags.forEach(tag => topics.add(topicSlug(tag)));
+    const paths = new Set([...(post.category ? [post.category] : []), ...post.tags].map(topicPath));
+    for (const path of paths) topics.set(path, [...(topics.get(path) ?? []), post]);
   }
-  const topicPages: MetadataRoute.Sitemap = [...topics].map(slug => ({
-    url: `${SITE}/topics/${slug}`,
-    lastModified: new Date(),
+  const topicPages: MetadataRoute.Sitemap = [...topics].map(([path, topicPosts]) => ({
+    url: `${SITE}${path}`,
+    lastModified: latest(topicPosts),
     changeFrequency: "weekly",
     priority: 0.5,
   }));
@@ -72,8 +77,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const author = authors.get(authorId);
     if (!author || author.banned) continue;
     memberPages.push({
-      url: `${SITE}/members/${author.username}`,
-      lastModified: new Date(),
+      url: `${SITE}/members/${encodeURIComponent(author.username)}`,
+      lastModified: latest(posts.filter(post => post.authorId === authorId)),
       changeFrequency: "weekly",
       priority: 0.4,
     });
@@ -82,7 +87,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [...staticPages, ...servicePages, ...postPages, ...topicPages, ...memberPages];
 }
 
-/** Must match the slug the article page links to and /topics/[slug] resolves. */
-function topicSlug(value: string) {
-  return value.toLowerCase().replace(/\s+/g, "-");
+/** The most recent edit among these posts, or undefined when there are none. */
+function latest(posts: BlogCard[]) {
+  if (!posts.length) return undefined;
+  return new Date(Math.max(...posts.map(post => Date.parse(post.updatedAt))));
 }

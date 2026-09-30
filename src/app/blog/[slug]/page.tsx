@@ -19,6 +19,7 @@ import {
 } from "@/lib/comment-rules";
 import { blogRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
 import { shareButtons, shareUrl, shareVisible } from "@/lib/share-rules";
+import { topicPath } from "@/lib/topic-slug";
 import { articleLd, breadcrumbLd, jsonLd, SITE_NAME, SITE_URL } from "@/lib/structured-data";
 import { formatViews, viewsVisible } from "@/lib/view-rules";
 
@@ -196,7 +197,7 @@ export default async function Article({ params }: Params) {
           {post.tags.length ? (
             <div className="article-tags">
               {post.tags.map(tag => (
-                <Link key={tag} href={`/topics/${tag.toLowerCase().replace(/\s+/g, "-")}`}>
+                <Link key={tag} href={topicPath(tag)}>
                   #{tag}
                 </Link>
               ))}

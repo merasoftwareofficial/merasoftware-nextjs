@@ -10,13 +10,13 @@ import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset } from "
 type ImageMap = Partial<Record<HomeImageSlot, HomepageImage>>;
 type CopyKey = keyof HomepageContent;
 const sections: { key: CopyKey; label: string; note: string }[] = [
-  { key: "hero", label: "Hero", note: "Main heading, buttons aur artwork" },
-  { key: "marquee", label: "Moving service strip", note: "Hero ke neeche chalne wala text" },
-  { key: "services", label: "Services", note: "Section heading aur service items" },
-  { key: "pointOfView", label: "Point of view", note: "Heading aur description" },
-  { key: "work", label: "Selected work", note: "Project cards aur unki images" },
-  { key: "insights", label: "Insights", note: "Section heading aur fallback text" },
-  { key: "contact", label: "Contact CTA", note: "Heading aur button" },
+  { key: "hero", label: "Hero", note: "Main heading, buttons and artwork" },
+  { key: "marquee", label: "Moving service strip", note: "Scrolling text below the hero" },
+  { key: "services", label: "Services", note: "Section heading and service items" },
+  { key: "pointOfView", label: "Point of view", note: "Heading and description" },
+  { key: "work", label: "Selected work", note: "Project cards and their images" },
+  { key: "insights", label: "Insights", note: "Section heading and fallback text" },
+  { key: "contact", label: "Contact CTA", note: "Heading and button" },
 ];
 
 const imageSlots: {
@@ -29,9 +29,9 @@ const imageSlots: {
   desktopRatio: string;
   mobileRatio: string;
 }[] = [
-  { key: "hero", label: "Hero artwork", note: "Homepage ka hero visual. Current design image ko rounded shape mein dikhata hai.", recommended: "1200 × 900 px", minWidth: 1048, minHeight: 788, desktopRatio: "524 / 394", mobileRatio: "322 / 244" },
-  { key: "work-northstar", label: "Northstar Advisory", note: "Homepage ke pehle selected-work card ke liye.", recommended: "1200 × 900 px", minWidth: 1160, minHeight: 730, desktopRatio: "580 / 365", mobileRatio: "358 / 270" },
-  { key: "work-oasis", label: "Oasis Living", note: "Homepage ke doosre selected-work card ke liye.", recommended: "1200 × 900 px", minWidth: 1160, minHeight: 730, desktopRatio: "580 / 365", mobileRatio: "358 / 270" },
+  { key: "hero", label: "Hero artwork", note: "The homepage hero visual. The current design shows the image in a rounded shape.", recommended: "1200 × 900 px", minWidth: 1048, minHeight: 788, desktopRatio: "524 / 394", mobileRatio: "322 / 244" },
+  { key: "work-northstar", label: "Northstar Advisory", note: "For the first selected-work card on the homepage.", recommended: "1200 × 900 px", minWidth: 1160, minHeight: 730, desktopRatio: "580 / 365", mobileRatio: "358 / 270" },
+  { key: "work-oasis", label: "Oasis Living", note: "For the second selected-work card on the homepage.", recommended: "1200 × 900 px", minWidth: 1160, minHeight: 730, desktopRatio: "580 / 365", mobileRatio: "358 / 270" },
 ];
 
 function TextField({ label, value, onChange, multiline = false }: { label: string; value: string; onChange: (value: string) => void; multiline?: boolean }) {
@@ -85,7 +85,7 @@ export function HomepageImageEditor({
       if (!link || link.getAttribute("target") === "_blank") return;
       event.preventDefault();
       event.stopPropagation();
-      setError("Pehle section save karein ya Back par changes discard karein.");
+      setError("Save this section first, or use Back to discard your changes.");
     };
     window.addEventListener("beforeunload", warn);
     document.addEventListener("click", guardLinks, true);
@@ -208,7 +208,7 @@ export function HomepageImageEditor({
         const { asset, reused } = result as { asset: MediaAsset; reused: boolean };
         setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)]);
         setImages(current => ({ ...current, [slot]: { assetId: asset._id, alt: asset.altText, focalX: 50, focalY: 50 } }));
-        setMessage(reused ? "Image pehle se library mein thi. Section save karne par website par dikhegi." : "Image library mein upload hui. Section save karne par website par dikhegi.");
+        setMessage(reused ? "This image was already in the library. It will appear on the website when you save the section." : "Image uploaded to the library. It will appear on the website when you save the section.");
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Upload failed.");
       }
@@ -233,7 +233,7 @@ export function HomepageImageEditor({
       }
       await uploadForSlot(slot, file);
     } catch {
-      setError("Image ka size read nahi ho saka. JPG, PNG, WebP, GIF ya AVIF image choose karein.");
+      setError("Could not read the image size. Choose a JPG, PNG, WebP, GIF or AVIF image.");
     }
   }
 
@@ -252,7 +252,7 @@ export function HomepageImageEditor({
           body: JSON.stringify({ section, content: sectionContent, images: sectionImages }),
         });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Section save nahi hua.");
+        if (!response.ok) throw new Error(result.error || "Could not save the section.");
         const savedSectionContent = result.content as HomepageContent[typeof section];
         setContent(current => ({ ...current, [section]: savedSectionContent }));
         setSavedContent(current => ({ ...current, [section]: savedSectionContent }));
@@ -268,10 +268,10 @@ export function HomepageImageEditor({
           setShowLibrary(false);
           setShowCrop(false);
         } else {
-          setMessage(`${sections.find(item => item.key === section)?.label ?? "Section"} save ho gaya.`);
+          setMessage(`${sections.find(item => item.key === section)?.label ?? "Section"} saved.`);
         }
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Section save nahi hua.");
+        setError(cause instanceof Error ? cause.message : "Could not save the section.");
         setPendingSection(undefined);
       }
     });
@@ -280,7 +280,7 @@ export function HomepageImageEditor({
   return <>
     {!activeSection ? <section className="admin-panel homepage-section-overview">
       <h2>Homepage sections</h2>
-      <p>Jis section mein change chahiye, uska Edit kholein.</p>
+      <p>Choose Edit on the section you want to change.</p>
       <nav aria-label="Homepage sections">{sections.map(section => <button type="button" key={section.key} onClick={() => openSection(section.key)}>
         <span><strong>{section.label}</strong><small>{section.note}</small></span><b>Edit →</b>
       </button>)}</nav>
@@ -300,7 +300,7 @@ export function HomepageImageEditor({
 
     <fieldset className="homepage-editor-fields" disabled={busy}>
     {activeTab === "content" ? <section className="admin-form homepage-copy-form">
-      <p className="field-hint">Current website ka content yahan pre-filled hai.</p>
+      <p className="field-hint">The current website content is filled in here.</p>
 
       {activeSection === "hero" ? <section className="admin-seo"><h2>Hero</h2>
         <TextField label="Eyebrow" value={content.hero.eyebrow} onChange={value => updateSection("hero", { eyebrow: value })} />
@@ -383,7 +383,7 @@ export function HomepageImageEditor({
       </section> : null}
 
       {activeSection === "insights" ? <section className="admin-seo"><h2>Insights</h2>
-        <p className="field-hint">Insight cards khud Blog posts se aate hain; yahan section heading aur link edit hote hain.</p>
+        <p className="field-hint">Insight cards come from blog posts automatically; edit the section heading and link here.</p>
         <TextField label="Eyebrow" value={content.insights.eyebrow} onChange={value => updateSection("insights", { eyebrow: value })} />
         <div className="form-columns">
           <TextField label="All-posts link label" value={content.insights.allLabel} onChange={value => updateSection("insights", { allLabel: value })} />
@@ -413,7 +413,7 @@ export function HomepageImageEditor({
 
     {activeTab === "images" && sectionImageSlots(activeSection).length ? <section className="admin-form homepage-image-editor">
       <div className="homepage-image-heading">
-        <div><h2>Section images</h2><p>Original image library mein safe rahegi. Crop position is section mein save hogi.</p></div>
+        <div><h2>Section images</h2><p>The original image stays unchanged in the library. The crop position is saved with this section.</p></div>
         <Link className="admin-action" href="/admin/media">Open media library ↗</Link>
       </div>
       {imageSlots.filter(slot => sectionImageSlots(activeSection).includes(slot.key)).map(slot => {
@@ -424,28 +424,28 @@ export function HomepageImageEditor({
           {activeSection === "work" ? <button className="homepage-slot-toggle" type="button" aria-expanded={activeImageSlot === slot.key} onClick={() => { setActiveImageSlot(current => current === slot.key ? null : slot.key); setShowCrop(false); setShowLibrary(false); }}><span>{slot.label}</span><b>{activeImageSlot === slot.key ? "Close" : "Edit →"}</b></button> : null}
           {activeSection === "hero" || activeImageSlot === slot.key ? <>
           <div className="homepage-image-slot-head"><div><h3>{slot.label}</h3><p>{slot.note}</p></div>{current ? <button className="admin-action" type="button" onClick={() => choose(slot.key, "")}>Remove image</button> : null}</div>
-          <p className="homepage-image-recommendation"><b>Recommended upload:</b> {slot.recommended}<span> · 4 MB tak</span></p>
+          <p className="homepage-image-recommendation"><b>Recommended upload:</b> {slot.recommended}<span> · up to 4 MB</span></p>
           {asset ? <img className="homepage-selected-thumb" src={asset.url} alt={current?.alt ?? ""} /> : null}
           <button className="admin-action" type="button" aria-expanded={showLibrary} onClick={() => setShowLibrary(value => !value)}>Choose from Media Library</button>
           {showLibrary ? <div className="homepage-library-picker" aria-label="Choose an image from Media Library">
-            {library.length ? library.map(item => <button type="button" key={item._id} aria-pressed={current?.assetId === item._id} onClick={() => { choose(slot.key, item._id); setShowLibrary(false); setShowCrop(false); }}><img src={item.url} alt="" /><span>{item.altText || item.publicId.split("/").at(-1) || "Image"}<small>{item.width} × {item.height} px</small></span></button>) : <p className="field-hint">Library mein abhi images nahi hain. Neeche upload karein.</p>}
+            {library.length ? library.map(item => <button type="button" key={item._id} aria-pressed={current?.assetId === item._id} onClick={() => { choose(slot.key, item._id); setShowLibrary(false); setShowCrop(false); }}><img src={item.url} alt="" /><span>{item.altText || item.publicId.split("/").at(-1) || "Image"}<small>{item.width} × {item.height} px</small></span></button>) : <p className="field-hint">The library has no images yet. Upload one below.</p>}
           </div> : null}
           <label className="admin-button homepage-upload-button">Upload new image
               <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" disabled={busy} onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void chooseUpload(slot.key, file); event.currentTarget.value = ""; }} />
           </label>
           {pendingUpload?.slot === slot.key ? <div className="homepage-low-resolution-confirm" role="alert">
-            <p>Selected image {pendingUpload.width} × {pendingUpload.height} px hai. Recommended size {slot.recommended} hai; desktop par image blur ho sakti hai.</p>
-            <div><button className="admin-button" type="button" disabled={busy} onClick={() => { const pending = pendingUpload; setPendingUpload(null); void uploadForSlot(pending.slot, pending.file); }}>Phir bhi upload karein</button><button className="admin-action" type="button" onClick={() => setPendingUpload(null)}>Cancel</button></div>
+            <p>The selected image is {pendingUpload.width} × {pendingUpload.height} px. The recommended size is {slot.recommended}; it may look blurry on desktop.</p>
+            <div><button className="admin-button" type="button" disabled={busy} onClick={() => { const pending = pendingUpload; setPendingUpload(null); void uploadForSlot(pending.slot, pending.file); }}>Upload anyway</button><button className="admin-action" type="button" onClick={() => setPendingUpload(null)}>Cancel</button></div>
           </div> : null}
           {asset && current ? <>
             <p className={`homepage-image-resolution${lowResolution ? " is-low" : ""}`} role={lowResolution ? "status" : undefined}>
               Selected image: {asset.width} × {asset.height} px. {lowResolution
-                ? `Recommended at least ${slot.minWidth} × ${slot.minHeight} px for a sharp desktop display; preview karke decide karein.`
-                : "Resolution desktop display ke liye theek hai."}
+                ? `Recommended at least ${slot.minWidth} × ${slot.minHeight} px for a sharp desktop display; check the preview before you decide.`
+                : "The resolution is fine for desktop display."}
             </p>
             <button className="admin-action" type="button" aria-expanded={showCrop} onClick={() => setShowCrop(value => !value)}>{showCrop ? "Close crop controls" : "Adjust crop and preview"}</button>
-            <label className="admin-field"><span>Alt text (image ka accessible description)</span><input value={current.alt} maxLength={300} onChange={event => update(slot.key, { alt: event.target.value })} placeholder="Image mein kya dikh raha hai?" /></label>
-            {showCrop ? <><p className="field-hint">Desktop aur mobile par ek hi crop position use hogi.</p>
+            <label className="admin-field"><span>Alt text (an accessible description of the image)</span><input value={current.alt} maxLength={300} onChange={event => update(slot.key, { alt: event.target.value })} placeholder="What does the image show?" /></label>
+            {showCrop ? <><p className="field-hint">Desktop and mobile use the same crop position.</p>
             <div className="homepage-device-switch"><button type="button" aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")}>Desktop</button><button type="button" aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")}>Mobile</button></div>
             <div className="homepage-crop-preview">
               <div><span>{previewDevice === "desktop" ? "Desktop" : "Mobile"} preview</span><div className={`homepage-crop-frame${slot.key === "hero" ? " is-hero" : ""}`} style={{ aspectRatio: previewDevice === "desktop" ? slot.desktopRatio : slot.mobileRatio }} role="application" aria-label={`${slot.label} crop preview. Drag to position, or use arrow keys.`} tabIndex={0} onPointerDown={event => startCrop(event, slot.key, asset, current)} onPointerMove={event => moveCrop(event, slot.key)} onPointerUp={() => { cropDrag.current = null; }} onPointerCancel={() => { cropDrag.current = null; }} onKeyDown={event => keyboardCrop(event, slot.key, current)}>
@@ -454,13 +454,13 @@ export function HomepageImageEditor({
               </div></div>
             </div>
             <div className="homepage-image-fields">
-              <p className="field-hint">Preview par image ko drag karke crop set karein. Keyboard ke arrow keys bhi kaam karte hain; Shift ke saath zyada move hoga.</p>
+              <p className="field-hint">Drag the image in the preview to set the crop. The arrow keys also work; hold Shift to move further.</p>
               <div className="form-columns">
                 <label className="admin-field"><span>Crop position — left / right</span><input type="range" min="0" max="100" value={current.focalX} onChange={event => update(slot.key, { focalX: Number(event.target.value) })} /></label>
                 <label className="admin-field"><span>Crop position — up / down</span><input type="range" min="0" max="100" value={current.focalY} onChange={event => update(slot.key, { focalY: Number(event.target.value) })} /></label>
               </div>
             </div></> : null}
-          </> : <p className="field-hint">Image select karne par desktop aur mobile preview yahan dikhega.</p>}
+          </> : <p className="field-hint">Select an image to see its desktop and mobile preview here.</p>}
           </> : null}
         </article>;
       })}
@@ -469,6 +469,6 @@ export function HomepageImageEditor({
 
     <div className="homepage-save-bar"><button className="admin-action" type="button" disabled={busy} onClick={() => openSection(null)}>Back</button><button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void saveSection()}>{busy ? "Saving…" : `Save ${sections.find(item => item.key === activeSection)?.label ?? "section"}`}</button></div>
     </>}
-    {pendingSection !== undefined ? <div className="homepage-unsaved-backdrop" role="presentation"><div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="homepage-unsaved-title"><h2 id="homepage-unsaved-title">Unsaved changes</h2><p>Current section ke changes save nahi hue. Aage kaise badhna hai?</p><div><button className="admin-button" type="button" disabled={busy} onClick={() => void saveSection(pendingSection)}>Save and continue</button><button className="admin-action" type="button" disabled={busy} onClick={discardAndOpen}>Discard changes</button><button className="admin-action" type="button" disabled={busy} onClick={() => setPendingSection(undefined)}>Continue editing</button></div></div></div> : null}
+    {pendingSection !== undefined ? <div className="homepage-unsaved-backdrop" role="presentation"><div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="homepage-unsaved-title"><h2 id="homepage-unsaved-title">Unsaved changes</h2><p>Your changes to this section are not saved yet. What would you like to do?</p><div><button className="admin-button" type="button" disabled={busy} onClick={() => void saveSection(pendingSection)}>Save and continue</button><button className="admin-action" type="button" disabled={busy} onClick={discardAndOpen}>Discard changes</button><button className="admin-action" type="button" disabled={busy} onClick={() => setPendingSection(undefined)}>Continue editing</button></div></div></div> : null}
   </>;
 }

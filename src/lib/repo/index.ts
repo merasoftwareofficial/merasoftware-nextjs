@@ -10,6 +10,7 @@
 
 import { publishedState } from "@/lib/publish-rules";
 import { validArticleDocument } from "@/lib/content-rules";
+import { notifyPostChange } from "@/lib/indexnow";
 import { jsonDriver } from "./json-driver";
 import { mongoDriver } from "./mongo-driver";
 import type { BlogRepo, DataDriver } from "./types";
@@ -38,7 +39,8 @@ async function publishDuePosts() {
       // A legacy invalid draft must neither publish nor block the other due posts.
       if (!validArticleDocument(post.content)) continue;
       // The patch depends only on the post, so two instances racing here write the same thing.
-      await driver.blogs.update(post._id, publishedState(post, undefined, post.scheduledFor));
+      const published = await driver.blogs.update(post._id, publishedState(post, undefined, post.scheduledFor));
+      notifyPostChange(post, published);
     }
   }
 }
@@ -80,6 +82,24 @@ export const blogRepo: BlogRepo = {
   async findBySlug(slug) {
     await ensureDuePublished();
     return driver.blogs.findBySlug(slug);
+  },
+  // Writes report to IndexNow here, once, so no route has to remember to.
+  async create(data) {
+    const created = await driver.blogs.create(data);
+    notifyPostChange(null, created);
+    return created;
+  },
+  async update(id, patch) {
+    const before = await driver.blogs.findById(id);
+    const updated = await driver.blogs.update(id, patch);
+    notifyPostChange(before, updated);
+    return updated;
+  },
+  async remove(id) {
+    const before = await driver.blogs.findById(id);
+    const removed = await driver.blogs.remove(id);
+    if (removed) notifyPostChange(before, null);
+    return removed;
   },
 };
 export const userRepo = driver.users;

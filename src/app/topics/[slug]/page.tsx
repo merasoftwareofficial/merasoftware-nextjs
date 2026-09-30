@@ -5,19 +5,11 @@ import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import { blogRepo } from "@/lib/repo";
+import { topicLabel as label, topicMatches } from "@/lib/topic-slug";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ slug: string }> };
-
-/** Article tags link here as slugs, so "local seo" arrives as "local-seo". */
-function slugMatches(value: string, slug: string) {
-  return value.toLowerCase().replace(/\s+/g, "-") === slug.toLowerCase();
-}
-
-function label(slug: string) {
-  return slug.replaceAll("-", " ");
-}
 
 export async function generateMetadata({ params }: Params) {
   const { slug } = await params;
@@ -39,7 +31,7 @@ export default async function Topic({ params }: Params) {
     post =>
       post.visibility !== "unlisted" &&
       isReadable(post, viewer) &&
-      ((post.category && slugMatches(post.category, slug)) || post.tags.some(tag => slugMatches(tag, slug))),
+      ((post.category && topicMatches(post.category, slug)) || post.tags.some(tag => topicMatches(tag, slug))),
   );
 
   return (
