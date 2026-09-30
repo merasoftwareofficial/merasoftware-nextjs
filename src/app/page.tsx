@@ -38,8 +38,8 @@ export default async function Home() {
               <Link className="text-link" href={content.hero.secondaryHref}>{content.hero.secondaryLabel} <span>↓</span></Link>
             </div>
           </div>
-          <div className="hero-art" aria-hidden={heroImage ? undefined : true}>
-            {heroImage ? <img className="home-hero-image" src={heroImage.url} alt={heroPlacement?.alt ?? ""} style={{ objectPosition: `${heroPlacement?.focalX ?? 50}% ${heroPlacement?.focalY ?? 50}%` }} /> : null}
+          <div className={heroImage ? "hero-art has-image" : "hero-art"} aria-hidden={heroImage ? undefined : true}>
+            {heroImage ? <img className="home-hero-image" src={heroImage.url} alt={heroPlacement?.alt ?? ""} fetchPriority="high" style={{ objectPosition: `${heroPlacement?.focalX ?? 50}% ${heroPlacement?.focalY ?? 50}%` }} /> : null}
             <div className="orb orb-one" /><div className="orb orb-two" /><div className="arc" />
             <div className="signal-card"><span className="signal-label">{content.hero.signalLabel}</span><strong>{content.hero.signalPrimary}<span>/</span>{content.hero.signalSecondary}</strong><div className="signal-line" /></div>
             <div className="plus plus-one">+</div><div className="plus plus-two">+</div>

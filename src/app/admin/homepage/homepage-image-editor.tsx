@@ -31,7 +31,7 @@ const imageSlots: {
   desktopRatio: string;
   mobileRatio: string;
 }[] = [
-  { key: "hero", label: "Hero artwork", note: "The homepage hero visual. The current design shows the image in a rounded shape.", recommended: "1200 × 900 px", minWidth: 1048, minHeight: 788, desktopRatio: "524 / 394", mobileRatio: "322 / 244" },
+  { key: "hero", label: "Hero artwork", note: "The homepage hero visual. With an image, the photo fills a rounded card and the pattern steps back; without one, the pattern shows on its own.", recommended: "1200 × 900 px", minWidth: 1048, minHeight: 788, desktopRatio: "524 / 394", mobileRatio: "322 / 244" },
   { key: "work-northstar", label: "Northstar Advisory", note: "For the first selected-work card on the homepage.", recommended: "1200 × 900 px", minWidth: 1160, minHeight: 730, desktopRatio: "580 / 365", mobileRatio: "358 / 270" },
   { key: "work-oasis", label: "Oasis Living", note: "For the second selected-work card on the homepage.", recommended: "1200 × 900 px", minWidth: 1160, minHeight: 730, desktopRatio: "580 / 365", mobileRatio: "358 / 270" },
 ];
