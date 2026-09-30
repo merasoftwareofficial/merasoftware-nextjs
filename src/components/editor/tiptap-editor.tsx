@@ -12,6 +12,20 @@ const REL_VALUE: Record<LinkRel, string> = {
   sponsored: SPONSORED_REL,
 };
 
+/**
+ * A button's tooltip with its keyboard shortcut, written the way this computer
+ * shows it. The shortcuts are Tiptap's own (StarterKit); nothing here adds one.
+ * Only called once the editor exists, which is always in the browser.
+ */
+function hint(label: string, keys?: string) {
+  if (!keys) return label;
+  const mac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
+  const shortcut = mac
+    ? keys.replace("Mod", "⌘").replace("Alt", "⌥").replace("Shift", "⇧").replaceAll("-", "")
+    : keys.replace("Mod", "Ctrl").replaceAll("-", "+");
+  return `${label} (${shortcut})`;
+}
+
 export function TiptapEditor({
   value,
   onChange,
@@ -65,88 +79,91 @@ export function TiptapEditor({
 
   return (
     <div className="tiptap-wrap">
-      <div className="tiptap-toolbar">
-        <button type="button" className={active("bold") ? "on" : ""} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
-          <b>B</b>
-        </button>
-        <button type="button" className={active("italic") ? "on" : ""} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic">
-          <i>I</i>
-        </button>
-        <button type="button" className={active("strike") ? "on" : ""} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strikethrough">
-          <s>S</s>
-        </button>
-
-        <span className="tiptap-divider" />
-
-        {[2, 3, 4].map(level => (
-          <button
-            key={level}
-            type="button"
-            className={active("heading", { level }) ? "on" : ""}
-            onClick={() => editor.chain().focus().toggleHeading({ level: level as 2 | 3 | 4 }).run()}
-            title={`Heading ${level}`}
-          >
-            H{level}
+      {/* Toolbar and link bar stay in view while a long article scrolls under them. */}
+      <div className="tiptap-bar">
+        <div className="tiptap-toolbar">
+          <button type="button" className={active("bold") ? "on" : ""} onClick={() => editor.chain().focus().toggleBold().run()} title={hint("Bold", "Mod-B")}>
+            <b>B</b>
           </button>
-        ))}
+          <button type="button" className={active("italic") ? "on" : ""} onClick={() => editor.chain().focus().toggleItalic().run()} title={hint("Italic", "Mod-I")}>
+            <i>I</i>
+          </button>
+          <button type="button" className={active("strike") ? "on" : ""} onClick={() => editor.chain().focus().toggleStrike().run()} title={hint("Strikethrough", "Mod-Shift-S")}>
+            <s>S</s>
+          </button>
 
-        <span className="tiptap-divider" />
+          <span className="tiptap-divider" />
 
-        <button type="button" className={active("bulletList") ? "on" : ""} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet list">
-          • List
-        </button>
-        <button type="button" className={active("orderedList") ? "on" : ""} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered list">
-          1. List
-        </button>
-        <button type="button" className={active("blockquote") ? "on" : ""} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote">
-          &ldquo; Quote
-        </button>
-        <button type="button" className={active("codeBlock") ? "on" : ""} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code block">
-          Code
-        </button>
+          {[2, 3, 4].map(level => (
+            <button
+              key={level}
+              type="button"
+              className={active("heading", { level }) ? "on" : ""}
+              onClick={() => editor.chain().focus().toggleHeading({ level: level as 2 | 3 | 4 }).run()}
+              title={hint(`Heading ${level}`, `Mod-Alt-${level}`)}
+            >
+              H{level}
+            </button>
+          ))}
 
-        <span className="tiptap-divider" />
+          <span className="tiptap-divider" />
 
-        <button type="button" className={active("link") ? "on" : ""} onClick={() => setLinkOpen(open => !open)} title="Add link">
-          Link
-        </button>
-        <button type="button" onClick={addImage} title="Insert image by URL">
-          Image
-        </button>
+          <button type="button" className={active("bulletList") ? "on" : ""} onClick={() => editor.chain().focus().toggleBulletList().run()} title={hint("Bullet list", "Mod-Shift-8")}>
+            • List
+          </button>
+          <button type="button" className={active("orderedList") ? "on" : ""} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={hint("Numbered list", "Mod-Shift-7")}>
+            1. List
+          </button>
+          <button type="button" className={active("blockquote") ? "on" : ""} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={hint("Quote", "Mod-Shift-B")}>
+            &ldquo; Quote
+          </button>
+          <button type="button" className={active("codeBlock") ? "on" : ""} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title={hint("Code block", "Mod-Alt-C")}>
+            Code
+          </button>
 
-        <span className="tiptap-divider" />
+          <span className="tiptap-divider" />
 
-        <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">
-          ↶
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">
-          ↷
-        </button>
-      </div>
+          <button type="button" className={active("link") ? "on" : ""} onClick={() => setLinkOpen(open => !open)} title="Add link">
+            Link
+          </button>
+          <button type="button" onClick={addImage} title="Insert image by URL">
+            Image
+          </button>
 
-      {linkOpen ? (
-        <div className="tiptap-link-bar">
-          <input
-            value={linkUrl}
-            onChange={event => setLinkUrl(event.target.value)}
-            placeholder="https://example.com — leave empty to remove the link"
-            onKeyDown={event => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                applyLink();
-              }
-            }}
-          />
-          <select value={linkRel} onChange={event => setLinkRel(event.target.value as LinkRel)}>
-            <option value="normal">Normal link</option>
-            <option value="ugc">User content (rel=ugc)</option>
-            <option value="sponsored">Paid / sponsored</option>
-          </select>
-          <button type="button" className="admin-button" onClick={applyLink}>
-            Apply
+          <span className="tiptap-divider" />
+
+          <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title={hint("Undo", "Mod-Z")}>
+            ↶
+          </button>
+          <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title={hint("Redo", "Mod-Y")}>
+            ↷
           </button>
         </div>
-      ) : null}
+
+        {linkOpen ? (
+          <div className="tiptap-link-bar">
+            <input
+              value={linkUrl}
+              onChange={event => setLinkUrl(event.target.value)}
+              placeholder="https://example.com — leave empty to remove the link"
+              onKeyDown={event => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applyLink();
+                }
+              }}
+            />
+            <select value={linkRel} onChange={event => setLinkRel(event.target.value as LinkRel)}>
+              <option value="normal">Normal link</option>
+              <option value="ugc">User content (rel=ugc)</option>
+              <option value="sponsored">Paid / sponsored</option>
+            </select>
+            <button type="button" className="admin-button" onClick={applyLink}>
+              Apply
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <EditorContent editor={editor} />
     </div>

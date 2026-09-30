@@ -107,7 +107,7 @@ export function BlogForm({
   const [status, setStatus] = useState(blog?.status ?? "draft");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<{ action: string; extra: Record<string, unknown> } | null>(null);
-  const previewRef = useRef<HTMLElement>(null);
+  const previewDialog = useRef<HTMLDivElement>(null);
   // Only an admin adds to the category list (owner decision); the route checks it too.
   const canAddCategory = role === "admin";
   const [categories, setCategories] = useState(initialCategories);
@@ -129,9 +129,53 @@ export function BlogForm({
       setNewCategory(null);
     });
 
+  /** Opens the preview; with an action, it is the confirm step for that action. */
+  function openPreview(action: { action: string; extra: Record<string, unknown> } | null) {
+    setError("");
+    setReviewAction(action);
+    setPreviewOpen(true);
+  }
+
+  function closePreview() {
+    setPreviewOpen(false);
+    setReviewAction(null);
+  }
+
+  // The preview covers the form: the page behind stops scrolling, focus moves
+  // into it, and on close focus goes back to the button that opened it.
   useEffect(() => {
-    if (previewOpen) previewRef.current?.scrollIntoView({ block: "start" });
-  }, [previewOpen, reviewAction]);
+    if (!previewOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const root = document.documentElement;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    previewDialog.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    return () => {
+      root.style.overflow = overflow;
+      opener?.focus();
+    };
+  }, [previewOpen]);
+
+  /** Escape closes the preview; Tab stays inside it, as in any dialog. */
+  function previewKeys(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!busy) closePreview();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), summary, a[href]")];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setReviewAction(null);
@@ -217,8 +261,7 @@ export function BlogForm({
     const needsReview = ["publish", "schedule"].includes(action)
       || (action === "save-draft" && ["published", "scheduled"].includes(status));
     if (needsReview && !reviewed) {
-      setReviewAction({ action, extra });
-      setPreviewOpen(true);
+      openPreview({ action, extra });
       return;
     }
     await track(async () => {
@@ -475,44 +518,59 @@ export function BlogForm({
         </section>
       ) : null}
 
-      {error ? <p className="form-error">{error}</p> : null}
-      {message ? <p className="form-message">{message}</p> : null}
-
       {status === "published" ? <p className="field-hint">Updating this article changes the live page. To take it offline first, choose Unpublish.</p> : null}
 
       {previewOpen ? (
-        <section className={`admin-seo ${styles.preview}`} aria-label="Article preview" ref={previewRef}>
-          <h2>Review before publishing</h2>
-          <dl>
-            <dt>SEO title</dt><dd>{draft.seoTitle || draft.title} | Mera Software</dd>
-            <dt>Meta description</dt><dd>{draft.seoDescription || draft.excerpt}</dd>
-            <dt>Canonical URL</dt><dd>{draft.canonical || `${SITE_URL}/blog/${draft.slug}`}</dd>
-            <dt>Visibility</dt><dd>{draft.visibility}</dd>
-            <dt>Comments</dt><dd>{commentsSummary}</dd>
-            <dt>Featured image</dt><dd>{draft.imageUrl ? draft.imageAlt || "Alt text is missing" : "No featured image selected"}</dd>
-            <dt>Publication</dt><dd>{!reviewAction ? `Current status: ${status}` : reviewAction.action === "schedule" ? `Scheduled for ${new Date(draft.scheduledFor).toLocaleString()}` : status === "scheduled" && reviewAction.action === "save-draft" ? `Keeps the saved schedule: ${blog?.scheduledFor ? new Date(blog.scheduledFor).toLocaleString() : "scheduled"}` : status === "published" ? "Updates the live article immediately" : "Publish makes this article live immediately"}</dd>
-          </dl>
-          {briefWarnings.length > 0 ? <p className="form-error">Review these possible instructions in the reader preview: {briefWarnings.join(", ")}. Nothing is removed automatically.</p> : null}
-          <article className={styles.article}>
-            <h2>{draft.title}</h2>
-            <p>{draft.excerpt}</p>
-            {draft.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={draft.imageUrl} alt={draft.imageAlt} style={{ maxWidth: "100%" }} />
-            ) : null}
-            <RichContent content={draft.content} />
-          </article>
-          <div className="form-actions">
-            <button className="admin-button secondary" type="button" onClick={() => { setPreviewOpen(false); setReviewAction(null); }}>Close preview</button>
-            {reviewAction ? <button className="admin-button" type="button" disabled={busy} onClick={() => runAction(reviewAction.action, reviewAction.extra, true)}>
-              {busy ? "Working…" : reviewAction.action === "schedule" ? "Confirm schedule" : reviewAction.action === "save-draft" ? "Confirm update" : "Confirm publish"}
-            </button> : null}
+        // Covers the whole screen with its own scroll, so a long article is
+        // read without leaving the editor. It stays inside the panel, which
+        // carries the light/dark colours, and under the loaders.
+        <div className="blog-preview-overlay" role="dialog" aria-modal="true" aria-labelledby="blog-preview-title" ref={previewDialog} onKeyDown={previewKeys}>
+          <div className="blog-preview-bar">
+            <h2 id="blog-preview-title">{reviewAction ? "Review before publishing" : "Article preview"}</h2>
+            <div className="blog-preview-buttons">
+              <button className="admin-button secondary" type="button" data-autofocus disabled={busy} onClick={closePreview}>
+                Close preview
+              </button>
+              {reviewAction ? (
+                <button className="admin-button" type="button" disabled={busy} onClick={() => runAction(reviewAction.action, reviewAction.extra, true)}>
+                  {busy ? "Working…" : reviewAction.action === "schedule" ? "Confirm schedule" : reviewAction.action === "save-draft" ? "Confirm update" : "Confirm publish"}
+                </button>
+              ) : null}
+            </div>
+            {error ? <p className="form-error" role="alert">{error}</p> : null}
           </div>
-        </section>
+          <div className={`blog-preview-body ${styles.preview}`}>
+            <details className="blog-preview-details">
+              <summary>SEO &amp; publishing details</summary>
+              <dl>
+                <dt>SEO title</dt><dd>{draft.seoTitle || draft.title} | Mera Software</dd>
+                <dt>Meta description</dt><dd>{draft.seoDescription || draft.excerpt}</dd>
+                <dt>Canonical URL</dt><dd>{draft.canonical || `${SITE_URL}/blog/${draft.slug}`}</dd>
+                <dt>Visibility</dt><dd>{draft.visibility}</dd>
+                <dt>Comments</dt><dd>{commentsSummary}</dd>
+                <dt>Featured image</dt><dd>{draft.imageUrl ? draft.imageAlt || "Alt text is missing" : "No featured image selected"}</dd>
+                <dt>Publication</dt><dd>{!reviewAction ? `Current status: ${status}` : reviewAction.action === "schedule" ? `Scheduled for ${new Date(draft.scheduledFor).toLocaleString()}` : status === "scheduled" && reviewAction.action === "save-draft" ? `Keeps the saved schedule: ${blog?.scheduledFor ? new Date(blog.scheduledFor).toLocaleString() : "scheduled"}` : status === "published" ? "Updates the live article immediately" : "Publish makes this article live immediately"}</dd>
+              </dl>
+            </details>
+            {briefWarnings.length > 0 ? <p className="form-error">Review these possible instructions in the reader preview: {briefWarnings.join(", ")}. Nothing is removed automatically.</p> : null}
+            <article className={styles.article}>
+              <h2>{draft.title}</h2>
+              <p>{draft.excerpt}</p>
+              {draft.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={draft.imageUrl} alt={draft.imageAlt} style={{ maxWidth: "100%" }} />
+              ) : null}
+              <RichContent content={draft.content} />
+            </article>
+          </div>
+        </div>
       ) : null}
 
-      <div className="form-actions">
+      {/* Stays at the bottom of the screen on wider screens, so saving never needs a scroll to the end. Its message shows here too. */}
+      <div className="form-actions blog-actions">
         <span className={`status status-${status === "published" ? "live" : "draft"}`}>{status}</span>
+        {error && !previewOpen ? <p className="form-error blog-actions-note" role="alert">{error}</p> : null}
+        {message ? <p className="form-message blog-actions-note" role="status">{message}</p> : null}
 
         {postId ? (
           <button className="admin-button danger" type="button" onClick={remove} disabled={busy}>
@@ -520,7 +578,7 @@ export function BlogForm({
           </button>
         ) : null}
 
-        <button className="admin-button secondary" type="button" onClick={() => { setPreviewOpen(true); setReviewAction(null); }} disabled={busy}>
+        <button className="admin-button secondary" type="button" onClick={() => openPreview(null)} disabled={busy}>
           Preview article
         </button>
         <button className="admin-button secondary" type="button" onClick={() => runAction("save-draft")} disabled={busy}>
