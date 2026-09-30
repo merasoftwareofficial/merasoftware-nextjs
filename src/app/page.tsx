@@ -5,6 +5,10 @@ import { SiteHeader } from "@/components/site-header";
 import { DEFAULT_HOMEPAGE_CONTENT, resolveHomepageContent } from "@/lib/homepage-content";
 import { blogRepo, mediaRepo, settingsRepo } from "@/lib/repo";
 import { FEATURES } from "@/lib/features";
+import { cloudinaryImageUrl } from "@/lib/cloudinary-url";
+
+// The hero photo is at most 525px wide on screen: 1100px covers 2x screens (1050px) and phones at 3x (966px).
+const HERO_IMAGE_WIDTH = 1100;
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +43,7 @@ export default async function Home() {
             </div>
           </div>
           <div className={heroImage ? "hero-art has-image" : "hero-art"} aria-hidden={heroImage ? undefined : true}>
-            {heroImage ? <img className="home-hero-image" src={heroImage.url} alt={heroPlacement?.alt ?? ""} fetchPriority="high" style={{ objectPosition: `${heroPlacement?.focalX ?? 50}% ${heroPlacement?.focalY ?? 50}%` }} /> : null}
+            {heroImage ? <img className="home-hero-image" src={cloudinaryImageUrl(heroImage.url, HERO_IMAGE_WIDTH)}alt={heroPlacement?.alt ?? ""} fetchPriority="high" style={{ objectPosition: `${heroPlacement?.focalX ?? 50}% ${heroPlacement?.focalY ?? 50}%` }} /> : null}
             <div className="orb orb-one" /><div className="orb orb-two" /><div className="arc" />
             <div className="signal-card"><span className="signal-label">{content.hero.signalLabel}</span><strong>{content.hero.signalPrimary}<span>/</span>{content.hero.signalSecondary}</strong><div className="signal-line" /></div>
             <div className="plus plus-one">+</div><div className="plus plus-two">+</div>
