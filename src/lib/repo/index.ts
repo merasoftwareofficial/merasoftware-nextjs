@@ -102,6 +102,7 @@ export const blogRepo: BlogRepo = {
     return removed;
   },
 };
+export const categoryRepo = driver.categories;
 export const userRepo = driver.users;
 export const commentRepo = driver.comments;
 export const reactionRepo = driver.reactions;

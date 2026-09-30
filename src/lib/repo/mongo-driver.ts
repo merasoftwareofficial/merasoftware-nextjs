@@ -4,6 +4,7 @@ import { Types, type PipelineStage } from "mongoose";
 import { DEFAULT_HOMEPAGE_CONTENT } from "@/lib/homepage-content";
 import { connectMongo } from "@/lib/mongodb";
 import { Blog } from "@/models/Blog";
+import { CategoryModel } from "@/models/Category";
 import { Comment, Report, Settings } from "@/models/Comment";
 import { Reaction, SavedPost } from "@/models/Engagement";
 import { User } from "@/models/User";
@@ -13,6 +14,7 @@ import { MediaAssetModel } from "@/models/Media";
 import type {
   Blog as BlogRecord,
   BlogQuery,
+  Category as CategoryRecord,
   Comment as CommentRecord,
   CommentStatus,
   DataDriver,
@@ -177,6 +179,75 @@ const blogs: DataDriver["blogs"] = {
       { returnDocument: "after", projection: { [field]: 1 }, timestamps: false, updatePipeline: true },
     ).lean();
     return row ? Number((row as Record<string, unknown>)[field] ?? 0) : null;
+  },
+
+  async renameCategory(from, to) {
+    await connectMongo();
+    // timestamps: false — the category's name changed, not the article.
+    const result = await Blog.updateMany({ category: from }, { $set: { category: to } }, { timestamps: false });
+    return result.modifiedCount;
+  },
+
+  async categoryCounts() {
+    await connectMongo();
+    const rows: { _id: string; count: number }[] = await Blog.aggregate([
+      { $match: { category: { $type: "string", $ne: "" } } },
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map(row => [row._id, row.count]));
+  },
+};
+
+function categoryRecord(row: Record<string, unknown>): CategoryRecord {
+  const category = serialize(row as never) as CategoryRecord;
+  // lean() skips schema defaults, as withSettingsDefaults() notes for settings.
+  return { ...category, formerSlugs: category.formerSlugs ?? [] };
+}
+
+// isDuplicateKey is defined with the view counting below; the unique index on slug raises it.
+const DUPLICATE_CATEGORY = "A category with that name already exists.";
+
+const categories: DataDriver["categories"] = {
+  async list() {
+    await connectMongo();
+    const rows = await CategoryModel.find().sort({ name: 1 }).collation({ locale: "en" }).lean();
+    return rows.map((row: Record<string, unknown>) => categoryRecord(row));
+  },
+  async findById(id) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    const row = await CategoryModel.findById(_id).lean();
+    return row ? categoryRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async create(data) {
+    await connectMongo();
+    try {
+      const row = await CategoryModel.create(data);
+      return categoryRecord(row.toObject() as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (isDuplicateKey(error)) throw new Error(DUPLICATE_CATEGORY);
+      throw error;
+    }
+  },
+  async update(id, patch) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    try {
+      const row = await CategoryModel.findByIdAndUpdate(_id, { $set: patch }, { new: true, runValidators: true }).lean();
+      return row ? categoryRecord(row as unknown as Record<string, unknown>) : null;
+    } catch (error) {
+      if (isDuplicateKey(error)) throw new Error(DUPLICATE_CATEGORY);
+      throw error;
+    }
+  },
+  async remove(id) {
+    const _id = objectId(id);
+    if (!_id) return false;
+    await connectMongo();
+    const result = await CategoryModel.deleteOne({ _id });
+    return result.deletedCount > 0;
   },
 };
 
@@ -560,4 +631,4 @@ const shares: DataDriver["shares"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views, shares };
+export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares };

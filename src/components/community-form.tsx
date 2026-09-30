@@ -20,9 +20,6 @@ import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import type { Blog } from "@/lib/repo/types";
 
-/** The topics a member may file a post under. */
-const TOPICS = ["SEO", "Website development", "Google Ads", "Digital marketing", "Business growth"];
-
 /**
  * A member never edits the URL, but blogInputSchema validates the slug before
  * the route slugifies it — so the title has to arrive already in slug shape.
@@ -50,14 +47,23 @@ const COPY: Record<"community" | "discussion", { label: string; titleHint: strin
   },
 };
 
-export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: "community" | "discussion" }) {
+export function CommunityForm({
+  blog,
+  type: initialType,
+  topics,
+}: {
+  blog?: Blog;
+  type: "community" | "discussion";
+  /** The categories a member may file under, set by an admin (categoryChoices in category-rules.ts). */
+  topics: string[];
+}) {
   const router = useNavigate();
 
   // Type is fixed once a post exists — changing it would move it between listings.
   const [type, setType] = useState<"community" | "discussion">((blog?.type as "community" | "discussion") ?? initialType);
   const [title, setTitle] = useState(blog?.title ?? "");
   const [excerpt, setExcerpt] = useState(blog?.excerpt ?? "");
-  const [category, setCategory] = useState(blog?.category ?? TOPICS[0]);
+  const [category, setCategory] = useState(blog?.category ?? topics[0] ?? "");
   const [tags, setTags] = useState(blog?.tags.join(", ") ?? "");
   const [content, setContent] = useState<unknown>(blog?.content ?? emptyDoc);
 
@@ -106,7 +112,7 @@ export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: 
         excerpt: excerpt.trim(),
         content,
         type,
-        category,
+        category: category || undefined,
         tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
       }),
     });
@@ -200,16 +206,19 @@ export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: 
         <input value={title} onChange={event => setTitle(event.target.value)} placeholder={copy.titleHint} />
       </label>
 
-      <label>
-        Topic
-        <select value={category} onChange={event => setCategory(event.target.value)}>
-          {TOPICS.map(topic => (
-            <option key={topic} value={topic}>
-              {topic}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* No topics offered yet: the post simply has none until an admin opens some to members. */}
+      {topics.length ? (
+        <label>
+          Topic
+          <select value={category} onChange={event => setCategory(event.target.value)}>
+            {topics.map(topic => (
+              <option key={topic} value={topic}>
+                {topic}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <label>
         Short summary

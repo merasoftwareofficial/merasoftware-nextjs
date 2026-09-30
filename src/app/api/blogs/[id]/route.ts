@@ -11,10 +11,11 @@ import { articleContentSchema } from "@/lib/content-rules";
 import { slugify } from "@/lib/slug";
 import { getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, canDelete, canEdit, isReadable } from "@/lib/blog-rules";
+import { categoryError } from "@/lib/category-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
 import { canSetShareMode } from "@/lib/share-rules";
-import { blogRepo, settingsRepo } from "@/lib/repo";
+import { blogRepo, categoryRepo, settingsRepo } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -45,6 +46,9 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const data = blogInputSchema.partial().parse(await request.json());
+
+    const categoryProblem = categoryError(await categoryRepo.list(), blog.type, data.category, blog.category);
+    if (categoryProblem) return NextResponse.json({ error: categoryProblem }, { status: 400 });
 
     if (data.slug) {
       const slug = slugify(data.slug);

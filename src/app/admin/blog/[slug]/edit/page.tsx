@@ -3,14 +3,15 @@ import { notFound } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
 import { canEdit } from "@/lib/blog-rules";
-import { blogRepo, settingsRepo } from "@/lib/repo";
+import { categoryChoices } from "@/lib/category-rules";
+import { blogRepo, categoryRepo, settingsRepo } from "@/lib/repo";
 import { BlogForm } from "../../blog-form";
 
 export default async function EditBlog({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await requireStaffPage(`/admin/blog/${slug}/edit`);
 
-  const [blog, settings] = await Promise.all([blogRepo.findBySlug(slug), settingsRepo.get()]);
+  const [blog, settings, categories] = await Promise.all([blogRepo.findBySlug(slug), settingsRepo.get(), categoryRepo.list()]);
   if (!blog) notFound();
 
   if (!canEdit(user, blog)) {
@@ -41,7 +42,13 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
           <b>Moderator note:</b> {blog.reviewNote}
         </div>
       ) : null}
-      <BlogForm blog={blog} type={blog.type} role={user.role} commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }} />
+      <BlogForm
+        blog={blog}
+        type={blog.type}
+        role={user.role}
+        commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }}
+        categories={categoryChoices(categories, blog.type, blog.category)}
+      />
     </main>
   );
 }

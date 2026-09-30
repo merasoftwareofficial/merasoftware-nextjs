@@ -6,7 +6,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { canEdit } from "@/lib/blog-rules";
-import { blogRepo } from "@/lib/repo";
+import { categoryChoices } from "@/lib/category-rules";
+import { blogRepo, categoryRepo } from "@/lib/repo";
 
 export const metadata = { title: "Write for the Community" };
 export const dynamic = "force-dynamic";
@@ -64,7 +65,11 @@ export default async function Write({
           text="Write practical, original content for business owners and digital professionals. Every post is reviewed before publication."
         />
         <section className="content-section container">
-          <CommunityForm blog={existing ?? undefined} type={kind} />
+          <CommunityForm
+            blog={existing ?? undefined}
+            type={kind}
+            topics={categoryChoices(await categoryRepo.list(), existing?.type ?? kind, existing?.category)}
+          />
         </section>
       </main>
       <SiteFooter />

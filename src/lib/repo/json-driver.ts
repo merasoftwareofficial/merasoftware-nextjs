@@ -17,6 +17,8 @@ import type {
   Blog,
   BlogQuery,
   BlogRepo,
+  Category,
+  CategoryRepo,
   Comment,
   CommentRepo,
   CommentStatus,
@@ -41,7 +43,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays";
+type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -202,6 +204,61 @@ const blogs: BlogRepo = {
     rows[index] = { ...rows[index], [field]: value };
     write("blogs", rows);
     return value;
+  },
+
+  async renameCategory(from, to) {
+    const rows = read<Blog>("blogs");
+    let moved = 0;
+    // Not updatedAt: the category's name changed, not the article.
+    const next = rows.map(row => (row.category === from ? (moved++, { ...row, category: to }) : row));
+    if (moved) write("blogs", next);
+    return moved;
+  },
+
+  async categoryCounts() {
+    const counts: Record<string, number> = {};
+    for (const row of read<Blog>("blogs")) {
+      if (row.category) counts[row.category] = (counts[row.category] ?? 0) + 1;
+    }
+    return counts;
+  },
+};
+
+/* ----------------------------------------------------------- categories -- */
+
+const categories: CategoryRepo = {
+  async list() {
+    return [...read<Category>("categories")].sort((a, b) => a.name.localeCompare(b.name));
+  },
+  async findById(categoryId) {
+    return read<Category>("categories").find(row => row._id === categoryId) ?? null;
+  },
+  async create(data) {
+    const rows = read<Category>("categories");
+    // The same guard as the MongoDB unique index on slug.
+    if (rows.some(row => row.slug === data.slug)) throw new Error("A category with that name already exists.");
+    const row: Category = { ...data, _id: id(), createdAt: now(), updatedAt: now() };
+    rows.push(row);
+    write("categories", rows);
+    return row;
+  },
+  async update(categoryId, patch) {
+    const rows = read<Category>("categories");
+    const index = rows.findIndex(row => row._id === categoryId);
+    if (index === -1) return null;
+    if (patch.slug && rows.some(row => row._id !== categoryId && row.slug === patch.slug)) {
+      throw new Error("A category with that name already exists.");
+    }
+    rows[index] = { ...rows[index], ...patch, _id: categoryId, updatedAt: now() };
+    write("categories", rows);
+    return rows[index];
+  },
+  async remove(categoryId) {
+    const rows = read<Category>("categories");
+    const next = rows.filter(row => row._id !== categoryId);
+    if (next.length === rows.length) return false;
+    write("categories", next);
+    return true;
   },
 };
 
@@ -533,4 +590,4 @@ const shares: ShareRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views, shares };
+export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares };

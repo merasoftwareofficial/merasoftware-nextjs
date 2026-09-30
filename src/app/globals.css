@@ -97,6 +97,14 @@
 .filter-chip{padding:8px 14px;font-size:12px;font-weight:700;color:var(--pn-muted);background:var(--pn-raised);border:1px solid var(--pn-line);border-radius:100px}
 .filter-chip.on{background:#b7d938;color:#18200a;border-color:var(--pn-accent)}
 .admin-row-actions{display:flex;gap:14px;white-space:nowrap}
+/* Blog categories (/admin/categories). */
+.category-add{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 18px}.category-add .admin-field{flex:1 1 260px;margin-bottom:0}.category-add .review-index{margin-bottom:14px}.category-add .form-error{flex-basis:100%;margin:0}
+.category-inline{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.category-inline input,.category-inline select{min-width:170px;padding:8px 10px;background:var(--pn-field);color:var(--pn-text);border:1px solid var(--pn-line);border-radius:3px;font:14px Arial}
+.category-inline .form-error{flex-basis:100%;margin:4px 0 0}
+.category-muted{font-size:13px;color:var(--pn-muted)}
+.category-new{margin-top:10px}.admin-field .category-inline input{display:inline-block;width:auto;flex:1 1 200px}
+.category-unlisted{margin-top:24px}.category-unlisted .admin-table-wrap{margin-top:16px}
 .slug-taken{color:var(--pn-bad);font-style:normal;font-weight:700}
 .slug-free{color:var(--pn-good);font-style:normal;font-weight:700}
 /* Phone menu. Scoped under .site-header so the inline-nav rules (.site-header nav) cannot hide or restyle it. */

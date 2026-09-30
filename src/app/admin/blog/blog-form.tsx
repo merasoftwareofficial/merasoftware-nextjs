@@ -78,11 +78,14 @@ export function BlogForm({
   type = "official",
   role,
   commentDefaults,
+  categories: initialCategories,
 }: {
   blog?: Blog;
   type?: BlogType;
   role: Role;
   commentDefaults: Pick<Settings, "commentsEnabled" | "commentDefault">;
+  /** The category names this post may be filed under (categoryChoices in category-rules.ts). */
+  categories: string[];
 }) {
   const router = useNavigate();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(blog));
@@ -95,6 +98,26 @@ export function BlogForm({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<{ action: string; extra: Record<string, unknown> } | null>(null);
   const previewRef = useRef<HTMLElement>(null);
+  // Only an admin adds to the category list (owner decision); the route checks it too.
+  const canAddCategory = role === "admin";
+  const [categories, setCategories] = useState(initialCategories);
+  const [newCategory, setNewCategory] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState("");
+
+  const addCategory = () =>
+    track(async () => {
+      setCategoryError("");
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategory ?? "", membersCanUse: false }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return setCategoryError(data.error ?? "Could not add the category.");
+      setCategories(current => [...current, data.name].sort((a, b) => a.localeCompare(b)));
+      set("category", data.name);
+      setNewCategory(null);
+    });
 
   useEffect(() => {
     if (previewOpen) previewRef.current?.scrollIntoView({ block: "start" });
@@ -280,10 +303,38 @@ export function BlogForm({
       </div>
 
       <div className="form-columns">
-        <label className="admin-field">
-          <span>Category</span>
-          <input value={draft.category} onChange={event => set("category", event.target.value)} placeholder="e.g. SEO" />
-        </label>
+        <div className="admin-field">
+          <label htmlFor="blog-category">
+            <span>Category</span>
+          </label>
+          <select id="blog-category" value={draft.category} onChange={event => set("category", event.target.value)}>
+            {/* A saved category cannot be cleared (an empty value leaves it as it is), so "none" is offered only before one is set. */}
+            {blog?.category ? null : <option value="">No category</option>}
+            {categories.map(name => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          {canAddCategory ? (
+            newCategory === null ? (
+              <button className="admin-action category-new" type="button" disabled={busy} onClick={() => { setNewCategory(""); setCategoryError(""); }}>
+                + New category
+              </button>
+            ) : (
+              <div className="category-inline category-new">
+                <input aria-label="New category name" value={newCategory} maxLength={60} disabled={busy} onChange={event => setNewCategory(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void addCategory(); } }} placeholder="e.g. Web strategy" />
+                <button className="admin-action" type="button" disabled={busy || newCategory.trim().length < 2} onClick={() => void addCategory()}>
+                  Add
+                </button>
+                <button className="admin-action" type="button" disabled={busy} onClick={() => { setNewCategory(null); setCategoryError(""); }}>
+                  Cancel
+                </button>
+              </div>
+            )
+          ) : null}
+          {categoryError ? <p className="form-error">{categoryError}</p> : null}
+        </div>
         <label className="admin-field">
           <span>Tags (comma separated)</span>
           <input value={draft.tags} onChange={event => set("tags", event.target.value)} placeholder="seo, local search" />

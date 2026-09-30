@@ -9,10 +9,11 @@ import { blogResponse } from "@/lib/blog-response";
 import { slugify } from "@/lib/slug";
 import { atLeast, getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, initialState, isReadable } from "@/lib/blog-rules";
+import { categoryError } from "@/lib/category-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
 import { canSetShareMode } from "@/lib/share-rules";
-import { blogRepo, settingsRepo, type BlogQuery, type BlogStatus, type BlogType } from "@/lib/repo";
+import { blogRepo, categoryRepo, settingsRepo, type BlogQuery, type BlogStatus, type BlogType } from "@/lib/repo";
 
 export async function GET(request: Request) {
   try {
@@ -60,6 +61,9 @@ export async function POST(request: Request) {
 
     // Members may only write community content, never official articles.
     const type = atLeast(user.role, "editor") ? data.type : data.type === "discussion" ? "discussion" : "community";
+
+    const categoryProblem = categoryError(await categoryRepo.list(), type, data.category);
+    if (categoryProblem) return NextResponse.json({ error: categoryProblem }, { status: 400 });
 
     const slug = slugify(data.slug || data.title);
     if (await blogRepo.findBySlug(slug)) {

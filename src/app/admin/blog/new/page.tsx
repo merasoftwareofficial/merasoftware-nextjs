@@ -1,14 +1,15 @@
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
-import { settingsRepo } from "@/lib/repo";
+import { categoryChoices } from "@/lib/category-rules";
+import { categoryRepo, settingsRepo } from "@/lib/repo";
 import { BlogForm } from "../blog-form";
 
 export const metadata = { title: "New article" };
 
 export default async function NewBlog() {
   const user = await requireStaffPage("/admin/blog/new");
-  const settings = await settingsRepo.get();
+  const [settings, categories] = await Promise.all([settingsRepo.get(), categoryRepo.list()]);
 
   return (
     <main className="admin-main">
@@ -22,7 +23,11 @@ export default async function NewBlog() {
           </Link>
         }
       />
-      <BlogForm role={user.role} commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }} />
+      <BlogForm
+        role={user.role}
+        commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }}
+        categories={categoryChoices(categories, "official")}
+      />
     </main>
   );
 }

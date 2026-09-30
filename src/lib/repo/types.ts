@@ -119,6 +119,27 @@ export interface Blog {
 }
 
 /**
+ * A blog category an admin manages at /admin/categories (category-rules.ts).
+ *
+ * A post stores the category's name in Blog.category, so every page that shows
+ * it keeps reading one string; a rename rewrites that string on every post.
+ */
+export interface Category {
+  _id: string;
+  name: string;
+  /** topicSlug(name): the /topics address. Unique, so "SEO" and "seo" cannot both exist. */
+  slug: string;
+  /** Offered on the member form; official posts may use every active category. */
+  membersCanUse: boolean;
+  /** Kept on the posts that have it, but no longer offered for new choices. */
+  archived: boolean;
+  /** Addresses this category had before a rename or merge; they redirect to it. */
+  formerSlugs: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * A post without its body, for lists. The Tiptap document is the heaviest
  * field and no list shows it, so listCards() leaves it in the database.
  */
@@ -211,6 +232,23 @@ export interface BlogRepo {
    * Returns the counter's new value, or null when the post does not exist.
    */
   incr(id: string, field: "helpfulCount" | "insightfulCount" | "saveCount", by: number): Promise<number | null>;
+  /**
+   * Moves every post filed under `from` to `to`, in any status. Leaves
+   * updatedAt alone: the category's name changed, not the article. Returns how
+   * many posts moved.
+   */
+  renameCategory(from: string, to: string): Promise<number>;
+  /** How many posts, in any status, carry each category name. */
+  categoryCounts(): Promise<Record<string, number>>;
+}
+
+export interface CategoryRepo {
+  /** Every category, archived ones too, by name. */
+  list(): Promise<Category[]>;
+  findById(id: string): Promise<Category | null>;
+  create(data: Omit<Category, "_id" | "createdAt" | "updatedAt">): Promise<Category>;
+  update(id: string, patch: Partial<Omit<Category, "_id" | "createdAt" | "updatedAt">>): Promise<Category | null>;
+  remove(id: string): Promise<boolean>;
 }
 
 export interface UserRepo {
@@ -316,6 +354,7 @@ export interface MediaRepo {
 
 export interface DataDriver {
   blogs: BlogRepo;
+  categories: CategoryRepo;
   users: UserRepo;
   comments: CommentRepo;
   reactions: ReactionRepo;

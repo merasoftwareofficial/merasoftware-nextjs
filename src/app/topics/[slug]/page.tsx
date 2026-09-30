@@ -1,13 +1,15 @@
 import Link from "@/components/link";
+import { permanentRedirect } from "next/navigation";
 import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { movedCategory } from "@/lib/category-rules";
 import { robotsFor } from "@/lib/indexability";
 import { topicIndexable } from "@/lib/indexable-posts";
-import { blogRepo } from "@/lib/repo";
-import { topicLabel as label, topicMatches } from "@/lib/topic-slug";
+import { blogRepo, categoryRepo } from "@/lib/repo";
+import { topicLabel as label, topicMatches, topicPath } from "@/lib/topic-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +33,21 @@ export default async function Topic({ params }: Params) {
   const { slug } = await params;
   const viewer = await getSessionUser();
 
-  const posts = (await blogRepo.listCards({ status: "published" })).filter(
+  const onTopic = (await blogRepo.listCards({ status: "published" })).filter(
     post =>
       post.visibility !== "unlisted" &&
-      isReadable(post, viewer) &&
       ((post.category && topicMatches(post.category, slug)) || post.tags.some(tag => topicMatches(tag, slug))),
   );
+
+  // The address of a category that was renamed or merged: send old links and
+  // search results to where its posts are now. Only when nothing is published
+  // here any more, so a tag of the same name keeps its page.
+  if (!onTopic.length) {
+    const moved = movedCategory(await categoryRepo.list(), slug);
+    if (moved) permanentRedirect(topicPath(moved.name));
+  }
+
+  const posts = onTopic.filter(post => isReadable(post, viewer));
 
   return (
     <>
