@@ -1,7 +1,7 @@
 "use client";
 /* eslint @next/next/no-img-element: off -- Cloudinary URLs are not configured for next/image. */
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
 import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/cloudinary-types";
@@ -9,6 +9,15 @@ import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset } from "
 
 type ImageMap = Partial<Record<HomeImageSlot, HomepageImage>>;
 type CopyKey = keyof HomepageContent;
+const sections: { key: CopyKey; label: string; note: string }[] = [
+  { key: "hero", label: "Hero", note: "Main heading, buttons aur artwork" },
+  { key: "marquee", label: "Moving service strip", note: "Hero ke neeche chalne wala text" },
+  { key: "services", label: "Services", note: "Section heading aur service items" },
+  { key: "pointOfView", label: "Point of view", note: "Heading aur description" },
+  { key: "work", label: "Selected work", note: "Project cards aur unki images" },
+  { key: "insights", label: "Insights", note: "Section heading aur fallback text" },
+  { key: "contact", label: "Contact CTA", note: "Heading aur button" },
+];
 
 const imageSlots: {
   key: HomeImageSlot;
@@ -42,12 +51,85 @@ export function HomepageImageEditor({
 }) {
   const [content, setContent] = useState(initialContent);
   const [images, setImages] = useState<ImageMap>(initialImages);
+  const [savedContent, setSavedContent] = useState(initialContent);
+  const [savedImages, setSavedImages] = useState<ImageMap>(initialImages);
+  const [activeSection, setActiveSection] = useState<CopyKey | null>(null);
+  const [pendingSection, setPendingSection] = useState<CopyKey | null | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<"content" | "images">("content");
+  const [activeWorkCard, setActiveWorkCard] = useState<number | null>(null);
+  const [activeService, setActiveService] = useState<number | null>(null);
+  const [activeImageSlot, setActiveImageSlot] = useState<HomeImageSlot | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [showCrop, setShowCrop] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [library, setLibrary] = useState(assets);
   const [pendingUpload, setPendingUpload] = useState<{ slot: HomeImageSlot; file: File; width: number; height: number } | null>(null);
   const cropDrag = useRef<{ slot: HomeImageSlot; pointerId: number; startX: number; startY: number; focalX: number; focalY: number; overflowX: number; overflowY: number } | null>(null);
   const { busy, track } = useTask();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const sectionImageSlots = (section: CopyKey | null) => section === "hero" ? ["hero"] as HomeImageSlot[]
+    : section === "work" ? ["work-northstar", "work-oasis"] as HomeImageSlot[] : [];
+  const dirty = activeSection !== null && (
+    JSON.stringify(content[activeSection]) !== JSON.stringify(savedContent[activeSection]) ||
+    sectionImageSlots(activeSection).some(slot => JSON.stringify(images[slot] ?? null) !== JSON.stringify(savedImages[slot] ?? null))
+  );
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const guardLinks = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!link || link.getAttribute("target") === "_blank") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setError("Pehle section save karein ya Back par changes discard karein.");
+    };
+    window.addEventListener("beforeunload", warn);
+    document.addEventListener("click", guardLinks, true);
+    return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guardLinks, true); };
+  }, [dirty]);
+
+  function openSection(section: CopyKey | null) {
+    if (busy) return;
+    if (dirty && section !== activeSection) { setPendingSection(section); return; }
+    setActiveSection(section);
+    setActiveTab("content");
+    setActiveService(null);
+    setActiveWorkCard(null);
+    setActiveImageSlot(null);
+    setShowLibrary(false);
+    setShowCrop(false);
+    setError("");
+    setMessage("");
+  }
+
+  function discardAndOpen() {
+    if (activeSection) {
+      setContent(current => ({ ...current, [activeSection]: savedContent[activeSection] }));
+      setImages(current => {
+        const next = { ...current };
+        for (const slot of sectionImageSlots(activeSection)) {
+          if (savedImages[slot]) next[slot] = savedImages[slot];
+          else delete next[slot];
+        }
+        return next;
+      });
+    }
+    const next = pendingSection ?? null;
+    setPendingSection(undefined);
+    setActiveSection(next);
+    setActiveTab("content");
+    setActiveService(null);
+    setActiveWorkCard(null);
+    setActiveImageSlot(null);
+    setShowLibrary(false);
+    setShowCrop(false);
+    setError("");
+    setMessage("");
+  }
 
   function updateSection<K extends CopyKey>(section: K, patch: Partial<HomepageContent[K]>) {
     setContent(current => ({ ...current, [section]: { ...current[section], ...patch } }));
@@ -74,7 +156,7 @@ export function HomepageImageEditor({
       return;
     }
     const asset = library.find(item => item._id === assetId);
-    update(slot, { assetId, alt: asset?.altText ?? "" });
+    setImages(current => ({ ...current, [slot]: { assetId, alt: asset?.altText ?? "", focalX: 50, focalY: 50 } }));
   }
 
   function startCrop(event: ReactPointerEvent<HTMLDivElement>, slot: HomeImageSlot, asset: MediaAsset, current: HomepageImage) {
@@ -126,7 +208,7 @@ export function HomepageImageEditor({
         const { asset, reused } = result as { asset: MediaAsset; reused: boolean };
         setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)]);
         setImages(current => ({ ...current, [slot]: { assetId: asset._id, alt: asset.altText, focalX: 50, focalY: 50 } }));
-        setMessage(reused ? "Image pehle se library mein thi; wahi reuse hui." : "Image library mein upload hui aur is slot ke liye select ho gayi.");
+        setMessage(reused ? "Image pehle se library mein thi. Section save karne par website par dikhegi." : "Image library mein upload hui. Section save karne par website par dikhegi.");
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Upload failed.");
       }
@@ -155,60 +237,72 @@ export function HomepageImageEditor({
     }
   }
 
-  function saveContent() {
+  function saveSection(nextSection?: CopyKey | null) {
+    if (!activeSection || busy) return;
+    const section = activeSection;
+    const sectionContent = content[section];
+    const sectionImages = Object.fromEntries(sectionImageSlots(section).map(slot => [slot, images[slot] ?? null]));
     return track(async () => {
       setMessage("");
       setError("");
       try {
-        const response = await fetch("/api/homepage/content", {
+        const response = await fetch("/api/homepage/section", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(content),
+          body: JSON.stringify({ section, content: sectionContent, images: sectionImages }),
         });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Homepage content save nahi hua.");
-        setContent(result as HomepageContent);
-        setMessage("Homepage content save ho gaya.");
+        if (!response.ok) throw new Error(result.error || "Section save nahi hua.");
+        const savedSectionContent = result.content as HomepageContent[typeof section];
+        setContent(current => ({ ...current, [section]: savedSectionContent }));
+        setSavedContent(current => ({ ...current, [section]: savedSectionContent }));
+        setImages(result.images as ImageMap);
+        setSavedImages(result.images as ImageMap);
+        if (nextSection !== undefined) {
+          setPendingSection(undefined);
+          setActiveSection(nextSection);
+          setActiveTab("content");
+          setActiveService(null);
+          setActiveWorkCard(null);
+          setActiveImageSlot(null);
+          setShowLibrary(false);
+          setShowCrop(false);
+        } else {
+          setMessage(`${sections.find(item => item.key === section)?.label ?? "Section"} save ho gaya.`);
+        }
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Homepage content save nahi hua.");
-      }
-    });
-  }
-
-  function saveImages() {
-    return track(async () => {
-      setMessage("");
-      setError("");
-      try {
-        const response = await fetch("/api/homepage/images", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(Object.fromEntries(imageSlots.map(({ key }) => [key, images[key] ?? null]))),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Homepage images save nahi hui.");
-        setImages(result as ImageMap);
-        setMessage("Homepage images save ho gayi.");
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Homepage images save nahi hui.");
+        setError(cause instanceof Error ? cause.message : "Section save nahi hua.");
+        setPendingSection(undefined);
       }
     });
   }
 
   return <>
-    <section className="admin-panel homepage-section-overview">
+    {!activeSection ? <section className="admin-panel homepage-section-overview">
       <h2>Homepage sections</h2>
-      <p>Section par click karke uska current text ya image edit karein. Website ka layout yahin se nahi badlega.</p>
-      <nav aria-label="Homepage sections">{[
-        ["Hero", "#homepage-hero"], ["Services", "#homepage-services"], ["Point of view", "#homepage-point-of-view"],
-        ["Selected work", "#homepage-work"], ["Insights", "#homepage-insights"], ["Contact CTA", "#homepage-contact"], ["Images", "#homepage-images"],
-      ].map(([label, href]) => <a href={href} key={href}>{label} <span>↓</span></a>)}</nav>
-    </section>
+      <p>Jis section mein change chahiye, uska Edit kholein.</p>
+      <nav aria-label="Homepage sections">{sections.map(section => <button type="button" key={section.key} onClick={() => openSection(section.key)}>
+        <span><strong>{section.label}</strong><small>{section.note}</small></span><b>Edit →</b>
+      </button>)}</nav>
+    </section> : <>
 
-    <section className="admin-form homepage-copy-form">
-      <div className="homepage-image-heading"><div><h2>Homepage content</h2><p>Fields mein abhi website par maujood original content bhara hai.</p></div></div>
+    <div className="homepage-editor-bar">
+      <button className="admin-action" type="button" onClick={() => openSection(null)}>← All sections</button>
+      <h2>{sections.find(item => item.key === activeSection)?.label}</h2>
+      {dirty ? <span className="homepage-dirty">Unsaved changes</span> : null}
+    </div>
+    {error ? <p className="form-error" role="alert">{error}</p> : null}
+    {message ? <p className="status status-live" role="status">{message}</p> : null}
+    {sectionImageSlots(activeSection).length ? <div className="homepage-editor-tabs" aria-label="Section editor">
+      <button type="button" aria-pressed={activeTab === "content"} onClick={() => setActiveTab("content")}>Content</button>
+      <button type="button" aria-pressed={activeTab === "images"} onClick={() => setActiveTab("images")}>Images</button>
+    </div> : null}
 
-      <section className="admin-seo" id="homepage-hero"><h2>Hero</h2>
+    <fieldset className="homepage-editor-fields" disabled={busy}>
+    {activeTab === "content" ? <section className="admin-form homepage-copy-form">
+      <p className="field-hint">Current website ka content yahan pre-filled hai.</p>
+
+      {activeSection === "hero" ? <section className="admin-seo"><h2>Hero</h2>
         <TextField label="Eyebrow" value={content.hero.eyebrow} onChange={value => updateSection("hero", { eyebrow: value })} />
         <div className="form-columns">
           <TextField label="Heading — before italic word" value={content.hero.headingBefore} onChange={value => updateSection("hero", { headingBefore: value })} />
@@ -229,10 +323,13 @@ export function HomepageImageEditor({
           <TextField label="Hero artwork number (left)" value={content.hero.signalPrimary} onChange={value => updateSection("hero", { signalPrimary: value })} />
         </div>
         <TextField label="Hero artwork number (right)" value={content.hero.signalSecondary} onChange={value => updateSection("hero", { signalSecondary: value })} />
-        <div className="form-columns">{content.marquee.map((item, index) => <TextField key={index} label={`Moving service text ${index + 1}`} value={item} onChange={value => setContent(current => ({ ...current, marquee: current.marquee.map((text, itemIndex) => itemIndex === index ? value : text) }))} />)}</div>
-      </section>
+      </section> : null}
 
-      <section className="admin-seo" id="homepage-services"><h2>Services section heading</h2>
+      {activeSection === "marquee" ? <section className="admin-seo"><h2>Moving service strip</h2>
+        <div className="form-columns">{content.marquee.map((item, index) => <TextField key={index} label={`Moving service text ${index + 1}`} value={item} onChange={value => setContent(current => ({ ...current, marquee: current.marquee.map((text, itemIndex) => itemIndex === index ? value : text) }))} />)}</div>
+      </section> : null}
+
+      {activeSection === "services" ? <section className="admin-seo"><h2>Services section heading</h2>
         <p className="field-hint">These names and summaries show on the homepage. The existing service page links stay fixed.</p>
         <TextField label="Eyebrow" value={content.services.eyebrow} onChange={value => updateSection("services", { eyebrow: value })} />
         <TextField label="Side note" multiline value={content.services.sideNote} onChange={value => updateSection("services", { sideNote: value })} />
@@ -241,13 +338,16 @@ export function HomepageImageEditor({
           <TextField label="Heading — italic word" value={content.services.headingEmphasis} onChange={value => updateSection("services", { headingEmphasis: value })} />
         </div>
         <TextField label="Heading — after italic word" value={content.services.headingAfter} onChange={value => updateSection("services", { headingAfter: value })} />
-        {content.services.items.map((service, index) => <section className="homepage-case-fields" key={service.slug}><h3>Service 0{index + 1}</h3>
+        <div className="homepage-item-list">{content.services.items.map((service, index) => <button type="button" key={service.slug} aria-expanded={activeService === index} onClick={() => setActiveService(current => current === index ? null : index)}><span>0{index + 1} · {service.title}</span><b>{activeService === index ? "Close" : "Edit →"}</b></button>)}</div>
+        {activeService !== null ? <section className="homepage-case-fields"><h3>Service 0{activeService + 1}</h3>
+          {(() => { const index = activeService; const service = content.services.items[index]; return <>
           <TextField label="Service name" value={service.title} onChange={value => setContent(current => ({ ...current, services: { ...current.services, items: current.services.items.map((item, itemIndex) => itemIndex === index ? { ...item, title: value } : item) } }))} />
           <TextField label="Short description" multiline value={service.description} onChange={value => setContent(current => ({ ...current, services: { ...current.services, items: current.services.items.map((item, itemIndex) => itemIndex === index ? { ...item, description: value } : item) } }))} />
-        </section>)}
-      </section>
+          </>; })()}
+        </section> : null}
+      </section> : null}
 
-      <section className="admin-seo" id="homepage-point-of-view"><h2>Point of view</h2>
+      {activeSection === "pointOfView" ? <section className="admin-seo"><h2>Point of view</h2>
         <TextField label="Eyebrow" value={content.pointOfView.eyebrow} onChange={value => updateSection("pointOfView", { eyebrow: value })} />
         <TextField label="First heading line" value={content.pointOfView.headingLineOne} onChange={value => updateSection("pointOfView", { headingLineOne: value })} />
         <div className="form-columns">
@@ -256,9 +356,9 @@ export function HomepageImageEditor({
         </div>
         <TextField label="Second line — after italic word" value={content.pointOfView.headingAfter} onChange={value => updateSection("pointOfView", { headingAfter: value })} />
         <TextField label="Description" multiline value={content.pointOfView.description} onChange={value => updateSection("pointOfView", { description: value })} />
-      </section>
+      </section> : null}
 
-      <section className="admin-seo" id="homepage-work"><h2>Selected work</h2>
+      {activeSection === "work" ? <section className="admin-seo"><h2>Selected work</h2>
         <TextField label="Eyebrow" value={content.work.eyebrow} onChange={value => updateSection("work", { eyebrow: value })} />
         <div className="form-columns">
           <TextField label="View-all link label" value={content.work.allLabel} onChange={value => updateSection("work", { allLabel: value })} />
@@ -268,17 +368,21 @@ export function HomepageImageEditor({
           <TextField label="Heading — italic word" value={content.work.headingEmphasis} onChange={value => updateSection("work", { headingEmphasis: value })} />
           <TextField label="Heading — after italic word" value={content.work.headingAfter} onChange={value => updateSection("work", { headingAfter: value })} />
         </div>
-        {content.work.cards.map((card, index) => <section className="homepage-case-fields" key={index}><h3>{card.titleLineOne} {card.titleLineTwo} card</h3>
+        <div className="homepage-item-list">{content.work.cards.map((card, index) => <button type="button" key={index} aria-expanded={activeWorkCard === index} onClick={() => setActiveWorkCard(current => current === index ? null : index)}><span>{card.titleLineOne} {card.titleLineTwo}</span><b>{activeWorkCard === index ? "Close" : "Edit →"}</b></button>)}</div>
+        {activeWorkCard !== null ? <section className="homepage-case-fields"><h3>{content.work.cards[activeWorkCard].titleLineOne} {content.work.cards[activeWorkCard].titleLineTwo} card</h3>
+          {(() => { const index = activeWorkCard; const card = content.work.cards[index]; return <>
           <div className="form-columns">
             <TextField label="Category label" value={card.tag} onChange={value => updateCard(index, "tag", value)} />
             <TextField label="Title line 1" value={card.titleLineOne} onChange={value => updateCard(index, "titleLineOne", value)} />
           </div>
           <TextField label="Title line 2" value={card.titleLineTwo} onChange={value => updateCard(index, "titleLineTwo", value)} />
           <TextField label="Short description" multiline value={card.description} onChange={value => updateCard(index, "description", value)} />
-        </section>)}
-      </section>
+          <button className="admin-action" type="button" onClick={() => { setActiveImageSlot(index === 0 ? "work-northstar" : "work-oasis"); setActiveTab("images"); }}>Edit this card image →</button>
+          </>; })()}
+        </section> : null}
+      </section> : null}
 
-      <section className="admin-seo" id="homepage-insights"><h2>Insights</h2>
+      {activeSection === "insights" ? <section className="admin-seo"><h2>Insights</h2>
         <p className="field-hint">Insight cards khud Blog posts se aate hain; yahan section heading aur link edit hote hain.</p>
         <TextField label="Eyebrow" value={content.insights.eyebrow} onChange={value => updateSection("insights", { eyebrow: value })} />
         <div className="form-columns">
@@ -293,9 +397,10 @@ export function HomepageImageEditor({
           <TextField label="No-image card — first line" value={content.insights.fallbackLineOne} onChange={value => updateSection("insights", { fallbackLineOne: value })} />
           <TextField label="No-image card — second line" value={content.insights.fallbackLineTwo} onChange={value => updateSection("insights", { fallbackLineTwo: value })} />
         </div>
-      </section>
+        <Link className="admin-action" href="/admin/blogs">Manage blog posts ↗</Link>
+      </section> : null}
 
-      <section className="admin-seo" id="homepage-contact"><h2>Contact CTA</h2>
+      {activeSection === "contact" ? <section className="admin-seo"><h2>Contact CTA</h2>
         <TextField label="Eyebrow" value={content.contact.eyebrow} onChange={value => updateSection("contact", { eyebrow: value })} />
         <TextField label="Heading — first line" value={content.contact.headingLineOne} onChange={value => updateSection("contact", { headingLineOne: value })} />
         <div className="form-columns">
@@ -303,29 +408,28 @@ export function HomepageImageEditor({
           <TextField label="Button label" value={content.contact.buttonLabel} onChange={value => updateSection("contact", { buttonLabel: value })} />
         </div>
         <TextField label="Button destination" value={content.contact.buttonHref} onChange={value => updateSection("contact", { buttonHref: value })} />
-      </section>
+      </section> : null}
+    </section> : null}
 
-      <div className="form-actions"><button className="admin-button" type="button" disabled={busy} onClick={() => void saveContent()}>{busy ? "Saving…" : "Save homepage content"}</button></div>
-    </section>
-
-    <section className="admin-form homepage-image-editor" id="homepage-images">
+    {activeTab === "images" && sectionImageSlots(activeSection).length ? <section className="admin-form homepage-image-editor">
       <div className="homepage-image-heading">
-        <div><h2>Homepage images</h2><p>Original image library mein safe rahegi; yahan sirf website par dikhne wali crop position save hoti hai.</p></div>
+        <div><h2>Section images</h2><p>Original image library mein safe rahegi. Crop position is section mein save hogi.</p></div>
         <Link className="admin-action" href="/admin/media">Open media library ↗</Link>
       </div>
-      {imageSlots.map(slot => {
+      {imageSlots.filter(slot => sectionImageSlots(activeSection).includes(slot.key)).map(slot => {
         const current = images[slot.key];
         const asset = library.find(item => item._id === current?.assetId);
         const lowResolution = asset && (asset.width < slot.minWidth || asset.height < slot.minHeight);
         return <article className="homepage-image-slot" key={slot.key}>
+          {activeSection === "work" ? <button className="homepage-slot-toggle" type="button" aria-expanded={activeImageSlot === slot.key} onClick={() => { setActiveImageSlot(current => current === slot.key ? null : slot.key); setShowCrop(false); setShowLibrary(false); }}><span>{slot.label}</span><b>{activeImageSlot === slot.key ? "Close" : "Edit →"}</b></button> : null}
+          {activeSection === "hero" || activeImageSlot === slot.key ? <>
           <div className="homepage-image-slot-head"><div><h3>{slot.label}</h3><p>{slot.note}</p></div>{current ? <button className="admin-action" type="button" onClick={() => choose(slot.key, "")}>Remove image</button> : null}</div>
           <p className="homepage-image-recommendation"><b>Recommended upload:</b> {slot.recommended}<span> · 4 MB tak</span></p>
-          <label className="admin-field"><span>Media Library se image choose karein</span>
-            <select value={current?.assetId ?? ""} onChange={event => choose(slot.key, event.target.value)}>
-              <option value="">Is section mein image nahi</option>
-              {library.map(item => <option value={item._id} key={item._id}>{item.altText || item.publicId.split("/").at(-1) || item.format.toUpperCase()} · {item.width} × {item.height}</option>)}
-            </select>
-          </label>
+          {asset ? <img className="homepage-selected-thumb" src={asset.url} alt={current?.alt ?? ""} /> : null}
+          <button className="admin-action" type="button" aria-expanded={showLibrary} onClick={() => setShowLibrary(value => !value)}>Choose from Media Library</button>
+          {showLibrary ? <div className="homepage-library-picker" aria-label="Choose an image from Media Library">
+            {library.length ? library.map(item => <button type="button" key={item._id} aria-pressed={current?.assetId === item._id} onClick={() => { choose(slot.key, item._id); setShowLibrary(false); setShowCrop(false); }}><img src={item.url} alt="" /><span>{item.altText || item.publicId.split("/").at(-1) || "Image"}<small>{item.width} × {item.height} px</small></span></button>) : <p className="field-hint">Library mein abhi images nahi hain. Neeche upload karein.</p>}
+          </div> : null}
           <label className="admin-button homepage-upload-button">Upload new image
               <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" disabled={busy} onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void chooseUpload(slot.key, file); event.currentTarget.value = ""; }} />
           </label>
@@ -339,30 +443,32 @@ export function HomepageImageEditor({
                 ? `Recommended at least ${slot.minWidth} × ${slot.minHeight} px for a sharp desktop display; preview karke decide karein.`
                 : "Resolution desktop display ke liye theek hai."}
             </p>
+            <button className="admin-action" type="button" aria-expanded={showCrop} onClick={() => setShowCrop(value => !value)}>{showCrop ? "Close crop controls" : "Adjust crop and preview"}</button>
+            <label className="admin-field"><span>Alt text (image ka accessible description)</span><input value={current.alt} maxLength={300} onChange={event => update(slot.key, { alt: event.target.value })} placeholder="Image mein kya dikh raha hai?" /></label>
+            {showCrop ? <><p className="field-hint">Desktop aur mobile par ek hi crop position use hogi.</p>
+            <div className="homepage-device-switch"><button type="button" aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")}>Desktop</button><button type="button" aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")}>Mobile</button></div>
             <div className="homepage-crop-preview">
-              <div><span>Desktop preview</span><div className={`homepage-crop-frame${slot.key === "hero" ? " is-hero" : ""}`} style={{ aspectRatio: slot.desktopRatio }} role="application" aria-label={`${slot.label} desktop crop preview. Drag to position, or use arrow keys.`} tabIndex={0} onPointerDown={event => startCrop(event, slot.key, asset, current)} onPointerMove={event => moveCrop(event, slot.key)} onPointerUp={() => { cropDrag.current = null; }} onPointerCancel={() => { cropDrag.current = null; }} onKeyDown={event => keyboardCrop(event, slot.key, current)}>
+              <div><span>{previewDevice === "desktop" ? "Desktop" : "Mobile"} preview</span><div className={`homepage-crop-frame${slot.key === "hero" ? " is-hero" : ""}`} style={{ aspectRatio: previewDevice === "desktop" ? slot.desktopRatio : slot.mobileRatio }} role="application" aria-label={`${slot.label} crop preview. Drag to position, or use arrow keys.`} tabIndex={0} onPointerDown={event => startCrop(event, slot.key, asset, current)} onPointerMove={event => moveCrop(event, slot.key)} onPointerUp={() => { cropDrag.current = null; }} onPointerCancel={() => { cropDrag.current = null; }} onKeyDown={event => keyboardCrop(event, slot.key, current)}>
                 {/* Cloudinary originals stay unchanged; object-position controls this placement's visible crop. */}
-                <img src={asset.url} alt={current.alt} style={{ objectPosition: `${current.focalX}% ${current.focalY}%` }} />
-              </div></div>
-              <div><span>Mobile preview</span><div className={`homepage-crop-frame${slot.key === "hero" ? " is-hero" : ""}`} style={{ aspectRatio: slot.mobileRatio }} role="application" aria-label={`${slot.label} mobile crop preview. Drag to position, or use arrow keys.`} tabIndex={0} onPointerDown={event => startCrop(event, slot.key, asset, current)} onPointerMove={event => moveCrop(event, slot.key)} onPointerUp={() => { cropDrag.current = null; }} onPointerCancel={() => { cropDrag.current = null; }} onKeyDown={event => keyboardCrop(event, slot.key, current)}>
                 <img src={asset.url} alt={current.alt} style={{ objectPosition: `${current.focalX}% ${current.focalY}%` }} />
               </div></div>
             </div>
             <div className="homepage-image-fields">
               <p className="field-hint">Preview par image ko drag karke crop set karein. Keyboard ke arrow keys bhi kaam karte hain; Shift ke saath zyada move hoga.</p>
-              <label className="admin-field"><span>Alt text (image ka accessible description)</span><input value={current.alt} maxLength={300} onChange={event => update(slot.key, { alt: event.target.value })} placeholder="Image mein kya dikh raha hai?" /></label>
               <div className="form-columns">
                 <label className="admin-field"><span>Crop position — left / right</span><input type="range" min="0" max="100" value={current.focalX} onChange={event => update(slot.key, { focalX: Number(event.target.value) })} /></label>
                 <label className="admin-field"><span>Crop position — up / down</span><input type="range" min="0" max="100" value={current.focalY} onChange={event => update(slot.key, { focalY: Number(event.target.value) })} /></label>
               </div>
-            </div>
+            </div></> : null}
           </> : <p className="field-hint">Image select karne par desktop aur mobile preview yahan dikhega.</p>}
+          </> : null}
         </article>;
       })}
-      <div className="form-actions"><button className="admin-button" type="button" disabled={busy} onClick={() => void saveImages()}>{busy ? "Saving…" : "Save homepage images"}</button></div>
-    </section>
+    </section> : null}
+    </fieldset>
 
-    {error ? <p className="form-error" role="alert">{error}</p> : null}
-    {message ? <p className="status status-live" role="status">{message}</p> : null}
+    <div className="homepage-save-bar"><button className="admin-action" type="button" disabled={busy} onClick={() => openSection(null)}>Back</button><button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void saveSection()}>{busy ? "Saving…" : `Save ${sections.find(item => item.key === activeSection)?.label ?? "section"}`}</button></div>
+    </>}
+    {pendingSection !== undefined ? <div className="homepage-unsaved-backdrop" role="presentation"><div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="homepage-unsaved-title"><h2 id="homepage-unsaved-title">Unsaved changes</h2><p>Current section ke changes save nahi hue. Aage kaise badhna hai?</p><div><button className="admin-button" type="button" disabled={busy} onClick={() => void saveSection(pendingSection)}>Save and continue</button><button className="admin-action" type="button" disabled={busy} onClick={discardAndOpen}>Discard changes</button><button className="admin-action" type="button" disabled={busy} onClick={() => setPendingSection(undefined)}>Continue editing</button></div></div></div> : null}
   </>;
 }

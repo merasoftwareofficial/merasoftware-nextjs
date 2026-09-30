@@ -72,6 +72,8 @@ export interface HomepageContent {
   contact: { eyebrow: string; headingLineOne: string; headingEmphasis: string; buttonLabel: string; buttonHref: string };
 }
 
+export type HomepageSection = keyof HomepageContent;
+
 export interface Seo {
   title: string;
   description: string;
@@ -302,6 +304,7 @@ export interface Settings {
 export interface SettingsRepo {
   get(): Promise<Settings>;
   update(patch: Partial<Omit<Settings, "_id" | "updatedAt">>): Promise<Settings>;
+  updateHomepageSection<K extends HomepageSection>(section: K, content: HomepageContent[K], images: Partial<Record<HomeImageSlot, HomepageImage | null>>): Promise<Settings>;
 }
 
 export interface MediaRepo {

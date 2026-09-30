@@ -1,6 +1,7 @@
 /** MongoDB implementation of the shared blog repository contract. */
 
 import { Types, type PipelineStage } from "mongoose";
+import { DEFAULT_HOMEPAGE_CONTENT } from "@/lib/homepage-content";
 import { connectMongo } from "@/lib/mongodb";
 import { Blog } from "@/models/Blog";
 import { Comment, Report, Settings } from "@/models/Comment";
@@ -410,6 +411,31 @@ const settings: DataDriver["settings"] = {
       { _id: "site" },
       { $set: patch, $setOnInsert: insertDefaults },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    ).lean();
+    return withSettingsDefaults(row);
+  },
+  async updateHomepageSection(section, content, images) {
+    await connectMongo();
+    // Initialise old sites once, then update only this section's paths atomically.
+    await Settings.updateOne(
+      { _id: "site" },
+      { $setOnInsert: { ...SETTINGS_DEFAULTS, homepageContent: DEFAULT_HOMEPAGE_CONTENT } },
+      { upsert: true },
+    );
+    await Settings.updateOne(
+      { _id: "site", homepageContent: { $exists: false } },
+      { $set: { homepageContent: DEFAULT_HOMEPAGE_CONTENT } },
+    );
+    const set: Record<string, unknown> = { [`homepageContent.${section}`]: content };
+    const unset: Record<string, 1> = {};
+    for (const [slot, image] of Object.entries(images)) {
+      if (image === null) unset[`homepageImages.${slot}`] = 1;
+      else if (image) set[`homepageImages.${slot}`] = image;
+    }
+    const row = await Settings.findOneAndUpdate(
+      { _id: "site" },
+      { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}) },
+      { new: true, runValidators: true },
     ).lean();
     return withSettingsDefaults(row);
   },

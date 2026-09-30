@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { DEFAULT_HOMEPAGE_CONTENT } from "@/lib/homepage-content";
 import type {
   Blog,
   BlogQuery,
@@ -393,6 +394,23 @@ const settings: SettingsRepo = {
   async update(patch) {
     const current = await settings.get();
     const row: Settings = { ...current, ...patch, _id: "site", updatedAt: now() };
+    write("settings", [row]);
+    return row;
+  },
+  async updateHomepageSection(section, content, images) {
+    const current = await settings.get();
+    const nextImages = { ...current.homepageImages };
+    for (const slot of Object.keys(images) as (keyof typeof nextImages)[]) {
+      const image = images[slot];
+      if (image === null) delete nextImages[slot];
+      else if (image) nextImages[slot] = image;
+    }
+    const row: Settings = {
+      ...current,
+      homepageContent: { ...(current.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT), [section]: content },
+      homepageImages: nextImages,
+      updatedAt: now(),
+    };
     write("settings", [row]);
     return row;
   },
