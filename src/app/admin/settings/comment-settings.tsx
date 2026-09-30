@@ -9,7 +9,7 @@
  * moderated or closed keeps its own choice — see effectiveMode().
  */
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Settings } from "@/lib/repo";
 
@@ -17,34 +17,33 @@ export function CommentSettings({ settings }: { settings: Settings }) {
   const router = useNavigate();
   const [enabled, setEnabled] = useState(settings.commentsEnabled);
   const [hold, setHold] = useState(settings.commentDefault === "pending");
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  async function save() {
-    setBusy(true);
-    setError("");
-    setSaved(false);
+  const save = () =>
+    track(async () => {
+      setError("");
+      setSaved(false);
 
-    const response = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commentsEnabled: enabled,
-        commentDefault: hold ? "pending" : "visible",
-      }),
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commentsEnabled: enabled,
+          commentDefault: hold ? "pending" : "visible",
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not save the settings.");
+        return;
+      }
+
+      setSaved(true);
+      router.refresh();
     });
-    setBusy(false);
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not save the settings.");
-      return;
-    }
-
-    setSaved(true);
-    router.refresh();
-  }
 
   return (
     <section className="admin-seo">

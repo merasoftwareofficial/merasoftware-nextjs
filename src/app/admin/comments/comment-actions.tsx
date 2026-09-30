@@ -7,7 +7,7 @@
  * enforced in one place — this component only chooses which buttons to offer.
  */
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 
 export function CommentActions({
@@ -20,22 +20,21 @@ export function CommentActions({
   canDelete: boolean;
 }) {
   const router = useNavigate();
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
 
-  async function run(request: () => Promise<Response>) {
-    setBusy(true);
-    setError("");
-    const response = await request();
-    setBusy(false);
+  const run = (request: () => Promise<Response>) =>
+    track(async () => {
+      setError("");
+      const response = await request();
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not update that comment.");
-      return;
-    }
-    router.refresh();
-  }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not update that comment.");
+        return;
+      }
+      router.refresh();
+    });
 
   const patch = (action: string) =>
     run(() =>
@@ -82,26 +81,25 @@ export function CommentActions({
 
 export function ReportActions({ id, resolved }: { id: string; resolved: boolean }) {
   const router = useNavigate();
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
 
-  async function toggle() {
-    setBusy(true);
-    setError("");
-    const response = await fetch(`/api/reports/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolved: !resolved }),
-    });
-    setBusy(false);
+  const toggle = () =>
+    track(async () => {
+      setError("");
+      const response = await fetch(`/api/reports/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved: !resolved }),
+      });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not update that report.");
-      return;
-    }
-    router.refresh();
-  }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not update that report.");
+        return;
+      }
+      router.refresh();
+    });
 
   return (
     <span className="admin-row-actions">

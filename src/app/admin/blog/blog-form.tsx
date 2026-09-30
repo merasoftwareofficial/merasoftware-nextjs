@@ -1,13 +1,13 @@
 "use client";
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useEffect, useRef, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { RichContent } from "@/components/editor/rich-content";
 import { publishingBriefWarnings } from "@/lib/content-rules";
 import { SITE_URL } from "@/lib/structured-data";
-import type { Blog, BlogType, CommentMode, Role, Settings, ViewMode, Visibility } from "@/lib/repo/types";
+import type { Blog, BlogType, CommentMode, Role, Settings, ShareMode, ViewMode, Visibility } from "@/lib/repo/types";
 import styles from "./blog-preview.module.css";
 
 type Draft = {
@@ -26,6 +26,7 @@ type Draft = {
   visibility: Visibility;
   comments: CommentMode;
   showViews: ViewMode;
+  sharing: ShareMode;
   scheduledFor: string;
 };
 
@@ -67,6 +68,7 @@ function draftFrom(blog?: Blog): Draft {
     visibility: blog?.visibility ?? "public",
     comments: blog?.comments ?? "default",
     showViews: blog?.showViews ?? "default",
+    sharing: blog?.sharing ?? "default",
     scheduledFor: localInput(blog?.scheduledFor),
   };
 }
@@ -87,7 +89,7 @@ export function BlogForm({
   const [slugFree, setSlugFree] = useState<boolean | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [postId, setPostId] = useState(blog?._id ?? "");
   const [status, setStatus] = useState(blog?.status ?? "draft");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -141,6 +143,7 @@ export function BlogForm({
       // site default, which is what the API would force anyway.
       comments: draft.comments,
       showViews: draft.showViews,
+      sharing: draft.sharing,
       category: draft.category || undefined,
       tags: draft.tags.split(",").map(tag => tag.trim()).filter(Boolean),
       featuredImage: { url: draft.imageUrl, publicId: blog?.featuredImage?.publicId ?? "", alt: draft.imageAlt },
@@ -185,73 +188,67 @@ export function BlogForm({
       setPreviewOpen(true);
       return;
     }
-    setBusy(true);
-    setMessage("");
-    setError("");
-    try {
+    await track(async () => {
+      setMessage("");
+      setError("");
+      try {
 
-      // Unpublishing must not first save unreviewed edits onto the live article.
-      const id = action === "unpublish" ? postId : await persist();
-      if (!id) {
-        setBusy(false);
-        return;
-      }
+        // Unpublishing must not first save unreviewed edits onto the live article.
+        const id = action === "unpublish" ? postId : await persist();
+        if (!id) return;
 
-      if (action === "save-draft") {
-        setMessage(status === "published" ? "Published article updated." : status === "scheduled" ? "Scheduled article updated." : "Changes saved.");
+        if (action === "save-draft") {
+          setMessage(status === "published" ? "Published article updated." : status === "scheduled" ? "Scheduled article updated." : "Changes saved.");
+          setReviewAction(null);
+          router.refresh();
+          if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
+          return;
+        }
+
+        const response = await fetch(`/api/blogs/${id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, ...extra }),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          setError(data.error ?? "Could not update the post.");
+          return;
+        }
+
+        // Publishing or scheduling finishes the job, so go back to the list, which says what happened.
+        if (action === "publish" || action === "schedule") {
+          router.push(`/admin/blog?${new URLSearchParams({ done: action, post: data.slug })}`);
+          router.refresh();
+          return;
+        }
+
+        setStatus(data.status);
         setReviewAction(null);
-        setBusy(false);
+        if (action === "unpublish") set("scheduledFor", "");
+        setMessage(
+          action === "submit"
+            ? "Submitted for review."
+            : action === "unpublish" && status === "scheduled"
+              ? "Schedule cancelled. The post is a draft again."
+              : "Updated.",
+        );
         router.refresh();
         if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
-        return;
+      } catch {
+        setError("Could not save the article. Check your connection and try again.");
       }
-
-      const response = await fetch(`/api/blogs/${id}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...extra }),
-      });
-      const data = await response.json();
-
-      setBusy(false);
-      if (!response.ok) {
-        setError(data.error ?? "Could not update the post.");
-        return;
-      }
-
-      // Publishing or scheduling finishes the job, so go back to the list, which says what happened.
-      if (action === "publish" || action === "schedule") {
-        router.push(`/admin/blog?${new URLSearchParams({ done: action, post: data.slug })}`);
-        router.refresh();
-        return;
-      }
-
-      setStatus(data.status);
-      setReviewAction(null);
-      if (action === "unpublish") set("scheduledFor", "");
-      setMessage(
-        action === "submit"
-          ? "Submitted for review."
-          : action === "unpublish" && status === "scheduled"
-            ? "Schedule cancelled. The post is a draft again."
-            : "Updated.",
-      );
-      router.refresh();
-      if (!blog) router.replace(`/admin/blog/${draft.slug}/edit`);
-    } catch {
-      setError("Could not save the article. Check your connection and try again.");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   async function remove() {
     if (!postId || !window.confirm("Delete this post permanently?")) return;
-    setBusy(true);
-    const response = await fetch(`/api/blogs/${postId}`, { method: "DELETE" });
-    setBusy(false);
-    if (response.ok) router.push("/admin/blog");
-    else setError((await response.json()).error ?? "Could not delete the post.");
+    await track(async () => {
+      const response = await fetch(`/api/blogs/${postId}`, { method: "DELETE" });
+      if (response.ok) router.push("/admin/blog");
+      else setError((await response.json()).error ?? "Could not delete the post.");
+    });
   }
 
   return (
@@ -387,6 +384,17 @@ export function BlogForm({
               <option value="default">Site default — follow the setting in Site settings</option>
               <option value="show">Show — readers see how many views it has</option>
               <option value="hide">Hide — only the panel shows its views</option>
+            </select>
+          </label>
+        ) : null}
+
+        {canPublish ? (
+          <label className="admin-field">
+            <span>Share buttons on this post</span>
+            <select value={draft.sharing} onChange={event => set("sharing", event.target.value as ShareMode)}>
+              <option value="default">Site default — follow the setting in Site settings</option>
+              <option value="show">Show — readers can share this post</option>
+              <option value="hide">Hide — no share buttons on this post</option>
             </select>
           </label>
         ) : null}

@@ -11,6 +11,7 @@ import { atLeast, getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, initialState, isReadable } from "@/lib/blog-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
+import { canSetShareMode } from "@/lib/share-rules";
 import { blogRepo, settingsRepo, type BlogQuery, type BlogStatus, type BlogType } from "@/lib/repo";
 
 export async function GET(request: Request) {
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
       // A member's post follows the site default; only an editor chooses.
       comments: canSetCommentMode(user) ? data.comments ?? "default" : "default",
       showViews: canSetViewMode(user) ? data.showViews ?? "default" : "default",
+      sharing: canSetShareMode(user) ? data.sharing ?? "default" : "default",
       authorId: user._id,
       authorName: user.displayName,
       ...initialState(type, user),

@@ -31,6 +31,8 @@ import type {
   SavedRepo,
   Settings,
   SettingsRepo,
+  SharePlatform,
+  ShareRepo,
   User,
   UserRepo,
   ViewRepo,
@@ -38,7 +40,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays";
+type Collection = "blogs" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -163,6 +165,7 @@ const blogs: BlogRepo = {
       insightfulCount: 0,
       saveCount: 0,
       viewCount: 0,
+      shareCount: 0,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -378,6 +381,8 @@ const SETTINGS_DEFAULTS: Omit<Settings, "updatedAt"> = {
   commentDefault: "visible",
   commentsEnabled: true,
   viewsPublic: false,
+  shareEnabled: true,
+  sharePlatforms: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
 };
 
 const settings: SettingsRepo = {
@@ -423,13 +428,22 @@ const SEEN_FOR_MS = 24 * 60 * 60 * 1000;
 type SeenRow = { _id: string; at: string };
 type DayRow = { _id: string; blogId: string; day: string; count: number };
 
+/**
+ * Claim a visitor key for 24 hours; false when it is already held. Expired keys
+ * are dropped on every write, standing in for MongoDB's TTL index. Views and
+ * shares both claim here; their keys never collide (share-rules.ts).
+ */
+function claimKey(visitorKey: string) {
+  const cutoff = Date.now() - SEEN_FOR_MS;
+  const seen = read<SeenRow>("viewSeen").filter(row => Date.parse(row.at) > cutoff);
+  if (seen.some(row => row._id === visitorKey)) return false;
+  write("viewSeen", [...seen, { _id: visitorKey, at: now() }]);
+  return true;
+}
+
 const views: ViewRepo = {
   async record(blogId, visitorKey, day) {
-    const cutoff = Date.now() - SEEN_FOR_MS;
-    // Expired keys are dropped on every write, standing in for MongoDB's TTL index.
-    const seen = read<SeenRow>("viewSeen").filter(row => Date.parse(row.at) > cutoff);
-    if (seen.some(row => row._id === visitorKey)) return false;
-    write("viewSeen", [...seen, { _id: visitorKey, at: now() }]);
+    if (!claimKey(visitorKey)) return false;
 
     const days = read<DayRow>("viewDays");
     const index = days.findIndex(row => row.blogId === blogId && row.day === day);
@@ -457,4 +471,48 @@ const views: ViewRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views };
+/* --------------------------------------------------------------- shares -- */
+
+type ShareDayRow = DayRow & { platform: SharePlatform };
+
+const shares: ShareRepo = {
+  async record(blogId, platform, visitorKey, day) {
+    if (!claimKey(visitorKey)) return false;
+
+    const days = read<ShareDayRow>("shareDays");
+    const index = days.findIndex(row => row.blogId === blogId && row.day === day && row.platform === platform);
+    if (index === -1) days.push({ _id: id(), blogId, day, platform, count: 1 });
+    else days[index] = { ...days[index], count: days[index].count + 1 };
+    write("shareDays", days);
+
+    // Not incr(): a share must leave updatedAt alone.
+    const rows = read<Blog>("blogs");
+    const blogIndex = rows.findIndex(row => row._id === blogId);
+    if (blogIndex !== -1) {
+      rows[blogIndex] = { ...rows[blogIndex], shareCount: (rows[blogIndex].shareCount ?? 0) + 1 };
+      write("blogs", rows);
+    }
+    return true;
+  },
+
+  async sumSince(day, blogIds) {
+    const totals: Record<string, number> = {};
+    for (const row of read<ShareDayRow>("shareDays")) {
+      if (row.day < day || (blogIds && !blogIds.includes(row.blogId))) continue;
+      totals[row.blogId] = (totals[row.blogId] ?? 0) + row.count;
+    }
+    return totals;
+  },
+
+  async byPlatform(blogIds) {
+    const result: Record<string, Partial<Record<SharePlatform, number>>> = {};
+    for (const row of read<ShareDayRow>("shareDays")) {
+      if (blogIds && !blogIds.includes(row.blogId)) continue;
+      const post = (result[row.blogId] ??= {});
+      post[row.platform] = (post[row.platform] ?? 0) + row.count;
+    }
+    return result;
+  },
+};
+
+export const jsonDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views, shares };

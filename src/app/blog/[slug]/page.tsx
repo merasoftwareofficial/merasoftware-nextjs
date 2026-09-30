@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { Comments } from "@/components/blog/comments";
 import { Reactions } from "@/components/blog/reactions";
+import { ShareBar } from "@/components/blog/share-bar";
 import { ViewBeacon } from "@/components/blog/view-beacon";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { SiteFooter } from "@/components/site-footer";
@@ -17,6 +18,7 @@ import {
   visibleStatuses,
 } from "@/lib/comment-rules";
 import { blogRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
+import { shareButtons, shareUrl, shareVisible } from "@/lib/share-rules";
 import { articleLd, breadcrumbLd, jsonLd, SITE_NAME, SITE_URL } from "@/lib/structured-data";
 import { formatViews, viewsVisible } from "@/lib/view-rules";
 
@@ -199,6 +201,10 @@ export default async function Article({ params }: Params) {
                 </Link>
               ))}
             </div>
+          ) : null}
+
+          {shareVisible(post, settings) ? (
+            <ShareBar blogId={post._id} title={post.title} url={shareUrl(post)} buttons={shareButtons(post, settings)} />
           ) : null}
 
           <Reactions

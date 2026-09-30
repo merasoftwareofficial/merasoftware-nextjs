@@ -1,14 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/cloudinary-types";
 import type { MediaAsset } from "@/lib/repo/types";
 
 export function MediaUploader({ initialAssets }: { initialAssets: MediaAsset[] }) {
   const navigation = useNavigate();
   const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
   const [altText, setAltText] = useState("");
   const [uploaded, setUploaded] = useState<{ asset: MediaAsset; reused: boolean } | null>(null);
@@ -19,23 +19,23 @@ export function MediaUploader({ initialAssets }: { initialAssets: MediaAsset[] }
     if (!file.type.startsWith("image/")) return setError("Choose an image file.");
     if (!file.size || file.size > MAX_BROWSER_UPLOAD_BYTES) return setError("Choose an image up to 4 MB.");
 
-    setBusy(true);
-    try {
-      const form = new FormData();
-      form.set("file", file);
-      form.set("altText", altText);
-      const response = await fetch("/api/media/upload", { method: "POST", body: form });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Upload failed.");
-      setUploaded(result as { asset: MediaAsset; reused: boolean });
-      setAltText("");
-      navigation.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Upload failed.");
-    } finally {
-      setBusy(false);
-      if (input.current) input.current.value = "";
-    }
+    await track(async () => {
+      try {
+        const form = new FormData();
+        form.set("file", file);
+        form.set("altText", altText);
+        const response = await fetch("/api/media/upload", { method: "POST", body: form });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Upload failed.");
+        setUploaded(result as { asset: MediaAsset; reused: boolean });
+        setAltText("");
+        navigation.refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Upload failed.");
+      } finally {
+        if (input.current) input.current.value = "";
+      }
+    });
   }
 
   return (

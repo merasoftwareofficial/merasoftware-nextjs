@@ -31,6 +31,11 @@ const SettingsSchema = new Schema({
   commentDefault: { type: String, enum: ["visible", "pending"], default: "visible" },
   commentsEnabled: { type: Boolean, default: true },
   viewsPublic: { type: Boolean, default: false },
+  shareEnabled: { type: Boolean, default: true },
+  sharePlatforms: {
+    type: [{ type: String, enum: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"] }],
+    default: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
+  },
   homepageImages: { type: Schema.Types.Mixed, default: {} },
 }, { timestamps: true, _id: false });
 

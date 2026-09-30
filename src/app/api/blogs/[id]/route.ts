@@ -13,6 +13,7 @@ import { getSessionUser, requireUser } from "@/lib/auth";
 import { blogInputSchema, canDelete, canEdit, isReadable } from "@/lib/blog-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
+import { canSetShareMode } from "@/lib/share-rules";
 import { blogRepo, settingsRepo } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
@@ -55,12 +56,13 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     // Type and author are not editable through this route, and only an editor
-    // may change how a post handles comments or shows its view count.
-    const { type: _type, comments, showViews, ...rest } = data;
+    // may change how a post handles comments, its view count or share buttons.
+    const { type: _type, comments, showViews, sharing, ...rest } = data;
     const patch = {
       ...rest,
       ...(canSetCommentMode(user) && comments ? { comments } : {}),
       ...(canSetViewMode(user) && showViews ? { showViews } : {}),
+      ...(canSetShareMode(user) && sharing ? { sharing } : {}),
     };
     if (blog.status === "published" || blog.status === "scheduled") {
       articleContentSchema.parse(patch.content ?? blog.content);

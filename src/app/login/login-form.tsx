@@ -1,6 +1,6 @@
 "use client";
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 
 type Mode = "signin" | "signup";
@@ -18,7 +18,9 @@ export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; por
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const task = useTask();
+  // Stays set after a sign-in until the next page is in, so the form cannot be sent twice.
+  const busy = task.busy || router.pending;
 
   async function callPortal(path: string, body: Record<string, string>): Promise<PortalReply> {
     const response = await fetch(`${portalApiUrl}/api/${path}`, {
@@ -46,21 +48,21 @@ export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; por
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    setBusy(true);
-    setError("");
+    await task.track(async () => {
+      setError("");
 
-    try {
-      if (mode === "signup") {
-        const created = await callPortal("signup", { name: name.trim(), email: email.trim(), password });
-        if (!created.success) throw new Error(created.message || "Could not create the account.");
+      try {
+        if (mode === "signup") {
+          const created = await callPortal("signup", { name: name.trim(), email: email.trim(), password });
+          if (!created.success) throw new Error(created.message || "Could not create the account.");
+        }
+        const signedIn = await callPortal("signin", { email: email.trim(), password });
+        if (!signedIn.success) throw new Error(signedIn.message || "Sign in failed.");
+        goOn(signedIn);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Could not reach the sign-in service. Try again.");
       }
-      const signedIn = await callPortal("signin", { email: email.trim(), password });
-      if (!signedIn.success) throw new Error(signedIn.message || "Sign in failed.");
-      goOn(signedIn);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not reach the sign-in service. Try again.");
-      setBusy(false);
-    }
+    });
   }
 
   function switchTo(value: Mode) {

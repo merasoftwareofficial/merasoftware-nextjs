@@ -12,6 +12,7 @@
  */
 
 import Link from "@/components/link";
+import { useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Comment } from "@/lib/repo";
 
@@ -48,7 +49,7 @@ export function Comments({
   const [replyBody, setReplyBody] = useState("");
   const [reporting, setReporting] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -64,78 +65,75 @@ export function Comments({
 
   async function send(text: string, parentId?: string) {
     if (!text.trim()) return;
-    setBusy(true);
-    setError("");
-    setNotice("");
+    await track(async () => {
+      setError("");
+      setNotice("");
 
-    const response = await fetch("/api/comments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blogId, body: text.trim(), parentId }),
-    });
-    const data = await response.json().catch(() => ({}));
-    setBusy(false);
-
-    if (!response.ok) {
-      setError(data.error ?? "Could not post that.");
-      return;
-    }
-
-    if (parentId) setReplyBody("");
-    else setBody("");
-    setReplyTo(null);
-    if (data.status === "pending") setNotice("Posted — a moderator will review it before it appears.");
-    await reload();
-  }
-
-  async function moderate(id: string, action: "approve" | "hide" | "show") {
-    setBusy(true);
-    setError("");
-    const response = await fetch(`/api/comments/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    setBusy(false);
-    if (!response.ok) {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blogId, body: text.trim(), parentId }),
+      });
       const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not update that comment.");
-      return;
-    }
-    await reload();
-  }
 
-  async function remove(id: string) {
-    setBusy(true);
-    setError("");
-    const response = await fetch(`/api/comments/${id}`, { method: "DELETE" });
-    setBusy(false);
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not delete that comment.");
-      return;
-    }
-    await reload();
-  }
+      if (!response.ok) {
+        setError(data.error ?? "Could not post that.");
+        return;
+      }
 
-  async function report(id: string) {
-    setBusy(true);
-    setError("");
-    const response = await fetch("/api/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType: "comment", targetId: id, reason: reason.trim() }),
+      if (parentId) setReplyBody("");
+      else setBody("");
+      setReplyTo(null);
+      if (data.status === "pending") setNotice("Posted — a moderator will review it before it appears.");
+      await reload();
     });
-    setBusy(false);
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not send that report.");
-      return;
-    }
-    setReporting(null);
-    setReason("");
-    setNotice("Reported. A moderator will look at it.");
   }
+
+  const moderate = (id: string, action: "approve" | "hide" | "show") =>
+    track(async () => {
+      setError("");
+      const response = await fetch(`/api/comments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not update that comment.");
+        return;
+      }
+      await reload();
+    });
+
+  const remove = (id: string) =>
+    track(async () => {
+      setError("");
+      const response = await fetch(`/api/comments/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not delete that comment.");
+        return;
+      }
+      await reload();
+    });
+
+  const report = (id: string) =>
+    track(async () => {
+      setError("");
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetType: "comment", targetId: id, reason: reason.trim() }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not send that report.");
+        return;
+      }
+      setReporting(null);
+      setReason("");
+      setNotice("Reported. A moderator will look at it.");
+    });
 
   function row(comment: Comment, isReply: boolean) {
     const mine = viewerId === comment.userId;

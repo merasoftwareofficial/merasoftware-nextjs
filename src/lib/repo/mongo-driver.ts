@@ -7,6 +7,7 @@ import { Comment, Report, Settings } from "@/models/Comment";
 import { Reaction, SavedPost } from "@/models/Engagement";
 import { User } from "@/models/User";
 import { ViewDay, ViewSeen } from "@/models/View";
+import { ShareDay } from "@/models/Share";
 import { MediaAssetModel } from "@/models/Media";
 import type {
   Blog as BlogRecord,
@@ -17,6 +18,7 @@ import type {
   ReactionKind,
   Report as ReportRecord,
   Settings as SettingsRecord,
+  SharePlatform,
   User as UserRecord,
 } from "./types";
 
@@ -368,7 +370,27 @@ const reports: DataDriver["reports"] = {
   },
 };
 
-const SETTINGS_DEFAULTS = { commentDefault: "visible", commentsEnabled: true, viewsPublic: false } as const;
+const SETTINGS_DEFAULTS = {
+  commentDefault: "visible",
+  commentsEnabled: true,
+  viewsPublic: false,
+  shareEnabled: true,
+  sharePlatforms: ["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"],
+} as const;
+
+/**
+ * lean() skips schema defaults, so a row saved before a setting existed would
+ * come back without it. Missing keys take their default here, as the JSON
+ * driver does.
+ */
+function withSettingsDefaults(row: unknown): SettingsRecord {
+  return {
+    ...SETTINGS_DEFAULTS,
+    sharePlatforms: [...SETTINGS_DEFAULTS.sharePlatforms],
+    ...serialize(row as { _id: unknown }),
+  } as SettingsRecord;
+}
+
 const settings: DataDriver["settings"] = {
   async get() {
     await connectMongo();
@@ -376,8 +398,8 @@ const settings: DataDriver["settings"] = {
     // saves, the row does not exist and the defaults apply — the same answer the
     // JSON driver gives; update() creates the row.
     const row = await Settings.findById("site").lean();
-    if (!row) return { _id: "site", ...SETTINGS_DEFAULTS, homepageImages: {}, updatedAt: new Date().toISOString() };
-    return serialize(row as never) as SettingsRecord;
+    if (!row) return withSettingsDefaults({ _id: "site", homepageImages: {}, updatedAt: new Date().toISOString() });
+    return withSettingsDefaults(row);
   },
   async update(patch) {
     await connectMongo();
@@ -389,7 +411,7 @@ const settings: DataDriver["settings"] = {
       { $set: patch, $setOnInsert: insertDefaults },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
     ).lean();
-    return serialize(row as never) as SettingsRecord;
+    return withSettingsDefaults(row);
   },
 };
 
@@ -421,23 +443,30 @@ const media: DataDriver["media"] = {
 const SEEN_FOR_MS = 24 * 60 * 60 * 1000;
 const isDuplicateKey = (error: unknown) => (error as { code?: number })?.code === 11000;
 
+/**
+ * Claim a visitor key for 24 hours; false when it is already held. Inserts the
+ * key, or takes over one whose 24 hours are up but the TTL monitor (which runs
+ * about once a minute) has not removed yet. A key still inside its 24 hours
+ * fails the filter, the upsert then collides on _id, and nothing is counted.
+ * Views and shares both claim here; their keys never collide (share-rules.ts).
+ */
+async function claimKey(visitorKey: string) {
+  const cutoff = new Date(Date.now() - SEEN_FOR_MS);
+  try {
+    await ViewSeen.updateOne({ _id: visitorKey, at: { $lte: cutoff } }, { $set: { at: new Date() } }, { upsert: true });
+    return true;
+  } catch (error) {
+    if (isDuplicateKey(error)) return false;
+    throw error;
+  }
+}
+
 const views: DataDriver["views"] = {
   async record(blogId, visitorKey, day) {
     const _id = objectId(blogId);
     if (!_id) return false;
     await connectMongo();
-
-    // Claim the key: insert it, or take over one whose 24 hours are up but the
-    // TTL monitor (which runs about once a minute) has not removed yet. A key
-    // still inside its 24 hours fails the filter, the upsert then collides on
-    // _id, and the view is not counted.
-    const cutoff = new Date(Date.now() - SEEN_FOR_MS);
-    try {
-      await ViewSeen.updateOne({ _id: visitorKey, at: { $lte: cutoff } }, { $set: { at: new Date() } }, { upsert: true });
-    } catch (error) {
-      if (isDuplicateKey(error)) return false;
-      throw error;
-    }
+    if (!(await claimKey(visitorKey))) return false;
 
     try {
       await ViewDay.updateOne({ blogId, day }, { $inc: { count: 1 } }, { upsert: true });
@@ -463,4 +492,46 @@ const views: DataDriver["views"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views };
+const shares: DataDriver["shares"] = {
+  async record(blogId, platform, visitorKey, day) {
+    const _id = objectId(blogId);
+    if (!_id) return false;
+    await connectMongo();
+    if (!(await claimKey(visitorKey))) return false;
+
+    try {
+      await ShareDay.updateOne({ blogId, day, platform }, { $inc: { count: 1 } }, { upsert: true });
+    } catch (error) {
+      // Two first shares of the day raced on the upsert; the row exists now.
+      if (!isDuplicateKey(error)) throw error;
+      await ShareDay.updateOne({ blogId, day, platform }, { $inc: { count: 1 } });
+    }
+    // timestamps: false — a share must leave updatedAt alone.
+    await Blog.updateOne({ _id }, { $inc: { shareCount: 1 } }, { timestamps: false });
+    return true;
+  },
+
+  async sumSince(day, blogIds) {
+    await connectMongo();
+    const match: Record<string, unknown> = { day: { $gte: day } };
+    if (blogIds) match.blogId = { $in: blogIds };
+    const rows: { _id: string; total: number }[] = await ShareDay.aggregate([
+      { $match: match },
+      { $group: { _id: "$blogId", total: { $sum: "$count" } } },
+    ]);
+    return Object.fromEntries(rows.map(row => [row._id, row.total]));
+  },
+
+  async byPlatform(blogIds) {
+    await connectMongo();
+    const rows: { _id: { blogId: string; platform: SharePlatform }; total: number }[] = await ShareDay.aggregate([
+      ...(blogIds ? [{ $match: { blogId: { $in: blogIds } } }] : []),
+      { $group: { _id: { blogId: "$blogId", platform: "$platform" }, total: { $sum: "$count" } } },
+    ]);
+    const result: Record<string, Partial<Record<SharePlatform, number>>> = {};
+    for (const row of rows) (result[row._id.blogId] ??= {})[row._id.platform] = row.total;
+    return result;
+  },
+};
+
+export const mongoDriver: DataDriver = { blogs, users, comments, reactions, saved, reports, settings, media, views, shares };

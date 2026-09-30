@@ -2,6 +2,7 @@
 
 import Link from "@/components/link";
 import { useState } from "react";
+import { useTask } from "@/components/loading/navigation";
 import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/cloudinary-types";
 import type { HomeImageSlot, HomepageImage, MediaAsset } from "@/lib/repo/types";
 
@@ -15,7 +16,7 @@ const slots: { key: HomeImageSlot; label: string; note: string }[] = [
 export function HomepageImageEditor({ initialImages, assets }: { initialImages: ImageMap; assets: MediaAsset[] }) {
   const [images, setImages] = useState<ImageMap>(initialImages);
   const [library, setLibrary] = useState(assets);
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -42,47 +43,44 @@ export function HomepageImageEditor({ initialImages, assets }: { initialImages: 
     if (!file.type.startsWith("image/")) return setError("Choose an image file.");
     if (!file.size || file.size > MAX_BROWSER_UPLOAD_BYTES) return setError("Choose an image up to 4 MB.");
 
-    setBusy(true);
-    try {
-      const form = new FormData();
-      form.set("file", file);
-      form.set("altText", images[slot]?.alt ?? "");
-      const response = await fetch("/api/media/upload", { method: "POST", body: form });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Upload failed.");
-      const { asset, reused } = result as { asset: MediaAsset; reused: boolean };
-      setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)]);
-      setImages(current => ({ ...current, [slot]: { assetId: asset._id, alt: asset.altText, focalX: 50, focalY: 50 } }));
-      setMessage(reused
-        ? "This image was already in the library. The existing image is now attached to this slot."
-        : "Uploaded once, saved in the shared library, and attached to this slot.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Upload failed.");
-    } finally {
-      setBusy(false);
-    }
+    await track(async () => {
+      try {
+        const form = new FormData();
+        form.set("file", file);
+        form.set("altText", images[slot]?.alt ?? "");
+        const response = await fetch("/api/media/upload", { method: "POST", body: form });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Upload failed.");
+        const { asset, reused } = result as { asset: MediaAsset; reused: boolean };
+        setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)]);
+        setImages(current => ({ ...current, [slot]: { assetId: asset._id, alt: asset.altText, focalX: 50, focalY: 50 } }));
+        setMessage(reused
+          ? "This image was already in the library. The existing image is now attached to this slot."
+          : "Uploaded once, saved in the shared library, and attached to this slot.");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Upload failed.");
+      }
+    });
   }
 
-  async function save() {
-    setBusy(true);
-    setMessage("");
-    setError("");
-    try {
-      const response = await fetch("/api/homepage/images", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(slots.map(({ key }) => [key, images[key] ?? null]))),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not save homepage images.");
-      setImages(result as ImageMap);
-      setMessage("Homepage images saved.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save homepage images.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const save = () =>
+    track(async () => {
+      setMessage("");
+      setError("");
+      try {
+        const response = await fetch("/api/homepage/images", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.fromEntries(slots.map(({ key }) => [key, images[key] ?? null]))),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not save homepage images.");
+        setImages(result as ImageMap);
+        setMessage("Homepage images saved.");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not save homepage images.");
+      }
+    });
 
   return (
     <section className="admin-form">

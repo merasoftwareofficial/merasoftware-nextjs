@@ -22,6 +22,13 @@ export type CommentStatus = "visible" | "hidden" | "pending";
 export type CommentMode = "default" | "open" | "moderated" | "closed";
 /** Whether readers see a post's view count. `default` follows the site setting. */
 export type ViewMode = "default" | "show" | "hide";
+/** Whether a post shows its share buttons. `default` follows the site setting. */
+export type ShareMode = "default" | "show" | "hide";
+/**
+ * Where a share went. Every one but `native` is a button an admin can turn on
+ * or off; `native` is the phone's own share sheet, offered whenever sharing is.
+ */
+export type SharePlatform = "whatsapp" | "facebook" | "x" | "linkedin" | "telegram" | "email" | "copy" | "native";
 
 export interface FeaturedImage {
   url: string;
@@ -90,6 +97,10 @@ export interface Blog {
   viewCount?: number;
   /** Per-post control of the public view count. Absent or "default" follows the site setting. */
   showViews?: ViewMode;
+  /** Counted share clicks (share-rules.ts). Admin only; never sent to readers. */
+  shareCount?: number;
+  /** Per-post control of the share buttons. Absent or "default" follows the site setting. */
+  sharing?: ShareMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -167,7 +178,7 @@ export interface BlogQuery {
 
 export type NewBlog = Omit<
   Blog,
-  "_id" | "createdAt" | "updatedAt" | "helpfulCount" | "insightfulCount" | "saveCount" | "viewCount"
+  "_id" | "createdAt" | "updatedAt" | "helpfulCount" | "insightfulCount" | "saveCount" | "viewCount" | "shareCount"
 >;
 
 export interface BlogRepo {
@@ -236,6 +247,18 @@ export interface ViewRepo {
   sumSince(day: string, blogIds?: string[]): Promise<Record<string, number>>;
 }
 
+export interface ShareRepo {
+  /**
+   * Counts one share click unless this key was seen in the last 24 hours. The
+   * key already names the post and platform (share-rules.ts). True when counted.
+   */
+  record(blogId: string, platform: SharePlatform, visitorKey: string, day: string): Promise<boolean>;
+  /** Share clicks per post on `day` (YYYY-MM-DD) and later; only the given posts when `blogIds` is passed. */
+  sumSince(day: string, blogIds?: string[]): Promise<Record<string, number>>;
+  /** All-time share clicks per post, split by platform. */
+  byPlatform(blogIds?: string[]): Promise<Record<string, Partial<Record<SharePlatform, number>>>>;
+}
+
 export interface ReportRepo {
   list(resolved?: boolean): Promise<Report[]>;
   create(data: Omit<Report, "_id" | "createdAt">): Promise<Report>;
@@ -256,6 +279,10 @@ export interface Settings {
   commentsEnabled: boolean;
   /** Shows the view count under posts that say "default". Off unless an admin turns it on. */
   viewsPublic: boolean;
+  /** Share buttons under posts that say "default". On until an admin turns it off. */
+  shareEnabled: boolean;
+  /** Which share buttons show. The phone's own share sheet is not listed; it follows shareEnabled. */
+  sharePlatforms: Exclude<SharePlatform, "native">[];
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
   updatedAt: string;
 }
@@ -282,4 +309,5 @@ export interface DataDriver {
   settings: SettingsRepo;
   media: MediaRepo;
   views: ViewRepo;
+  shares: ShareRepo;
 }

@@ -9,7 +9,7 @@
  * index choice.
  */
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 
 type Decision = "reject" | "request-changes";
@@ -22,32 +22,30 @@ export function ReviewActions({ id, type }: { id: string; type: string }) {
   const [index, setIndex] = useState(false);
   const [asking, setAsking] = useState<Decision | null>(null);
   const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
 
-  async function send(action: string, extra: Record<string, unknown> = {}) {
-    setBusy(true);
-    setError("");
+  const send = (action: string, extra: Record<string, unknown> = {}) =>
+    track(async () => {
+      setError("");
 
-    const response = await fetch(`/api/blogs/${id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ...extra }),
+      const response = await fetch(`/api/blogs/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not update the post.");
+        return;
+      }
+
+      setAsking(null);
+      setNote("");
+      // The post leaves the pending queue, so the list has to be re-fetched.
+      router.refresh();
     });
-
-    setBusy(false);
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not update the post.");
-      return;
-    }
-
-    setAsking(null);
-    setNote("");
-    // The post leaves the pending queue, so the list has to be re-fetched.
-    router.refresh();
-  }
 
   if (asking) {
     const rejecting = asking === "reject";

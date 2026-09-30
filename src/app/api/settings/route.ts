@@ -17,6 +17,13 @@ const patchSchema = z.object({
   commentDefault: z.enum(["visible", "pending"]).optional(),
   commentsEnabled: z.boolean().optional(),
   viewsPublic: z.boolean().optional(),
+  shareEnabled: z.boolean().optional(),
+  // A set, not a list: a platform sent twice is stored once.
+  sharePlatforms: z
+    .array(z.enum(["whatsapp", "facebook", "x", "linkedin", "telegram", "email", "copy"]))
+    .max(7)
+    .transform(list => [...new Set(list)])
+    .optional(),
 });
 
 export async function GET() {

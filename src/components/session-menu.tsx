@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "@/components/link";
-import { onLeaveClick, useNavigate } from "@/components/loading/navigation";
+import { onLeaveClick, useNavigate, useTask } from "@/components/loading/navigation";
 import { useRef, useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
@@ -18,6 +18,7 @@ export function SessionMenu({
   portalApiUrl: string;
 }) {
   const router = useNavigate();
+  const { busy, track } = useTask();
   const [open, setOpen] = useState(false);
   // Pointer that started the last click. A mouse opens the menu by hovering,
   // so its click must not toggle it shut; touch and keyboard still toggle.
@@ -31,13 +32,14 @@ export function SessionMenu({
     );
   }
 
-  async function signOut() {
-    // The portal owns the shared cookie, so signing out here signs out of the portal too.
-    await fetch(`${portalApiUrl}/api/userLogout`, { credentials: "include" });
-    setOpen(false);
-    router.push("/");
-    router.refresh();
-  }
+  const signOut = () =>
+    track(async () => {
+      // The portal owns the shared cookie, so signing out here signs out of the portal too.
+      await fetch(`${portalApiUrl}/api/userLogout`, { credentials: "include" });
+      setOpen(false);
+      router.push("/");
+      router.refresh();
+    });
 
   const staff = user.role !== "member";
 
@@ -97,7 +99,7 @@ export function SessionMenu({
               Management panel
             </Link>
           ) : null}
-          <button type="button" onClick={signOut}>
+          <button type="button" onClick={signOut} disabled={busy}>
             Sign out
           </button>
         </div>

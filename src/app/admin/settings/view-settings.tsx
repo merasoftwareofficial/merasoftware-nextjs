@@ -5,38 +5,37 @@
  * set to "show" or "hide" keeps its own choice — see viewsVisible().
  */
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Settings } from "@/lib/repo";
 
 export function ViewSettings({ settings }: { settings: Settings }) {
   const router = useNavigate();
   const [visible, setVisible] = useState(settings.viewsPublic === true);
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  async function save() {
-    setBusy(true);
-    setError("");
-    setSaved(false);
+  const save = () =>
+    track(async () => {
+      setError("");
+      setSaved(false);
 
-    const response = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ viewsPublic: visible }),
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewsPublic: visible }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not save the settings.");
+        return;
+      }
+
+      setSaved(true);
+      router.refresh();
     });
-    setBusy(false);
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not save the settings.");
-      return;
-    }
-
-    setSaved(true);
-    router.refresh();
-  }
 
   return (
     <section className="admin-seo">

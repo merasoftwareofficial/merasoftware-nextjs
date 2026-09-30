@@ -14,7 +14,7 @@
  */
 
 import Link from "@/components/link";
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
@@ -65,7 +65,7 @@ export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: 
   const [status, setStatus] = useState(blog?.status ?? "draft");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [done, setDone] = useState(false);
 
   const copy = COPY[type];
@@ -121,38 +121,34 @@ export function CommunityForm({ blog, type: initialType }: { blog?: Blog; type: 
     return data._id;
   }
 
-  async function run(action: "save-draft" | "submit") {
-    setBusy(true);
-    setMessage("");
+  const run = (action: "save-draft" | "submit") =>
+    track(async () => {
+      setMessage("");
 
-    const id = await persist();
-    if (!id) {
-      setBusy(false);
-      return;
-    }
+      const id = await persist();
+      if (!id) return;
 
-    const response = await fetch(`/api/blogs/${id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      const response = await fetch(`/api/blogs/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? "Could not update the post.");
+        return;
+      }
+
+      setStatus(data.status);
+      if (action === "submit") {
+        setDone(true);
+        return;
+      }
+
+      setMessage("Draft saved. You can finish it later and submit it for review.");
+      router.refresh();
     });
-    const data = await response.json();
-
-    setBusy(false);
-    if (!response.ok) {
-      setError(data.error ?? "Could not update the post.");
-      return;
-    }
-
-    setStatus(data.status);
-    if (action === "submit") {
-      setDone(true);
-      return;
-    }
-
-    setMessage("Draft saved. You can finish it later and submit it for review.");
-    router.refresh();
-  }
 
   if (done) {
     return (

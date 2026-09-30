@@ -29,11 +29,15 @@ export function shouldCount(viewer: User | null, blog: Blog) {
  * The visitor key: a keyed hash of IP, browser and post. Without the secret it
  * cannot be turned back into an IP, and it is deleted after 24 hours, so no
  * reader can be followed across days. Null when VIEW_HASH_SECRET is not set.
+ *
+ * `scope` separates other one-per-day counts of the same post (a share is
+ * `share:<platform>`), so they never share a key with the view. A view has no
+ * scope, which keeps its key exactly as before.
  */
-export function visitorKey(ip: string, userAgent: string, blogId: string) {
+export function visitorKey(ip: string, userAgent: string, blogId: string, scope?: string) {
   const secret = process.env.VIEW_HASH_SECRET;
   if (!secret) return null;
-  return createHmac("sha256", secret).update(`${ip}|${userAgent}|${blogId}`).digest("hex");
+  return createHmac("sha256", secret).update(`${ip}|${userAgent}|${blogId}${scope ? `|${scope}` : ""}`).digest("hex");
 }
 
 /** Calendar day in India time (YYYY-MM-DD), `daysAgo` days before now. */

@@ -5,6 +5,8 @@ import { atLeast, requireStaffPage } from "@/lib/auth";
 import { settingsRepo } from "@/lib/repo";
 import { CommentSettings } from "./comment-settings";
 import { ViewSettings } from "./view-settings";
+import { ShareSettings } from "./share-settings";
+import { SHARE_BUTTONS } from "@/lib/share-rules";
 
 export const metadata = { title: "Site settings" };
 
@@ -40,6 +42,7 @@ export default async function Settings() {
       {/* Wired to storage. Everything below them is still a placeholder form. */}
       <CommentSettings settings={settings} />
       <ViewSettings settings={settings} />
+      <ShareSettings settings={settings} options={SHARE_BUTTONS} />
 
       <form className="admin-form">
         <div className="form-columns">

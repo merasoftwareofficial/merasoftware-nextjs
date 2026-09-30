@@ -3,7 +3,8 @@ import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
 import { DoneNotice } from "@/components/done-notice";
 import { atLeast, requireStaffPage } from "@/lib/auth";
-import { blogRepo, viewRepo, type BlogStatus } from "@/lib/repo";
+import { blogRepo, shareRepo, viewRepo, type BlogStatus } from "@/lib/repo";
+import { SHARE_PLATFORM_SHORT, SHARE_PLATFORMS } from "@/lib/share-rules";
 import { dayKey } from "@/lib/view-rules";
 
 export const metadata = { title: "Blog posts" };
@@ -63,6 +64,7 @@ export default async function BlogAdmin({
 
   const { status, sort, done, post: doneSlug } = await searchParams;
   const byViews = sort === "views";
+  const byShares = sort === "shares";
 
   // Moderators get a link to the queue carrying the number waiting for them.
   const canReview = atLeast(user.role, "moderator");
@@ -74,9 +76,19 @@ export default async function BlogAdmin({
     blogRepo.listCards({ status: status ? (status as BlogStatus) : undefined }),
     canReview ? blogRepo.count({ status: "pending" }) : 0,
   ]);
-  // Views over the last 7 days (today and the six before), for the listed posts.
-  const week = posts.length ? await viewRepo.sumSince(dayKey(6), posts.map(post => post._id)) : {};
+  // Views and share clicks over the last 7 days (today and the six before),
+  // and each post's shares by platform, for the listed posts.
+  const ids = posts.map(post => post._id);
+  const [week, shareWeek, sharePlatforms]: [
+    Record<string, number>,
+    Record<string, number>,
+    Awaited<ReturnType<typeof shareRepo.byPlatform>>,
+  ] = posts.length
+    ? await Promise.all([viewRepo.sumSince(dayKey(6), ids), shareRepo.sumSince(dayKey(6), ids), shareRepo.byPlatform(ids)])
+    : [{}, {}, {}];
   if (byViews) posts.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+  if (byShares) posts.sort((a, b) => (b.shareCount ?? 0) - (a.shareCount ?? 0));
+  const sortKey = byViews ? "views" : byShares ? "shares" : "";
   // Filter chips keep the chosen order, and the order toggle keeps the filter.
   const href = (nextStatus: string, nextSort: string) => {
     const query = new URLSearchParams();
@@ -118,7 +130,7 @@ export default async function BlogAdmin({
         {FILTERS.map(filter => (
           <Link
             key={filter.value}
-            href={href(filter.value, byViews ? "views" : "")}
+            href={href(filter.value, sortKey)}
             className={(status ?? "") === filter.value ? "filter-chip on" : "filter-chip"}
           >
             {filter.label}
@@ -126,6 +138,9 @@ export default async function BlogAdmin({
         ))}
         <Link className={byViews ? "filter-chip on" : "filter-chip"} href={href(status ?? "", byViews ? "" : "views")}>
           {byViews ? "Most viewed ✓" : "Most viewed"}
+        </Link>
+        <Link className={byShares ? "filter-chip on" : "filter-chip"} href={href(status ?? "", byShares ? "" : "shares")}>
+          {byShares ? "Most shared ✓" : "Most shared"}
         </Link>
       </div>
 
@@ -137,7 +152,7 @@ export default async function BlogAdmin({
         </div>
       ) : (
         <AdminTable
-          headers={["TITLE", "TYPE", "CATEGORY", "STATUS", "VIEWS", "7 DAYS", "HELPFUL", "INSIGHTFUL", "SAVES", "UPDATED", "ACTION"]}
+          headers={["TITLE", "TYPE", "CATEGORY", "STATUS", "VIEWS", "7 DAYS", "SHARES", "SHARES 7D", "HELPFUL", "INSIGHTFUL", "SAVES", "UPDATED", "ACTION"]}
           rows={posts.map(post => [
             post.title,
             post.type,
@@ -149,6 +164,17 @@ export default async function BlogAdmin({
             </span>,
             (post.viewCount ?? 0).toLocaleString("en-IN"),
             (week[post._id] ?? 0).toLocaleString("en-IN"),
+            <span key="sh">
+              {(post.shareCount ?? 0).toLocaleString("en-IN")}
+              {sharePlatforms[post._id] ? (
+                <small className="share-split">
+                  {SHARE_PLATFORMS.filter(platform => sharePlatforms[post._id]?.[platform])
+                    .map(platform => `${SHARE_PLATFORM_SHORT[platform]} ${sharePlatforms[post._id][platform]}`)
+                    .join(" · ")}
+                </small>
+              ) : null}
+            </span>,
+            (shareWeek[post._id] ?? 0).toLocaleString("en-IN"),
             post.helpfulCount ?? 0,
             post.insightfulCount ?? 0,
             post.saveCount ?? 0,

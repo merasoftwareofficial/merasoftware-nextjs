@@ -42,6 +42,8 @@ export const blogInputSchema = z.object({
   comments: z.enum(["default", "open", "moderated", "closed"]).optional(),
   /** Per-post view count visibility. Only an editor may set it; see view-rules.ts. */
   showViews: z.enum(["default", "show", "hide"]).optional(),
+  /** Per-post share buttons. Only an editor may set it; see share-rules.ts. */
+  sharing: z.enum(["default", "show", "hide"]).optional(),
 });
 
 export type BlogInput = z.infer<typeof blogInputSchema>;

@@ -5,7 +5,7 @@
  * this (admin only, never on yourself); this component only offers the controls.
  */
 
-import { useNavigate } from "@/components/loading/navigation";
+import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
@@ -13,26 +13,25 @@ const ROLES: Role[] = ["member", "moderator", "editor", "admin"];
 
 export function UserActions({ id, role, banned }: { id: string; role: Role; banned: boolean }) {
   const router = useNavigate();
-  const [busy, setBusy] = useState(false);
+  const { busy, track } = useTask();
   const [error, setError] = useState("");
 
-  async function patch(body: { role?: Role; banned?: boolean }) {
-    setBusy(true);
-    setError("");
-    const response = await fetch(`/api/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setBusy(false);
+  const patch = (body: { role?: Role; banned?: boolean }) =>
+    track(async () => {
+      setError("");
+      const response = await fetch(`/api/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setError(data.error ?? "Could not update that user.");
-      return;
-    }
-    router.refresh();
-  }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Could not update that user.");
+        return;
+      }
+      router.refresh();
+    });
 
   return (
     <span className="admin-row-actions">
