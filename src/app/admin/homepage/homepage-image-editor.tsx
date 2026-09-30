@@ -5,7 +5,9 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
 import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/cloudinary-types";
+import { LinkPicker } from "@/components/link-picker";
 import { FEATURES } from "@/lib/features";
+import type { LinkGroup } from "@/lib/link-options";
 import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset } from "@/lib/repo/types";
 
 type ImageMap = Partial<Record<HomeImageSlot, HomepageImage>>;
@@ -46,10 +48,13 @@ export function HomepageImageEditor({
   initialContent,
   initialImages,
   assets,
+  links,
 }: {
   initialContent: HomepageContent;
   initialImages: ImageMap;
   assets: MediaAsset[];
+  /** Choices for the link fields (lib/link-options.ts). */
+  links: LinkGroup[];
 }) {
   const [content, setContent] = useState(initialContent);
   const [images, setImages] = useState<ImageMap>(initialImages);
@@ -314,11 +319,11 @@ export function HomepageImageEditor({
         <TextField label="Description" multiline value={content.hero.description} onChange={value => updateSection("hero", { description: value })} />
         <div className="form-columns">
           <TextField label="Main button label" value={content.hero.primaryLabel} onChange={value => updateSection("hero", { primaryLabel: value })} />
-          <TextField label="Main button link" value={content.hero.primaryHref} onChange={value => updateSection("hero", { primaryHref: value })} />
+          <LinkPicker label="Main button link" groups={links} value={content.hero.primaryHref} onChange={value => updateSection("hero", { primaryHref: value })} />
         </div>
         <div className="form-columns">
           <TextField label="Second link label" value={content.hero.secondaryLabel} onChange={value => updateSection("hero", { secondaryLabel: value })} />
-          <TextField label="Second link destination" value={content.hero.secondaryHref} onChange={value => updateSection("hero", { secondaryHref: value })} />
+          <LinkPicker label="Second link destination" groups={links} value={content.hero.secondaryHref} onChange={value => updateSection("hero", { secondaryHref: value })} />
         </div>
         <div className="form-columns">
           <TextField label="Hero artwork label" value={content.hero.signalLabel} onChange={value => updateSection("hero", { signalLabel: value })} />
@@ -409,7 +414,7 @@ export function HomepageImageEditor({
           <TextField label="Heading — italic line" value={content.contact.headingEmphasis} onChange={value => updateSection("contact", { headingEmphasis: value })} />
           <TextField label="Button label" value={content.contact.buttonLabel} onChange={value => updateSection("contact", { buttonLabel: value })} />
         </div>
-        <TextField label="Button destination" value={content.contact.buttonHref} onChange={value => updateSection("contact", { buttonHref: value })} />
+        <LinkPicker label="Button destination" groups={links} value={content.contact.buttonHref} onChange={value => updateSection("contact", { buttonHref: value })} />
       </section> : null}
     </section> : null}
 

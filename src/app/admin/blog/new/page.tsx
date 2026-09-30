@@ -2,14 +2,15 @@ import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
 import { categoryChoices } from "@/lib/category-rules";
-import { categoryRepo, settingsRepo } from "@/lib/repo";
+import { tagSuggestions } from "@/lib/tag-options";
+import { categoryRepo, mediaRepo, settingsRepo } from "@/lib/repo";
 import { BlogForm } from "../blog-form";
 
 export const metadata = { title: "New article" };
 
 export default async function NewBlog() {
   const user = await requireStaffPage("/admin/blog/new");
-  const [settings, categories] = await Promise.all([settingsRepo.get(), categoryRepo.list()]);
+  const [settings, categories, assets, tags] = await Promise.all([settingsRepo.get(), categoryRepo.list(), mediaRepo.list(), tagSuggestions()]);
 
   return (
     <main className="admin-main">
@@ -27,6 +28,8 @@ export default async function NewBlog() {
         role={user.role}
         commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }}
         categories={categoryChoices(categories, "official")}
+        assets={assets}
+        tagSuggestions={tags}
       />
     </main>
   );

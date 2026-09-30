@@ -4,14 +4,21 @@ import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
 import { canEdit } from "@/lib/blog-rules";
 import { categoryChoices } from "@/lib/category-rules";
-import { blogRepo, categoryRepo, settingsRepo } from "@/lib/repo";
+import { tagSuggestions } from "@/lib/tag-options";
+import { blogRepo, categoryRepo, mediaRepo, settingsRepo } from "@/lib/repo";
 import { BlogForm } from "../../blog-form";
 
 export default async function EditBlog({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const user = await requireStaffPage(`/admin/blog/${slug}/edit`);
 
-  const [blog, settings, categories] = await Promise.all([blogRepo.findBySlug(slug), settingsRepo.get(), categoryRepo.list()]);
+  const [blog, settings, categories, assets, tags] = await Promise.all([
+    blogRepo.findBySlug(slug),
+    settingsRepo.get(),
+    categoryRepo.list(),
+    mediaRepo.list(),
+    tagSuggestions(),
+  ]);
   if (!blog) notFound();
 
   if (!canEdit(user, blog)) {
@@ -48,6 +55,8 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
         role={user.role}
         commentDefaults={{ commentsEnabled: settings.commentsEnabled, commentDefault: settings.commentDefault }}
         categories={categoryChoices(categories, blog.type, blog.category)}
+        assets={assets}
+        tagSuggestions={tags}
       />
     </main>
   );

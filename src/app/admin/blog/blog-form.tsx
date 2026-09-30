@@ -3,11 +3,13 @@
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useEffect, useRef, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
+import { MediaPicker } from "@/components/media-picker";
+import { TagPicker } from "@/components/tag-picker";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { RichContent } from "@/components/editor/rich-content";
 import { publishingBriefWarnings } from "@/lib/content-rules";
 import { SITE_URL } from "@/lib/structured-data";
-import type { Blog, BlogType, CommentMode, Role, Settings, ShareMode, ViewMode, Visibility } from "@/lib/repo/types";
+import type { Blog, BlogType, CommentMode, MediaAsset, Role, Settings, ShareMode, ViewMode, Visibility } from "@/lib/repo/types";
 import styles from "./blog-preview.module.css";
 
 type Draft = {
@@ -19,6 +21,7 @@ type Draft = {
   category: string;
   tags: string;
   imageUrl: string;
+  imagePublicId: string;
   imageAlt: string;
   seoTitle: string;
   seoDescription: string;
@@ -61,6 +64,7 @@ function draftFrom(blog?: Blog): Draft {
     category: blog?.category ?? "",
     tags: blog?.tags.join(", ") ?? "",
     imageUrl: blog?.featuredImage?.url ?? "",
+    imagePublicId: blog?.featuredImage?.publicId ?? "",
     imageAlt: blog?.featuredImage?.alt ?? "",
     seoTitle: blog?.seo?.title ?? "",
     seoDescription: blog?.seo?.description ?? "",
@@ -79,6 +83,8 @@ export function BlogForm({
   role,
   commentDefaults,
   categories: initialCategories,
+  assets,
+  tagSuggestions,
 }: {
   blog?: Blog;
   type?: BlogType;
@@ -86,6 +92,10 @@ export function BlogForm({
   commentDefaults: Pick<Settings, "commentsEnabled" | "commentDefault">;
   /** The category names this post may be filed under (categoryChoices in category-rules.ts). */
   categories: string[];
+  /** The Media Library, for the featured image. */
+  assets: MediaAsset[];
+  /** Tags already in use, most-used first (lib/tag-options.ts). */
+  tagSuggestions: { name: string; uses: number }[];
 }) {
   const router = useNavigate();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(blog));
@@ -169,7 +179,7 @@ export function BlogForm({
       sharing: draft.sharing,
       category: draft.category || undefined,
       tags: draft.tags.split(",").map(tag => tag.trim()).filter(Boolean),
-      featuredImage: { url: draft.imageUrl, publicId: blog?.featuredImage?.publicId ?? "", alt: draft.imageAlt },
+      featuredImage: { url: draft.imageUrl, publicId: draft.imagePublicId, alt: draft.imageAlt },
       seo: { title: draft.seoTitle, description: draft.seoDescription, canonical: draft.canonical },
     };
   }
@@ -335,10 +345,7 @@ export function BlogForm({
           ) : null}
           {categoryError ? <p className="form-error">{categoryError}</p> : null}
         </div>
-        <label className="admin-field">
-          <span>Tags (comma separated)</span>
-          <input value={draft.tags} onChange={event => set("tags", event.target.value)} placeholder="seo, local search" />
-        </label>
+        <TagPicker value={draft.tags} onChange={value => set("tags", value)} suggestions={tagSuggestions} />
       </div>
 
       <label className="admin-field">
@@ -363,14 +370,21 @@ export function BlogForm({
       <section className="admin-seo">
         <h2>Featured image</h2>
         <div className="form-columns">
-          <label className="admin-field">
-            <span>Image URL</span>
-            <input
-              value={draft.imageUrl}
-              onChange={event => set("imageUrl", event.target.value)}
-              placeholder="https://… (Cloudinary upload comes later)"
-            />
-          </label>
+          <MediaPicker
+            url={draft.imageUrl}
+            assets={assets}
+            onChoose={asset =>
+              setDraft(current => {
+                // The library's default alt text fills in unless the editor wrote their own.
+                // Library alt text may run to 300 characters; a post allows 160 (blog-rules.ts).
+                const libraryAlt = (item?: MediaAsset) => (item?.altText ?? "").slice(0, 160);
+                const previous = assets.find(item => item.url === current.imageUrl);
+                const ownAlt = current.imageAlt.trim() && current.imageAlt !== libraryAlt(previous);
+                return { ...current, imageUrl: asset.url, imagePublicId: asset.publicId, imageAlt: ownAlt ? current.imageAlt : libraryAlt(asset) };
+              })
+            }
+            onRemove={() => setDraft(current => ({ ...current, imageUrl: "", imagePublicId: "", imageAlt: "" }))}
+          />
           <label className="admin-field">
             <span>Alt text</span>
             <input value={draft.imageAlt} onChange={event => set("imageAlt", event.target.value)} placeholder="Describe the image" />
