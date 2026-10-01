@@ -258,6 +258,15 @@ html[data-theme="dark"] .reader-card{box-shadow:0 1px 0 rgba(0,0,0,.4),0 22px 44
 .reaction-button.is-on span{color:#8fad18}
 .share-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:22px}
 .share-bar a.reaction-button{text-decoration:none}
+.share-button{--brand:var(--ink);display:inline-grid;place-items:center;width:42px;height:42px;padding:0;border:0;border-radius:50%;background:var(--brand);color:#fff;cursor:pointer;text-decoration:none;transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease}
+.share-button svg{width:20px;height:20px}
+.share-button:hover{transform:translateY(-3px);box-shadow:0 10px 18px -8px var(--brand)}
+.share-button:active{transform:translateY(0) scale(.94)}
+.share-button:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+.share-whatsapp{--brand:#25d366}.share-facebook{--brand:#1877f2}.share-linkedin{--brand:#0a66c2}.share-telegram{--brand:#229ed9}.share-email{--brand:#ea4335}.share-native{--brand:#8fad18}
+.share-x,.share-copy{color:var(--paper)}
+.share-copy.is-copied{--brand:#25a244;color:#fff}
+@media(prefers-reduced-motion:reduce){.share-button{transition:none}.share-button:hover,.share-button:active{transform:none}}
 .share-split{display:block;margin-top:3px;font-size:var(--fs-label);color:var(--muted);white-space:nowrap}
 .share-label{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
 

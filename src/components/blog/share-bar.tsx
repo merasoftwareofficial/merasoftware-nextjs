@@ -11,6 +11,7 @@
  */
 
 import { useState, useSyncExternalStore } from "react";
+import { ShareIcon } from "@/components/blog/share-icons";
 import type { ShareButton } from "@/lib/share-rules";
 import type { SharePlatform } from "@/lib/repo/types";
 
@@ -80,31 +81,45 @@ export function ShareBar({ blogId, title, url, buttons }: Props) {
 
   const shown = phoneSheet ? buttons.filter(button => button.platform === "copy") : buttons;
 
+  // Icon-only round buttons: the platform name lives in aria-label and the
+  // hover tooltip. The status line announces a copy to screen readers.
   return (
     <div className="share-bar" aria-label="Share this post">
       <span className="share-label">Share</span>
       {phoneSheet ? (
-        <button className="reaction-button" type="button" onClick={openSheet}>
-          Share…
+        <button className="share-button share-native" type="button" onClick={openSheet} aria-label="Share" title="Share">
+          <ShareIcon name="native" />
         </button>
       ) : null}
       {shown.map(button =>
         button.platform === "copy" ? (
-          <button key={button.platform} className="reaction-button" type="button" onClick={copy}>
-            {copied ? "Copied ✓" : button.label}
+          <button
+            key={button.platform}
+            className={`share-button share-copy${copied ? " is-copied" : ""}`}
+            type="button"
+            onClick={copy}
+            aria-label={copied ? "Link copied" : button.label}
+            title={copied ? "Link copied" : button.label}
+          >
+            <ShareIcon name={copied ? "copied" : "copy"} />
           </button>
         ) : (
           <a
             key={button.platform}
-            className="reaction-button"
+            className={`share-button share-${button.platform}`}
             href={button.href}
+            aria-label={`Share on ${button.label}`}
+            title={button.label}
             {...(button.platform === "email" ? {} : { target: "_blank", rel: "noopener noreferrer" })}
             onClick={() => track(blogId, button.platform)}
           >
-            {button.label}
+            <ShareIcon name={button.platform} />
           </a>
         ),
       )}
+      <span className="visually-hidden" role="status">
+        {copied ? "Link copied" : ""}
+      </span>
     </div>
   );
 }
