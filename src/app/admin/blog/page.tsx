@@ -3,7 +3,8 @@ import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
 import { DoneNotice } from "@/components/done-notice";
 import { atLeast, requireStaffPage } from "@/lib/auth";
-import { blogRepo, shareRepo, viewRepo, type BlogStatus } from "@/lib/repo";
+import { blogRepo, clickRepo, shareRepo, viewRepo, type BlogStatus } from "@/lib/repo";
+import { CLICK_PLACEMENT_SHORT, CLICK_PLACEMENTS } from "@/lib/click-rules";
 import { SHARE_PLATFORM_SHORT, SHARE_PLATFORMS } from "@/lib/share-rules";
 import { dayKey } from "@/lib/view-rules";
 
@@ -65,6 +66,7 @@ export default async function BlogAdmin({
   const { status, sort, done, post: doneSlug } = await searchParams;
   const byViews = sort === "views";
   const byShares = sort === "shares";
+  const byClicks = sort === "clicks";
 
   // Moderators get a link to the queue carrying the number waiting for them.
   const canReview = atLeast(user.role, "moderator");
@@ -77,18 +79,21 @@ export default async function BlogAdmin({
     canReview ? blogRepo.count({ status: "pending" }) : 0,
   ]);
   // Views and share clicks over the last 7 days (today and the six before),
-  // and each post's shares by platform, for the listed posts.
+  // each post's shares by platform, and its clicks (related posts, "Next
+  // page") by kind, for the listed posts.
   const ids = posts.map(post => post._id);
-  const [week, shareWeek, sharePlatforms]: [
+  const [week, shareWeek, sharePlatforms, clickPlaces]: [
     Record<string, number>,
     Record<string, number>,
     Awaited<ReturnType<typeof shareRepo.byPlatform>>,
+    Awaited<ReturnType<typeof clickRepo.byPlacement>>,
   ] = posts.length
-    ? await Promise.all([viewRepo.sumSince(dayKey(6), ids), shareRepo.sumSince(dayKey(6), ids), shareRepo.byPlatform(ids)])
-    : [{}, {}, {}];
+    ? await Promise.all([viewRepo.sumSince(dayKey(6), ids), shareRepo.sumSince(dayKey(6), ids), shareRepo.byPlatform(ids), clickRepo.byPlacement(ids)])
+    : [{}, {}, {}, {}];
   if (byViews) posts.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
   if (byShares) posts.sort((a, b) => (b.shareCount ?? 0) - (a.shareCount ?? 0));
-  const sortKey = byViews ? "views" : byShares ? "shares" : "";
+  if (byClicks) posts.sort((a, b) => (b.clickCount ?? 0) - (a.clickCount ?? 0));
+  const sortKey = byViews ? "views" : byShares ? "shares" : byClicks ? "clicks" : "";
   // Filter chips keep the chosen order, and the order toggle keeps the filter.
   const href = (nextStatus: string, nextSort: string) => {
     const query = new URLSearchParams();
@@ -142,6 +147,9 @@ export default async function BlogAdmin({
         <Link className={byShares ? "filter-chip on" : "filter-chip"} href={href(status ?? "", byShares ? "" : "shares")}>
           {byShares ? "Most shared ✓" : "Most shared"}
         </Link>
+        <Link className={byClicks ? "filter-chip on" : "filter-chip"} href={href(status ?? "", byClicks ? "" : "clicks")}>
+          {byClicks ? "Most clicked ✓" : "Most clicked"}
+        </Link>
       </div>
 
       {posts.length === 0 ? (
@@ -152,7 +160,7 @@ export default async function BlogAdmin({
         </div>
       ) : (
         <AdminTable
-          headers={["TITLE", "TYPE", "CATEGORY", "STATUS", "VIEWS", "7 DAYS", "SHARES", "SHARES 7D", "HELPFUL", "INSIGHTFUL", "SAVES", "UPDATED", "ACTION"]}
+          headers={["TITLE", "TYPE", "CATEGORY", "STATUS", "VIEWS", "7 DAYS", "SHARES", "SHARES 7D", "CLICKS", "HELPFUL", "INSIGHTFUL", "SAVES", "UPDATED", "ACTION"]}
           rows={posts.map(post => [
             post.title,
             post.type,
@@ -175,6 +183,16 @@ export default async function BlogAdmin({
               ) : null}
             </span>,
             (shareWeek[post._id] ?? 0).toLocaleString("en-IN"),
+            <span key="cl">
+              {(post.clickCount ?? 0).toLocaleString("en-IN")}
+              {clickPlaces[post._id] ? (
+                <small className="share-split">
+                  {CLICK_PLACEMENTS.filter(placement => clickPlaces[post._id]?.[placement])
+                    .map(placement => `${CLICK_PLACEMENT_SHORT[placement]} ${clickPlaces[post._id][placement]}`)
+                    .join(" · ")}
+                </small>
+              ) : null}
+            </span>,
             post.helpfulCount ?? 0,
             post.insightfulCount ?? 0,
             post.saveCount ?? 0,

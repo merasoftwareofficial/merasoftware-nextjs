@@ -9,11 +9,12 @@ import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { RichContent } from "@/components/editor/rich-content";
 import { publishingBriefWarnings } from "@/lib/content-rules";
 import { SITE_URL } from "@/lib/structured-data";
-import type { Blog, BlogType, CommentMode, MediaAsset, Role, Settings, ShareMode, ViewMode, Visibility } from "@/lib/repo/types";
+import type { Blog, BlogType, CommentMode, MediaAsset, Role, Settings, ShareMode, TitleSize, ViewMode, Visibility } from "@/lib/repo/types";
 import styles from "./blog-preview.module.css";
 
 type Draft = {
   title: string;
+  titleSize: TitleSize;
   slug: string;
   slugTouched: boolean;
   excerpt: string;
@@ -57,6 +58,7 @@ function localInput(value?: string) {
 function draftFrom(blog?: Blog): Draft {
   return {
     title: blog?.title ?? "",
+    titleSize: blog?.titleSize ?? "large",
     slug: blog?.slug ?? "",
     slugTouched: !!blog,
     excerpt: blog?.excerpt ?? "",
@@ -211,6 +213,7 @@ export function BlogForm({
   function body() {
     return {
       title: draft.title,
+      titleSize: draft.titleSize,
       slug: draft.slug,
       excerpt: draft.excerpt,
       content: draft.content,
@@ -330,14 +333,24 @@ export function BlogForm({
   return (
     <form className="admin-form" onSubmit={event => event.preventDefault()}>
       <div className="form-columns">
-        <label className="admin-field">
-          <span>Article title</span>
-          <input
-            value={draft.title}
-            onChange={event => set("title", event.target.value)}
-            placeholder="Enter a useful, clear title"
-          />
-        </label>
+        <div className="admin-field">
+          <label htmlFor="blog-title">
+            <span>Article title</span>
+          </label>
+          <div className="title-row">
+            <input
+              id="blog-title"
+              value={draft.title}
+              onChange={event => set("title", event.target.value)}
+              placeholder="Enter a useful, clear title"
+            />
+            {/* Size only: the title stays the page's <h1> either way. */}
+            <select aria-label="Title size" value={draft.titleSize} onChange={event => set("titleSize", event.target.value as TitleSize)}>
+              <option value="large">Large title (H1)</option>
+              <option value="medium">Medium title (H2)</option>
+            </select>
+          </div>
+        </div>
         <label className="admin-field">
           <span>
             URL slug

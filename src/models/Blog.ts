@@ -11,5 +11,6 @@ const BlogSchema = new Schema({
   reviewNote: String, comments: { type: String, enum: ["default", "open", "moderated", "closed"], default: "default" }, helpfulCount: { type: Number, default: 0 }, insightfulCount: { type: Number, default: 0 }, saveCount: { type: Number, default: 0 },
   viewCount: { type: Number, default: 0 }, showViews: { type: String, enum: ["default", "show", "hide"], default: "default" },
   shareCount: { type: Number, default: 0 }, sharing: { type: String, enum: ["default", "show", "hide"], default: "default" },
+  clickCount: { type: Number, default: 0 }, titleSize: { type: String, enum: ["large", "medium"] },
 }, { timestamps: true });
 export const Blog = models.Blog || model("Blog", BlogSchema);

@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { Comments } from "@/components/blog/comments";
 import { Reactions } from "@/components/blog/reactions";
+import { ArticleReader } from "@/components/blog/article-reader";
 import { ShareBar } from "@/components/blog/share-bar";
+import { TrackedLink } from "@/components/blog/tracked-link";
 import { ViewBeacon } from "@/components/blog/view-beacon";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { SiteFooter } from "@/components/site-footer";
@@ -166,33 +168,40 @@ export default async function Article({ params }: Params) {
       <SiteHeader />
       <main className="article">
         <article className="article-inner">
-          <p className="eyebrow">
-            <i /> {post.category?.toUpperCase() ?? (post.type === "official" ? "INSIGHTS" : post.type.toUpperCase())}
-          </p>
-          <h1>{post.title}</h1>
-          <p className="article-meta">
-            {when(post.publishedAt)} · {readingTime(post.content)} ·{" "}
-            {author ? (
-              <Link className="text-link" href={`/members/${author.username}`}>
-                {post.authorName}
-              </Link>
-            ) : (
-              post.authorName
-            )}
-            {post.status === "published" && viewsVisible(post, settings) ? ` · ${formatViews(post.viewCount ?? 0)}` : null}
-          </p>
+          {/* The whole article, read one screen at a time in a card (article-reader.tsx). */}
+          <ArticleReader blogId={post._id} crumb={`${post.category ?? (post.type === "official" ? "Insights" : post.type)} · ${readingTime(post.content)}`} title={post.title}>
+            <header className="reader-intro">
+              <p className="eyebrow">
+                <i /> {post.category?.toUpperCase() ?? (post.type === "official" ? "INSIGHTS" : post.type.toUpperCase())}
+              </p>
+              <h1 className={post.titleSize === "medium" ? "title-medium" : undefined}>{post.title}</h1>
+              <p className="article-meta">
+                {when(post.publishedAt)} · {readingTime(post.content)} ·{" "}
+                {author ? (
+                  <Link className="text-link" href={`/members/${author.username}`}>
+                    {post.authorName}
+                  </Link>
+                ) : (
+                  post.authorName
+                )}
+                {post.status === "published" && viewsVisible(post, settings) ? ` · ${formatViews(post.viewCount ?? 0)}` : null}
+              </p>
+              {post.status !== "published" ? (
+                <p className="preview-flag">Preview — this post is {post.status} and not public yet.</p>
+              ) : null}
+              <p className="lead">{post.excerpt}</p>
+              {post.featuredImage?.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="article-image" src={post.featuredImage.url} alt={post.featuredImage.alt} />
+              ) : null}
+            </header>
+            <RichContent content={post.content} />
+          </ArticleReader>
           {post.status === "published" ? <ViewBeacon blogId={post._id} /> : null}
-          {post.status !== "published" ? (
-            <p className="preview-flag">Preview — this post is {post.status} and not public yet.</p>
-          ) : null}
-          <p className="lead">{post.excerpt}</p>
-
-          {post.featuredImage?.url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="article-image" src={post.featuredImage.url} alt={post.featuredImage.alt} />
-          ) : null}
-
-          <RichContent content={post.content} />
+          {/* Without scripts the card cannot turn pages, so it shows the whole article instead. */}
+          <noscript>
+            <style dangerouslySetInnerHTML={{ __html: ".reader{height:auto!important}.reader-arrow,.reader-pageno,.reader-progress,.reader-dots,.reader-end{display:none!important}" }} />
+          </noscript>
 
           {post.tags.length ? (
             <div className="article-tags">
@@ -240,13 +249,13 @@ export default async function Article({ params }: Params) {
             </div>
             <div className="post-grid" style={{ marginTop: 32 }}>
               {related.map(item => (
-                <Link className="post-card" href={`/blog/${item.slug}`} key={item._id}>
+                <TrackedLink className="post-card" from={post._id} to={item._id} placement="related" href={`/blog/${item.slug}`} key={item._id}>
                   <div className="post-copy">
                     <span>{item.category ?? "Insights"}</span>
                     <h3>{item.title}</h3>
                     <p>{item.excerpt}</p>
                   </div>
-                </Link>
+                </TrackedLink>
               ))}
             </div>
           </section>

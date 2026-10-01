@@ -157,6 +157,58 @@
 .article-body pre{background:var(--inverse);color:var(--inverse-text);padding:16px;border-radius:4px;overflow:auto;font:13px/1.6 monospace}
 .article-body code{font:13px monospace;background:var(--surface);padding:2px 5px;border-radius:3px}
 .article-body pre code{background:transparent;padding:0}
+.article:has(.reader){padding-top:12px}
+.reader{--reader-h:calc(100svh - 110px);position:relative;height:var(--reader-h);min-height:440px;display:flex;flex-direction:column}
+.reader-card{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:0 1px 0 rgba(19,19,17,.04),0 22px 44px -28px rgba(19,19,17,.42);overflow:hidden}
+html[data-theme="dark"] .reader-card{box-shadow:0 1px 0 rgba(0,0,0,.4),0 22px 44px -24px rgba(0,0,0,.85)}
+.reader-progress{flex:none;height:4px;background:var(--surface)}
+.reader-progress i{display:block;height:100%;background:#8fad18;transition:width .45s cubic-bezier(.2,.7,.2,1)}
+.reader-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:40px;padding:10px 24px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)}
+.reader-crumb{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:700}
+.reader-right{flex:none;display:flex;align-items:center;gap:14px}
+.reader-pageno{color:var(--ink);font-weight:800;letter-spacing:1.4px;font-variant-numeric:tabular-nums}
+.reader-pageno em{font-style:normal;color:var(--muted)}
+.reader-dots{display:flex;align-items:center;gap:5px}
+.reader-dots[hidden]{display:none}
+.reader-dots button{width:7px;height:7px;padding:0;border:0;border-radius:50%;background:var(--line);cursor:pointer;transition:width .3s,background .3s}
+.reader-dots button[aria-current="true"]{width:18px;border-radius:4px;background:#8fad18}
+.reader-area{position:relative;flex:1;min-height:0;overflow:auto;padding:26px 34px 8px;outline:none;touch-action:pan-y}
+.reader-off{display:none!important}
+.reader-start{margin-top:0!important}
+.reader-intro{margin-bottom:30px}
+.reader-intro h1{font-size:clamp(32px,4.4vw,50px);line-height:.98;margin:14px 0 12px;text-wrap:balance}
+.reader-intro h1.title-medium{font-size:clamp(24px,2.6vw,32px);line-height:1.1;letter-spacing:-.04em}
+.title-row{display:flex;gap:10px}
+.admin-field .title-row input{flex:1;min-width:0}
+.admin-field .title-row select{flex:none;width:auto;margin-top:0}
+@media(max-width:700px){.title-row{flex-direction:column}}
+.reader-intro .lead{margin:16px 0 0;font-size:18px}
+.reader-intro .preview-flag{margin:12px 0 0}
+.reader-intro .article-image{display:block;width:100%;max-height:calc(var(--reader-h) * .32);object-fit:cover;margin-top:18px;border-radius:4px}
+.reader-area .article-body img{max-height:calc(var(--reader-h) - 170px);width:auto;object-fit:contain}
+.reader-end{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:8px 0 18px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.reader-end button{border:0;background:transparent;padding:6px 0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer}
+.reader-end button span{color:#8fad18}
+.reader-arrow{position:absolute;top:50%;z-index:2;width:46px;height:46px;margin-top:-23px;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--ink);box-shadow:0 10px 24px -12px rgba(19,19,17,.45);cursor:pointer;transition:transform .2s,background .2s,color .2s}
+.reader-arrow svg{width:20px;height:20px}
+.reader-arrow[hidden]{display:none}
+.reader-prev{left:-23px}
+.reader-next{right:-23px;background:var(--inverse);border-color:var(--inverse);color:#a8d100}
+.reader-prev:hover{transform:translateX(-2px);background:var(--inverse);border-color:var(--inverse);color:var(--inverse-text)}
+.reader-next:hover{transform:translateX(2px)}
+.reader-swipe{position:absolute;left:50%;bottom:16px;z-index:3;display:none;align-items:center;gap:10px;padding:9px 16px;border-radius:100px;background:var(--inverse);color:var(--inverse-text);font-size:12px;font-weight:800;white-space:nowrap;pointer-events:none;transform:translateX(-50%);animation:reader-nudge 1.6s ease-in-out infinite}
+.reader-swipe b{color:#a8d100;font-size:15px}
+@keyframes reader-nudge{0%,100%{transform:translateX(-50%)}50%{transform:translateX(calc(-50% - 10px))}}
+.reader:not(.is-ready) .reader-arrow,.reader:not(.is-ready) .reader-pageno,.reader:not(.is-ready) .reader-dots{visibility:hidden}
+.reader.is-single{height:auto}
+.reader.is-single .reader-card{flex:none}
+.reader.is-single .reader-area{overflow:visible;padding-bottom:20px}
+.reader.is-single .reader-progress,.reader.is-single .reader-right,.reader.is-single .reader-arrow{display:none}
+/* Touch screens turn pages by swiping: the arrows leave the screen but stay for screen readers. */
+@media (hover:none) and (pointer:coarse){.reader-arrow{width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);border:0;box-shadow:none}.reader-swipe{display:flex}.reader-dots{display:none}}
+@media(max-width:700px){.reader-head{padding:9px 16px}.reader-area{padding:20px 18px 6px}.reader-dots{display:none}.reader-prev{left:-14px}.reader-next{right:-14px}.reader-arrow{width:38px;height:38px;margin-top:-19px}}
+@media(prefers-reduced-motion:reduce){.reader-progress i,.reader-arrow{transition:none}.reader-swipe{animation:none}}
+@media print{.reader{height:auto!important}.reader-card{box-shadow:none}.reader-off{display:revert!important}.reader-area{overflow:visible}.reader-arrow,.reader-progress,.reader-right,.reader-end,.reader-swipe{display:none!important}}
 @media(max-width:700px){.form-actions{justify-content:stretch}.form-actions .status{width:100%;margin-bottom:6px}.tiptap-surface{padding:15px;min-height:260px}}
 
 /* B3 — community submission form. The Tiptap surface needs the same frame the

@@ -28,7 +28,18 @@ export type ShareMode = "default" | "show" | "hide";
  * Where a share went. Every one but `native` is a button an admin can turn on
  * or off; `native` is the phone's own share sheet, offered whenever sharing is.
  */
+/**
+ * How big a post's title shows on its page. The title is always the page's one
+ * <h1>; this only changes its size: `large` (the default) or `medium`, the size
+ * of a section heading, for a long title.
+ */
+export type TitleSize = "large" | "medium";
 export type SharePlatform = "whatsapp" | "facebook" | "x" | "linkedin" | "telegram" | "email" | "copy" | "native";
+/**
+ * What a counted click was (click-rules.ts): a related post opened from the
+ * bottom of an article, or the "Next page" button of a long article.
+ */
+export type ClickPlacement = "related" | "next-page";
 
 export interface FeaturedImage {
   url: string;
@@ -114,6 +125,10 @@ export interface Blog {
   shareCount?: number;
   /** Per-post control of the share buttons. Absent or "default" follows the site setting. */
   sharing?: ShareMode;
+  /** Title size on the post's page. Absent means "large". */
+  titleSize?: TitleSize;
+  /** Counted clicks on this post's related posts and page buttons (click-rules.ts). Admin only. */
+  clickCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -212,7 +227,7 @@ export interface BlogQuery {
 
 export type NewBlog = Omit<
   Blog,
-  "_id" | "createdAt" | "updatedAt" | "helpfulCount" | "insightfulCount" | "saveCount" | "viewCount" | "shareCount"
+  "_id" | "createdAt" | "updatedAt" | "helpfulCount" | "insightfulCount" | "saveCount" | "viewCount" | "shareCount" | "clickCount"
 >;
 
 export interface BlogRepo {
@@ -310,6 +325,19 @@ export interface ShareRepo {
   byPlatform(blogIds?: string[]): Promise<Record<string, Partial<Record<SharePlatform, number>>>>;
 }
 
+export interface ClickRepo {
+  /**
+   * Counts one click on `blogId` unless this key was seen in the last 24
+   * hours. The key already names the post, placement and target (click-rules.ts).
+   * True when counted.
+   */
+  record(blogId: string, placement: ClickPlacement, visitorKey: string, day: string): Promise<boolean>;
+  /** Clicks per post on `day` (YYYY-MM-DD) and later; only the given posts when `blogIds` is passed. */
+  sumSince(day: string, blogIds?: string[]): Promise<Record<string, number>>;
+  /** All-time clicks per post, split by placement. */
+  byPlacement(blogIds?: string[]): Promise<Record<string, Partial<Record<ClickPlacement, number>>>>;
+}
+
 export interface ReportRepo {
   list(resolved?: boolean): Promise<Report[]>;
   create(data: Omit<Report, "_id" | "createdAt">): Promise<Report>;
@@ -366,4 +394,5 @@ export interface DataDriver {
   media: MediaRepo;
   views: ViewRepo;
   shares: ShareRepo;
+  clicks: ClickRepo;
 }

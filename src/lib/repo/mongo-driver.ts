@@ -10,11 +10,13 @@ import { Reaction, SavedPost } from "@/models/Engagement";
 import { User } from "@/models/User";
 import { ViewDay, ViewSeen } from "@/models/View";
 import { ShareDay } from "@/models/Share";
+import { ClickDay } from "@/models/Click";
 import { MediaAssetModel } from "@/models/Media";
 import type {
   Blog as BlogRecord,
   BlogQuery,
   Category as CategoryRecord,
+  ClickPlacement,
   Comment as CommentRecord,
   CommentStatus,
   DataDriver,
@@ -632,4 +634,46 @@ const shares: DataDriver["shares"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares };
+const clicks: DataDriver["clicks"] = {
+  async record(blogId, placement, visitorKey, day) {
+    const _id = objectId(blogId);
+    if (!_id) return false;
+    await connectMongo();
+    if (!(await claimKey(visitorKey))) return false;
+
+    try {
+      await ClickDay.updateOne({ blogId, day, placement }, { $inc: { count: 1 } }, { upsert: true });
+    } catch (error) {
+      // Two first clicks of the day raced on the upsert; the row exists now.
+      if (!isDuplicateKey(error)) throw error;
+      await ClickDay.updateOne({ blogId, day, placement }, { $inc: { count: 1 } });
+    }
+    // timestamps: false — a click must leave updatedAt alone.
+    await Blog.updateOne({ _id }, { $inc: { clickCount: 1 } }, { timestamps: false });
+    return true;
+  },
+
+  async sumSince(day, blogIds) {
+    await connectMongo();
+    const match: Record<string, unknown> = { day: { $gte: day } };
+    if (blogIds) match.blogId = { $in: blogIds };
+    const rows: { _id: string; total: number }[] = await ClickDay.aggregate([
+      { $match: match },
+      { $group: { _id: "$blogId", total: { $sum: "$count" } } },
+    ]);
+    return Object.fromEntries(rows.map(row => [row._id, row.total]));
+  },
+
+  async byPlacement(blogIds) {
+    await connectMongo();
+    const rows: { _id: { blogId: string; placement: ClickPlacement }; total: number }[] = await ClickDay.aggregate([
+      ...(blogIds ? [{ $match: { blogId: { $in: blogIds } } }] : []),
+      { $group: { _id: { blogId: "$blogId", placement: "$placement" }, total: { $sum: "$count" } } },
+    ]);
+    const result: Record<string, Partial<Record<ClickPlacement, number>>> = {};
+    for (const row of rows) (result[row._id.blogId] ??= {})[row._id.placement] = row.total;
+    return result;
+  },
+};
+
+export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks };

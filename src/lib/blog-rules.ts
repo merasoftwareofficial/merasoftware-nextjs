@@ -44,6 +44,8 @@ export const blogInputSchema = z.object({
   showViews: z.enum(["default", "show", "hide"]).optional(),
   /** Per-post share buttons. Only an editor may set it; see share-rules.ts. */
   sharing: z.enum(["default", "show", "hide"]).optional(),
+  /** Title size on the post's page; the title stays its <h1> either way. */
+  titleSize: z.enum(["large", "medium"]).optional(),
 });
 
 export type BlogInput = z.infer<typeof blogInputSchema>;

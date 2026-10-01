@@ -19,6 +19,8 @@ import type {
   BlogRepo,
   Category,
   CategoryRepo,
+  ClickPlacement,
+  ClickRepo,
   Comment,
   CommentRepo,
   CommentStatus,
@@ -43,7 +45,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays";
+type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -169,6 +171,7 @@ const blogs: BlogRepo = {
       saveCount: 0,
       viewCount: 0,
       shareCount: 0,
+      clickCount: 0,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -591,4 +594,48 @@ const shares: ShareRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares };
+/* --------------------------------------------------------------- clicks -- */
+
+type ClickDayRow = DayRow & { placement: ClickPlacement };
+
+const clicks: ClickRepo = {
+  async record(blogId, placement, visitorKey, day) {
+    if (!claimKey(visitorKey)) return false;
+
+    const days = read<ClickDayRow>("clickDays");
+    const index = days.findIndex(row => row.blogId === blogId && row.day === day && row.placement === placement);
+    if (index === -1) days.push({ _id: id(), blogId, day, placement, count: 1 });
+    else days[index] = { ...days[index], count: days[index].count + 1 };
+    write("clickDays", days);
+
+    // Not incr(): a click must leave updatedAt alone.
+    const rows = read<Blog>("blogs");
+    const blogIndex = rows.findIndex(row => row._id === blogId);
+    if (blogIndex !== -1) {
+      rows[blogIndex] = { ...rows[blogIndex], clickCount: (rows[blogIndex].clickCount ?? 0) + 1 };
+      write("blogs", rows);
+    }
+    return true;
+  },
+
+  async sumSince(day, blogIds) {
+    const totals: Record<string, number> = {};
+    for (const row of read<ClickDayRow>("clickDays")) {
+      if (row.day < day || (blogIds && !blogIds.includes(row.blogId))) continue;
+      totals[row.blogId] = (totals[row.blogId] ?? 0) + row.count;
+    }
+    return totals;
+  },
+
+  async byPlacement(blogIds) {
+    const result: Record<string, Partial<Record<ClickPlacement, number>>> = {};
+    for (const row of read<ClickDayRow>("clickDays")) {
+      if (blogIds && !blogIds.includes(row.blogId)) continue;
+      const post = (result[row.blogId] ??= {});
+      post[row.placement] = (post[row.placement] ?? 0) + row.count;
+    }
+    return result;
+  },
+};
+
+export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks };
