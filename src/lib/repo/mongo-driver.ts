@@ -538,6 +538,24 @@ const media: DataDriver["media"] = {
     const row = await MediaAssetModel.create(data);
     return serialize(row.toObject() as never) as import("./types").MediaAsset;
   },
+  async findById(id) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    await connectMongo();
+    const row = await MediaAssetModel.findById(id).lean();
+    return row ? serialize(row as never) as import("./types").MediaAsset : null;
+  },
+  async updateAltText(id, altText) {
+    if (!Types.ObjectId.isValid(id)) return null;
+    await connectMongo();
+    const row = await MediaAssetModel.findByIdAndUpdate(id, { altText }, { new: true, runValidators: true }).lean();
+    return row ? serialize(row as never) as import("./types").MediaAsset : null;
+  },
+  async remove(id) {
+    if (!Types.ObjectId.isValid(id)) return false;
+    await connectMongo();
+    const result = await MediaAssetModel.deleteOne({ _id: id });
+    return result.deletedCount > 0;
+  },
 };
 
 const SEEN_FOR_MS = 24 * 60 * 60 * 1000;

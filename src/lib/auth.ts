@@ -11,21 +11,11 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getPortalAccount, PORTAL_COOKIE, websiteUserFor } from "@/lib/portal";
 import type { Role, User } from "@/lib/repo";
+import { atLeast } from "@/lib/roles";
 
 export type { Role, User };
 
-/** Role ranking. A role satisfies any requirement at or below its own level. */
-const RANK: Record<Role, number> = {
-  visitor: 0,
-  member: 1,
-  moderator: 2,
-  editor: 3,
-  admin: 4,
-};
-
-export function atLeast(role: Role, minimum: Role) {
-  return RANK[role] >= RANK[minimum];
-}
+export { atLeast };
 
 /** Thrown by requireUser / requireRole; routes turn this into 401 or 403. */
 export class AuthError extends Error {

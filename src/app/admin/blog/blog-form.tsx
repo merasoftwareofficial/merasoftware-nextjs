@@ -3,6 +3,7 @@
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useEffect, useRef, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
+import { imageSourcesFor } from "@/components/image-chooser";
 import { MediaPicker } from "@/components/media-picker";
 import { TagPicker } from "@/components/tag-picker";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
@@ -94,7 +95,7 @@ export function BlogForm({
   commentDefaults: Pick<Settings, "commentsEnabled" | "commentDefault">;
   /** The category names this post may be filed under (categoryChoices in category-rules.ts). */
   categories: string[];
-  /** The Media Library, for the featured image. */
+  /** The Media Library, to tell a library default alt text from the writer's own. */
   assets: MediaAsset[];
   /** Tags already in use, most-used first (lib/tag-options.ts). */
   tagSuggestions: { name: string; uses: number }[];
@@ -115,6 +116,10 @@ export function BlogForm({
   const [categories, setCategories] = useState(initialCategories);
   const [newCategory, setNewCategory] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState("");
+  // Articles may use all three image sources the role allows (an outside URL included).
+  const imageSources = imageSourcesFor(role, { allowUrl: true });
+  // Grows with images uploaded from the chooser, so their default alt text is recognised too.
+  const [knownAssets, setKnownAssets] = useState(assets);
 
   const addCategory = () =>
     track(async () => {
@@ -417,7 +422,7 @@ export function BlogForm({
       <div className="admin-field">
         <span>Article content</span>
         <p className="field-hint">Write only what readers should see. Add SEO details, image details and publishing settings in the fields below.</p>
-        <TiptapEditor value={draft.content} onChange={content => set("content", content)} />
+        <TiptapEditor value={draft.content} onChange={content => set("content", content)} imageSources={imageSources} />
         {briefWarnings.length > 0 ? (
           <p className="form-error" role="status">Possible publishing instructions in the article: {briefWarnings.join(", ")}. Review this text before publishing; it will be visible to readers.</p>
         ) : null}
@@ -428,17 +433,22 @@ export function BlogForm({
         <div className="form-columns">
           <MediaPicker
             url={draft.imageUrl}
-            assets={assets}
-            onChoose={asset =>
+            fromLibrary={Boolean(draft.imagePublicId)}
+            sources={imageSources}
+            onChoose={choice => {
+              const asset = choice.kind === "library" ? choice.asset : undefined;
+              if (asset) setKnownAssets(current => (current.some(item => item._id === asset._id) ? current : [asset, ...current]));
               setDraft(current => {
                 // The library's default alt text fills in unless the editor wrote their own.
                 // Library alt text may run to 300 characters; a post allows 160 (blog-rules.ts).
                 const libraryAlt = (item?: MediaAsset) => (item?.altText ?? "").slice(0, 160);
-                const previous = assets.find(item => item.url === current.imageUrl);
+                const previous = knownAssets.find(item => item.url === current.imageUrl);
                 const ownAlt = current.imageAlt.trim() && current.imageAlt !== libraryAlt(previous);
-                return { ...current, imageUrl: asset.url, imagePublicId: asset.publicId, imageAlt: ownAlt ? current.imageAlt : libraryAlt(asset) };
-              })
-            }
+                // Alt text typed in the URL tab wins; an outside URL has no library default.
+                if (choice.kind === "url") return { ...current, imageUrl: choice.url, imagePublicId: "", imageAlt: choice.alt ? choice.alt.slice(0, 160) : ownAlt ? current.imageAlt : "" };
+                return { ...current, imageUrl: choice.asset.url, imagePublicId: choice.asset.publicId, imageAlt: ownAlt ? current.imageAlt : libraryAlt(choice.asset) };
+              });
+            }}
             onRemove={() => setDraft(current => ({ ...current, imageUrl: "", imagePublicId: "", imageAlt: "" }))}
           />
           <label className="admin-field">

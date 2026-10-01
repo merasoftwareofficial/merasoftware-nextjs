@@ -2,9 +2,13 @@
 
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useState } from "react";
+import { ImageChooser, type ImageSources } from "@/components/image-chooser";
 import { editorExtensions, emptyDoc, NORMAL_REL, SPONSORED_REL, UGC_REL } from "./extensions";
 
 type LinkRel = "normal" | "ugc" | "sponsored";
+
+/** Members' posts: an outside URL only, never our library or Cloudinary. */
+const URL_ONLY: ImageSources = { upload: false, library: false, url: true };
 
 const REL_VALUE: Record<LinkRel, string> = {
   normal: NORMAL_REL,
@@ -30,12 +34,16 @@ export function TiptapEditor({
   value,
   onChange,
   placeholder = "Start writing…",
+  imageSources = URL_ONLY,
 }: {
   value?: unknown;
   onChange: (doc: unknown) => void;
   placeholder?: string;
+  /** Where the Image button may take images from (imageSourcesFor in image-chooser.tsx). */
+  imageSources?: ImageSources;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkRel, setLinkRel] = useState<LinkRel>("normal");
 
@@ -69,13 +77,6 @@ export function TiptapEditor({
     setLinkUrl("");
   }
 
-  function addImage() {
-    if (!editor) return;
-    const url = window.prompt("Image URL");
-    if (!url) return;
-    const alt = window.prompt("Describe the image (alt text, important for SEO)") ?? "";
-    editor.chain().focus().setImage({ src: url, alt }).run();
-  }
 
   return (
     <div className="tiptap-wrap">
@@ -126,7 +127,7 @@ export function TiptapEditor({
           <button type="button" className={active("link") ? "on" : ""} onClick={() => setLinkOpen(open => !open)} title="Add link">
             Link
           </button>
-          <button type="button" onClick={addImage} title="Insert image by URL">
+          <button type="button" onClick={() => setImageOpen(true)} title="Insert image">
             Image
           </button>
 
@@ -166,6 +167,17 @@ export function TiptapEditor({
       </div>
 
       <EditorContent editor={editor} />
+      {imageOpen ? (
+        <ImageChooser
+          sources={imageSources}
+          onClose={() => setImageOpen(false)}
+          onChoose={choice => {
+            const image = choice.kind === "library" ? { src: choice.asset.url, alt: choice.asset.altText } : { src: choice.url, alt: choice.alt };
+            editor.chain().focus().setImage(image).run();
+            setImageOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

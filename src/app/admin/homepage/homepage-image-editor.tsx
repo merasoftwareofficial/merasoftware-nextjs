@@ -4,10 +4,10 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
-import { MAX_BROWSER_UPLOAD_BYTES } from "@/lib/cloudinary-types";
+import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
 import { LinkPicker } from "@/components/link-picker";
 import type { LinkGroup } from "@/lib/link-options";
-import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset } from "@/lib/repo/types";
+import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset, Role } from "@/lib/repo/types";
 
 type ImageMap = Partial<Record<HomeImageSlot, HomepageImage>>;
 type CopyKey = keyof HomepageContent;
@@ -47,10 +47,13 @@ export function HomepageImageEditor({
   initialImages,
   assets,
   links,
+  role,
 }: {
   initialContent: HomepageContent;
   initialImages: ImageMap;
   assets: MediaAsset[];
+  /** The signed-in user's role; decides upload/library access in the image chooser. */
+  role: Role;
   /** Choices for the link fields (lib/link-options.ts). */
   links: LinkGroup[];
 }) {
@@ -64,11 +67,10 @@ export function HomepageImageEditor({
   const [activeWorkCard, setActiveWorkCard] = useState<number | null>(null);
   const [activeService, setActiveService] = useState<number | null>(null);
   const [activeImageSlot, setActiveImageSlot] = useState<HomeImageSlot | null>(null);
-  const [showLibrary, setShowLibrary] = useState(false);
+  const [chooserSlot, setChooserSlot] = useState<HomeImageSlot | null>(null);
   const [showCrop, setShowCrop] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [library, setLibrary] = useState(assets);
-  const [pendingUpload, setPendingUpload] = useState<{ slot: HomeImageSlot; file: File; width: number; height: number } | null>(null);
   const cropDrag = useRef<{ slot: HomeImageSlot; pointerId: number; startX: number; startY: number; focalX: number; focalY: number; overflowX: number; overflowY: number } | null>(null);
   const { busy, track } = useTask();
   const [message, setMessage] = useState("");
@@ -105,7 +107,7 @@ export function HomepageImageEditor({
     setActiveService(null);
     setActiveWorkCard(null);
     setActiveImageSlot(null);
-    setShowLibrary(false);
+    setChooserSlot(null);
     setShowCrop(false);
     setError("");
     setMessage("");
@@ -130,7 +132,7 @@ export function HomepageImageEditor({
     setActiveService(null);
     setActiveWorkCard(null);
     setActiveImageSlot(null);
-    setShowLibrary(false);
+    setChooserSlot(null);
     setShowCrop(false);
     setError("");
     setMessage("");
@@ -151,17 +153,21 @@ export function HomepageImageEditor({
     setImages(current => ({ ...current, [slot]: { assetId: "", alt: "", focalX: 50, focalY: 50, ...current[slot], ...patch } }));
   }
 
-  function choose(slot: HomeImageSlot, assetId: string) {
-    if (!assetId) {
-      setImages(current => {
-        const next = { ...current };
-        delete next[slot];
-        return next;
-      });
-      return;
-    }
-    const asset = library.find(item => item._id === assetId);
-    setImages(current => ({ ...current, [slot]: { assetId, alt: asset?.altText ?? "", focalX: 50, focalY: 50 } }));
+  function removeImage(slot: HomeImageSlot) {
+    setImages(current => {
+      const next = { ...current };
+      delete next[slot];
+      return next;
+    });
+  }
+
+  /** A website section takes library images only (no outside URL); see imageSourcesFor. */
+  function chooseAsset(slot: HomeImageSlot, asset: MediaAsset, note: string) {
+    setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)]);
+    setImages(current => ({ ...current, [slot]: { assetId: asset._id, alt: asset.altText, focalX: 50, focalY: 50 } }));
+    setShowCrop(false);
+    setError("");
+    setMessage(note);
   }
 
   function startCrop(event: ReactPointerEvent<HTMLDivElement>, slot: HomeImageSlot, asset: MediaAsset, current: HomepageImage) {
@@ -196,52 +202,6 @@ export function HomepageImageEditor({
     update(slot, changes);
   }
 
-  async function uploadForSlot(slot: HomeImageSlot, file: File) {
-    setError("");
-    setMessage("");
-    if (!file.type.startsWith("image/")) return setError("Choose an image file.");
-    if (!file.size || file.size > MAX_BROWSER_UPLOAD_BYTES) return setError("Choose an image up to 4 MB.");
-
-    await track(async () => {
-      try {
-        const form = new FormData();
-        form.set("file", file);
-        form.set("altText", images[slot]?.alt ?? "");
-        const response = await fetch("/api/media/upload", { method: "POST", body: form });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Upload failed.");
-        const { asset, reused } = result as { asset: MediaAsset; reused: boolean };
-        setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)]);
-        setImages(current => ({ ...current, [slot]: { assetId: asset._id, alt: asset.altText, focalX: 50, focalY: 50 } }));
-        setMessage(reused ? "This image was already in the library. It will appear on the website when you save the section." : "Image uploaded to the library. It will appear on the website when you save the section.");
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Upload failed.");
-      }
-    });
-  }
-
-  async function chooseUpload(slot: HomeImageSlot, file: File) {
-    setError("");
-    setMessage("");
-    setPendingUpload(null);
-    if (!file.type.startsWith("image/")) return setError("Choose an image file.");
-    if (!file.size || file.size > MAX_BROWSER_UPLOAD_BYTES) return setError("Choose an image up to 4 MB.");
-
-    try {
-      const bitmap = await createImageBitmap(file);
-      const { width, height } = bitmap;
-      bitmap.close();
-      const guidance = imageSlots.find(item => item.key === slot);
-      if (guidance && (width < guidance.minWidth || height < guidance.minHeight)) {
-        setPendingUpload({ slot, file, width, height });
-        return;
-      }
-      await uploadForSlot(slot, file);
-    } catch {
-      setError("Could not read the image size. Choose a JPG, PNG, WebP, GIF or AVIF image.");
-    }
-  }
-
   function saveSection(nextSection?: CopyKey | null) {
     if (!activeSection || busy) return;
     const section = activeSection;
@@ -270,7 +230,7 @@ export function HomepageImageEditor({
           setActiveService(null);
           setActiveWorkCard(null);
           setActiveImageSlot(null);
-          setShowLibrary(false);
+          setChooserSlot(null);
           setShowCrop(false);
         } else {
           setMessage(`${sections.find(item => item.key === section)?.label ?? "Section"} saved.`);
@@ -426,22 +386,26 @@ export function HomepageImageEditor({
         const asset = library.find(item => item._id === current?.assetId);
         const lowResolution = asset && (asset.width < slot.minWidth || asset.height < slot.minHeight);
         return <article className="homepage-image-slot" key={slot.key}>
-          {activeSection === "work" ? <button className="homepage-slot-toggle" type="button" aria-expanded={activeImageSlot === slot.key} onClick={() => { setActiveImageSlot(current => current === slot.key ? null : slot.key); setShowCrop(false); setShowLibrary(false); }}><span>{slot.label}</span><b>{activeImageSlot === slot.key ? "Close" : "Edit →"}</b></button> : null}
+          {activeSection === "work" ? <button className="homepage-slot-toggle" type="button" aria-expanded={activeImageSlot === slot.key} onClick={() => { setActiveImageSlot(current => current === slot.key ? null : slot.key); setShowCrop(false); setChooserSlot(null); }}><span>{slot.label}</span><b>{activeImageSlot === slot.key ? "Close" : "Edit →"}</b></button> : null}
           {activeSection === "hero" || activeImageSlot === slot.key ? <>
-          <div className="homepage-image-slot-head"><div><h3>{slot.label}</h3><p>{slot.note}</p></div>{current ? <button className="admin-action" type="button" onClick={() => choose(slot.key, "")}>Remove image</button> : null}</div>
+          <div className="homepage-image-slot-head"><div><h3>{slot.label}</h3><p>{slot.note}</p></div>{current ? <button className="admin-action" type="button" onClick={() => removeImage(slot.key)}>Remove image</button> : null}</div>
           <p className="homepage-image-recommendation"><b>Recommended upload:</b> {slot.recommended}<span> · up to 4 MB</span></p>
           {asset ? <img className="homepage-selected-thumb" src={asset.url} alt={current?.alt ?? ""} /> : null}
-          <button className="admin-action" type="button" aria-expanded={showLibrary} onClick={() => setShowLibrary(value => !value)}>Choose from Media Library</button>
-          {showLibrary ? <div className="homepage-library-picker" aria-label="Choose an image from Media Library">
-            {library.length ? library.map(item => <button type="button" key={item._id} aria-pressed={current?.assetId === item._id} onClick={() => { choose(slot.key, item._id); setShowLibrary(false); setShowCrop(false); }}><img src={item.url} alt="" /><span>{item.altText || item.publicId.split("/").at(-1) || "Image"}<small>{item.width} × {item.height} px</small></span></button>) : <p className="field-hint">The library has no images yet. Upload one below.</p>}
-          </div> : null}
-          <label className="admin-button homepage-upload-button">Upload new image
-              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" disabled={busy} onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void chooseUpload(slot.key, file); event.currentTarget.value = ""; }} />
-          </label>
-          {pendingUpload?.slot === slot.key ? <div className="homepage-low-resolution-confirm" role="alert">
-            <p>The selected image is {pendingUpload.width} × {pendingUpload.height} px. The recommended size is {slot.recommended}; it may look blurry on desktop.</p>
-            <div><button className="admin-button" type="button" disabled={busy} onClick={() => { const pending = pendingUpload; setPendingUpload(null); void uploadForSlot(pending.slot, pending.file); }}>Upload anyway</button><button className="admin-action" type="button" onClick={() => setPendingUpload(null)}>Cancel</button></div>
-          </div> : null}
+          <button className="admin-button" type="button" disabled={busy} onClick={() => setChooserSlot(slot.key)}>{current ? "Change image" : "Choose image"}</button>
+          {chooserSlot === slot.key ? <ImageChooser
+            sources={imageSourcesFor(role, { allowUrl: false })}
+            minSize={{ width: slot.minWidth, height: slot.minHeight, recommended: slot.recommended }}
+            onClose={() => setChooserSlot(null)}
+            onChoose={choice => {
+              setChooserSlot(null);
+              if (choice.kind !== "library") return;
+              chooseAsset(slot.key, choice.asset, choice.reused
+                ? "This image was already in the library. It will appear on the website when you save the section."
+                : choice.uploaded
+                  ? "Image uploaded to the library. It will appear on the website when you save the section."
+                  : "Image chosen. It will appear on the website when you save the section.");
+            }}
+          /> : null}
           {asset && current ? <>
             <p className={`homepage-image-resolution${lowResolution ? " is-low" : ""}`} role={lowResolution ? "status" : undefined}>
               Selected image: {asset.width} × {asset.height} px. {lowResolution

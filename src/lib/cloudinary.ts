@@ -73,7 +73,10 @@ export async function uploadCloudinaryImage(bytes: Buffer): Promise<UploadedImag
   });
 }
 
-/** Remove a just-uploaded asset when a concurrent request already stored the same file. */
+/**
+ * Remove an image from Cloudinary: a library delete (api/media/[id]), or a
+ * just-uploaded copy when a concurrent request already stored the same file.
+ */
 export async function deleteCloudinaryImage(publicId: string): Promise<void> {
   try {
     const result = await getCloudinary().uploader.destroy(publicId, { resource_type: "image", type: "upload", invalidate: true });

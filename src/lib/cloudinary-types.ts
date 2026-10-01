@@ -13,3 +13,6 @@ export interface UploadedImage {
   format: string;
   bytes: number;
 }
+
+/** The file picker filter for every image upload; matches cloudinary.ts allowed_formats. */
+export const IMAGE_UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";

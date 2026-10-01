@@ -498,6 +498,24 @@ const media: DataDriver["media"] = {
     write("media", rows);
     return row;
   },
+  async findById(id) {
+    return read<MediaAsset>("media").find(asset => asset._id === id) ?? null;
+  },
+  async updateAltText(id, altText) {
+    const rows = read<MediaAsset>("media");
+    const index = rows.findIndex(asset => asset._id === id);
+    if (index < 0) return null;
+    rows[index] = { ...rows[index], altText, updatedAt: now() };
+    write("media", rows);
+    return rows[index];
+  },
+  async remove(id) {
+    const rows = read<MediaAsset>("media");
+    const next = rows.filter(asset => asset._id !== id);
+    if (next.length === rows.length) return false;
+    write("media", next);
+    return true;
+  },
 };
 
 /* ---------------------------------------------------------------- views -- */

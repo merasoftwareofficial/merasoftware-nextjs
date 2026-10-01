@@ -380,6 +380,11 @@ export interface MediaRepo {
   findByIds(ids: string[]): Promise<MediaAsset[]>;
   findByChecksum(sha256: string): Promise<MediaAsset | null>;
   create(data: Omit<MediaAsset, "_id" | "createdAt" | "updatedAt">): Promise<MediaAsset>;
+  findById(id: string): Promise<MediaAsset | null>;
+  /** Changes the library's default alt text only; places that saved their own alt keep it. */
+  updateAltText(id: string, altText: string): Promise<MediaAsset | null>;
+  /** Removes the library record. The Cloudinary file is the caller's job (api/media/[id]). */
+  remove(id: string): Promise<boolean>;
 }
 
 export interface DataDriver {

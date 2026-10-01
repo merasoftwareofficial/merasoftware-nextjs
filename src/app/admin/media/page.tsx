@@ -1,20 +1,23 @@
 import { AdminHeader } from "@/components/admin-layout";
-import { requireStaffPage } from "@/lib/auth";
+import { atLeast, requireStaffPage } from "@/lib/auth";
+import { findMediaUsage } from "@/lib/media-usage";
 import { MediaUploader } from "./media-uploader";
 import { mediaRepo } from "@/lib/repo";
 
 export default async function Media() {
-  await requireStaffPage("/admin/media", "editor");
+  const user = await requireStaffPage("/admin/media", "editor");
   const assets = await mediaRepo.list();
+  const usage = await findMediaUsage(assets);
+  const items = assets.map(asset => ({ asset, uses: usage.get(asset._id) ?? [] }));
 
   return (
     <main className="admin-main">
       <AdminHeader
         eyebrow="CLOUDINARY MEDIA"
         title="Media library"
-        description="Upload a photo to Cloudinary and check its URL. Uploads go into the merasoftware folder."
+        description="Upload images to Cloudinary and manage them. An image in use shows where it is used and cannot be deleted until it is removed from there."
       />
-      <MediaUploader initialAssets={assets} />
+      <MediaUploader items={items} canDelete={atLeast(user.role, "admin")} />
     </main>
   );
 }
