@@ -48,9 +48,29 @@ export function shareVisible(blog: Blog, settings: Settings) {
   return settings.shareEnabled === true;
 }
 
-/** The post's own address. Always ours, even when the canonical points elsewhere. */
+/**
+ * The post's own address. Always ours, even when the canonical points elsewhere.
+ *
+ * WhatsApp and Telegram cache a link's preview by its exact URL and never re-read
+ * it, so a post shared before it had a photo kept a preview without one. `?v=`
+ * is taken from the featured image URL: a new or changed photo gives a new link
+ * and a fresh preview, while text edits and reactions leave it alone. The page
+ * ignores the parameter and the canonical stays clean.
+ */
 export function shareUrl(blog: Blog) {
-  return `${SITE_URL}/blog/${blog.slug}`;
+  const base = `${SITE_URL}/blog/${blog.slug}`;
+  const image = blog.featuredImage?.url;
+  return image ? `${base}?v=${imageVersion(image)}` : base;
+}
+
+/** A short, stable fingerprint of the image URL (32-bit FNV-1a in base 36). */
+function imageVersion(url: string) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < url.length; i++) {
+    hash ^= url.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 export type ShareButton = { platform: Exclude<SharePlatform, "native">; label: string; href?: string };
