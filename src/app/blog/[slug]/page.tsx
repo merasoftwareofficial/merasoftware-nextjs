@@ -22,7 +22,7 @@ import {
 import { blogRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
 import { shareButtons, shareUrl, shareVisible } from "@/lib/share-rules";
 import { topicPath } from "@/lib/topic-slug";
-import { articleLd, breadcrumbLd, jsonLd, SITE_NAME, SITE_URL } from "@/lib/structured-data";
+import { articleLd, breadcrumbLd, faqLd, jsonLd, ogImageUrl, SITE_NAME, SITE_URL } from "@/lib/structured-data";
 import { formatViews, viewsVisible } from "@/lib/view-rules";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,10 @@ export async function generateMetadata({ params }: Params) {
 
   // A post is its own canonical unless the editor says it first appeared elsewhere.
   const canonical = post.seo?.canonical || `${SITE_URL}/blog/${post.slug}`;
+  // Without a featured image, the generated one (app/og/route.tsx) keeps shares from showing no picture.
+  const image = post.featuredImage?.url
+    ? { url: post.featuredImage.url, alt: post.featuredImage.alt || post.title }
+    : { url: ogImageUrl(post.seo?.title || post.title, post.category), width: 1200, height: 630, alt: post.title };
 
   return {
     title: post.seo?.title || post.title,
@@ -55,8 +59,9 @@ export async function generateMetadata({ params }: Params) {
       siteName: SITE_NAME,
       publishedTime: post.publishedAt,
       authors: [post.authorName],
-      images: post.featuredImage?.url ? [post.featuredImage.url] : undefined,
+      images: [image],
     },
+    twitter: { card: "summary_large_image", title: post.seo?.title || post.title, description: post.seo?.description || post.excerpt, images: [image.url] },
   };
 }
 
@@ -152,7 +157,8 @@ export default async function Article({ params }: Params) {
     <>
       {indexable ? (
         <>
-          <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(articleLd(post, author))} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(articleLd(post, author, settings.organization))} />
+          {faqLd(post) ? <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(faqLd(post)!)} /> : null}
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={jsonLd(
@@ -195,7 +201,7 @@ export default async function Article({ params }: Params) {
                 <img className="article-image" src={post.featuredImage.url} alt={post.featuredImage.alt} />
               ) : null}
             </header>
-            <RichContent content={post.content} />
+            <RichContent content={post.content} toc faqs={post.faqs} />
           </ArticleReader>
           {post.status === "published" ? <ViewBeacon blogId={post._id} /> : null}
           {/* Without scripts the card cannot turn pages, so it shows the whole article instead. */}

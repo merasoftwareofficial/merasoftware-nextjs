@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NavigationProgress } from "@/components/loading/navigation";
-import { SITE_NAME, SITE_URL } from "@/lib/structured-data";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/structured-data";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,9 +17,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "Mera Software | Digital Growth Partner", template: "%s | Mera Software" },
-  description: "Web development, SEO and performance marketing for growing businesses.",
-  openGraph: { title: "Mera Software | Digital Growth Partner", description: "Web development, SEO and performance marketing for growing businesses.", type: "website", siteName: SITE_NAME },
+  title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  // Pages without a share image of their own get the generated one (app/og/route.tsx).
+  openGraph: { title: SITE_TITLE, description: SITE_DESCRIPTION, type: "website", siteName: SITE_NAME, images: [{ url: "/og", width: 1200, height: 630, alt: SITE_TITLE }] },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

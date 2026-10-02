@@ -8,9 +8,11 @@ import { MediaPicker } from "@/components/media-picker";
 import { TagPicker } from "@/components/tag-picker";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { RichContent } from "@/components/editor/rich-content";
+import { SeoChecklist, SeoHint, SerpPreview, focusSeoField } from "@/components/seo-checks";
 import { publishingBriefWarnings } from "@/lib/content-rules";
+import { blogSeoChecks, googleDescription, googleTitle, seoIssues, type SeoField } from "@/lib/seo-rules";
 import { SITE_URL } from "@/lib/structured-data";
-import type { Blog, BlogType, CommentMode, MediaAsset, Role, Settings, ShareMode, TitleSize, ViewMode, Visibility } from "@/lib/repo/types";
+import type { Blog, BlogFaq, BlogType, CommentMode, MediaAsset, Role, Settings, ShareMode, TitleSize, ViewMode, Visibility } from "@/lib/repo/types";
 import styles from "./blog-preview.module.css";
 
 type Draft = {
@@ -33,7 +35,11 @@ type Draft = {
   showViews: ViewMode;
   sharing: ShareMode;
   scheduledFor: string;
+  faqs: BlogFaq[];
 };
+
+/** Most a post may carry (blog-rules.ts). */
+const MAX_FAQS = 12;
 
 function slugify(value: string) {
   return value
@@ -77,6 +83,7 @@ function draftFrom(blog?: Blog): Draft {
     showViews: blog?.showViews ?? "default",
     sharing: blog?.sharing ?? "default",
     scheduledFor: localInput(blog?.scheduledFor),
+    faqs: blog?.faqs ?? [],
   };
 }
 
@@ -111,6 +118,8 @@ export function BlogForm({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<{ action: string; extra: Record<string, unknown> } | null>(null);
   const previewDialog = useRef<HTMLDivElement>(null);
+  /** A field to jump to once the preview has closed (its "Fix" buttons). */
+  const fixAfterClose = useRef<SeoField | null>(null);
   // Only an admin adds to the category list (owner decision); the route checks it too.
   const canAddCategory = role === "admin";
   const [categories, setCategories] = useState(initialCategories);
@@ -159,9 +168,27 @@ export function BlogForm({
     previewDialog.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => {
       root.style.overflow = overflow;
-      opener?.focus();
+      const field = fixAfterClose.current;
+      fixAfterClose.current = null;
+      if (field) focusSeoField(field);
+      else opener?.focus();
     };
   }, [previewOpen]);
+
+  // A "Fix →" link from the review queue or /admin/seo ends in #<field>.
+  useEffect(() => {
+    const field = window.location.hash.slice(1);
+    if (!field) return;
+    // The article editor mounts a moment after the form.
+    const timer = window.setTimeout(() => focusSeoField(field as SeoField), 300);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  /** A "Fix →" in the preview: close it, then go to the field. */
+  function fixFromPreview(field: SeoField) {
+    fixAfterClose.current = field;
+    closePreview();
+  }
 
   /** Escape closes the preview; Tab stays inside it, as in any dialog. */
   function previewKeys(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -211,6 +238,20 @@ export function BlogForm({
 
   const canPublish = role === "editor" || role === "admin";
   const briefWarnings = publishingBriefWarnings(draft.content);
+  const seoInput = {
+    title: draft.title,
+    seoTitle: draft.seoTitle,
+    excerpt: draft.excerpt,
+    seoDescription: draft.seoDescription,
+    slug: draft.slug,
+    imageUrl: draft.imageUrl,
+    imageAlt: draft.imageAlt,
+    content: draft.content,
+  };
+  const seoChecks = blogSeoChecks(seoInput);
+  const seoProblems = seoIssues(seoChecks);
+  const shownTitle = googleTitle(seoInput);
+  const shownDescription = googleDescription(seoInput);
   const commentsSummary = !commentDefaults.commentsEnabled ? "Closed (site-wide)"
     : draft.comments === "default" ? `Site default (${commentDefaults.commentDefault === "pending" ? "Moderated" : "Open"})`
     : draft.comments === "closed" ? "Closed" : draft.comments === "moderated" ? "Moderated" : "Open";
@@ -233,6 +274,7 @@ export function BlogForm({
       tags: draft.tags.split(",").map(tag => tag.trim()).filter(Boolean),
       featuredImage: { url: draft.imageUrl, publicId: draft.imagePublicId, alt: draft.imageAlt },
       seo: { title: draft.seoTitle, description: draft.seoDescription, canonical: draft.canonical },
+      faqs: draft.faqs,
     };
   }
 
@@ -337,6 +379,14 @@ export function BlogForm({
 
   return (
     <form className="admin-form" onSubmit={event => event.preventDefault()}>
+      {/* Live while typing; the same checks run in the review queue and on /admin/seo. */}
+      <details className="seo-summary">
+        <summary className={seoProblems.some(check => check.level === "error") ? "seo-error" : seoProblems.length ? "seo-warning" : "seo-ok"}>
+          SEO checklist — {seoProblems.length ? `${seoProblems.length} to improve` : "all good"}
+        </summary>
+        <SeoChecklist checks={seoChecks} onFix={focusSeoField} />
+      </details>
+
       <div className="form-columns">
         <div className="admin-field">
           <label htmlFor="blog-title">
@@ -363,6 +413,7 @@ export function BlogForm({
             {slugFree === true ? <em className="slug-free"> — available</em> : null}
           </span>
           <input
+            id="blog-slug"
             value={draft.slug}
             onChange={event => {
               set("slugTouched", true);
@@ -370,6 +421,7 @@ export function BlogForm({
             }}
             placeholder="article-url-slug"
           />
+          <SeoHint checks={seoChecks} field="blog-slug" />
         </label>
       </div>
 
@@ -417,18 +469,21 @@ export function BlogForm({
           rows={3}
           placeholder="A concise article summary for readers and search."
         />
+        {/* Google is given this text while the meta description is empty. */}
+        {draft.seoDescription.trim() ? null : <SeoHint checks={seoChecks} field="seo-description" />}
       </label>
 
-      <div className="admin-field">
+      <div className="admin-field" id="blog-content">
         <span>Article content</span>
         <p className="field-hint">Write only what readers should see. Add SEO details, image details and publishing settings in the fields below.</p>
         <TiptapEditor value={draft.content} onChange={content => set("content", content)} imageSources={imageSources} />
         {briefWarnings.length > 0 ? (
           <p className="form-error" role="status">Possible publishing instructions in the article: {briefWarnings.join(", ")}. Review this text before publishing; it will be visible to readers.</p>
         ) : null}
+        <SeoHint checks={seoChecks} field="blog-content" />
       </div>
 
-      <section className="admin-seo">
+      <section className="admin-seo" id="blog-featured-image">
         <h2>Featured image</h2>
         <div className="form-columns">
           <MediaPicker
@@ -453,9 +508,50 @@ export function BlogForm({
           />
           <label className="admin-field">
             <span>Alt text</span>
-            <input value={draft.imageAlt} onChange={event => set("imageAlt", event.target.value)} placeholder="Describe the image" />
+            <input id="blog-image-alt" value={draft.imageAlt} onChange={event => set("imageAlt", event.target.value)} placeholder="Describe the image" />
+            <SeoHint checks={seoChecks} field="blog-image-alt" />
           </label>
         </div>
+        <SeoHint checks={seoChecks} field="blog-featured-image" />
+      </section>
+
+      <section className="admin-seo" id="blog-faqs">
+        <h2>FAQs</h2>
+        <p className="field-hint">
+          Optional. Short questions readers search for, each answered in a few sentences. They appear after the article and are marked up for search and AI
+          engines. Leave a row half empty and it is dropped on save.
+        </p>
+        {draft.faqs.map((faq, index) => (
+          <div className="faq-row" key={index}>
+            <label className="admin-field">
+              <span>Question {index + 1}</span>
+              <input
+                value={faq.question}
+                maxLength={200}
+                onChange={event => set("faqs", draft.faqs.map((row, i) => (i === index ? { ...row, question: event.target.value } : row)))}
+                placeholder="e.g. How long does a website take to build?"
+              />
+            </label>
+            <label className="admin-field">
+              <span>Answer</span>
+              <textarea
+                value={faq.answer}
+                maxLength={1500}
+                rows={3}
+                onChange={event => set("faqs", draft.faqs.map((row, i) => (i === index ? { ...row, answer: event.target.value } : row)))}
+                placeholder="Answer directly in the first sentence."
+              />
+            </label>
+            <button className="admin-action" type="button" onClick={() => set("faqs", draft.faqs.filter((_, i) => i !== index))}>
+              Remove
+            </button>
+          </div>
+        ))}
+        {draft.faqs.length < MAX_FAQS ? (
+          <button className="admin-action" type="button" onClick={() => set("faqs", [...draft.faqs, { question: "", answer: "" }])}>
+            + Add a question
+          </button>
+        ) : null}
       </section>
 
       <section className="admin-seo">
@@ -463,7 +559,8 @@ export function BlogForm({
         <div className="form-columns">
           <label className="admin-field">
             <span>SEO title</span>
-            <input value={draft.seoTitle} onChange={event => set("seoTitle", event.target.value)} placeholder="Page title for Google" />
+            <input id="seo-title" value={draft.seoTitle} onChange={event => set("seoTitle", event.target.value)} placeholder="Page title for Google" />
+            <SeoHint checks={seoChecks} field="seo-title" />
           </label>
           <label className="admin-field">
             <span>Visibility</span>
@@ -478,12 +575,16 @@ export function BlogForm({
         <label className="admin-field">
           <span>Meta description</span>
           <textarea
+            id="seo-description"
             value={draft.seoDescription}
             onChange={event => set("seoDescription", event.target.value)}
             rows={2}
             placeholder="Search result summary"
           />
+          <SeoHint checks={seoChecks} field="seo-description" />
         </label>
+
+        <SerpPreview path={`/blog/${draft.slug || "article-url"}`} title={shownTitle} description={shownDescription} />
         {/* The post's own address is used automatically; this only overrides it. */}
         <details className="admin-advanced" open={!!draft.canonical}>
           <summary>Advanced</summary>
@@ -556,13 +657,25 @@ export function BlogForm({
               </button>
               {reviewAction ? (
                 <button className="admin-button" type="button" disabled={busy} onClick={() => runAction(reviewAction.action, reviewAction.extra, true)}>
-                  {busy ? "Working…" : reviewAction.action === "schedule" ? "Confirm schedule" : reviewAction.action === "save-draft" ? "Confirm update" : "Confirm publish"}
+                  {busy ? "Working…" : `${reviewAction.action === "schedule" ? "Confirm schedule" : reviewAction.action === "save-draft" ? "Confirm update" : "Confirm publish"}${seoProblems.length ? " anyway" : ""}`}
                 </button>
               ) : null}
             </div>
             {error ? <p className="form-error" role="alert">{error}</p> : null}
           </div>
           <div className={`blog-preview-body ${styles.preview}`}>
+            {/* Shown once, before the post goes live; nothing is blocked (owner decision). */}
+            {seoProblems.length ? (
+              <div className="seo-review" role="status">
+                <p>
+                  <b>
+                    {seoProblems.length} SEO issue{seoProblems.length === 1 ? "" : "s"} on this article.
+                  </b>{" "}
+                  {reviewAction ? "Fix them first, or go ahead anyway." : "Fix them before publishing."}
+                </p>
+                <SeoChecklist checks={seoProblems} onFix={fixFromPreview} />
+              </div>
+            ) : null}
             <details className="blog-preview-details">
               <summary>SEO &amp; publishing details</summary>
               <dl>
@@ -583,7 +696,7 @@ export function BlogForm({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={draft.imageUrl} alt={draft.imageAlt} style={{ maxWidth: "100%" }} />
               ) : null}
-              <RichContent content={draft.content} />
+              <RichContent content={draft.content} toc faqs={draft.faqs} />
             </article>
           </div>
         </div>

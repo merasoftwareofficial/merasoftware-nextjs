@@ -2,6 +2,7 @@ import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { atLeast, requireStaffPage } from "@/lib/auth";
 import { activeDriver, blogRepo, commentRepo, reportRepo } from "@/lib/repo";
+import { seoAudit } from "@/lib/seo-audit";
 
 export const metadata = { title: "Admin workspace" };
 
@@ -16,15 +17,19 @@ export const metadata = { title: "Admin workspace" };
 export default async function Admin() {
   const user = await requireStaffPage("/admin");
 
-  // Five independent counts, read together rather than one after another.
+  // Independent counts, read together rather than one after another.
   const canReview = atLeast(user.role, "moderator");
-  const [published, pendingPosts, pendingComments, openReports, mine] = await Promise.all([
+  // The SEO count is for those who can fix it (/admin/seo is editor-only).
+  const canFixSeo = atLeast(user.role, "editor");
+  const [published, pendingPosts, pendingComments, openReports, mine, seoRows] = await Promise.all([
     blogRepo.count({ status: "published" }),
     canReview ? blogRepo.count({ status: "pending" }) : 0,
     canReview ? commentRepo.list("pending").then(rows => rows.length) : 0,
     canReview ? reportRepo.list(false).then(rows => rows.length) : 0,
     blogRepo.count({ authorId: user._id }),
+    canFixSeo ? seoAudit() : [],
   ]);
+  const seoIssueCount = seoRows.reduce((sum, row) => sum + row.issues.length, 0);
 
   const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -65,6 +70,13 @@ export default async function Admin() {
               <small>{openReports ? `${openReports} open report${openReports === 1 ? "" : "s"}` : "No open reports"}</small>
             </div>
           </>
+        ) : null}
+        {canFixSeo ? (
+          <Link className="admin-stat" href="/admin/seo">
+            <span>SEO ISSUES</span>
+            <strong>{pad(seoIssueCount)}</strong>
+            <small>{seoIssueCount ? `On ${seoRows.length} item${seoRows.length === 1 ? "" : "s"} — open SEO health →` : "Everything checked passes"}</small>
+          </Link>
         ) : null}
       </div>
 

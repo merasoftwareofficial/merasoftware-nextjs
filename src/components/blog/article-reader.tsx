@@ -143,17 +143,23 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
     };
   }, [measure]);
 
-  // A link to #page-3 opens that page once the pages are known.
+  // A link to #page-3 opens that page once the pages are known, and a link to
+  // a heading (the table of contents, rich-content.tsx) opens the page it is on.
   useEffect(() => {
     if (!pageOf) return;
     const open = () => {
       const match = PAGE_HASH.exec(window.location.hash);
-      if (match) setPage(Math.min(Number(match[1]), count) - 1);
+      if (match) return setPage(Math.min(Number(match[1]), count) - 1);
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const target = id ? area.current?.querySelector(`[id="${CSS.escape(id)}"]`) : null;
+      if (!target) return;
+      const index = blocks().findIndex(block => block.contains(target));
+      if (index >= 0 && pageOf[index] !== undefined) setPage(pageOf[index]);
     };
     open();
     window.addEventListener("hashchange", open);
     return () => window.removeEventListener("hashchange", open);
-  }, [pageOf, count]);
+  }, [pageOf, count, blocks]);
 
   // Show only this page's blocks.
   useEffect(() => {

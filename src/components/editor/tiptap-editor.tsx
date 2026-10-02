@@ -46,6 +46,9 @@ export function TiptapEditor({
   const [imageOpen, setImageOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkRel, setLinkRel] = useState<LinkRel>("normal");
+  // null = closed; otherwise the alt text being edited for the selected image.
+  const [altDraft, setAltDraft] = useState<string | null>(null);
+  const [altNote, setAltNote] = useState("");
 
   const editor = useEditor({
     extensions: editorExtensions,
@@ -77,6 +80,26 @@ export function TiptapEditor({
     setLinkUrl("");
   }
 
+  /**
+   * Alt text of an image already in the article. The toolbar does not
+   * re-render on selection (Tiptap 3 default), so the selection is read on click.
+   */
+  function openAlt() {
+    if (!editor) return;
+    if (!editor.isActive("image")) {
+      setAltDraft(null);
+      setAltNote("Click an image in the article first, then press Image alt.");
+      return;
+    }
+    setAltNote("");
+    setAltDraft(String(editor.getAttributes("image").alt ?? ""));
+  }
+
+  function applyAlt() {
+    if (!editor || altDraft === null) return;
+    editor.chain().focus().updateAttributes("image", { alt: altDraft.trim() }).run();
+    setAltDraft(null);
+  }
 
   return (
     <div className="tiptap-wrap">
@@ -130,6 +153,9 @@ export function TiptapEditor({
           <button type="button" onClick={() => setImageOpen(true)} title="Insert image">
             Image
           </button>
+          <button type="button" onClick={openAlt} title="Alt text of the selected image">
+            Image alt
+          </button>
 
           <span className="tiptap-divider" />
 
@@ -163,6 +189,32 @@ export function TiptapEditor({
               Apply
             </button>
           </div>
+        ) : null}
+
+        {altDraft !== null ? (
+          <div className="tiptap-link-bar">
+            <input
+              autoFocus
+              value={altDraft}
+              maxLength={160}
+              onChange={event => setAltDraft(event.target.value)}
+              placeholder="Describe what the image shows"
+              onKeyDown={event => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applyAlt();
+                }
+              }}
+            />
+            <button type="button" className="admin-button" onClick={applyAlt}>
+              Apply
+            </button>
+            <button type="button" className="admin-action" onClick={() => setAltDraft(null)}>
+              Cancel
+            </button>
+          </div>
+        ) : altNote ? (
+          <p className="field-hint" role="status">{altNote}</p>
         ) : null}
       </div>
 

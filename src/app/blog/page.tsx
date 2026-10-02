@@ -8,7 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import { robotsFor } from "@/lib/indexability";
 import { listingIndexable } from "@/lib/indexable-posts";
-import { blogRepo, viewRepo } from "@/lib/repo";
+import { blogRepo, settingsRepo, viewRepo } from "@/lib/repo";
 import { breadcrumbLd, jsonLd, organisationLd } from "@/lib/structured-data";
 import { dayKey } from "@/lib/view-rules";
 
@@ -53,9 +53,11 @@ export default async function BlogPage({ searchParams }: Search) {
       .slice(0, 3);
   }
 
+  const { organization } = await settingsRepo.get();
+
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(organisationLd())} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(organisationLd(organization))} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLd(

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { v2 as cloudinary } from "cloudinary";
-import { MAX_IMAGE_UPLOAD_BYTES, type UploadedImage } from "./cloudinary-types";
+import { MAX_IMAGE_UPLOAD_BYTES, MAX_VIDEO_UPLOAD_BYTES, type UploadedImage } from "./cloudinary-types";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -73,13 +73,32 @@ export async function uploadCloudinaryImage(bytes: Buffer): Promise<UploadedImag
   });
 }
 
+/** Upload MP4/WebM bytes as a Cloudinary video resource. */
+export async function uploadCloudinaryVideo(bytes: Buffer): Promise<UploadedImage> {
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0) throw new Error("Choose a non-empty video file.");
+  if (bytes.length > MAX_VIDEO_UPLOAD_BYTES) throw new Error("Videos must be 50 MB or smaller.");
+  const client = getCloudinary();
+  const assetFolder = requiredEnv("CLOUDINARY_ASSET_FOLDER");
+  return new Promise((resolve, reject) => {
+    const stream = client.uploader.upload_stream({
+      resource_type: "video", type: "upload", asset_folder: assetFolder,
+      allowed_formats: ["mp4", "webm"], overwrite: false, timeout: 120_000,
+    }, (error, result) => {
+      if (error || !result) return reject(new Error("Cloudinary video upload failed. Please try again."));
+      resolve({ url: result.secure_url, publicId: result.public_id, assetId: result.asset_id, assetFolder: result.asset_folder, width: result.width, height: result.height, format: result.format, bytes: result.bytes });
+    });
+    stream.on("error", () => reject(new Error("Cloudinary video upload failed. Please try again.")));
+    stream.end(bytes);
+  });
+}
+
 /**
  * Remove an image from Cloudinary: a library delete (api/media/[id]), or a
  * just-uploaded copy when a concurrent request already stored the same file.
  */
-export async function deleteCloudinaryImage(publicId: string): Promise<void> {
+export async function deleteCloudinaryImage(publicId: string, kind: "image" | "video" = "image"): Promise<void> {
   try {
-    const result = await getCloudinary().uploader.destroy(publicId, { resource_type: "image", type: "upload", invalidate: true });
+    const result = await getCloudinary().uploader.destroy(publicId, { resource_type: kind, type: "upload", invalidate: true });
     if (result.result !== "ok" && result.result !== "not found") {
       throw new Error("Cloudinary cleanup did not complete.");
     }

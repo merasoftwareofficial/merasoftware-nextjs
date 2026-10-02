@@ -3,6 +3,7 @@ import { AdminHeader } from "@/components/admin-layout";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { atLeast, requireStaffPage } from "@/lib/auth";
 import { blogRepo } from "@/lib/repo";
+import { blogSeoChecks, seoInputOf, seoIssues } from "@/lib/seo-rules";
 import { ReviewActions } from "./review-actions";
 
 export const metadata = { title: "Review queue" };
@@ -97,7 +98,7 @@ export default async function ReviewQueue() {
                 <RichContent content={post.content} />
               </details>
 
-              <ReviewActions id={post._id} type={post.type} />
+              <ReviewActions id={post._id} type={post.type} slug={post.slug} seoIssues={seoIssues(blogSeoChecks(seoInputOf(post)))} />
             </article>
           ))}
         </div>

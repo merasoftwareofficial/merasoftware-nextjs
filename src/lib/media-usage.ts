@@ -1,5 +1,6 @@
 import "server-only";
 
+import { pageSeoPage } from "@/lib/page-seo";
 import { blogRepo, settingsRepo } from "@/lib/repo";
 import type { Blog, HomeImageSlot, MediaAsset } from "@/lib/repo/types";
 
@@ -53,6 +54,15 @@ export async function findMediaUsage(assets: MediaAsset[]): Promise<Map<string, 
 
   for (const [slot, image] of Object.entries(settings.homepageImages ?? {}) as [HomeImageSlot, { assetId: string } | undefined][]) {
     if (image) usage.get(image.assetId)?.push({ label: HOMEPAGE_SLOTS[slot] ?? `Homepage → ${slot}`, href: "/admin/homepage" });
+  }
+
+  const logo = settings.organization?.logoUrl;
+  if (logo) for (const asset of assets) if (pointsAt(logo, asset)) usage.get(asset._id)!.push({ label: "Page SEO → Business logo", href: "/admin/page-seo?page=organization" });
+
+  for (const [key, seo] of Object.entries(settings.pageSeo ?? {})) {
+    if (!seo?.imageUrl) continue;
+    const label = `Page SEO → ${pageSeoPage(key)?.label ?? key} share image`;
+    for (const asset of assets) if (pointsAt(seo.imageUrl, asset)) usage.get(asset._id)!.push({ label, href: `/admin/page-seo?page=${key}` });
   }
 
   for (const blog of blogs) {

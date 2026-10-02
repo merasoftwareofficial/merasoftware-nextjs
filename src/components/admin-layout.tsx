@@ -11,7 +11,7 @@ const navigation: [label: string, href: string, minimum: Role][] = [
   ["Homepage", "/admin/homepage", "editor"], ["Services", "/admin/services", "editor"],
   ["Portfolio", "/admin/portfolio", "editor"], ["Testimonials", "/admin/testimonials", "editor"],
   ["FAQs", "/admin/faqs", "editor"], ["Leads", "/admin/leads", "editor"],
-  ["Media library", "/admin/media", "editor"], ["Site settings", "/admin/settings", "admin"],
+  ["Media library", "/admin/media", "editor"], ["SEO health", "/admin/seo", "editor"], ["Page SEO", "/admin/page-seo", "editor"], ["Site settings", "/admin/settings", "admin"],
   ["Users", "/admin/users", "admin"],
 ];
 

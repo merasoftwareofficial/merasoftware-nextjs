@@ -39,6 +39,8 @@ const SettingsSchema = new Schema({
   categoriesSeeded: { type: Boolean, default: false },
   homepageImages: { type: Schema.Types.Mixed, default: {} },
   homepageContent: { type: Schema.Types.Mixed },
+  pageSeo: { type: Schema.Types.Mixed, default: {} },
+  organization: { type: Schema.Types.Mixed },
 }, { timestamps: true, _id: false });
 
 export const Comment = models.Comment || model("Comment", CommentSchema);

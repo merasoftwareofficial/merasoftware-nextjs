@@ -1,23 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
+import { SeoHint, focusSeoField } from "@/components/seo-checks";
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { IMAGE_UPLOAD_ACCEPT } from "@/lib/cloudinary-types";
 import { imageFileProblem, uploadToLibrary } from "@/lib/media-upload";
 import type { MediaUse } from "@/lib/media-usage";
 import type { MediaAsset } from "@/lib/repo/types";
+import { mediaSeoChecks } from "@/lib/seo-rules";
 
 type Item = { asset: MediaAsset; uses: MediaUse[] };
 
-export function MediaUploader({ items, canDelete }: { items: Item[]; canDelete: boolean }) {
+export function MediaUploader({ items, canDelete, focusId }: { items: Item[]; canDelete: boolean; focusId?: string }) {
   const navigation = useNavigate();
   const input = useRef<HTMLInputElement>(null);
   const { busy, track } = useTask();
   const [error, setError] = useState("");
   const [altText, setAltText] = useState("");
   const [uploaded, setUploaded] = useState<{ asset: MediaAsset; reused: boolean } | null>(null);
-  const [view, setView] = useState<"unused" | "used">("unused");
+  // Opens on the tab holding the image a "Fix →" link points at.
+  const [view, setView] = useState<"unused" | "used">(() => (items.find(item => item.asset._id === focusId)?.uses.length ? "used" : "unused"));
   const [search, setSearch] = useState("");
 
   async function upload(file: File) {
@@ -90,7 +93,7 @@ export function MediaUploader({ items, canDelete }: { items: Item[]; canDelete: 
         </p>
         {shown.length ? (
           <div className="media-grid">
-            {shown.map(item => <MediaCard key={item.asset._id} item={item} canDelete={canDelete} />)}
+            {shown.map(item => <MediaCard key={item.asset._id} item={item} canDelete={canDelete} focused={item.asset._id === focusId} />)}
           </div>
         ) : (
           <div className="admin-empty">
@@ -102,10 +105,15 @@ export function MediaUploader({ items, canDelete }: { items: Item[]; canDelete: 
   );
 }
 
-function MediaCard({ item: { asset, uses }, canDelete }: { item: Item; canDelete: boolean }) {
+function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item: Item; canDelete: boolean; focused?: boolean }) {
   const navigation = useNavigate();
   const { busy, track } = useTask();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(focused);
+  const altId = `media-alt-${asset._id}`;
+
+  useEffect(() => {
+    if (focused) focusSeoField(altId);
+  }, [focused, altId]);
   const [alt, setAlt] = useState(asset.altText);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -166,6 +174,7 @@ function MediaCard({ item: { asset, uses }, canDelete }: { item: Item; canDelete
       <img src={asset.url} alt={asset.altText} loading="lazy" />
       <div>
         <b>{asset.altText || "Alt text not set"}</b>
+        {editing ? null : <SeoHint checks={mediaSeoChecks(asset).filter(check => check.level !== "ok")} field="image-alt" />}
         <small>{asset.width} × {asset.height} · {asset.format.toUpperCase()} · {Math.round(asset.bytes / 1024)} KB</small>
         <small>Uploaded {new Date(asset.createdAt).toLocaleDateString()}</small>
         {places.length ? (
@@ -178,7 +187,8 @@ function MediaCard({ item: { asset, uses }, canDelete }: { item: Item; canDelete
           <div className="media-alt-edit">
             <label className="admin-field">
               <span>Default alt text</span>
-              <input value={alt} maxLength={300} onChange={event => setAlt(event.target.value)} />
+              <input id={altId} value={alt} maxLength={300} onChange={event => setAlt(event.target.value)} />
+              <SeoHint checks={mediaSeoChecks({ altText: alt })} field="image-alt" />
             </label>
             <p className="field-hint">Changes the library default only. Places that already saved their own alt text keep it.</p>
             <div className="media-card-actions">

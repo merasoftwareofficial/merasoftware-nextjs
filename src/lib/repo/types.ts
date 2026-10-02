@@ -59,6 +59,8 @@ export interface MediaAsset {
   format: string;
   bytes: number;
   altText: string;
+  /** Images include animated GIFs; videos are muted looping MP4/WebM assets. */
+  kind?: "image" | "video";
   createdAt: string;
   updatedAt: string;
 }
@@ -89,6 +91,12 @@ export interface Seo {
   title: string;
   description: string;
   canonical: string;
+}
+
+/** One question and answer shown at the end of a post, with FAQPage data (structured-data.ts). */
+export interface BlogFaq {
+  question: string;
+  answer: string;
 }
 
 export interface Blog {
@@ -127,6 +135,8 @@ export interface Blog {
   sharing?: ShareMode;
   /** Title size on the post's page. Absent means "large". */
   titleSize?: TitleSize;
+  /** Questions and answers shown after the article. Absent on older posts. */
+  faqs?: BlogFaq[];
   /** Counted clicks on this post's related posts and page buttons (click-rules.ts). Admin only. */
   clickCount?: number;
   createdAt: string;
@@ -350,6 +360,25 @@ export interface ReportRepo {
  * One row, id "site". Kept as a named shape rather than a free key/value bag
  * so a reader of this file can see every setting that exists.
  */
+/**
+ * An editor's search details for one site page (lib/page-seo.ts lists the
+ * pages). An empty field means the page's built-in default is used.
+ */
+export interface PageSeo {
+  title: string;
+  description: string;
+  /** Share image for search and social previews; empty = the generated one. */
+  imageUrl: string;
+  imageAlt: string;
+}
+
+export interface OrganizationSeo {
+  /** A square logo image, at least 112 × 112 px. Empty = none sent. */
+  logoUrl: string;
+  /** The business's own profiles elsewhere (LinkedIn, Instagram…), as full URLs. */
+  sameAs: string[];
+}
+
 export interface Settings {
   _id: string;
   /** Status a new comment is created with when its post says "default". */
@@ -366,6 +395,10 @@ export interface Settings {
   categoriesSeeded: boolean;
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
   homepageContent?: HomepageContent;
+  /** Keyed by page (PAGE_SEO_PAGES in lib/page-seo.ts). */
+  pageSeo?: Partial<Record<string, PageSeo>>;
+  /** The business as search engines describe it (Organization data, structured-data.ts). */
+  organization?: OrganizationSeo;
   updatedAt: string;
 }
 

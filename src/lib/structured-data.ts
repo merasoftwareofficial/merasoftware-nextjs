@@ -10,7 +10,7 @@
  * penalises. The caller decides; jsonLd() below is only the renderer.
  */
 
-import type { Blog, User } from "@/lib/repo";
+import type { Blog, OrganizationSeo, User } from "@/lib/repo";
 
 /**
  * The site's one public address. Vercel redirects merasoftware.com to www
@@ -20,22 +20,53 @@ import type { Blog, User } from "@/lib/repo";
  */
 export const SITE_URL = "https://www.merasoftware.com";
 export const SITE_NAME = "Mera Software";
+/** The homepage title and the description every page without its own falls back to. */
+export const SITE_TITLE = "Mera Software | Digital Growth Partner";
+export const SITE_DESCRIPTION = "Web development, SEO and performance marketing for growing businesses.";
 
-/** The publisher block every Article repeats. */
-const publisher = {
-  "@type": "Organization",
-  name: SITE_NAME,
-  url: SITE_URL,
-};
+/** The generated share image for a title (app/og/route.tsx). */
+export function ogImageUrl(title: string, label?: string) {
+  return `${SITE_URL}/og?${new URLSearchParams({ title, ...(label ? { label } : {}) })}`;
+}
 
-export function organisationLd() {
+/**
+ * The publisher block every Article repeats. `organization` is what the
+ * editors saved at /admin/page-seo; the logo is left out until there is one.
+ */
+function publisher(organization?: OrganizationSeo) {
   return {
-    "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
+    logo: organization?.logoUrl ? { "@type": "ImageObject", url: organization.logoUrl } : undefined,
+  };
+}
+
+export function organisationLd(organization?: OrganizationSeo) {
+  return {
+    "@context": "https://schema.org",
+    ...publisher(organization),
     email: "contact@merasoftware.com",
-    description: "Web development, SEO and performance marketing for growing businesses.",
+    description: SITE_DESCRIPTION,
+    sameAs: organization?.sameAs.length ? organization.sameAs : undefined,
+  };
+}
+
+/**
+ * FAQPage data for a post's questions. Google shows FAQ rich results only for
+ * a few authoritative sites since 2023, but the markup still tells search and
+ * AI engines which answer belongs to which question.
+ */
+export function faqLd(post: Pick<Blog, "faqs">) {
+  if (!post.faqs?.length) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: post.faqs.map(faq => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
+    })),
   };
 }
 
@@ -45,7 +76,7 @@ export function organisationLd() {
  * `author` is a Person pointing at the member profile when the author still
  * exists, so the byline, the profile page and this markup all agree.
  */
-export function articleLd(post: Blog, author: User | null) {
+export function articleLd(post: Blog, author: User | null, organization?: OrganizationSeo) {
   return {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -55,7 +86,8 @@ export function articleLd(post: Blog, author: User | null) {
     mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/blog/${post.slug}` },
     datePublished: post.publishedAt,
     dateModified: post.updatedAt,
-    image: post.featuredImage?.url || undefined,
+    // Google wants an image on every article; the generated one stands in.
+    image: post.featuredImage?.url || ogImageUrl(post.seo?.title || post.title, post.category),
     keywords: post.tags.length ? post.tags.join(", ") : undefined,
     articleSection: post.category || undefined,
     author: {
@@ -63,7 +95,7 @@ export function articleLd(post: Blog, author: User | null) {
       name: post.authorName,
       url: author ? `${SITE_URL}/members/${author.username}` : undefined,
     },
-    publisher,
+    publisher: publisher(organization),
   };
 }
 

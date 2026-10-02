@@ -6,6 +6,8 @@ import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
 import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
 import { LinkPicker } from "@/components/link-picker";
+import { SeoHint, focusSeoField } from "@/components/seo-checks";
+import { homepageImageSeoChecks } from "@/lib/seo-rules";
 import type { LinkGroup } from "@/lib/link-options";
 import type { HomeImageSlot, HomepageContent, HomepageImage, MediaAsset, Role } from "@/lib/repo/types";
 
@@ -48,6 +50,7 @@ export function HomepageImageEditor({
   assets,
   links,
   role,
+  focusSlot,
 }: {
   initialContent: HomepageContent;
   initialImages: ImageMap;
@@ -56,17 +59,19 @@ export function HomepageImageEditor({
   role: Role;
   /** Choices for the link fields (lib/link-options.ts). */
   links: LinkGroup[];
+  /** Opens this slot's image settings with its alt text focused ("Fix →" on /admin/seo). */
+  focusSlot?: HomeImageSlot;
 }) {
   const [content, setContent] = useState(initialContent);
   const [images, setImages] = useState<ImageMap>(initialImages);
   const [savedContent, setSavedContent] = useState(initialContent);
   const [savedImages, setSavedImages] = useState<ImageMap>(initialImages);
-  const [activeSection, setActiveSection] = useState<CopyKey | null>(null);
+  const [activeSection, setActiveSection] = useState<CopyKey | null>(focusSlot ? (focusSlot === "hero" ? "hero" : "work") : null);
   const [pendingSection, setPendingSection] = useState<CopyKey | null | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<"content" | "images">("content");
+  const [activeTab, setActiveTab] = useState<"content" | "images">(focusSlot ? "images" : "content");
   const [activeWorkCard, setActiveWorkCard] = useState<number | null>(null);
   const [activeService, setActiveService] = useState<number | null>(null);
-  const [activeImageSlot, setActiveImageSlot] = useState<HomeImageSlot | null>(null);
+  const [activeImageSlot, setActiveImageSlot] = useState<HomeImageSlot | null>(focusSlot ?? null);
   const [chooserSlot, setChooserSlot] = useState<HomeImageSlot | null>(null);
   const [showCrop, setShowCrop] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
@@ -75,6 +80,10 @@ export function HomepageImageEditor({
   const { busy, track } = useTask();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (focusSlot) focusSeoField(`home-image-alt-${focusSlot}`);
+  }, [focusSlot]);
 
   const sectionImageSlots = (section: CopyKey | null) => section === "hero" ? ["hero"] as HomeImageSlot[]
     : section === "work" ? ["work-northstar", "work-oasis"] as HomeImageSlot[] : [];
@@ -378,7 +387,7 @@ export function HomepageImageEditor({
 
     {activeTab === "images" && sectionImageSlots(activeSection).length ? <section className="admin-form homepage-image-editor">
       <div className="homepage-image-heading">
-        <div><h2>Section images</h2><p>The original image stays unchanged in the library. The crop position is saved with this section.</p></div>
+        <div><h2>Section media</h2><p>Choose a still image, animated GIF or muted looping video. Image crop position is saved with this section.</p></div>
         <Link className="admin-action" href="/admin/media">Open media library ↗</Link>
       </div>
       {imageSlots.filter(slot => sectionImageSlots(activeSection).includes(slot.key)).map(slot => {
@@ -389,8 +398,8 @@ export function HomepageImageEditor({
           {activeSection === "work" ? <button className="homepage-slot-toggle" type="button" aria-expanded={activeImageSlot === slot.key} onClick={() => { setActiveImageSlot(current => current === slot.key ? null : slot.key); setShowCrop(false); setChooserSlot(null); }}><span>{slot.label}</span><b>{activeImageSlot === slot.key ? "Close" : "Edit →"}</b></button> : null}
           {activeSection === "hero" || activeImageSlot === slot.key ? <>
           <div className="homepage-image-slot-head"><div><h3>{slot.label}</h3><p>{slot.note}</p></div>{current ? <button className="admin-action" type="button" onClick={() => removeImage(slot.key)}>Remove image</button> : null}</div>
-          <p className="homepage-image-recommendation"><b>Recommended upload:</b> {slot.recommended}<span> · up to 4 MB</span></p>
-          {asset ? <img className="homepage-selected-thumb" src={asset.url} alt={current?.alt ?? ""} /> : null}
+          <p className="homepage-image-recommendation"><b>Recommended image:</b> {slot.recommended}<span> · images up to 4 MB; MP4/WebM videos up to 50 MB</span></p>
+          {asset ? asset.kind === "video" ? <video className="homepage-selected-thumb" src={asset.url} muted loop autoPlay playsInline /> : <img className="homepage-selected-thumb" src={asset.url} alt={current?.alt ?? ""} /> : null}
           <button className="admin-button" type="button" disabled={busy} onClick={() => setChooserSlot(slot.key)}>{current ? "Change image" : "Choose image"}</button>
           {chooserSlot === slot.key ? <ImageChooser
             sources={imageSourcesFor(role, { allowUrl: false })}
@@ -412,9 +421,9 @@ export function HomepageImageEditor({
                 ? `Recommended at least ${slot.minWidth} × ${slot.minHeight} px for a sharp desktop display; check the preview before you decide.`
                 : "The resolution is fine for desktop display."}
             </p>
-            <button className="admin-action" type="button" aria-expanded={showCrop} onClick={() => setShowCrop(value => !value)}>{showCrop ? "Close crop controls" : "Adjust crop and preview"}</button>
-            <label className="admin-field"><span>Alt text (an accessible description of the image)</span><input value={current.alt} maxLength={300} onChange={event => update(slot.key, { alt: event.target.value })} placeholder="What does the image show?" /></label>
-            {showCrop ? <><p className="field-hint">Desktop and mobile use the same crop position.</p>
+            {asset.kind !== "video" ? <button className="admin-action" type="button" aria-expanded={showCrop} onClick={() => setShowCrop(value => !value)}>{showCrop ? "Close crop controls" : "Adjust crop and preview"}</button> : <p className="field-hint">Video will play muted and loop continuously.</p>}
+            <label className="admin-field"><span>Alt text (an accessible description of the image)</span><input id={`home-image-alt-${slot.key}`} value={current.alt} maxLength={300} onChange={event => update(slot.key, { alt: event.target.value })} placeholder="What does the image show?" /><SeoHint checks={homepageImageSeoChecks(current, slot.key)} field="image-alt" /></label>
+            {showCrop && asset.kind !== "video" ? <><p className="field-hint">Desktop and mobile use the same crop position.</p>
             <div className="homepage-device-switch"><button type="button" aria-pressed={previewDevice === "desktop"} onClick={() => setPreviewDevice("desktop")}>Desktop</button><button type="button" aria-pressed={previewDevice === "mobile"} onClick={() => setPreviewDevice("mobile")}>Mobile</button></div>
             <div className="homepage-crop-preview">
               <div><span>{previewDevice === "desktop" ? "Desktop" : "Mobile"} preview</span><div className={`homepage-crop-frame${slot.key === "hero" ? " is-hero" : ""}`} style={{ aspectRatio: previewDevice === "desktop" ? slot.desktopRatio : slot.mobileRatio }} role="application" aria-label={`${slot.label} crop preview. Drag to position, or use arrow keys.`} tabIndex={0} onPointerDown={event => startCrop(event, slot.key, asset, current)} onPointerMove={event => moveCrop(event, slot.key)} onPointerUp={() => { cropDrag.current = null; }} onPointerCancel={() => { cropDrag.current = null; }} onKeyDown={event => keyboardCrop(event, slot.key, current)}>

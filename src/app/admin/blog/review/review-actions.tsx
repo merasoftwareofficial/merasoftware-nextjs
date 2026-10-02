@@ -11,10 +11,12 @@
 
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
+import { SeoChecklist } from "@/components/seo-checks";
+import type { SeoCheck } from "@/lib/seo-rules";
 
-type Decision = "reject" | "request-changes";
+type Decision = "reject" | "request-changes" | "approve";
 
-export function ReviewActions({ id, type }: { id: string; type: string }) {
+export function ReviewActions({ id, type, slug, seoIssues }: { id: string; type: string; slug: string; seoIssues: SeoCheck[] }) {
   const router = useNavigate();
 
   // Community and discussion posts stay out of search unless the moderator
@@ -46,6 +48,33 @@ export function ReviewActions({ id, type }: { id: string; type: string }) {
       // The post leaves the pending queue, so the list has to be re-fetched.
       router.refresh();
     });
+
+  // SEO issues are shown once before approving; the moderator may approve anyway.
+  if (asking === "approve") {
+    return (
+      <div className="review-decision seo-review">
+        <p>
+          <b>
+            {seoIssues.length} SEO issue{seoIssues.length === 1 ? "" : "s"} on this post.
+          </b>{" "}
+          Fix them in the editor, ask the author to change them, or approve anyway.
+        </p>
+        <SeoChecklist checks={seoIssues} fixHref={check => `/admin/blog/${slug}/edit#${check.field}`} />
+        {error ? <p className="form-error">{error}</p> : null}
+        <div className="review-buttons">
+          <button className="admin-button secondary" type="button" onClick={() => setAsking(null)} disabled={busy}>
+            Cancel
+          </button>
+          <button className="admin-button secondary" type="button" onClick={() => setAsking("request-changes")} disabled={busy}>
+            Request changes
+          </button>
+          <button className="admin-button" type="button" onClick={() => send("approve", { index })} disabled={busy}>
+            {busy ? "Working…" : "Approve anyway →"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (asking) {
     const rejecting = asking === "reject";
@@ -100,7 +129,7 @@ export function ReviewActions({ id, type }: { id: string; type: string }) {
         <button className="admin-button danger" type="button" onClick={() => setAsking("reject")} disabled={busy}>
           Reject
         </button>
-        <button className="admin-button" type="button" onClick={() => send("approve", { index })} disabled={busy}>
+        <button className="admin-button" type="button" onClick={() => (seoIssues.length ? setAsking("approve") : send("approve", { index }))} disabled={busy}>
           {busy ? "Working…" : "Approve & publish →"}
         </button>
       </div>
