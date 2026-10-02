@@ -4,9 +4,9 @@ import { useState } from "react";
 import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
 import { SectionVisual } from "@/components/section-visual";
 import { VISUAL_SLOTS, defaultVisual, slotInfo, type VisualSlotId } from "@/lib/visual-slots";
+import { VISUAL_PATTERN_DETAILS, VISUAL_PATTERN_IDS } from "@/lib/visual-patterns";
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
 
-const PATTERNS = ["orbit", "grid", "flow", "growth", "dialogue", "reading", "mail"] as const;
 type Configs = Record<string, SectionVisualConfig>;
 
 export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string }) {
@@ -65,7 +65,7 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
         {(["pattern", "media", "both"] as const).map(mode => <button key={mode} type="button" aria-pressed={config.mode === mode} disabled={mode !== "pattern" && !asset} onClick={() => update({ mode })}>{mode === "both" ? "Pattern + media" : mode === "media" ? "Media only" : "Pattern only"}</button>)}
       </div>
       <div className="form-columns">
-        <label className="admin-field"><span>Pattern design</span><select value={config.pattern} onChange={event => update({ pattern: event.target.value as SectionVisualConfig["pattern"] })}>{PATTERNS.map(pattern => <option key={pattern} value={pattern}>{pattern[0].toUpperCase() + pattern.slice(1)}</option>)}</select></label>
+        <label className="admin-field"><span>Pattern design (20 choices)</span><select value={config.pattern} onChange={event => update({ pattern: event.target.value as SectionVisualConfig["pattern"] })}>{VISUAL_PATTERN_IDS.map(pattern => <option key={pattern} value={pattern === "flow" && config.pattern === "default" ? "default" : pattern}>{VISUAL_PATTERN_DETAILS[pattern].label}</option>)}</select><small className="field-hint">{config.pattern === "default" ? "Ideas and actions working together." : VISUAL_PATTERN_DETAILS[config.pattern].description}</small></label>
         <label className="admin-field"><span>Pattern intensity: {config.intensity}%</span><input type="range" min="0" max="100" value={config.intensity} onChange={event => update({ intensity: Number(event.target.value) })} /></label>
       </div>
       <div className="visuals-media-actions">

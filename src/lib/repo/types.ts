@@ -510,7 +510,7 @@ export interface Settings {
 export interface SectionVisualConfig {
   mode: "pattern" | "media" | "both";
   assetId?: string;
-  pattern: "default" | "grid" | "orbit" | "flow" | "growth" | "dialogue" | "reading" | "mail";
+  pattern: "default" | import("@/lib/visual-patterns").VisualPatternId;
   intensity: number;
   fit: "contain" | "cover";
   focalX: number;

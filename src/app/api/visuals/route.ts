@@ -4,11 +4,12 @@ import { requireRole } from "@/lib/auth";
 import { errorResponse } from "@/lib/api";
 import { mediaRepo, settingsRepo } from "@/lib/repo";
 import { slotInfo } from "@/lib/visual-slots";
+import { VISUAL_PATTERN_IDS } from "@/lib/visual-patterns";
 
 const visualSchema = z.object({
   mode: z.enum(["pattern", "media", "both"]),
   assetId: z.string().optional(),
-  pattern: z.enum(["default", "grid", "orbit", "flow", "growth", "dialogue", "reading", "mail"]),
+  pattern: z.enum(["default", ...VISUAL_PATTERN_IDS]),
   intensity: z.number().min(0).max(100),
   fit: z.enum(["contain", "cover"]),
   focalX: z.number().min(0).max(100),
