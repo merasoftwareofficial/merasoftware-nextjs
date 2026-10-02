@@ -38,6 +38,8 @@ import type {
   SettingsRepo,
   SharePlatform,
   ShareRepo,
+  Campaign,
+  CampaignRepo,
   DeliveryRepo,
   NotifyJob,
   NotifyJobRepo,
@@ -52,7 +54,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays" | "subscribers" | "pushDevices" | "notifyJobs" | "deliveries";
+type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays" | "subscribers" | "pushDevices" | "notifyJobs" | "deliveries" | "campaigns";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -735,6 +737,15 @@ const subscribers: SubscriberRepo = {
   async listByCategory(categoryId) {
     return read<Subscriber>("subscribers").filter(row => row.categories.includes(categoryId));
   },
+  async listForOffers() {
+    return read<Subscriber>("subscribers").filter(row => row.offers);
+  },
+  async counts() {
+    const rows = read<Subscriber>("subscribers");
+    const byCategory: Record<string, number> = {};
+    for (const row of rows) for (const category of row.categories) byCategory[category] = (byCategory[category] ?? 0) + 1;
+    return { total: rows.length, offers: rows.filter(row => row.offers).length, byCategory };
+  },
 };
 
 /* --------------------------------------------------------- push devices -- */
@@ -770,6 +781,9 @@ const pushDevices: PushDeviceRepo = {
     const rows = read<PushDevice>("pushDevices").map(row => (row.subscriberId === fromId ? (moved++, { ...row, subscriberId: toId, updatedAt: now() }) : row));
     if (moved) write("pushDevices", rows);
     return moved;
+  },
+  async count() {
+    return read<PushDevice>("pushDevices").length;
   },
 };
 
@@ -827,4 +841,38 @@ const deliveries: DeliveryRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries };
+/* ------------------------------------------------------------ campaigns -- */
+
+const campaigns: CampaignRepo = {
+  async findById(campaignId) {
+    return read<Campaign>("campaigns").find(row => row._id === campaignId) ?? null;
+  },
+  async list(limit) {
+    const rows = [...read<Campaign>("campaigns")].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return limit === undefined ? rows : rows.slice(0, limit);
+  },
+  async create(data) {
+    const rows = read<Campaign>("campaigns");
+    const row: Campaign = withoutUndefined({ ...data, _id: id(), status: "draft", createdAt: now(), updatedAt: now() });
+    rows.push(row);
+    write("campaigns", rows);
+    return row;
+  },
+  async update(campaignId, patch) {
+    const rows = read<Campaign>("campaigns");
+    const index = rows.findIndex(row => row._id === campaignId);
+    if (index === -1) return null;
+    rows[index] = withoutUndefined({ ...rows[index], ...patch, _id: campaignId, updatedAt: now() });
+    write("campaigns", rows);
+    return rows[index];
+  },
+  async remove(campaignId) {
+    const rows = read<Campaign>("campaigns");
+    const next = rows.filter(row => row._id !== campaignId);
+    if (next.length === rows.length) return false;
+    write("campaigns", next);
+    return true;
+  },
+};
+
+export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries, campaigns };

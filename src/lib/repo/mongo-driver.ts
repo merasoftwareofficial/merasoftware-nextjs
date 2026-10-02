@@ -15,9 +15,11 @@ import { MediaAssetModel } from "@/models/Media";
 import { SubscriberModel } from "@/models/Subscriber";
 import { PushDeviceModel } from "@/models/PushDevice";
 import { DeliveryModel, NotifyJobModel } from "@/models/NotifyJob";
+import { CampaignModel } from "@/models/Campaign";
 import type {
   Blog as BlogRecord,
   BlogQuery,
+  Campaign as CampaignRecord,
   Category as CategoryRecord,
   ClickPlacement,
   Comment as CommentRecord,
@@ -788,6 +790,20 @@ const subscribers: DataDriver["subscribers"] = {
     const rows = await SubscriberModel.find({ categories: categoryId }).lean();
     return rows.map((row: Record<string, unknown>) => subscriberRecord(row));
   },
+  async listForOffers() {
+    await connectMongo();
+    const rows = await SubscriberModel.find({ offers: true }).lean();
+    return rows.map((row: Record<string, unknown>) => subscriberRecord(row));
+  },
+  async counts() {
+    await connectMongo();
+    const [total, offers, categories] = await Promise.all([
+      SubscriberModel.countDocuments(),
+      SubscriberModel.countDocuments({ offers: true }),
+      SubscriberModel.aggregate<{ _id: string; total: number }>([{ $unwind: "$categories" }, { $group: { _id: "$categories", total: { $sum: 1 } } }]),
+    ]);
+    return { total, offers, byCategory: Object.fromEntries(categories.map(row => [row._id, row.total])) };
+  },
 };
 
 /* --------------------------------------------------------- push devices -- */
@@ -826,6 +842,10 @@ const pushDevices: DataDriver["pushDevices"] = {
     await connectMongo();
     const result = await PushDeviceModel.updateMany({ subscriberId: fromId }, { $set: { subscriberId: toId } });
     return result.modifiedCount;
+  },
+  async count() {
+    await connectMongo();
+    return PushDeviceModel.countDocuments();
   },
 };
 
@@ -891,4 +911,60 @@ const deliveries: DataDriver["deliveries"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries };
+/* ------------------------------------------------------------ campaigns -- */
+
+function campaignRecord(row: Record<string, unknown>): CampaignRecord {
+  const campaign = serialize(row as never) as CampaignRecord;
+  const target = (row.target ?? {}) as Partial<CampaignRecord["target"]>;
+  return {
+    ...campaign,
+    target: { offers: target.offers ?? false, categoryIds: target.categoryIds ?? [] },
+    sentAt: iso(row.sentAt as Date | undefined),
+  };
+}
+
+const campaigns: DataDriver["campaigns"] = {
+  async findById(id) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    const row = await CampaignModel.findById(_id).lean();
+    return row ? campaignRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async list(limit) {
+    await connectMongo();
+    const query = CampaignModel.find().sort({ createdAt: -1, _id: -1 });
+    if (limit !== undefined) query.limit(Math.max(0, limit));
+    const rows = await query.lean();
+    return rows.map((row: Record<string, unknown>) => campaignRecord(row));
+  },
+  async create(data) {
+    await connectMongo();
+    const row = await CampaignModel.create({ ...data, status: "draft" });
+    return campaignRecord(row.toObject() as unknown as Record<string, unknown>);
+  },
+  async update(id, patch) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    // Undefined means "remove", as in subscribers.update().
+    const entries = Object.entries(patch);
+    const $set = Object.fromEntries(entries.filter(([, value]) => value !== undefined));
+    const $unset = Object.fromEntries(entries.filter(([, value]) => value === undefined).map(([key]) => [key, ""]));
+    const row = await CampaignModel.findByIdAndUpdate(
+      _id,
+      Object.keys($unset).length ? { $set, $unset } : { $set },
+      { new: true, runValidators: true },
+    ).lean();
+    return row ? campaignRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async remove(id) {
+    const _id = objectId(id);
+    if (!_id) return false;
+    await connectMongo();
+    const result = await CampaignModel.deleteOne({ _id });
+    return result.deletedCount > 0;
+  },
+};
+
+export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries, campaigns };

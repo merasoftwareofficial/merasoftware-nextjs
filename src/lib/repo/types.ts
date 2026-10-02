@@ -226,11 +226,14 @@ export interface PushDevice {
 export type NotifyChannel = "push" | "email";
 export type NotifyJobStatus = "queued" | "running" | "done" | "skipped";
 
+/** What a job announces: a post's first publish, or a campaign from the admin panel. */
+export type NotifyJobKind = "post" | "campaign";
+
 /** One announcement on one channel, worked through by src/lib/notify-queue.ts. */
 export interface NotifyJob {
   _id: string;
-  kind: "post";
-  /** The post's _id. */
+  kind: NotifyJobKind;
+  /** The post's or campaign's _id, by `kind`. */
   refId: string;
   channel: NotifyChannel;
   status: NotifyJobStatus;
@@ -242,6 +245,34 @@ export interface NotifyJob {
   note?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type CampaignStatus = "draft" | "sent";
+
+/** An offer or announcement written in the admin panel, sent once as a push (NOTIFICATIONS.md step B). */
+export interface Campaign {
+  _id: string;
+  title: string;
+  body: string;
+  /** A path on this site, opened when the notification is clicked. */
+  url: string;
+  /** Who gets it: subscribers who chose offers, and/or followers of these category _ids. */
+  target: { offers: boolean; categoryIds: string[] };
+  status: CampaignStatus;
+  /** The admin's user _id. */
+  createdBy: string;
+  /** When it was sent; the 48-hour rule counts from here. */
+  sentAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Audience sizes for the admin panel. */
+export interface SubscriberCounts {
+  total: number;
+  offers: number;
+  /** Subscribers per category _id. */
+  byCategory: Record<string, number>;
 }
 
 export interface Comment {
@@ -363,6 +394,9 @@ export interface SubscriberRepo {
   removeCategory(id: string): Promise<number>;
   /** Everyone following this category id. */
   listByCategory(categoryId: string): Promise<Subscriber[]>;
+  /** Everyone who chose offers. */
+  listForOffers(): Promise<Subscriber[]>;
+  counts(): Promise<SubscriberCounts>;
 }
 
 export interface PushDeviceRepo {
@@ -373,6 +407,8 @@ export interface PushDeviceRepo {
   removeByEndpoint(endpoint: string): Promise<boolean>;
   /** Two settings records became one: the devices follow. */
   moveSubscriber(fromId: string, toId: string): Promise<number>;
+  /** How many devices are subscribed in all. */
+  count(): Promise<number>;
 }
 
 export interface NotifyJobRepo {
@@ -390,6 +426,16 @@ export interface NotifyJobRepo {
 export interface DeliveryRepo {
   /** True the first time a key is claimed: one key = one message, ever (kept 90 days). */
   claim(key: string): Promise<boolean>;
+}
+
+export interface CampaignRepo {
+  findById(id: string): Promise<Campaign | null>;
+  /** Newest first. */
+  list(limit?: number): Promise<Campaign[]>;
+  create(data: Omit<Campaign, "_id" | "status" | "sentAt" | "createdAt" | "updatedAt">): Promise<Campaign>;
+  /** A key set to undefined is removed. */
+  update(id: string, patch: Partial<Omit<Campaign, "_id" | "createdBy" | "createdAt" | "updatedAt">>): Promise<Campaign | null>;
+  remove(id: string): Promise<boolean>;
 }
 
 export interface CommentRepo {
@@ -553,4 +599,5 @@ export interface DataDriver {
   pushDevices: PushDeviceRepo;
   notifyJobs: NotifyJobRepo;
   deliveries: DeliveryRepo;
+  campaigns: CampaignRepo;
 }
