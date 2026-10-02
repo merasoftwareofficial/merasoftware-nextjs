@@ -42,6 +42,10 @@ function readSwiped() {
 }
 const noSubscription = () => () => {};
 
+/** Sent on window whenever the shown page changes; `page` counts from 0. */
+export const READER_PAGE_EVENT = "reader:page";
+export type ReaderPage = { page: number; count: number };
+
 type Props = {
   blogId: string;
   /** Shown above page 1, e.g. "SEO · 7 min read". */
@@ -192,6 +196,11 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
         box.focus({ preventScroll: true });
       });
   }, [pageOf, page, blocks]);
+
+  // Tells the rest of the page how far the reader is (follow-topic.tsx offers notifications half-way).
+  useEffect(() => {
+    if (pageOf) window.dispatchEvent(new CustomEvent<ReaderPage>(READER_PAGE_EVENT, { detail: { page, count } }));
+  }, [pageOf, page, count]);
 
   const go = useCallback(
     (next: number) => {

@@ -37,7 +37,8 @@ function keyBytes(base64: string) {
 }
 
 export function usePush(publicKey: string | null) {
-  const [state, setState] = useState<PushState>("loading");
+  // Without a key there is nothing to detect: "off", so a preview box still draws its button.
+  const [state, setState] = useState<PushState>(publicKey ? "loading" : "off");
 
   useEffect(() => {
     if (!publicKey) return;

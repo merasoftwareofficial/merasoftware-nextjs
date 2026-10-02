@@ -3,6 +3,7 @@ import { permanentRedirect } from "next/navigation";
 import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { FollowTopic } from "@/components/subscribe/follow-topic";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import { movedCategory } from "@/lib/category-rules";
@@ -59,6 +60,10 @@ export default async function Topic({ params }: Params) {
           text={`Official articles and approved community posts about ${label(slug)}.`}
         />
         <section className="content-section container">
+          {/* Only a category can be followed; a tag's page shows nothing here. */}
+          <div className="topic-follow">
+            <FollowTopic slug={slug} />
+          </div>
           {posts.length === 0 ? (
             <div className="admin-empty">
               <b>Nothing published on this topic yet.</b>

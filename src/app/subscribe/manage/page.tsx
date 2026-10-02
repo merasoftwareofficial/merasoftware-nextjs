@@ -53,7 +53,7 @@ export default async function ManageSubscription({ searchParams }: Props) {
       </div>
     );
   } else {
-    body = (await SubscribeBox({ title: "You have no notifications yet" })) ?? (
+    body = (await SubscribeBox({ title: "You have no notifications yet", open: true })) ?? (
       <div className="admin-empty">
         <b>Notifications are not available yet.</b>
       </div>

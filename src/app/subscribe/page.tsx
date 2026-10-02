@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function Subscribe() {
   const visuals = await loadVisuals(["subscribe.hero"]);
   // Null while no channel is configured (see SubscribeBox).
-  const box = await SubscribeBox({ title: "Choose your topics" });
+  const box = await SubscribeBox({ open: true });
   return (
     <>
       <SiteHeader />

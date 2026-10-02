@@ -10,7 +10,7 @@ import { ViewBeacon } from "@/components/blog/view-beacon";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { SubscribeBox } from "@/components/subscribe/subscribe-box";
+import { FollowTopic } from "@/components/subscribe/follow-topic";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import {
@@ -178,9 +178,12 @@ export default async function Article({ params }: Params) {
           {/* The whole article, read one screen at a time in a card (article-reader.tsx). */}
           <ArticleReader blogId={post._id} crumb={`${post.category ?? (post.type === "official" ? "Insights" : post.type)} · ${readingTime(post.content)}`} title={post.title}>
             <header className="reader-intro">
-              <p className="eyebrow">
-                <i /> {post.category?.toUpperCase() ?? (post.type === "official" ? "INSIGHTS" : post.type.toUpperCase())}
-              </p>
+              <div className="eyebrow-row">
+                <p className="eyebrow">
+                  <i /> {post.category?.toUpperCase() ?? (post.type === "official" ? "INSIGHTS" : post.type.toUpperCase())}
+                </p>
+                {post.status === "published" ? <FollowTopic name={post.category} prompt /> : null}
+              </div>
               <h1 className={post.titleSize === "medium" ? "title-medium" : undefined}>{post.title}</h1>
               <p className="article-meta">
                 {when(post.publishedAt)} · {readingTime(post.content)} ·{" "}
@@ -234,8 +237,6 @@ export default async function Article({ params }: Params) {
             initialInsightful={myReactions.some(row => row.reaction === "insightful")}
             initialSaved={!!savedRow}
           />
-
-          <SubscribeBox category={post.category} title={post.category ? `Get notified about new ${post.category} posts` : undefined} />
 
           <Comments
             blogId={post._id}

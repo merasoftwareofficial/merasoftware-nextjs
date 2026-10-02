@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
 import { PushControl } from "@/components/subscribe/push-control";
 import { TopicChips, type Topic } from "@/components/subscribe/topic-chips";
@@ -13,6 +14,10 @@ export type { Topic };
  * notifications and/or by email. A channel shows only when it is configured:
  * `pushKey` is the VAPID public key, `mailOn` whether mail can be sent.
  * The server decides what happens (src/lib/subscription-actions.ts).
+ *
+ * Closed, it is only the `startLabel` button; `open` starts it opened.
+ * `preview` (local, no keys) shows the push button anyway; it then only
+ * answers that notifications are not available.
  */
 export function SubscribeForm({
   topics,
@@ -21,6 +26,9 @@ export function SubscribeForm({
   email: initialEmail = "",
   pushKey,
   mailOn,
+  preview = false,
+  open: initialOpen = false,
+  startLabel = "Turn on",
 }: {
   topics: Topic[];
   preselected?: string[];
@@ -28,7 +36,13 @@ export function SubscribeForm({
   email?: string;
   pushKey: string | null;
   mailOn: boolean;
+  preview?: boolean;
+  open?: boolean;
+  startLabel?: string;
 }) {
+  const [open, setOpen] = useState(initialOpen);
+  /** Topics followed after push was turned on here; shows the done line instead of the form. */
+  const [subscribed, setSubscribed] = useState<number | null>(null);
   const [chosen, setChosen] = useState<string[]>(preselected);
   const [offers, setOffers] = useState(initialOffers);
   const [email, setEmail] = useState(initialEmail);
@@ -64,8 +78,9 @@ export function SubscribeForm({
   const enablePush = () =>
     act(async () => {
       const reply = await push.enable(chosen, offers);
-      if (reply.categories) setChosen(reply.categories);
-      return "Done — you will get a notification when a post on your topics goes live.";
+      const nextChosen = reply.categories ?? chosen;
+      setChosen(nextChosen);
+      setSubscribed(topics.filter(topic => nextChosen.includes(topic._id)).length + ((reply.offers ?? offers) ? 1 : 0));
     });
 
   const disablePush = () =>
@@ -89,11 +104,34 @@ export function SubscribeForm({
     });
   };
 
+  if (!open) {
+    return (
+      <div className="subscribe-start">
+        <button className="button button-dark" type="button" onClick={() => setOpen(true)}>
+          {startLabel} <span>→</span>
+        </button>
+      </div>
+    );
+  }
+
+  if (subscribed !== null) {
+    return (
+      <div className="subscribe-form">
+        <p className="subscribe-done" role="status">
+          <b>✓</b> You&apos;re subscribed to {subscribed} {subscribed === 1 ? "topic" : "topics"} on this device.{" "}
+          <Link className="text-link" href="/subscribe/manage">
+            Manage <span>→</span>
+          </Link>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="subscribe-form">
       <TopicChips topics={topics} chosen={chosen} offers={offers} onChange={choose} />
 
-      {pushKey ? <PushControl state={push.state} busy={busy} onEnable={enablePush} onDisable={disablePush} /> : null}
+      {pushKey || preview ? <PushControl state={push.state} busy={busy} onEnable={enablePush} onDisable={disablePush} /> : null}
 
       {mailOn ? (
         mailDone ? (
