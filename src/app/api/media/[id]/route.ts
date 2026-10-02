@@ -46,7 +46,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     // Record first: if Cloudinary then fails, only an unused file is left behind, never a broken image on the site.
     if (!(await mediaRepo.remove(asset._id))) return NextResponse.json({ error: "Image not found." }, { status: 404 });
     try {
-      await deleteCloudinaryImage(asset.publicId);
+      await deleteCloudinaryImage(asset.publicId, asset.kind === "video" ? "video" : "image");
     } catch {
       console.error(`[media] Cloudinary file left behind after delete: ${asset.publicId}`);
       return NextResponse.json({ deleted: true, cloudinaryRemoved: false });

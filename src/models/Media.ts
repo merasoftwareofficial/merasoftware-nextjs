@@ -11,6 +11,7 @@ const MediaAssetSchema = new Schema({
   format: { type: String, required: true },
   bytes: { type: Number, required: true },
   altText: { type: String, default: "", trim: true, maxlength: 300 },
+  kind: { type: String, enum: ["image", "video"], default: "image" },
 }, { timestamps: true });
 
 MediaAssetSchema.index({ createdAt: -1 });

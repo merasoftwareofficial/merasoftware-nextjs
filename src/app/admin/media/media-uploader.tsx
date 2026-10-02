@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
 import { SeoHint, focusSeoField } from "@/components/seo-checks";
 import { useNavigate, useTask } from "@/components/loading/navigation";
-import { IMAGE_UPLOAD_ACCEPT } from "@/lib/cloudinary-types";
-import { imageFileProblem, uploadToLibrary } from "@/lib/media-upload";
+import { IMAGE_UPLOAD_ACCEPT, VIDEO_UPLOAD_ACCEPT } from "@/lib/cloudinary-types";
+import { imageFileProblem, uploadToLibrary, uploadVideoToLibrary } from "@/lib/media-upload";
 import type { MediaUse } from "@/lib/media-usage";
 import type { MediaAsset } from "@/lib/repo/types";
 import { mediaSeoChecks } from "@/lib/seo-rules";
@@ -19,19 +19,19 @@ export function MediaUploader({ items, canDelete, focusId }: { items: Item[]; ca
   const [error, setError] = useState("");
   const [altText, setAltText] = useState("");
   const [uploaded, setUploaded] = useState<{ asset: MediaAsset; reused: boolean } | null>(null);
-  // Opens on the tab holding the image a "Fix →" link points at.
+  // Opens on the tab holding the media a "Fix →" link points at.
   const [view, setView] = useState<"unused" | "used">(() => (items.find(item => item.asset._id === focusId)?.uses.length ? "used" : "unused"));
   const [search, setSearch] = useState("");
 
   async function upload(file: File) {
     setError("");
     setUploaded(null);
-    const problem = imageFileProblem(file);
+    const problem = file.type === "video/mp4" ? null : imageFileProblem(file);
     if (problem) return setError(problem);
 
     await track(async () => {
       try {
-        setUploaded(await uploadToLibrary(file, altText));
+        setUploaded(file.type === "video/mp4" ? await uploadVideoToLibrary(file, altText) : await uploadToLibrary(file, altText));
         setAltText("");
         navigation.refresh();
       } catch (cause) {
@@ -51,17 +51,17 @@ export function MediaUploader({ items, canDelete, focusId }: { items: Item[]; ca
     <>
       <section className="media-drop">
         <span aria-hidden="true">↑</span>
-        <h2>Upload an image</h2>
-        <p>Choose a JPG, PNG, WebP, GIF or AVIF image up to 4 MB. Add a short description for accessibility.</p>
+        <h2>Upload media</h2>
+        <p>Choose a JPG, PNG, WebP, GIF or AVIF image up to 4 MB, or an MP4 video up to 50 MB. Add an accessible description.</p>
         <label className="admin-field media-alt-field">
-          <span>Default alt text</span>
-          <input value={altText} maxLength={300} onChange={event => setAltText(event.target.value)} placeholder="Describe what the image shows" />
+          <span>Default accessible description</span>
+          <input value={altText} maxLength={300} onChange={event => setAltText(event.target.value)} placeholder="Describe what the media shows" />
         </label>
         <input
           ref={input}
           type="file"
-          accept={IMAGE_UPLOAD_ACCEPT}
-          aria-label="Choose an image"
+          accept={`${IMAGE_UPLOAD_ACCEPT},${VIDEO_UPLOAD_ACCEPT}`}
+          aria-label="Choose an image, GIF or MP4 video"
           style={{ display: "none" }}
           onChange={event => {
             const file = event.currentTarget.files?.[0];
@@ -69,13 +69,13 @@ export function MediaUploader({ items, canDelete, focusId }: { items: Item[]; ca
           }}
         />
         <button className="admin-button" type="button" disabled={busy} onClick={() => input.current?.click()}>
-          {busy ? "Uploading…" : "Choose image"}
+          {busy ? "Uploading…" : "Choose media"}
         </button>
         {error ? <p role="alert" style={{ color: "var(--pn-err)", marginTop: 20 }}>{error}</p> : null}
-        {uploaded ? <p role="status" style={{ marginTop: 20 }}>{uploaded.reused ? "This image was already in the library. The existing image was reused; no duplicate was uploaded." : "Image uploaded and saved in the media library."}</p> : null}
+        {uploaded ? <p role="status" style={{ marginTop: 20 }}>{uploaded.reused ? "This file was already in the library." : "Media uploaded and saved in the library."}</p> : null}
       </section>
       <section className="media-library" aria-labelledby="media-library-title">
-        <div className="section-top"><h2 id="media-library-title">Saved images</h2><span>{items.length} images</span></div>
+        <div className="section-top"><h2 id="media-library-title">Saved media</h2><span>{items.length} files</span></div>
         <div className="media-library-bar">
           <div className="homepage-editor-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={view === "unused"} onClick={() => setView("unused")}>Unused ({unused.length})</button>
@@ -88,8 +88,8 @@ export function MediaUploader({ items, canDelete, focusId }: { items: Item[]; ca
         </div>
         <p className="field-hint">
           {view === "used"
-            ? "These images are on the website or in a post. To delete one, first remove it from every place listed under it."
-            : canDelete ? "These images are not used anywhere and can be deleted." : "These images are not used anywhere. Only an admin can delete images."}
+            ? "These files are on the website or in a post. To delete one, first remove it from every place listed under it."
+            : canDelete ? "These files are not used anywhere and can be deleted." : "These files are not used anywhere. Only an admin can delete files."}
         </p>
         {shown.length ? (
           <div className="media-grid">
@@ -97,7 +97,7 @@ export function MediaUploader({ items, canDelete, focusId }: { items: Item[]; ca
           </div>
         ) : (
           <div className="admin-empty">
-            {term ? "No image matches this search." : view === "used" ? "No image is in use yet." : items.length ? "Every image is in use." : "No images yet. Upload one above."}
+            {term ? "No media matches this search." : view === "used" ? "No media is in use yet." : items.length ? "Every file is in use." : "No media yet. Upload a file above."}
           </div>
         )}
       </section>
@@ -147,7 +147,7 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
   }
 
   function remove() {
-    if (!window.confirm("Delete this image from the Media Library and Cloudinary? This cannot be undone.")) return;
+    if (!window.confirm("Delete this file from the Media Library and Cloudinary? This cannot be undone.")) return;
     setError("");
     return track(async () => {
       try {
@@ -158,11 +158,11 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
           setBlockedBy(result.uses as MediaUse[]);
           throw new Error(result.error);
         }
-        if (!response.ok) throw new Error(result.error || "Could not delete the image.");
+        if (!response.ok) throw new Error(result.error || "Could not delete the file.");
         if (result.cloudinaryRemoved === false) window.alert("Removed from the library. The Cloudinary file could not be deleted and was left there; it is no longer shown anywhere.");
         navigation.refresh();
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Could not delete the image.");
+        setError(cause instanceof Error ? cause.message : "Could not delete the file.");
       }
     });
   }
@@ -171,10 +171,10 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
     <article className="media-card">
       {/* Cloudinary host configuration is not needed for these server-managed assets. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={asset.url} alt={asset.altText} loading="lazy" />
+      {asset.kind === "video" ? <video src={asset.url} muted playsInline preload="metadata" /> : <img src={asset.url} alt={asset.altText} loading="lazy" />}
       <div>
         <b>{asset.altText || "Alt text not set"}</b>
-        {editing ? null : <SeoHint checks={mediaSeoChecks(asset).filter(check => check.level !== "ok")} field="image-alt" />}
+        {editing || asset.kind === "video" ? null : <SeoHint checks={mediaSeoChecks(asset).filter(check => check.level !== "ok")} field="image-alt" />}
         <small>{asset.width} × {asset.height} · {asset.format.toUpperCase()} · {Math.round(asset.bytes / 1024)} KB</small>
         <small>Uploaded {new Date(asset.createdAt).toLocaleDateString()}</small>
         {places.length ? (

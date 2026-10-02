@@ -1,6 +1,7 @@
 import "server-only";
 
 import { v2 as cloudinary } from "cloudinary";
+import { randomUUID } from "node:crypto";
 import { MAX_IMAGE_UPLOAD_BYTES, type UploadedImage } from "./cloudinary-types";
 
 function requiredEnv(name: string): string {
@@ -73,13 +74,27 @@ export async function uploadCloudinaryImage(bytes: Buffer): Promise<UploadedImag
   });
 }
 
+/** The browser sends video bytes to Cloudinary directly; the API secret stays here. */
+export function signVideoUpload() {
+  const client = getCloudinary();
+  const timestamp = Math.floor(Date.now() / 1000);
+  const publicId = randomUUID();
+  const assetFolder = requiredEnv("CLOUDINARY_ASSET_FOLDER");
+  const params = { timestamp, public_id: publicId, asset_folder: assetFolder };
+  const signature = client.utils.api_sign_request(params, requiredEnv("CLOUDINARY_API_SECRET"));
+  return {
+    uploadUrl: `https://api.cloudinary.com/v1_1/${requiredEnv("CLOUDINARY_CLOUD_NAME")}/video/upload`,
+    apiKey: requiredEnv("CLOUDINARY_API_KEY"), timestamp, publicId, assetFolder, signature,
+  };
+}
+
 /**
  * Remove an image from Cloudinary: a library delete (api/media/[id]), or a
  * just-uploaded copy when a concurrent request already stored the same file.
  */
-export async function deleteCloudinaryImage(publicId: string): Promise<void> {
+export async function deleteCloudinaryImage(publicId: string, kind: "image" | "video" = "image"): Promise<void> {
   try {
-    const result = await getCloudinary().uploader.destroy(publicId, { resource_type: "image", type: "upload", invalidate: true });
+    const result = await getCloudinary().uploader.destroy(publicId, { resource_type: kind, type: "upload", invalidate: true });
     if (result.result !== "ok" && result.result !== "not found") {
       throw new Error("Cloudinary cleanup did not complete.");
     }

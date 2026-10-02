@@ -55,6 +55,9 @@ export async function findMediaUsage(assets: MediaAsset[]): Promise<Map<string, 
   for (const [slot, image] of Object.entries(settings.homepageImages ?? {}) as [HomeImageSlot, { assetId: string } | undefined][]) {
     if (image) usage.get(image.assetId)?.push({ label: HOMEPAGE_SLOTS[slot] ?? `Homepage → ${slot}`, href: "/admin/homepage" });
   }
+  for (const [slot, visual] of Object.entries(settings.sectionVisuals ?? {})) {
+    if (visual.assetId && visual.mode !== "pattern") usage.get(visual.assetId)?.push({ label: `Website visual → ${slot}`, href: "/admin/visuals" });
+  }
 
   const logo = settings.organization?.logoUrl;
   if (logo) for (const asset of assets) if (pointsAt(logo, asset)) usage.get(asset._id)!.push({ label: "Page SEO → Business logo", href: "/admin/page-seo?page=organization" });

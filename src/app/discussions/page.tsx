@@ -1,5 +1,6 @@
 import Link from "@/components/link";
 import { PageHero } from "@/components/page-hero";
+import { loadVisuals } from "@/lib/section-visuals";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
@@ -28,6 +29,7 @@ function when(value?: string) {
  * a short question, so the title and who asked it are what matter.
  */
 export default async function Discussions() {
+  const visuals = await loadVisuals(["discussions.hero"]);
   const viewer = await getSessionUser();
 
   const posts = (await blogRepo.listCards({ type: "discussion", status: "published" })).filter(
@@ -42,6 +44,7 @@ export default async function Discussions() {
           eyebrow="COMMUNITY DISCUSSIONS"
           title="Ask, learn and move forward together."
           text="Short questions, practical tips and focused conversations around websites, SEO, ads and digital growth."
+          visual={visuals["discussions.hero"]}
         />
         <section className="content-section container">
           <div className="section-top">

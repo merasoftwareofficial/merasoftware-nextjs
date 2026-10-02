@@ -2,6 +2,8 @@
 export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
 // Leave room for multipart overhead below common serverless request limits.
 export const MAX_BROWSER_UPLOAD_BYTES = 4 * 1024 * 1024;
+export const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
+export const VIDEO_UPLOAD_ACCEPT = "video/mp4";
 
 export interface UploadedImage {
   url: string;

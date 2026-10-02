@@ -68,7 +68,7 @@ export function HomepageImageEditor({
   const [savedImages, setSavedImages] = useState<ImageMap>(initialImages);
   const [activeSection, setActiveSection] = useState<CopyKey | null>(focusSlot ? (focusSlot === "hero" ? "hero" : "work") : null);
   const [pendingSection, setPendingSection] = useState<CopyKey | null | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<"content" | "images">(focusSlot ? "images" : "content");
+  const [activeTab, setActiveTab] = useState<"content" | "images">(focusSlot && focusSlot !== "hero" ? "images" : "content");
   const [activeWorkCard, setActiveWorkCard] = useState<number | null>(null);
   const [activeService, setActiveService] = useState<number | null>(null);
   const [activeImageSlot, setActiveImageSlot] = useState<HomeImageSlot | null>(focusSlot ?? null);
@@ -85,8 +85,7 @@ export function HomepageImageEditor({
     if (focusSlot) focusSeoField(`home-image-alt-${focusSlot}`);
   }, [focusSlot]);
 
-  const sectionImageSlots = (section: CopyKey | null) => section === "hero" ? ["hero"] as HomeImageSlot[]
-    : section === "work" ? ["work-northstar", "work-oasis"] as HomeImageSlot[] : [];
+  const sectionImageSlots = (section: CopyKey | null) => section === "work" ? ["work-northstar", "work-oasis"] as HomeImageSlot[] : [];
   const dirty = activeSection !== null && (
     JSON.stringify(content[activeSection]) !== JSON.stringify(savedContent[activeSection]) ||
     sectionImageSlots(activeSection).some(slot => JSON.stringify(images[slot] ?? null) !== JSON.stringify(savedImages[slot] ?? null))
@@ -255,6 +254,7 @@ export function HomepageImageEditor({
     {!activeSection ? <section className="admin-panel homepage-section-overview">
       <h2>Homepage sections</h2>
       <p>Choose Edit on the section you want to change.</p>
+      <Link className="admin-action" href="/admin/visuals">Manage section patterns, images, GIFs and videos →</Link>
       <nav aria-label="Homepage sections">{sections.map(section => <button type="button" key={section.key} onClick={() => openSection(section.key)}>
         <span><strong>{section.label}</strong><small>{section.note}</small></span><b>Edit →</b>
       </button>)}</nav>
@@ -277,6 +277,7 @@ export function HomepageImageEditor({
       <p className="field-hint">The current website content is filled in here.</p>
 
       {activeSection === "hero" ? <section className="admin-seo"><h2>Hero</h2>
+        <p><Link className="admin-action" href="/admin/visuals?slot=home.hero">Edit hero pattern and media →</Link></p>
         <TextField label="Eyebrow" value={content.hero.eyebrow} onChange={value => updateSection("hero", { eyebrow: value })} />
         <div className="form-columns">
           <TextField label="Heading — before italic word" value={content.hero.headingBefore} onChange={value => updateSection("hero", { headingBefore: value })} />

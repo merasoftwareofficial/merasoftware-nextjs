@@ -85,7 +85,10 @@ export const seoAudit = cache(async (): Promise<SeoAuditRow[]> => {
 
   const liveSlots: HomeImageSlot[] = FEATURES.portfolio ? ["hero", "work-northstar", "work-oasis"] : ["hero"];
   for (const slot of liveSlots) {
-    const image: HomepageImage | undefined = settings.homepageImages?.[slot];
+    const heroVisual = slot === "hero" ? settings.sectionVisuals?.["home.hero"] : undefined;
+    const image: Pick<HomepageImage, "alt"> | undefined = heroVisual
+      ? heroVisual.mode !== "pattern" && heroVisual.assetId ? heroVisual : undefined
+      : settings.homepageImages?.[slot];
     if (!image) continue;
     rows.push({
       key: `homepage-${slot}`,
@@ -93,7 +96,7 @@ export const seoAudit = cache(async (): Promise<SeoAuditRow[]> => {
       title: HOMEPAGE_SLOT_LABEL[slot],
       meta: "homepage image",
       viewHref: "/",
-      issues: seoIssues(homepageImageSeoChecks(image, slot)).map(issue => ({ ...issue, href: `/admin/homepage?image=${slot}` })),
+      issues: seoIssues(homepageImageSeoChecks(image, slot)).map(issue => ({ ...issue, href: slot === "hero" ? "/admin/visuals?slot=home.hero#visual-alt" : `/admin/homepage?image=${slot}` })),
     });
   }
 

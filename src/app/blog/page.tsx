@@ -2,6 +2,7 @@ import Link from "@/components/link";
 import { Suspense } from "react";
 import { SearchBox } from "@/components/blog/search-box";
 import { PageHero } from "@/components/page-hero";
+import { loadVisuals } from "@/lib/section-visuals";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeBox } from "@/components/subscribe/subscribe-box";
@@ -32,6 +33,7 @@ function when(value?: string) {
 }
 
 export default async function BlogPage({ searchParams }: Search) {
+  const visuals = await loadVisuals(["blog.hero"]);
   const viewer = await getSessionUser();
   const { q } = await searchParams;
   const term = q?.trim() ?? "";
@@ -74,6 +76,7 @@ export default async function BlogPage({ searchParams }: Search) {
           eyebrow="INSIGHTS"
           title="Ideas for doing digital work better."
           text="Clear thinking about websites, search and growth — made for people building real businesses."
+          visual={visuals["blog.hero"]}
         />
         <section className="content-section container">
           {/* useSearchParams needs a Suspense boundary in a server page. */}

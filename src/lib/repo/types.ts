@@ -49,7 +49,7 @@ export interface FeaturedImage {
 
 export interface MediaAsset {
   _id: string;
-  sha256: string;
+  sha256?: string;
   url: string;
   publicId: string;
   assetId: string;
@@ -59,6 +59,7 @@ export interface MediaAsset {
   format: string;
   bytes: number;
   altText: string;
+  kind?: "image" | "video";
   createdAt: string;
   updatedAt: string;
 }
@@ -497,12 +498,24 @@ export interface Settings {
   /** Set once the category list was first filled from the names posts already carried (repo/index.ts). */
   categoriesSeeded: boolean;
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
+  sectionVisuals?: Record<string, SectionVisualConfig>;
   homepageContent?: HomepageContent;
   /** Keyed by page (PAGE_SEO_PAGES in lib/page-seo.ts). */
   pageSeo?: Partial<Record<string, PageSeo>>;
   /** The business as search engines describe it (Organization data, structured-data.ts). */
   organization?: OrganizationSeo;
   updatedAt: string;
+}
+
+export interface SectionVisualConfig {
+  mode: "pattern" | "media" | "both";
+  assetId?: string;
+  pattern: "default" | "grid" | "orbit" | "flow" | "growth" | "dialogue" | "reading" | "mail";
+  intensity: number;
+  fit: "contain" | "cover";
+  focalX: number;
+  focalY: number;
+  alt: string;
 }
 
 export interface SettingsRepo {

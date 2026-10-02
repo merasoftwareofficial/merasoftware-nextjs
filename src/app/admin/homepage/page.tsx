@@ -17,7 +17,7 @@ export default async function Homepage({ searchParams }: { searchParams: Promise
 
   return (
     <main className="admin-main">
-      <AdminHeader eyebrow="SITE CONTENT" title="Homepage" description="Edit the current homepage copy and manage its images without changing the page design." />
+      <AdminHeader eyebrow="SITE CONTENT" title="Homepage" description="Edit homepage copy. Manage patterns, images, GIFs and videos in Section visuals." />
       <HomepageImageEditor initialContent={settings.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT} initialImages={settings.homepageImages ?? {}} assets={assets} links={links} role={user.role} focusSlot={focusSlot} />
     </main>
   );

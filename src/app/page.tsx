@@ -5,12 +5,10 @@ import { SiteHeader } from "@/components/site-header";
 import { DEFAULT_HOMEPAGE_CONTENT, resolveHomepageContent } from "@/lib/homepage-content";
 import { blogRepo, mediaRepo, settingsRepo } from "@/lib/repo";
 import { FEATURES } from "@/lib/features";
-import { cloudinaryImageUrl } from "@/lib/cloudinary-url";
+import { loadVisuals } from "@/lib/section-visuals";
+import { SectionVisual } from "@/components/section-visual";
 import { pageMetadata } from "@/lib/page-seo";
 import { jsonLd, organisationLd } from "@/lib/structured-data";
-
-// The hero photo is at most 525px wide on screen: 1100px covers 2x screens (1050px) and phones at 3x (966px).
-const HERO_IMAGE_WIDTH = 1100;
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +23,13 @@ export default async function Home() {
     settingsRepo.get(),
   ]);
   const content = resolveHomepageContent(settings.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT);
+  const visuals = await loadVisuals(["home.hero", "home.services", "home.statement", "home.contact"], settings);
   const placements = settings.homepageImages ?? {};
   const assetIds = Object.values(placements)
     .filter((image): image is NonNullable<typeof image> => Boolean(image))
     .map(image => image.assetId);
   const assets = await mediaRepo.findByIds(assetIds);
   const imageById = new Map(assets.map(asset => [asset._id, asset]));
-  const heroPlacement = placements.hero;
-  const heroImage = heroPlacement ? imageById.get(heroPlacement.assetId) : undefined;
   const workImageSlots = ["work-northstar", "work-oasis"] as const;
 
   return <>
@@ -51,11 +48,9 @@ export default async function Home() {
               <Link className="text-link" href={content.hero.secondaryHref}>{content.hero.secondaryLabel} <span>↓</span></Link>
             </div>
           </div>
-          <div className={heroImage ? "hero-art has-image" : "hero-art"} aria-hidden={heroImage ? undefined : true}>
-            {heroImage ? <img className="home-hero-image" src={cloudinaryImageUrl(heroImage.url, HERO_IMAGE_WIDTH)}alt={heroPlacement?.alt ?? ""} fetchPriority="high" style={{ objectPosition: `${heroPlacement?.focalX ?? 50}% ${heroPlacement?.focalY ?? 50}%` }} /> : null}
-            <div className="orb orb-one" /><div className="orb orb-two" /><div className="arc" />
-            <div className="signal-card"><span className="signal-label">{content.hero.signalLabel}</span><strong>{content.hero.signalPrimary}<span>/</span>{content.hero.signalSecondary}</strong><div className="signal-line" /></div>
-            <div className="plus plus-one">+</div><div className="plus plus-two">+</div>
+          <div className="hero-art visual-home-hero">
+            <SectionVisual data={visuals["home.hero"]} label="Homepage hero artwork" />
+            {visuals["home.hero"]?.config.mode !== "media" ? <div className="signal-card"><span className="signal-label">{content.hero.signalLabel}</span><strong>{content.hero.signalPrimary}<span>/</span>{content.hero.signalSecondary}</strong><div className="signal-line" /></div> : null}
           </div>
         </div>
         <div className="marquee"><div>{content.marquee.map((item, index) => <span key={`${item}-${index}`}>{item} <b>✦</b> </span>)}</div></div>
@@ -67,18 +62,20 @@ export default async function Home() {
           <p className="side-note">{content.services.sideNote}</p>
         </div>
         <h2 className="section-heading">{content.services.headingBefore} <em>{content.services.headingEmphasis}</em> {content.services.headingAfter}</h2>
-        <div className="service-list">{content.services.items.map((service, index) => <Link className="service" href={`/services/${service.slug}`} key={service.slug}>
+        <div className="visual-feature"><div className="service-list">{content.services.items.map((service, index) => <Link className="service" href={`/services/${service.slug}`} key={service.slug}>
           <span className="service-number">0{index + 1}</span>
           <div><h3>{service.title}</h3><p>{service.description}</p></div>
           <span className="service-arrow">↗</span>
-        </Link>)}</div>
+        </Link>)}</div><SectionVisual data={visuals["home.services"]} label="Services illustration" /></div>
       </section>
 
-      <section className="statement">
+      <section className="statement visual-home-statement">
         <div className="container">
+          <div>
           <p className="eyebrow"><i /> {content.pointOfView.eyebrow}</p>
           <h2>{content.pointOfView.headingLineOne}<br />{content.pointOfView.headingBefore} <em>{content.pointOfView.headingEmphasis}</em>{content.pointOfView.headingAfter}</h2>
           <p>{content.pointOfView.description}</p>
+          </div><SectionVisual data={visuals["home.statement"]} label="Point of view illustration" />
         </div>
       </section>
 
@@ -113,11 +110,13 @@ export default async function Home() {
         </Link>)}</div>
       </section>
 
-      <section className="contact">
+      <section className="contact visual-home-contact">
         <div className="container contact-inner">
+          <div>
           <p className="eyebrow"><i /> {content.contact.eyebrow}</p>
           <h2>{content.contact.headingLineOne}<br /><em>{content.contact.headingEmphasis}</em></h2>
           <Link className="button button-light" href={content.contact.buttonHref}>{content.contact.buttonLabel} <span>→</span></Link>
+          </div><SectionVisual data={visuals["home.contact"]} label="Contact illustration" />
         </div>
       </section>
     </main>

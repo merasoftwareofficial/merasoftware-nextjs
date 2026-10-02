@@ -2,6 +2,7 @@ import Link from "@/components/link";
 import { Suspense } from "react";
 import { SearchBox } from "@/components/blog/search-box";
 import { PageHero } from "@/components/page-hero";
+import { loadVisuals } from "@/lib/section-visuals";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
@@ -33,6 +34,7 @@ function when(value?: string) {
  * ones are reachable by link but never listed — the same rule /blog follows.
  */
 export default async function Community({ searchParams }: Search) {
+  const visuals = await loadVisuals(["community.hero"]);
   const viewer = await getSessionUser();
   const { q } = await searchParams;
   const term = q?.trim() ?? "";
@@ -49,6 +51,7 @@ export default async function Community({ searchParams }: Search) {
           eyebrow="MERA COMMUNITY"
           title="Useful ideas are better when they are shared."
           text="A moderated space for practical digital marketing, website and business-growth learning from Mera Software and its members."
+          visual={visuals["community.hero"]}
         />
         <section className="content-section container">
           <Suspense fallback={null}>

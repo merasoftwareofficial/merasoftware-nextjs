@@ -498,7 +498,7 @@ const media: DataDriver["media"] = {
   async create(data) {
     const rows = read<MediaAsset>("media");
     if (rows.some(asset => asset.publicId === data.publicId)) throw new Error("This image is already in the media library.");
-    if (rows.some(asset => asset.sha256 === data.sha256)) throw new Error("An identical image is already in the media library.");
+    if (data.sha256 && rows.some(asset => asset.sha256 === data.sha256)) throw new Error("An identical image is already in the media library.");
     const stamp = now();
     const row: MediaAsset = { ...data, _id: id(), createdAt: stamp, updatedAt: stamp };
     rows.push(row);

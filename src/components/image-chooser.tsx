@@ -3,8 +3,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IMAGE_UPLOAD_ACCEPT } from "@/lib/cloudinary-types";
-import { imageFileProblem, uploadToLibrary } from "@/lib/media-upload";
+import { IMAGE_UPLOAD_ACCEPT, VIDEO_UPLOAD_ACCEPT } from "@/lib/cloudinary-types";
+import { imageFileProblem, uploadToLibrary, uploadVideoToLibrary } from "@/lib/media-upload";
 import { atLeast } from "@/lib/roles";
 import type { MediaAsset, Role } from "@/lib/repo/types";
 
@@ -39,11 +39,13 @@ const TAB_LABELS: Record<Tab, string> = { upload: "Upload", library: "Media Libr
 export function ImageChooser({
   sources,
   minSize,
+  allowVideo = false,
   onChoose,
   onClose,
 }: {
   sources: ImageSources;
   minSize?: { width: number; height: number; recommended: string };
+  allowVideo?: boolean;
   onChoose: (choice: ImageChoice) => void;
   onClose: () => void;
 }) {
@@ -66,7 +68,7 @@ export function ImageChooser({
     <div className="image-chooser-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="image-chooser" role="dialog" aria-modal="true" aria-labelledby="image-chooser-title" tabIndex={-1} ref={dialog}>
         <div className="image-chooser-head">
-          <h2 id="image-chooser-title">Choose image</h2>
+          <h2 id="image-chooser-title">Choose {allowVideo ? "image, GIF or video" : "image"}</h2>
           <button className="admin-action" type="button" onClick={onClose}>Close</button>
         </div>
         {tabs.length > 1 ? (
@@ -76,8 +78,8 @@ export function ImageChooser({
             ))}
           </div>
         ) : null}
-        {tab === "library" ? <LibraryTab onChoose={asset => onChoose({ kind: "library", asset, uploaded: false, reused: false })} /> : null}
-        {tab === "upload" ? <UploadTab minSize={minSize} onChoose={onChoose} /> : null}
+        {tab === "library" ? <LibraryTab allowVideo={allowVideo} onChoose={asset => onChoose({ kind: "library", asset, uploaded: false, reused: false })} /> : null}
+        {tab === "upload" ? <UploadTab allowVideo={allowVideo} minSize={minSize} onChoose={onChoose} /> : null}
         {tab === "url" ? <UrlTab onChoose={onChoose} /> : null}
         {!tab ? <p className="field-hint">You cannot add images here.</p> : null}
       </div>
@@ -86,7 +88,7 @@ export function ImageChooser({
   );
 }
 
-function LibraryTab({ onChoose }: { onChoose: (asset: MediaAsset) => void }) {
+function LibraryTab({ onChoose, allowVideo }: { onChoose: (asset: MediaAsset) => void; allowVideo: boolean }) {
   const [assets, setAssets] = useState<MediaAsset[] | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -108,7 +110,8 @@ function LibraryTab({ onChoose }: { onChoose: (asset: MediaAsset) => void }) {
   if (!assets) return <p className="field-hint">Loading the Media Library…</p>;
 
   const term = search.trim().toLowerCase();
-  const shown = term ? assets.filter(asset => `${asset.altText} ${asset.publicId} ${asset.format}`.toLowerCase().includes(term)) : assets;
+  const available = assets.filter(asset => allowVideo || asset.kind !== "video");
+  const shown = term ? available.filter(asset => `${asset.altText} ${asset.publicId} ${asset.format}`.toLowerCase().includes(term)) : available;
 
   return (
     <>
@@ -120,7 +123,7 @@ function LibraryTab({ onChoose }: { onChoose: (asset: MediaAsset) => void }) {
         <div className="homepage-library-picker image-chooser-grid" aria-label="Media Library images">
           {shown.map(asset => (
             <button type="button" key={asset._id} onClick={() => onChoose(asset)}>
-              <img src={asset.url} alt="" loading="lazy" />
+              {asset.kind === "video" ? <video src={asset.url} muted playsInline preload="metadata" /> : <img src={asset.url} alt="" loading="lazy" />}
               <span>
                 {asset.altText || asset.publicId.split("/").at(-1) || "Image"}
                 <small>{asset.width} × {asset.height} px</small>
@@ -129,13 +132,13 @@ function LibraryTab({ onChoose }: { onChoose: (asset: MediaAsset) => void }) {
           ))}
         </div>
       ) : (
-        <p className="field-hint">{assets.length ? "No image matches this search." : "The Media Library is empty. Upload an image first."}</p>
+        <p className="field-hint">{available.length ? "No media matches this search." : "The Media Library is empty. Upload a file first."}</p>
       )}
     </>
   );
 }
 
-function UploadTab({ minSize, onChoose }: { minSize?: { width: number; height: number; recommended: string }; onChoose: (choice: ImageChoice) => void }) {
+function UploadTab({ minSize, onChoose, allowVideo }: { minSize?: { width: number; height: number; recommended: string }; onChoose: (choice: ImageChoice) => void; allowVideo: boolean }) {
   const [altText, setAltText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -144,7 +147,7 @@ function UploadTab({ minSize, onChoose }: { minSize?: { width: number; height: n
   async function upload(file: File) {
     setBusy(true);
     try {
-      const { asset, reused } = await uploadToLibrary(file, altText);
+      const { asset, reused } = file.type === "video/mp4" ? await uploadVideoToLibrary(file, altText) : await uploadToLibrary(file, altText);
       onChoose({ kind: "library", asset, uploaded: !reused, reused });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Upload failed.");
@@ -156,9 +159,9 @@ function UploadTab({ minSize, onChoose }: { minSize?: { width: number; height: n
   async function pick(file: File) {
     setError("");
     setLowResolution(null);
-    const problem = imageFileProblem(file);
+    const problem = file.type === "video/mp4" && allowVideo ? null : imageFileProblem(file);
     if (problem) return setError(problem);
-    if (minSize) {
+    if (minSize && file.type.startsWith("image/")) {
       try {
         const bitmap = await createImageBitmap(file);
         const { width, height } = bitmap;
@@ -174,7 +177,7 @@ function UploadTab({ minSize, onChoose }: { minSize?: { width: number; height: n
   return (
     <>
       <p className="field-hint">
-        JPG, PNG, WebP, GIF or AVIF up to 4 MB{minSize ? `. Recommended: ${minSize.recommended}` : ""}. An image already in the library is reused, not uploaded twice.
+        JPG, PNG, WebP, GIF or AVIF up to 4 MB{minSize ? `. Recommended: ${minSize.recommended}` : ""}.{allowVideo ? " MP4 videos up to 50 MB upload directly to Cloudinary." : ""} An image already in the library is reused.
       </p>
       <label className="admin-field">
         <span>Default alt text</span>
@@ -182,7 +185,7 @@ function UploadTab({ minSize, onChoose }: { minSize?: { width: number; height: n
       </label>
       <label className="admin-button image-chooser-file">
         {busy ? "Uploading…" : "Choose file"}
-        <input type="file" accept={IMAGE_UPLOAD_ACCEPT} disabled={busy} onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (file) void pick(file); }} />
+        <input type="file" accept={allowVideo ? `${IMAGE_UPLOAD_ACCEPT},${VIDEO_UPLOAD_ACCEPT}` : IMAGE_UPLOAD_ACCEPT} disabled={busy} onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (file) void pick(file); }} />
       </label>
       {lowResolution && minSize ? (
         <div className="homepage-low-resolution-confirm" role="alert">
