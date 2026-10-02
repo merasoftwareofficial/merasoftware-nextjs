@@ -38,7 +38,7 @@ export async function PATCH(request: Request) {
     if (ids.length) {
       const assets = await mediaRepo.findByIds(ids);
       if (assets.length !== new Set(ids).size) {
-        return NextResponse.json({ error: "Choose media from the media library." }, { status: 400 });
+        return NextResponse.json({ error: "Choose an image from the media library." }, { status: 400 });
       }
     }
     const settings = await settingsRepo.updateHomepageSection(payload.section, content, images);

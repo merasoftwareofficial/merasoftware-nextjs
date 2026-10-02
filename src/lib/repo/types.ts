@@ -59,8 +59,6 @@ export interface MediaAsset {
   format: string;
   bytes: number;
   altText: string;
-  /** Images include animated GIFs; videos are muted looping MP4/WebM assets. */
-  kind?: "image" | "video";
   createdAt: string;
   updatedAt: string;
 }
