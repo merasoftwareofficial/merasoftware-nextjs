@@ -10,6 +10,7 @@ import { ViewBeacon } from "@/components/blog/view-beacon";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SubscribeBox } from "@/components/subscribe/subscribe-box";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import {
@@ -233,6 +234,8 @@ export default async function Article({ params }: Params) {
             initialInsightful={myReactions.some(row => row.reaction === "insightful")}
             initialSaved={!!savedRow}
           />
+
+          <SubscribeBox category={post.category} title={post.category ? `Get notified about new ${post.category} posts` : undefined} />
 
           <Comments
             blogId={post._id}

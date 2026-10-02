@@ -22,6 +22,9 @@ export const metadata: Metadata = {
   // Pages without a share image of their own get the generated one (app/og/route.tsx).
   openGraph: { title: SITE_TITLE, description: SITE_DESCRIPTION, type: "website", siteName: SITE_NAME, images: [{ url: "/og", width: 1200, height: 630, alt: SITE_TITLE }] },
   twitter: { card: "summary_large_image" },
+  // Home-screen icon and standalone mode on iPhone, where push works only once the site is added to the home screen.
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

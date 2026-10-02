@@ -4,7 +4,7 @@
 >
 > **Record what the owner decides, not what you conclude.** Owner instructions given in conversation go here as given. Your own suggestions go under "Proposed" until the owner approves them.
 
-Read with: `INSTRUCTIONS.md` (project rules), `login.md` (one login with the client portal — SSOT for login and hosting), `CODE_AUDIT.md` (code weak points).
+Read with: `INSTRUCTIONS.md` (project rules), `login.md` (one login with the client portal — SSOT for login and hosting), `CODE_AUDIT.md` (code weak points), `NOTIFICATIONS.md` (newsletter, bell and push — plan and status).
 
 ## Goal
 

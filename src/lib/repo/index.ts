@@ -14,11 +14,32 @@ import { notifyPostChange } from "@/lib/indexnow";
 import { categoryNameSchema, categorySlug } from "@/lib/category-rules";
 import { jsonDriver } from "./json-driver";
 import { mongoDriver } from "./mongo-driver";
-import type { BlogRepo, CategoryRepo, DataDriver } from "./types";
+import type { Blog, BlogRepo, CategoryRepo, DataDriver } from "./types";
 
 const driverName = process.env.DATA_DRIVER === "mongo" ? "mongo" : "json";
 
 const driver: DataDriver = driverName === "mongo" ? mongoDriver : jsonDriver;
+
+/**
+ * Everything a post write sets off, in one place, so no write path can miss
+ * one: IndexNow, and queueing the post's notifications (src/lib/notify-queue.ts).
+ * The queue is imported lazily because it imports this module. A failure here
+ * is logged and never fails the write itself.
+ */
+async function onPostChange(before: Blog | null, now: Blog | null) {
+  notifyPostChange(before, now);
+  try {
+    const { queuePostNotifications } = await import("@/lib/notify-queue");
+    await queuePostNotifications(before, now);
+  } catch (error) {
+    console.error("[notify] queueing failed", error);
+  }
+}
+
+/** Lets open notification jobs continue on site visits (at most once a minute; see drainSoon). */
+function drainNotifications() {
+  import("@/lib/notify-queue").then(queue => queue.drainSoon(), error => console.error("[notify] drain failed", error));
+}
 
 /**
  * Scheduled posts go live on the first blog read after their time.
@@ -41,7 +62,7 @@ async function publishDuePosts() {
       if (!validArticleDocument(post.content)) continue;
       // The patch depends only on the post, so two instances racing here write the same thing.
       const published = await driver.blogs.update(post._id, publishedState(post, undefined, post.scheduledFor));
-      notifyPostChange(post, published);
+      await onPostChange(post, published);
     }
   }
 }
@@ -62,10 +83,12 @@ export const blogRepo: BlogRepo = {
   ...driver.blogs,
   async list(query) {
     await ensureDuePublished();
+    drainNotifications();
     return driver.blogs.list(query);
   },
   async listCards(query) {
     await ensureDuePublished();
+    drainNotifications();
     return driver.blogs.listCards(query);
   },
   async count(query) {
@@ -84,22 +107,22 @@ export const blogRepo: BlogRepo = {
     await ensureDuePublished();
     return driver.blogs.findBySlug(slug);
   },
-  // Writes report to IndexNow here, once, so no route has to remember to.
+  // Writes report to IndexNow and queue notifications here, once, so no route has to remember to.
   async create(data) {
     const created = await driver.blogs.create(data);
-    notifyPostChange(null, created);
+    await onPostChange(null, created);
     return created;
   },
   async update(id, patch) {
     const before = await driver.blogs.findById(id);
     const updated = await driver.blogs.update(id, patch);
-    notifyPostChange(before, updated);
+    await onPostChange(before, updated);
     return updated;
   },
   async remove(id) {
     const before = await driver.blogs.findById(id);
     const removed = await driver.blogs.remove(id);
-    if (removed) notifyPostChange(before, null);
+    if (removed) await onPostChange(before, null);
     return removed;
   },
 };
@@ -180,6 +203,10 @@ export const mediaRepo = driver.media;
 export const viewRepo = driver.views;
 export const shareRepo = driver.shares;
 export const clickRepo = driver.clicks;
+export const subscriberRepo = driver.subscribers;
+export const pushDeviceRepo = driver.pushDevices;
+export const notifyJobRepo = driver.notifyJobs;
+export const deliveryRepo = driver.deliveries;
 
 /** Which store is active. Shown on the admin overview so the stage is never unclear. */
 export const activeDriver = driverName;

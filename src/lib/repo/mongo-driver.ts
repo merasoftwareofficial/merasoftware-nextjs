@@ -12,6 +12,9 @@ import { ViewDay, ViewSeen } from "@/models/View";
 import { ShareDay } from "@/models/Share";
 import { ClickDay } from "@/models/Click";
 import { MediaAssetModel } from "@/models/Media";
+import { SubscriberModel } from "@/models/Subscriber";
+import { PushDeviceModel } from "@/models/PushDevice";
+import { DeliveryModel, NotifyJobModel } from "@/models/NotifyJob";
 import type {
   Blog as BlogRecord,
   BlogQuery,
@@ -24,6 +27,9 @@ import type {
   Report as ReportRecord,
   Settings as SettingsRecord,
   SharePlatform,
+  NotifyJob as NotifyJobRecord,
+  PushDevice as PushDeviceRecord,
+  Subscriber as SubscriberRecord,
   User as UserRecord,
 } from "./types";
 
@@ -694,4 +700,195 @@ const clicks: DataDriver["clicks"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks };
+/* ---------------------------------------------------------- subscribers -- */
+
+function subscriberRecord(row: Record<string, unknown>): SubscriberRecord {
+  const subscriber = serialize(row as never) as SubscriberRecord;
+  return {
+    ...subscriber,
+    categories: subscriber.categories ?? [],
+    emailConfirmedAt: iso(row.emailConfirmedAt as Date | undefined),
+    confirmSentAt: iso(row.confirmSentAt as Date | undefined),
+  };
+}
+
+const subscribers: DataDriver["subscribers"] = {
+  async findById(id) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    const row = await SubscriberModel.findById(_id).lean();
+    return row ? subscriberRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async findByEmail(email) {
+    await connectMongo();
+    const row = await SubscriberModel.findOne({ email: email.trim().toLowerCase() }).lean();
+    return row ? subscriberRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async findByUserId(userId) {
+    await connectMongo();
+    const row = await SubscriberModel.findOne({ userId }).lean();
+    return row ? subscriberRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async findByToken(token) {
+    if (!token) return null;
+    await connectMongo();
+    const row = await SubscriberModel.findOne({ token }).lean();
+    return row ? subscriberRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async create(data) {
+    await connectMongo();
+    try {
+      const row = await SubscriberModel.create(data);
+      return subscriberRecord(row.toObject() as unknown as Record<string, unknown>);
+    } catch (error) {
+      // Same messages as the JSON driver, for two requests racing on one address or account.
+      if (isDuplicateKey(error)) {
+        throw new Error((error as { keyPattern?: Record<string, unknown> }).keyPattern?.userId ? "This account already has notification settings." : "That email is already subscribed.");
+      }
+      throw error;
+    }
+  },
+  async update(id, patch) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    // Undefined means "remove", as in blogs.update().
+    const entries = Object.entries(patch);
+    const $set = Object.fromEntries(entries.filter(([, value]) => value !== undefined));
+    const $unset = Object.fromEntries(entries.filter(([, value]) => value === undefined).map(([key]) => [key, ""]));
+    const row = await SubscriberModel.findByIdAndUpdate(
+      _id,
+      Object.keys($unset).length ? { $set, $unset } : { $set },
+      { new: true, runValidators: true },
+    ).lean();
+    return row ? subscriberRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async remove(id) {
+    const _id = objectId(id);
+    if (!_id) return false;
+    await connectMongo();
+    const result = await SubscriberModel.deleteOne({ _id });
+    return result.deletedCount > 0;
+  },
+  async replaceCategory(fromId, toId) {
+    await connectMongo();
+    // Two steps, because one update cannot both $addToSet and $pull the same array.
+    const result = await SubscriberModel.updateMany({ categories: fromId }, { $addToSet: { categories: toId } });
+    await SubscriberModel.updateMany({ categories: fromId }, { $pull: { categories: fromId } });
+    return result.matchedCount;
+  },
+  async removeCategory(id) {
+    await connectMongo();
+    const result = await SubscriberModel.updateMany({ categories: id }, { $pull: { categories: id } });
+    return result.modifiedCount;
+  },
+  async listByCategory(categoryId) {
+    await connectMongo();
+    const rows = await SubscriberModel.find({ categories: categoryId }).lean();
+    return rows.map((row: Record<string, unknown>) => subscriberRecord(row));
+  },
+};
+
+/* --------------------------------------------------------- push devices -- */
+
+function pushDeviceRecord(row: Record<string, unknown>): PushDeviceRecord {
+  return serialize(row as never) as PushDeviceRecord;
+}
+
+const pushDevices: DataDriver["pushDevices"] = {
+  async upsert(data) {
+    await connectMongo();
+    const row = await PushDeviceModel.findOneAndUpdate(
+      { endpoint: data.endpoint },
+      { $set: data },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+    ).lean();
+    return pushDeviceRecord(row as unknown as Record<string, unknown>);
+  },
+  async findByEndpoint(endpoint) {
+    await connectMongo();
+    const row = await PushDeviceModel.findOne({ endpoint }).lean();
+    return row ? pushDeviceRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async listBySubscribers(subscriberIds) {
+    if (!subscriberIds.length) return [];
+    await connectMongo();
+    const rows = await PushDeviceModel.find({ subscriberId: { $in: subscriberIds } }).lean();
+    return rows.map((row: Record<string, unknown>) => pushDeviceRecord(row));
+  },
+  async removeByEndpoint(endpoint) {
+    await connectMongo();
+    const result = await PushDeviceModel.deleteOne({ endpoint });
+    return result.deletedCount > 0;
+  },
+  async moveSubscriber(fromId, toId) {
+    await connectMongo();
+    const result = await PushDeviceModel.updateMany({ subscriberId: fromId }, { $set: { subscriberId: toId } });
+    return result.modifiedCount;
+  },
+};
+
+/* --------------------------------------------------- notification queue -- */
+
+function notifyJobRecord(row: Record<string, unknown>): NotifyJobRecord {
+  const job = serialize(row as never) as NotifyJobRecord;
+  return { ...job, lockedUntil: iso(row.lockedUntil as Date | undefined) };
+}
+
+const notifyJobs: DataDriver["notifyJobs"] = {
+  async create(data) {
+    await connectMongo();
+    try {
+      const row = await NotifyJobModel.create({ ...data, status: "queued", sent: 0, failed: 0 });
+      return notifyJobRecord(row.toObject() as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (isDuplicateKey(error)) return null;
+      throw error;
+    }
+  },
+  async listOpen(limit) {
+    await connectMongo();
+    const rows = await NotifyJobModel.find({ status: { $in: ["queued", "running"] } }).sort({ createdAt: 1 }).limit(limit).lean();
+    return rows.map((row: Record<string, unknown>) => notifyJobRecord(row));
+  },
+  async claim(id, lockedUntil) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    // One atomic step, so two runners can never both take the job.
+    const row = await NotifyJobModel.findOneAndUpdate(
+      { _id, $or: [{ status: "queued" }, { status: "running", lockedUntil: { $lt: new Date() } }] },
+      { $set: { status: "running", lockedUntil: new Date(lockedUntil) } },
+      { new: true },
+    ).lean();
+    return row ? notifyJobRecord(row as unknown as Record<string, unknown>) : null;
+  },
+  async finish(id, patch) {
+    const _id = objectId(id);
+    if (!_id) return;
+    await connectMongo();
+    await NotifyJobModel.updateOne({ _id }, { $set: patch, $unset: { lockedUntil: "" } });
+  },
+  async release(id) {
+    const _id = objectId(id);
+    if (!_id) return;
+    await connectMongo();
+    await NotifyJobModel.updateOne({ _id }, { $set: { status: "queued" }, $unset: { lockedUntil: "" } });
+  },
+};
+
+const deliveries: DataDriver["deliveries"] = {
+  async claim(key) {
+    await connectMongo();
+    try {
+      await DeliveryModel.create({ _id: key, at: new Date() });
+      return true;
+    } catch (error) {
+      if (isDuplicateKey(error)) return false;
+      throw error;
+    }
+  },
+};
+
+export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries };

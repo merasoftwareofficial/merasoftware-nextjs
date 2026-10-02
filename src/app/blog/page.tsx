@@ -4,6 +4,7 @@ import { SearchBox } from "@/components/blog/search-box";
 import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SubscribeBox } from "@/components/subscribe/subscribe-box";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import { robotsFor } from "@/lib/indexability";
@@ -152,6 +153,8 @@ export default async function BlogPage({ searchParams }: Search) {
               ))}
             </div>
           )}
+
+          <SubscribeBox />
         </section>
       </main>
       <SiteFooter />

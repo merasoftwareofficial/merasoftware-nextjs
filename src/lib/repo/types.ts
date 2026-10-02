@@ -182,6 +182,67 @@ export interface User {
   updatedAt: string;
 }
 
+/** Where an address stands; only `active` is ever mailed (src/docs/NOTIFICATIONS.md). */
+export type EmailStatus = "none" | "pending" | "active" | "unsubscribed" | "bounced";
+
+/**
+ * One person's notification choices — the single record every channel reads
+ * (src/lib/notify-rules.ts). `email` and `userId` are left out, never null:
+ * both carry unique indexes that skip only missing values.
+ */
+export interface Subscriber {
+  _id: string;
+  email?: string;
+  emailStatus: EmailStatus;
+  emailConfirmedAt?: string;
+  /** When the last confirm or manage-link mail went out; limits them to one per 10 minutes. */
+  confirmSentAt?: string;
+  userId?: string;
+  /** The signed-in user who asked for this email; linked as userId when the confirm link is clicked. */
+  pendingUserId?: string;
+  /** Secret for the manage, confirm and unsubscribe links. */
+  token: string;
+  /** Category _ids, not names: a rename rewrites the name on posts but keeps the id. */
+  categories: string[];
+  offers: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One browser or phone that allowed notifications; its owner's choices live on the Subscriber. */
+export interface PushDevice {
+  _id: string;
+  subscriberId: string;
+  /** The push service address; unique per browser, and secret enough to identify it. */
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NotifyChannel = "push" | "email";
+export type NotifyJobStatus = "queued" | "running" | "done" | "skipped";
+
+/** One announcement on one channel, worked through by src/lib/notify-queue.ts. */
+export interface NotifyJob {
+  _id: string;
+  kind: "post";
+  /** The post's _id. */
+  refId: string;
+  channel: NotifyChannel;
+  status: NotifyJobStatus;
+  /** While running: another runner may take the job over after this time. */
+  lockedUntil?: string;
+  sent: number;
+  failed: number;
+  /** Why it was skipped, for the panel. */
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Comment {
   _id: string;
   blogId: string;
@@ -284,6 +345,50 @@ export interface UserRepo {
   list(): Promise<User[]>;
   create(data: Omit<User, "_id" | "createdAt" | "updatedAt">): Promise<User>;
   update(id: string, patch: Partial<User>): Promise<User | null>;
+}
+
+export interface SubscriberRepo {
+  findById(id: string): Promise<Subscriber | null>;
+  findByEmail(email: string): Promise<Subscriber | null>;
+  findByUserId(userId: string): Promise<Subscriber | null>;
+  findByToken(token: string): Promise<Subscriber | null>;
+  create(data: Omit<Subscriber, "_id" | "createdAt" | "updatedAt">): Promise<Subscriber>;
+  /** A key set to undefined is removed. */
+  update(id: string, patch: Partial<Omit<Subscriber, "_id" | "createdAt" | "updatedAt">>): Promise<Subscriber | null>;
+  remove(id: string): Promise<boolean>;
+  /** A category merge: every subscriber of `fromId` follows `toId` instead. Returns how many changed. */
+  replaceCategory(fromId: string, toId: string): Promise<number>;
+  /** A category delete: drops the id from every subscriber. Returns how many changed. */
+  removeCategory(id: string): Promise<number>;
+  /** Everyone following this category id. */
+  listByCategory(categoryId: string): Promise<Subscriber[]>;
+}
+
+export interface PushDeviceRepo {
+  /** Saves a device by its endpoint; a browser that subscribes again moves to the new owner. */
+  upsert(data: Omit<PushDevice, "_id" | "createdAt" | "updatedAt">): Promise<PushDevice>;
+  findByEndpoint(endpoint: string): Promise<PushDevice | null>;
+  listBySubscribers(subscriberIds: string[]): Promise<PushDevice[]>;
+  removeByEndpoint(endpoint: string): Promise<boolean>;
+  /** Two settings records became one: the devices follow. */
+  moveSubscriber(fromId: string, toId: string): Promise<number>;
+}
+
+export interface NotifyJobRepo {
+  /** Null when this announcement already has a job on this channel. */
+  create(data: Pick<NotifyJob, "kind" | "refId" | "channel">): Promise<NotifyJob | null>;
+  /** Jobs not finished yet, oldest first. */
+  listOpen(limit: number): Promise<NotifyJob[]>;
+  /** Takes a queued job, or a running one whose lock ran out. Null when another runner has it. */
+  claim(id: string, lockedUntil: string): Promise<NotifyJob | null>;
+  finish(id: string, patch: Pick<NotifyJob, "status" | "sent" | "failed"> & { note?: string }): Promise<void>;
+  /** Puts a claimed job back, e.g. when its channel is not configured yet. */
+  release(id: string): Promise<void>;
+}
+
+export interface DeliveryRepo {
+  /** True the first time a key is claimed: one key = one message, ever (kept 90 days). */
+  claim(key: string): Promise<boolean>;
 }
 
 export interface CommentRepo {
@@ -431,4 +536,8 @@ export interface DataDriver {
   views: ViewRepo;
   shares: ShareRepo;
   clicks: ClickRepo;
+  subscribers: SubscriberRepo;
+  pushDevices: PushDeviceRepo;
+  notifyJobs: NotifyJobRepo;
+  deliveries: DeliveryRepo;
 }

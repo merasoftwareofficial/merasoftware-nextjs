@@ -9,7 +9,7 @@ import "server-only";
  * an emptied category stays in the list for the admin to delete.
  */
 
-import { blogRepo, categoryRepo, type Category } from "@/lib/repo";
+import { blogRepo, categoryRepo, subscriberRepo, type Category } from "@/lib/repo";
 import { categoryNameSchema, categorySlug, nameClash } from "@/lib/category-rules";
 
 /** A live category now answers at `slug`, so no other category may keep it as an old address. */
@@ -92,6 +92,8 @@ export async function mergeCategory(from: string, intoId: string) {
   if (source) {
     const formerSlugs = [...new Set([...target.formerSlugs, ...source.formerSlugs, source.slug])].filter(former => former !== target.slug);
     await categoryRepo.update(target._id, { formerSlugs });
+    // Its subscribers follow the posts, before the id they hold disappears.
+    await subscriberRepo.replaceCategory(source._id, target._id);
     await categoryRepo.remove(source._id);
   }
   return { moved, removed: !!source };
@@ -105,5 +107,8 @@ export async function deleteCategory(id: string) {
   if (inUse) {
     throw new Error(`${inUse} ${inUse === 1 ? "post uses" : "posts use"} "${category.name}". Move ${inUse === 1 ? "it" : "them"} to another category first.`);
   }
-  return categoryRepo.remove(id);
+  const removed = await categoryRepo.remove(id);
+  // Nobody can be notified about a category that no longer exists.
+  if (removed) await subscriberRepo.removeCategory(id);
+  return removed;
 }

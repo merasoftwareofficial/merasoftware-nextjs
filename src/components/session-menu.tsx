@@ -91,6 +91,9 @@ export function SessionMenu({
           <Link href="/account/saved" onClick={() => setOpen(false)}>
             Saved posts
           </Link>
+          <Link href="/subscribe/manage" onClick={() => setOpen(false)}>
+            Notifications
+          </Link>
           <Link href="/community/write" onClick={() => setOpen(false)}>
             Write a post
           </Link>

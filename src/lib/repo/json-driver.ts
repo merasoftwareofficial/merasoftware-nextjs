@@ -38,6 +38,13 @@ import type {
   SettingsRepo,
   SharePlatform,
   ShareRepo,
+  DeliveryRepo,
+  NotifyJob,
+  NotifyJobRepo,
+  PushDevice,
+  PushDeviceRepo,
+  Subscriber,
+  SubscriberRepo,
   User,
   UserRepo,
   ViewRepo,
@@ -45,7 +52,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays";
+type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays" | "subscribers" | "pushDevices" | "notifyJobs" | "deliveries";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -656,4 +663,168 @@ const clicks: ClickRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks };
+/* ---------------------------------------------------------- subscribers -- */
+
+/** Undefined removes a key, as in the Mongo driver's $unset. */
+function withoutUndefined<T extends object>(row: T): T {
+  return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined)) as T;
+}
+
+const subscribers: SubscriberRepo = {
+  async findById(subscriberId) {
+    return read<Subscriber>("subscribers").find(row => row._id === subscriberId) ?? null;
+  },
+  async findByEmail(email) {
+    const target = email.trim().toLowerCase();
+    return read<Subscriber>("subscribers").find(row => row.email === target) ?? null;
+  },
+  async findByUserId(userId) {
+    return read<Subscriber>("subscribers").find(row => row.userId === userId) ?? null;
+  },
+  async findByToken(token) {
+    if (!token) return null;
+    return read<Subscriber>("subscribers").find(row => row.token === token) ?? null;
+  },
+  async create(data) {
+    const rows = read<Subscriber>("subscribers");
+    const email = data.email?.trim().toLowerCase();
+    // The unique indexes of the Mongo model.
+    if (email && rows.some(row => row.email === email)) throw new Error("That email is already subscribed.");
+    if (data.userId && rows.some(row => row.userId === data.userId)) throw new Error("This account already has notification settings.");
+    const row: Subscriber = withoutUndefined({ ...data, email, _id: id(), createdAt: now(), updatedAt: now() });
+    rows.push(row);
+    write("subscribers", rows);
+    return row;
+  },
+  async update(subscriberId, patch) {
+    const rows = read<Subscriber>("subscribers");
+    const index = rows.findIndex(row => row._id === subscriberId);
+    if (index === -1) return null;
+    const email = patch.email?.trim().toLowerCase();
+    rows[index] = withoutUndefined({ ...rows[index], ...patch, ...(email ? { email } : {}), _id: subscriberId, updatedAt: now() });
+    write("subscribers", rows);
+    return rows[index];
+  },
+  async remove(subscriberId) {
+    const rows = read<Subscriber>("subscribers");
+    const next = rows.filter(row => row._id !== subscriberId);
+    if (next.length === rows.length) return false;
+    write("subscribers", next);
+    return true;
+  },
+  async replaceCategory(fromId, toId) {
+    let changed = 0;
+    const rows = read<Subscriber>("subscribers").map(row => {
+      if (!row.categories.includes(fromId)) return row;
+      changed++;
+      return { ...row, categories: [...new Set(row.categories.map(category => (category === fromId ? toId : category)))], updatedAt: now() };
+    });
+    if (changed) write("subscribers", rows);
+    return changed;
+  },
+  async removeCategory(categoryId) {
+    let changed = 0;
+    const rows = read<Subscriber>("subscribers").map(row => {
+      if (!row.categories.includes(categoryId)) return row;
+      changed++;
+      return { ...row, categories: row.categories.filter(category => category !== categoryId), updatedAt: now() };
+    });
+    if (changed) write("subscribers", rows);
+    return changed;
+  },
+  async listByCategory(categoryId) {
+    return read<Subscriber>("subscribers").filter(row => row.categories.includes(categoryId));
+  },
+};
+
+/* --------------------------------------------------------- push devices -- */
+
+const pushDevices: PushDeviceRepo = {
+  async upsert(data) {
+    const rows = read<PushDevice>("pushDevices");
+    const index = rows.findIndex(row => row.endpoint === data.endpoint);
+    const row: PushDevice = index === -1
+      ? withoutUndefined({ ...data, _id: id(), createdAt: now(), updatedAt: now() })
+      : withoutUndefined({ ...rows[index], ...data, updatedAt: now() });
+    if (index === -1) rows.push(row);
+    else rows[index] = row;
+    write("pushDevices", rows);
+    return row;
+  },
+  async findByEndpoint(endpoint) {
+    return read<PushDevice>("pushDevices").find(row => row.endpoint === endpoint) ?? null;
+  },
+  async listBySubscribers(subscriberIds) {
+    const wanted = new Set(subscriberIds);
+    return read<PushDevice>("pushDevices").filter(row => wanted.has(row.subscriberId));
+  },
+  async removeByEndpoint(endpoint) {
+    const rows = read<PushDevice>("pushDevices");
+    const next = rows.filter(row => row.endpoint !== endpoint);
+    if (next.length === rows.length) return false;
+    write("pushDevices", next);
+    return true;
+  },
+  async moveSubscriber(fromId, toId) {
+    let moved = 0;
+    const rows = read<PushDevice>("pushDevices").map(row => (row.subscriberId === fromId ? (moved++, { ...row, subscriberId: toId, updatedAt: now() }) : row));
+    if (moved) write("pushDevices", rows);
+    return moved;
+  },
+};
+
+/* --------------------------------------------------- notification queue -- */
+
+const notifyJobs: NotifyJobRepo = {
+  async create(data) {
+    const rows = read<NotifyJob>("notifyJobs");
+    if (rows.some(row => row.kind === data.kind && row.refId === data.refId && row.channel === data.channel)) return null;
+    const row: NotifyJob = { ...data, _id: id(), status: "queued", sent: 0, failed: 0, createdAt: now(), updatedAt: now() };
+    rows.push(row);
+    write("notifyJobs", rows);
+    return row;
+  },
+  async listOpen(limit) {
+    return read<NotifyJob>("notifyJobs")
+      .filter(row => row.status === "queued" || row.status === "running")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(0, limit);
+  },
+  async claim(jobId, lockedUntil) {
+    const rows = read<NotifyJob>("notifyJobs");
+    const index = rows.findIndex(row => row._id === jobId);
+    if (index === -1) return null;
+    const job = rows[index];
+    const free = job.status === "queued" || (job.status === "running" && (!job.lockedUntil || job.lockedUntil < now()));
+    if (!free) return null;
+    rows[index] = { ...job, status: "running", lockedUntil, updatedAt: now() };
+    write("notifyJobs", rows);
+    return rows[index];
+  },
+  async finish(jobId, patch) {
+    const rows = read<NotifyJob>("notifyJobs");
+    const index = rows.findIndex(row => row._id === jobId);
+    if (index === -1) return;
+    rows[index] = withoutUndefined({ ...rows[index], ...patch, lockedUntil: undefined, updatedAt: now() });
+    write("notifyJobs", rows);
+  },
+  async release(jobId) {
+    const rows = read<NotifyJob>("notifyJobs");
+    const index = rows.findIndex(row => row._id === jobId);
+    if (index === -1) return;
+    rows[index] = withoutUndefined({ ...rows[index], status: "queued", lockedUntil: undefined, updatedAt: now() });
+    write("notifyJobs", rows);
+  },
+};
+
+const deliveries: DeliveryRepo = {
+  async claim(key) {
+    const rows = read<{ _id: string; at: string }>("deliveries");
+    if (rows.some(row => row._id === key)) return false;
+    rows.push({ _id: key, at: now() });
+    write("deliveries", rows);
+    return true;
+  },
+};
+
+export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries };
