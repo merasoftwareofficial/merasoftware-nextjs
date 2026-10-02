@@ -12,6 +12,9 @@ import { jsonLd, organisationLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 
+/** How many times the moving strip's items repeat inside one copy (see the marquee below). */
+const MARQUEE_REPEAT = 3;
+
 /** Title, description and share image are editable at /admin/page-seo. */
 export function generateMetadata() {
   return pageMetadata("home");
@@ -53,7 +56,9 @@ export default async function Home() {
             {visuals["home.hero"]?.config.mode !== "media" ? <div className="signal-card"><span className="signal-label">{content.hero.signalLabel}</span><strong>{content.hero.signalPrimary}<span>/</span>{content.hero.signalSecondary}</strong><div className="signal-line" /></div> : null}
           </div>
         </div>
-        <div className="marquee"><div>{content.marquee.map((item, index) => <span key={`${item}-${index}`}>{item} <b>✦</b> </span>)}</div></div>
+        {/* Two identical copies slide by exactly one copy's width, so the strip loops with no jump; the second is hidden from screen readers.
+            Each copy holds the items MARQUEE_REPEAT times so it is wider than a large screen, and the time grows with it so the speed stays the same. */}
+        <div className="marquee"><div className="marquee-track" style={{ animationDuration: `${26 * MARQUEE_REPEAT}s` }}>{[false, true].map(copy => <div key={String(copy)} aria-hidden={copy || undefined}>{Array.from({ length: MARQUEE_REPEAT }, (_, round) => content.marquee.map((item, index) => <span key={`${round}-${index}`}>{item} <b>✦</b> </span>))}</div>)}</div></div>
       </section>
 
       <section className="section container">
