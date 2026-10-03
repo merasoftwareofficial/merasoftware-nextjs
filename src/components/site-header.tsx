@@ -19,7 +19,7 @@ async function SessionSlot() {
   return (
     <SessionMenu
       user={user && badge ? { displayName: user.displayName, username: user.username, role: user.role, badge } : null}
-      portal={session ? portalEntryFor(session.portalRoles, portalUrl) : null}
+      portal={session ? portalEntryFor(session.portalActiveRole, portalUrl) : null}
       portalApiUrl={apiUrl}
     />
   );

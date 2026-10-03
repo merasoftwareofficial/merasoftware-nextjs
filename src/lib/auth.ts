@@ -34,7 +34,7 @@ export class AuthError extends Error {
  * lookup. It never outlives the request, so a role change still shows on the
  * next one. Where there is no render to memoise in, it simply runs each time.
  */
-export const getSession = cache(async function getSession(): Promise<{ user: User; portalRoles: string[] } | null> {
+export const getSession = cache(async function getSession(): Promise<{ user: User; portalRoles: string[]; portalActiveRole: string } | null> {
   const store = await cookies();
   const token = store.get(PORTAL_COOKIE)?.value;
   if (!token) return null;
@@ -51,6 +51,7 @@ export const getSession = cache(async function getSession(): Promise<{ user: Use
   return {
     user: account.roles.includes("admin") ? { ...user, role: "admin" } : user,
     portalRoles: account.roles,
+    portalActiveRole: account.activeRole,
   };
 });
 

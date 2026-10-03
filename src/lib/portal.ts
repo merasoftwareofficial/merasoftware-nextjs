@@ -16,6 +16,7 @@ export interface PortalAccount {
   email: string;
   name: string;
   roles: string[];
+  activeRole: string;
   isGuest: boolean;
 }
 
@@ -39,12 +40,12 @@ export function portalAddresses() {
 }
 
 /**
- * The portal screen this account can open, or null. Only `admin` and `customer`
+ * The portal screen the cookie's active role can open, or null. Only `admin` and `customer`
  * have portal screens (frontend/src/routes/RoleBasedRouter.js); paths match its route files.
  */
-export function portalEntryFor(roles: string[], portalUrl: string) {
-  if (roles.includes("admin")) return { label: "Portal admin panel", href: `${portalUrl}/admin-panel/dashboard` };
-  if (roles.includes("customer")) return { label: "My Portal", href: `${portalUrl}/dashboard` };
+export function portalEntryFor(activeRole: string, portalUrl: string) {
+  if (activeRole === "admin") return { label: "Portal admin panel", href: `${portalUrl}/admin-panel/dashboard` };
+  if (activeRole === "customer") return { label: "My Portal", href: `${portalUrl}/dashboard` };
   return null;
 }
 
@@ -82,17 +83,21 @@ async function fetchAccount(token: string): Promise<PortalAccount | null> {
     headers: { cookie: `${PORTAL_COOKIE}=${token}` },
     cache: "no-store",
   });
-  if (!response.ok) return null;
+  if (response.status === 401) return null;
+  // An unavailable service is not evidence of an invalid session. Do not
+  // remember temporary HTTP failures as signed out for the next 60 seconds.
+  if (!response.ok) throw new Error(`Portal status check returned ${response.status}`);
 
   const body = await response.json();
   const data = body?.data;
-  if (!body?.success || !data?._id || !data?.email) return null;
+  if (!body?.success || !data?._id || !data?.email) throw new Error("Portal returned an invalid account response");
 
   return {
     id: String(data._id),
     email: String(data.email).trim().toLowerCase(),
     name: typeof data.name === "string" ? data.name.trim() : "",
     roles: Array.isArray(data.roles) ? data.roles.map(String) : [],
+    activeRole: typeof data.role === "string" ? data.role : "",
     isGuest: data.isGuest === true,
   };
 }
