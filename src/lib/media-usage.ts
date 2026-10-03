@@ -2,6 +2,7 @@ import "server-only";
 
 import { pageSeoPage } from "@/lib/page-seo";
 import { blogRepo, settingsRepo } from "@/lib/repo";
+import { portfolioRepo } from "@/lib/portfolio/repo";
 import type { Blog, HomeImageSlot, MediaAsset } from "@/lib/repo/types";
 
 /** One place a library image is shown, with the admin page that changes it. */
@@ -50,7 +51,12 @@ export async function findMediaUsage(assets: MediaAsset[]): Promise<Map<string, 
   const usage = new Map<string, MediaUse[]>(assets.map(asset => [asset._id, []]));
   if (!assets.length) return usage;
 
-  const [settings, blogs] = await Promise.all([settingsRepo.get(), blogRepo.list()]);
+  const [settings, blogs, portfolio] = await Promise.all([settingsRepo.get(), blogRepo.list(), portfolioRepo.list()]);
+
+  for (const entry of portfolio) {
+    const images = [...(entry.cover ? [entry.cover] : []), ...entry.gallery, ...entry.capture.candidates];
+    for (const id of new Set(images.map(image => image.assetId))) usage.get(id)?.push({ label: `Portfolio → ${entry.title}`, href: `/admin/portfolio/${entry._id}` });
+  }
 
   for (const [slot, image] of Object.entries(settings.homepageImages ?? {}) as [HomeImageSlot, { assetId: string } | undefined][]) {
     if (image) usage.get(image.assetId)?.push({ label: HOMEPAGE_SLOTS[slot] ?? `Homepage → ${slot}`, href: "/admin/homepage" });

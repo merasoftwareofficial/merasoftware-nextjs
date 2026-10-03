@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./portfolio.css";
 /* Small text sizes, set once here. Phones and tablets keep these values; from 1025px (where the full header menu shows) each one steps up, because on a 1080p screen at 100% they read too small. Headings and 15px+ UI text are not tokens and do not change. The admin logo matches the site logo (22px) below 1025px; it was 13px everywhere because ".admin-nav a" overrode ".brand". */
 :root{--fs-tag:10px;--fs-label:11px;--fs-meta:12px;--fs-ui:13px;--fs-input:14px;--fs-text:15px;--fs-lead:17px;--fs-admin-logo:22px;--admin-nav-width:240px}
 @media(min-width:1025px){:root{--fs-tag:12px;--fs-label:12px;--fs-meta:13px;--fs-ui:14px;--fs-input:15px;--fs-text:16px;--fs-lead:19px;--fs-admin-logo:24px;--admin-nav-width:260px}}

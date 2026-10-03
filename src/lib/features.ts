@@ -7,9 +7,7 @@
 export const FEATURES = {
   /**
    * /work, the homepage "Selected work" section and every link to them.
-   * Off since 30 Sep 2026: the two case studies (Northstar Advisory, Oasis
-   * Living) came with the site template and are not real clients. Turn on
-   * once real projects are added through a working Portfolio admin.
+   * Uses real published Portfolio records; template cards are never displayed.
    */
-  portfolio: false,
+  portfolio: true,
 } as const;

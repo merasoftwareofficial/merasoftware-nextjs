@@ -1,2 +1,10 @@
-import { requireStaffPage } from "@/lib/auth";import { AdminHeader } from "@/components/admin-layout";import { AdminTable } from "@/components/admin-table";
-export default async function Portfolio(){await requireStaffPage("/admin/portfolio","editor");return <main className="admin-main"><AdminHeader eyebrow="SITE CONTENT" title="Portfolio" description="Add projects and case studies that build trust before the first conversation." action={<button className="admin-button">New case study +</button>}/><AdminTable headers={["PROJECT","SERVICE","STATUS","ACTION"]} rows={[["Northstar Advisory","Web + SEO",<span className="status status-live" key="a">Live</span>,"Edit →"],["Oasis Living","Paid growth",<span className="status status-draft" key="b">Draft</span>,"Edit →"]]}/></main>}
+import { requireStaffPage } from "@/lib/auth";
+import { AdminHeader } from "@/components/admin-layout";
+import { portfolioRepo } from "@/lib/portfolio/repo";
+import { PortfolioList } from "./portfolio-list";
+import { PortfolioSync } from "./portfolio-sync";
+export default async function Portfolio() {
+  await requireStaffPage("/admin/portfolio", "editor");
+  const entries = await portfolioRepo.list();
+  return <main className="admin-main"><AdminHeader eyebrow="SITE CONTENT" title="Portfolio" description="Projects and purchased services arrive as drafts. Review screenshots and publish the work you want to show." /><PortfolioSync /><PortfolioList entries={entries} /></main>;
+}

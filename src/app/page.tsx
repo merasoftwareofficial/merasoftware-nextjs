@@ -3,8 +3,11 @@ import Link from "@/components/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { DEFAULT_HOMEPAGE_CONTENT, resolveHomepageContent } from "@/lib/homepage-content";
-import { blogRepo, mediaRepo, settingsRepo } from "@/lib/repo";
+import { blogRepo, settingsRepo } from "@/lib/repo";
 import { FEATURES } from "@/lib/features";
+import { portfolioRepo } from "@/lib/portfolio/repo";
+import { publicPortfolio } from "@/lib/portfolio/types";
+import { PortfolioCard } from "@/components/portfolio";
 import { loadVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import { pageMetadata } from "@/lib/page-seo";
@@ -21,19 +24,14 @@ export function generateMetadata() {
 }
 
 export default async function Home() {
-  const [posts, settings] = await Promise.all([
+  const [posts, settings, portfolio] = await Promise.all([
     blogRepo.listCards({ type: "official", status: "published", visibility: "public", limit: 3 }),
     settingsRepo.get(),
+    portfolioRepo.list(true),
   ]);
   const content = resolveHomepageContent(settings.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT);
   const visuals = await loadVisuals(["home.hero", "home.services", "home.statement", "home.contact"], settings);
-  const placements = settings.homepageImages ?? {};
-  const assetIds = Object.values(placements)
-    .filter((image): image is NonNullable<typeof image> => Boolean(image))
-    .map(image => image.assetId);
-  const assets = await mediaRepo.findByIds(assetIds);
-  const imageById = new Map(assets.map(asset => [asset._id, asset]));
-  const workImageSlots = ["work-northstar", "work-oasis"] as const;
+  const featuredWork = portfolio.filter(entry => entry.featured).slice(0, 3).map(publicPortfolio);
   const heroVisual = visuals["home.hero"];
   const heroVideo = heroVisual?.config.mode !== "pattern" && heroVisual?.config.frameShape === "source" && heroVisual.asset?.kind === "video" && heroVisual.asset.width > 0 && heroVisual.asset.height > 0 ? heroVisual.asset : undefined;
 
@@ -85,22 +83,14 @@ export default async function Home() {
         </div>
       </section>
 
-      {FEATURES.portfolio ? <section className="work-preview section">
+      {FEATURES.portfolio && featuredWork.length > 0 ? <section className="work-preview section">
         <div className="container">
           <div className="section-top">
             <p className="eyebrow"><i /> {content.work.eyebrow}</p>
             <Link className="text-link" href="/work">{content.work.allLabel} <span>↗</span></Link>
           </div>
           <h2 className="section-heading">{content.work.headingBefore} <em>{content.work.headingEmphasis}</em> {content.work.headingAfter}</h2>
-          <div className="case-grid">{content.work.cards.map((card, index) => {
-            const slot = workImageSlots[index];
-            const placement = placements[slot];
-            const image = placement ? imageById.get(placement.assetId) : undefined;
-            return <article className={`case-card${image ? " has-image" : ""}`} key={slot}>
-              {image ? <img className="case-card-image" src={image.url} alt={placement?.alt ?? ""} style={{ objectPosition: `${placement?.focalX ?? 50}% ${placement?.focalY ?? 50}%` }} /> : null}
-              <span className="case-chip">{card.tag}</span><h3>{card.titleLineOne}<br />{card.titleLineTwo}</h3><p>{card.description}</p>
-            </article>;
-          })}</div>
+          <div className="portfolio-grid">{featuredWork.map(entry => <PortfolioCard key={entry._id} entry={entry} />)}</div>
         </div>
       </section> : null}
 

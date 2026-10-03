@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { services } from "@/lib/site-data";
 import { FEATURES } from "@/lib/features";
+import { portfolioRepo } from "@/lib/portfolio/repo";
 import { LISTING_PATH, MIN_POSTS, topicPathsOf } from "@/lib/indexability";
 import { indexablePosts } from "@/lib/indexable-posts";
 import { userRepo, type BlogCard } from "@/lib/repo";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Filtered in memory, not with a `noIndex: false` query: posts saved before
   // that field existed lack it, and the query would silently drop them.
-  const posts = await indexablePosts();
+  const [posts, portfolio] = await Promise.all([indexablePosts(), portfolioRepo.list(true)]);
 
   // lastmod is only worth sending when it is true: a crawler that sees every
   // page "changed today" on every fetch stops trusting the field, and then a
@@ -36,7 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: SITE, lastModified: newest, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/services`, changeFrequency: "monthly", priority: 0.9 },
-    ...(FEATURES.portfolio ? [{ url: `${SITE}/work`, changeFrequency: "monthly" as const, priority: 0.8 }] : []),
+    ...(FEATURES.portfolio && portfolio.length ? [{ url: `${SITE}/work`, changeFrequency: "monthly" as const, priority: 0.8 }] : []),
     { url: `${SITE}/about`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/contact`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/privacy`, changeFrequency: "yearly", priority: 0.3 },
@@ -107,7 +108,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  return [...staticPages, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages];
+  const portfolioPages: MetadataRoute.Sitemap = portfolio.map(entry => ({ url: `${SITE}/work/${entry.slug}`, lastModified: new Date(entry.updatedAt), changeFrequency: "monthly", priority: 0.8 }));
+  return [...staticPages, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
 }
 
 /** The most recent edit among these posts, or undefined when there are none. */
