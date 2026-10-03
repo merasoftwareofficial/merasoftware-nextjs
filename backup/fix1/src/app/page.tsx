@@ -34,8 +34,6 @@ export default async function Home() {
   const assets = await mediaRepo.findByIds(assetIds);
   const imageById = new Map(assets.map(asset => [asset._id, asset]));
   const workImageSlots = ["work-northstar", "work-oasis"] as const;
-  const heroVisual = visuals["home.hero"];
-  const heroVideo = heroVisual?.config.mode !== "pattern" && heroVisual?.config.frameShape === "source" && heroVisual.asset?.kind === "video" && heroVisual.asset.width > 0 && heroVisual.asset.height > 0 ? heroVisual.asset : undefined;
 
   return <>
     {/* The business as search engines describe it; logo and profiles come from /admin/page-seo. */}
@@ -53,8 +51,8 @@ export default async function Home() {
               <Link className="text-link" href={content.hero.secondaryHref}>{content.hero.secondaryLabel} <span>↓</span></Link>
             </div>
           </div>
-          <div className={`hero-art visual-home-hero${heroVisual?.asset ? " has-image" : ""}`} data-frame-shape={heroVideo ? "source" : heroVisual?.config.frameShape === "square" ? "square" : "slot"} style={heroVideo ? { "--media-ratio": heroVideo.width / heroVideo.height } as React.CSSProperties : undefined}>
-            <SectionVisual data={heroVisual} label="Homepage hero artwork" />
+          <div className={`hero-art visual-home-hero${visuals["home.hero"]?.asset ? " has-image" : ""}`} data-frame-shape={visuals["home.hero"]?.config.frameShape ?? "slot"} style={visuals["home.hero"]?.config.frameShape === "source" && visuals["home.hero"].asset ? { "--media-ratio": visuals["home.hero"].asset.width / visuals["home.hero"].asset.height } as React.CSSProperties : undefined}>
+            <SectionVisual data={visuals["home.hero"]} label="Homepage hero artwork" />
           </div>
         </div>
         {/* Two identical copies slide by exactly one copy's width, so the strip loops with no jump; the second is hidden from screen readers.

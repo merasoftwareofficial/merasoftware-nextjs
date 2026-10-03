@@ -27,14 +27,8 @@ export async function PATCH(request: Request) {
     if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Invalid save origin." }, { status: 403 });
     const { slot, config } = requestSchema.parse(await request.json());
     if (!slotInfo(slot)) return NextResponse.json({ error: "Unknown website visual slot." }, { status: 400 });
-    const asset = config.assetId ? await mediaRepo.findById(config.assetId) : null;
-    if (config.assetId && !asset) return NextResponse.json({ error: "Choose media from the library." }, { status: 400 });
-    if (slot !== "home.hero") {
-      if (config.frameShape && config.frameShape !== "slot") return NextResponse.json({ error: "Frame shape can only be set for the homepage hero." }, { status: 400 });
-      delete config.frameShape;
-    } else if (config.frameShape === "source" && (config.mode === "pattern" || asset?.kind !== "video" || !asset.width || !asset.height)) {
-      config.frameShape = "slot";
-    }
+    if (config.assetId && !(await mediaRepo.findById(config.assetId))) return NextResponse.json({ error: "Choose media from the library." }, { status: 400 });
+    if (config.frameShape && slot !== "home.hero") return NextResponse.json({ error: "Frame shape can only be set for the homepage hero." }, { status: 400 });
     if (!config.assetId && config.mode !== "pattern") config.mode = "pattern";
     const settings = await settingsRepo.get();
     const next = { ...settings.sectionVisuals, [slot]: config };

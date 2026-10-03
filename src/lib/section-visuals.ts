@@ -9,7 +9,9 @@ export async function loadVisuals(ids: VisualSlotId[], existingSettings?: Settin
   const settings = existingSettings ?? await settingsRepo.get();
   const configs = ids.map(id => {
     const legacy = id === "home.hero" && !settings.sectionVisuals?.[id] ? settings.homepageImages?.hero : undefined;
-    const config: SectionVisualConfig = { ...defaultVisual(id), ...(legacy ? { mode: "both", assetId: legacy.assetId, alt: legacy.alt, focalX: legacy.focalX, focalY: legacy.focalY, fit: "cover" } as const : {}), ...settings.sectionVisuals?.[id] };
+    const defaults = defaultVisual(id);
+    const saved = settings.sectionVisuals?.[id];
+    const config: SectionVisualConfig = { ...defaults, ...(legacy ? { mode: "both", assetId: legacy.assetId, alt: legacy.alt, focalX: legacy.focalX, focalY: legacy.focalY, fit: "cover" } as const : {}), ...saved, card: { ...defaults.card!, ...saved?.card } };
     return { id, config };
   });
   const assetIds = [...new Set(configs.map(item => item.config.assetId).filter((id): id is string => !!id))];

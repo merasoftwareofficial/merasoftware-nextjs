@@ -4,7 +4,6 @@ import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";
 import { MobileMenu } from "@/components/mobile-menu";
 import { FEATURES } from "@/lib/features";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionMenu } from "@/components/session-menu";
 
 /**
@@ -50,7 +49,6 @@ export function SiteHeader({ dark = false }: { dark?: boolean }) {
           ))}
         </nav>
         <div className="header-actions">
-          <ThemeToggle />
           <Suspense fallback={<span className="session-link session-loading" />}>
             <SessionSlot />
           </Suspense>

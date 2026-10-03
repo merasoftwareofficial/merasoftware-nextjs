@@ -62,7 +62,7 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
     <section className="admin-form visuals-fields" aria-labelledby="visuals-title">
       <h2 id="visuals-title">{slot.page} → {slot.label}</h2>
       <p className="field-hint">The frame is transparent. Choose a pattern, media, or both. With no media, the pattern fills the space.</p>
-      {selected === "home.hero" ? <label className="admin-field"><span>Hero frame size</span><select value={config.frameShape === "source" && (config.mode === "pattern" || asset?.kind !== "video" || !asset.width || !asset.height) ? "slot" : config.frameShape ?? "slot"} onChange={event => update({ frameShape: event.target.value as NonNullable<SectionVisualConfig["frameShape"]> })}><option value="slot">Current hero frame</option><option value="square">Square frame</option><option value="source" disabled={config.mode === "pattern" || asset?.kind !== "video" || !asset.width || !asset.height}>Fit frame to video (no crop)</option></select><small className="field-hint">The video’s original proportions fit inside the hero column; portrait video stays narrow and landscape video stays wide.</small></label> : null}
+      {selected === "home.hero" ? <label className="admin-field"><span>Hero frame size</span><select value={config.frameShape ?? "slot"} onChange={event => update({ frameShape: event.target.value as NonNullable<SectionVisualConfig["frameShape"]> })}><option value="slot">Current hero frame</option><option value="square">Square frame</option><option value="source" disabled={!asset}>Fit to media proportions (no crop)</option></select><small className="field-hint">The media’s original proportions fit inside the hero column; portrait media stays narrow and landscape media stays wide.</small></label> : null}
       <div className="visuals-mode" role="group" aria-label="Display mode">
         {(["pattern", "media", "both"] as const).map(mode => <button key={mode} type="button" aria-pressed={config.mode === mode} disabled={mode !== "pattern" && !asset} onClick={() => update({ mode })}>{mode === "both" ? "Pattern + media" : mode === "media" ? "Media only" : "Pattern only"}</button>)}
       </div>
@@ -72,7 +72,7 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
       </div>
       <div className="visuals-media-actions">
         <button className="admin-button" type="button" onClick={() => setChooser(true)}>{asset ? "Change media" : "Choose image, GIF or MP4"}</button>
-        {asset ? <button className="admin-action" type="button" onClick={() => update({ assetId: undefined, mode: "pattern", alt: "", ...(config.frameShape === "source" ? { frameShape: "slot" as const } : {}) })}>Remove media</button> : null}
+        {asset ? <button className="admin-action" type="button" onClick={() => update({ assetId: undefined, mode: "pattern", alt: "" })}>Remove media</button> : null}
       </div>
       {asset ? <>
         <p className="field-hint">Selected: {asset.format.toUpperCase()} · {asset.width} × {asset.height} px. Videos play muted and loop without controls.</p>
@@ -97,7 +97,7 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
         </> : null}
       </fieldset>
       <div className="homepage-device-switch"><button type="button" aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>Desktop preview</button><button type="button" aria-pressed={device === "mobile"} onClick={() => setDevice("mobile")}>Mobile preview</button></div>
-      <div className={`visuals-preview ${device}`} style={{ aspectRatio: selected === "home.hero" && config.frameShape === "square" ? "1 / 1" : selected === "home.hero" && config.frameShape === "source" && asset?.kind === "video" && asset.width && asset.height ? `${asset.width} / ${asset.height}` : slot.ratio }}><SectionVisual data={{ config, asset }} label={slot.label} /></div>
+      <div className={`visuals-preview ${device}`} style={{ aspectRatio: selected === "home.hero" && config.frameShape === "square" ? "1 / 1" : selected === "home.hero" && config.frameShape === "source" && asset ? `${asset.width} / ${asset.height}` : slot.ratio }}><SectionVisual data={{ config, asset }} label={slot.label} /></div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
       <button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save visual"}</button>
@@ -106,7 +106,7 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
       setChooser(false);
       if (choice.kind !== "library") return;
       setLibrary(current => [choice.asset, ...current.filter(item => item._id !== choice.asset._id)]);
-      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "both", fit: choice.asset.kind === "video" ? "cover" : "contain", focalX: 50, focalY: 50, ...(config.frameShape === "source" && (choice.asset.kind !== "video" || !choice.asset.width || !choice.asset.height) ? { frameShape: "slot" as const } : {}) });
+      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "both", fit: choice.asset.kind === "video" ? "cover" : "contain", focalX: 50, focalY: 50 });
     }} /> : null}
   </div>;
 }

@@ -34,8 +34,7 @@ export function SectionVisual({ data, className = "", label }: { data?: VisualSl
   const showPattern = config.mode !== "media" || !asset;
   const both = showMedia && showPattern;
   const position = `${config.focalX}% ${config.focalY}%`;
-  const sourceFrame = showMedia && config.frameShape === "source" && asset?.kind === "video" && asset.width > 0 && asset.height > 0;
-  const frameRatio = config.frameShape === "square" ? "1 / 1" : sourceFrame ? `${asset.width} / ${asset.height}` : undefined;
+  const frameRatio = config.frameShape === "square" ? "1 / 1" : config.frameShape === "source" && asset ? `${asset.width} / ${asset.height}` : undefined;
   const frameStyle = frameRatio ? { aspectRatio: frameRatio } : undefined;
   const card = config.card;
   const callout = card?.enabled && (card.eyebrow || card.title || card.body || card.indexText) ? <aside className={`visual-callout ${card.placement === "overlay" ? "is-overlay" : "is-below"}`} style={{ "--callout-bg": card.background, "--callout-fg": card.foreground, "--callout-accent": card.accent } as React.CSSProperties}>
@@ -45,11 +44,11 @@ export function SectionVisual({ data, className = "", label }: { data?: VisualSl
     {card.body ? <p>{card.body}</p> : null}
   </aside> : null;
   return <div className={`section-visual-stack ${className}`}>
-    <div className={`section-visual ${both ? "section-visual-both" : ""} ${sourceFrame ? "section-visual-source" : ""}`} aria-label={label} style={frameStyle}>
+    <div className={`section-visual ${both ? "section-visual-both" : ""} ${config.frameShape === "source" ? "section-visual-source" : ""}`} aria-label={label} style={frameStyle}>
     {showPattern ? <Pattern variant={config.pattern} intensity={config.intensity} /> : null}
     {showMedia && asset ? asset.kind === "video"
-      ? <video className="section-visual-media" src={asset.url} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={{ objectFit: sourceFrame ? "contain" : config.fit, objectPosition: position, ...(sourceFrame ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
-      : <img className="section-visual-media" src={asset.url} alt={config.alt} loading="lazy" style={{ objectFit: config.fit, objectPosition: position }} /> : null}
+      ? <video className="section-visual-media" src={asset.url} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={{ objectFit: config.frameShape === "source" ? "contain" : config.fit, objectPosition: position, ...(config.frameShape === "source" ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
+      : <img className="section-visual-media" src={asset.url} alt={config.alt} loading="lazy" style={{ objectFit: config.frameShape === "source" ? "contain" : config.fit, objectPosition: position, ...(config.frameShape === "source" ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} /> : null}
     {card?.placement === "overlay" ? callout : null}
     </div>
     {card?.placement === "below" ? callout : null}

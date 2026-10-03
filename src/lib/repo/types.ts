@@ -562,6 +562,18 @@ export interface SectionVisualConfig {
   focalX: number;
   focalY: number;
   alt: string;
+  frameShape?: "slot" | "square" | "source";
+  card?: {
+    enabled: boolean;
+    placement: "overlay" | "below";
+    eyebrow: string;
+    title: string;
+    body: string;
+    indexText: string;
+    background: string;
+    foreground: string;
+    accent: string;
+  };
 }
 
 export interface SettingsRepo {
