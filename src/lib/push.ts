@@ -27,11 +27,15 @@ function setup() {
   ready = true;
 }
 
-/** What the service worker (public/sw.js) shows. `url` is a path on this site. */
-export type PushMessage = { title: string; body: string; url: string; tag: string };
+/**
+ * What the service worker (public/sw.js) shows. `url` is a path on this site.
+ * A message with the tag of one still on screen replaces it; `renotify` makes
+ * the replacement sound again instead of changing silently.
+ */
+export type PushMessage = { title: string; body: string; url: string; tag: string; renotify?: boolean };
 
-/** "gone": the browser withdrew permission or the subscription expired — delete the device. */
-export async function sendPush(device: PushDevice, message: PushMessage): Promise<"sent" | "gone" | "failed"> {
+/** To a reader's PushDevice or an admin's StaffDevice. "gone": the browser withdrew permission or the subscription expired — delete the device. */
+export async function sendPush(device: Pick<PushDevice, "endpoint" | "p256dh" | "auth">, message: PushMessage): Promise<"sent" | "gone" | "failed"> {
   setup();
   try {
     await webpush.sendNotification(

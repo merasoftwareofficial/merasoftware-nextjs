@@ -16,6 +16,7 @@ const CommentSchema = new Schema({
   userId: { type: String, required: true, index: true }, userName: { type: String, required: true },
   body: { type: String, required: true, trim: true },
   status: { type: String, enum: ["visible", "hidden", "pending"], default: "visible", index: true },
+  likeCount: { type: Number, default: 0, min: 0 },
 }, { timestamps: true });
 
 const ReportSchema = new Schema({

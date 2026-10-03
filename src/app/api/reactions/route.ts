@@ -5,7 +5,8 @@
  * Mongoose directly and threw on every call.
  *
  * The reaction row is the record; the counter on the blog is a cached total
- * moved by blogRepo.incr(), which floors at zero.
+ * moved by blogRepo.incr(), which floors at zero. Adding one alerts the
+ * admins once per person, post and reaction (notify-queue.ts).
  */
 
 import { NextResponse } from "next/server";
@@ -13,6 +14,7 @@ import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { getSessionUser, requireUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
+import { queueStaffAlert, reactionRef } from "@/lib/notify-queue";
 import { blogRepo, reactionRepo } from "@/lib/repo";
 
 const schema = z.object({
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
     } else {
       await reactionRepo.create({ userId: user._id, targetId: blogId, reaction });
       count = await blogRepo.incr(blogId, COUNTER[reaction], 1);
+      await queueStaffAlert("reaction", reactionRef(blogId, user._id, reaction));
     }
 
     // incr() returns the new total, so no second read of the post.

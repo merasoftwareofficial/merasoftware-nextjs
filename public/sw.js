@@ -1,7 +1,7 @@
 /*
  * Service worker for push notifications (src/docs/NOTIFICATIONS.md).
- * Shows what src/lib/push.ts sends ({ title, body, url, tag }) and opens the
- * post when the notification is clicked. It caches nothing.
+ * Shows what src/lib/push.ts sends ({ title, body, url, tag, renotify }) and
+ * opens its page when the notification is clicked. It caches nothing.
  */
 
 self.addEventListener("push", event => {
@@ -17,6 +17,8 @@ self.addEventListener("push", event => {
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-96.png",
       tag: message.tag,
+      // Browsers reject renotify without a tag.
+      renotify: !!(message.renotify && message.tag),
       data: { url: message.url || "/" },
     }),
   );

@@ -1,4 +1,5 @@
 import Link from "@/components/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { Comments } from "@/components/blog/comments";
@@ -19,8 +20,10 @@ import {
   commentsAccepted,
   effectiveMode,
   visibleStatuses,
+  VOTER_COOKIE,
+  voterKey,
 } from "@/lib/comment-rules";
-import { blogRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
+import { blogRepo, commentLikeRepo, commentRepo, reactionRepo, savedRepo, settingsRepo, userRepo } from "@/lib/repo";
 import { shareButtons, shareUrl, shareVisible } from "@/lib/share-rules";
 import { topicPath } from "@/lib/topic-slug";
 import { articleLd, breadcrumbLd, faqLd, jsonLd, ogImageUrl, SITE_NAME, SITE_URL } from "@/lib/structured-data";
@@ -121,6 +124,9 @@ export default async function Article({ params }: Params) {
     viewer ? reactionRepo.listByUser(viewer._id, [post._id]) : Promise.resolve([]),
     viewer ? savedRepo.find(viewer._id, post._id) : Promise.resolve(null),
   ]);
+  // Needs the comment ids, so it follows the round above.
+  const voter = voterKey(viewer, (await cookies()).get(VOTER_COOKIE)?.value);
+  const likedComments = voter && comments.length ? await commentLikeRepo.likedBy(voter, comments.map(comment => comment._id)) : [];
 
   // Related posts stay within the same kind of content: an official article
   // suggests articles, a community post suggests community work.
@@ -242,6 +248,7 @@ export default async function Article({ params }: Params) {
             blogId={post._id}
             slug={post.slug}
             comments={comments}
+            liked={likedComments}
             viewerId={viewer?._id ?? null}
             canModerate={canModerateComment(viewer)}
             canDeleteAny={canDeleteAnyComment(viewer)}

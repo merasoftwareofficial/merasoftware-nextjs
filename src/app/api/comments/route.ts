@@ -5,8 +5,12 @@
  * Whether a new comment is visible at once or held for review is not decided
  * here: initialCommentStatus() reads the post's own mode and the site setting,
  * so the admin panel controls it — see comment-rules.ts.
+ *
+ * GET also returns `liked`: the ids among them this viewer (account or
+ * browser cookie) likes. A new comment alerts the admins (notify-queue.ts).
  */
 
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { getSessionUser, requireUser } from "@/lib/auth";
@@ -17,8 +21,11 @@ import {
   initialCommentStatus,
   isCommentReadable,
   visibleStatuses,
+  VOTER_COOKIE,
+  voterKey,
 } from "@/lib/comment-rules";
-import { blogRepo, commentRepo, settingsRepo } from "@/lib/repo";
+import { queueStaffAlert } from "@/lib/notify-queue";
+import { blogRepo, commentLikeRepo, commentRepo, settingsRepo } from "@/lib/repo";
 
 export async function GET(request: Request) {
   try {
@@ -32,7 +39,9 @@ export async function GET(request: Request) {
     }
 
     const comments = await commentRepo.listByBlog(blogId, visibleStatuses(viewer, blog));
-    return NextResponse.json({ comments });
+    const voter = voterKey(viewer, (await cookies()).get(VOTER_COOKIE)?.value);
+    const liked = voter ? await commentLikeRepo.likedBy(voter, comments.map(comment => comment._id)) : [];
+    return NextResponse.json({ comments, liked });
   } catch (error) {
     return errorResponse(error);
   }
@@ -74,6 +83,7 @@ export async function POST(request: Request) {
       body,
       status: initialCommentStatus(blog, settings),
     });
+    await queueStaffAlert("comment", comment._id);
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

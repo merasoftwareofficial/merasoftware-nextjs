@@ -6,7 +6,7 @@
 import { Schema, model, models } from "mongoose";
 
 const NotifyJobSchema = new Schema({
-  kind: { type: String, enum: ["post", "campaign"], required: true },
+  kind: { type: String, enum: ["post", "campaign", "comment", "reaction", "report"], required: true },
   refId: { type: String, required: true },
   channel: { type: String, enum: ["push", "email"], required: true },
   status: { type: String, enum: ["queued", "running", "done", "skipped"], required: true, default: "queued", index: true },

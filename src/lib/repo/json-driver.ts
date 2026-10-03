@@ -22,6 +22,8 @@ import type {
   ClickPlacement,
   ClickRepo,
   Comment,
+  CommentLike,
+  CommentLikeRepo,
   CommentRepo,
   CommentStatus,
   DataDriver,
@@ -45,6 +47,9 @@ import type {
   NotifyJobRepo,
   PushDevice,
   PushDeviceRepo,
+  RateRepo,
+  StaffDevice,
+  StaffDeviceRepo,
   Subscriber,
   SubscriberRepo,
   User,
@@ -54,7 +59,7 @@ import type {
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays" | "subscribers" | "pushDevices" | "notifyJobs" | "deliveries" | "campaigns";
+type Collection = "blogs" | "categories" | "users" | "comments" | "reactions" | "saved" | "reports" | "settings" | "media" | "viewSeen" | "viewDays" | "shareDays" | "clickDays" | "subscribers" | "pushDevices" | "notifyJobs" | "deliveries" | "campaigns" | "commentLikes" | "rateHits" | "staffDevices";
 
 /**
  * In-process cache so repeated reads in one request do not hit the disk.
@@ -354,6 +359,66 @@ const comments: CommentRepo = {
     write("comments", next);
     return true;
   },
+  async incrLikes(commentId, by) {
+    const rows = read<Comment>("comments");
+    const index = rows.findIndex(row => row._id === commentId);
+    if (index === -1) return null;
+    // Not update(): a like must leave updatedAt alone.
+    const likeCount = Math.max(0, (rows[index].likeCount ?? 0) + by);
+    rows[index] = { ...rows[index], likeCount };
+    write("comments", rows);
+    return likeCount;
+  },
+};
+
+/* -------------------------------------------------------- comment likes -- */
+
+const commentLikes: CommentLikeRepo = {
+  async add(data) {
+    const rows = read<CommentLike>("commentLikes");
+    if (rows.some(row => row.commentId === data.commentId && row.voterKey === data.voterKey)) return false;
+    rows.push({ ...data, _id: id(), createdAt: now() });
+    write("commentLikes", rows);
+    return true;
+  },
+  async remove(commentId, voterKey) {
+    const rows = read<CommentLike>("commentLikes");
+    const next = rows.filter(row => !(row.commentId === commentId && row.voterKey === voterKey));
+    if (next.length === rows.length) return false;
+    write("commentLikes", next);
+    return true;
+  },
+  async likedBy(voterKey, commentIds) {
+    const wanted = new Set(commentIds);
+    return read<CommentLike>("commentLikes")
+      .filter(row => row.voterKey === voterKey && wanted.has(row.commentId))
+      .map(row => row.commentId);
+  },
+  async removeByComments(commentIds) {
+    const gone = new Set(commentIds);
+    const rows = read<CommentLike>("commentLikes");
+    const next = rows.filter(row => !gone.has(row.commentId));
+    if (next.length !== rows.length) write("commentLikes", next);
+    return rows.length - next.length;
+  },
+};
+
+/* ---------------------------------------------------------- rate limits -- */
+
+type RateRow = { _id: string; count: number; at: string };
+
+const rates: RateRepo = {
+  async hit(key, limit, windowMs) {
+    const bucket = `${key}:${Math.floor(Date.now() / windowMs)}`;
+    // Rows older than a day are dropped on every write, standing in for MongoDB's TTL index.
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const rows = read<RateRow>("rateHits").filter(row => Date.parse(row.at) > cutoff);
+    const index = rows.findIndex(row => row._id === bucket);
+    if (index === -1) rows.push({ _id: bucket, count: 1, at: now() });
+    else rows[index] = { ...rows[index], count: rows[index].count + 1 };
+    write("rateHits", rows);
+    return (index === -1 ? 1 : rows[index].count) <= limit;
+  },
 };
 
 /* ------------------------------------------------------------ reactions -- */
@@ -421,6 +486,9 @@ const reports: ReportRepo = {
     return read<Report>("reports")
       .filter(row => resolved === undefined || row.resolved === resolved)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  async findById(reportId) {
+    return read<Report>("reports").find(row => row._id === reportId) ?? null;
   },
   async create(data) {
     const rows = read<Report>("reports");
@@ -787,6 +855,35 @@ const pushDevices: PushDeviceRepo = {
   },
 };
 
+/* -------------------------------------------------------- staff devices -- */
+
+const staffDevices: StaffDeviceRepo = {
+  async upsert(data) {
+    const rows = read<StaffDevice>("staffDevices");
+    const index = rows.findIndex(row => row.endpoint === data.endpoint);
+    const row: StaffDevice = index === -1
+      ? withoutUndefined({ ...data, _id: id(), lastSeenAt: now(), createdAt: now(), updatedAt: now() })
+      : withoutUndefined({ ...rows[index], ...data, lastSeenAt: now(), updatedAt: now() });
+    if (index === -1) rows.push(row);
+    else rows[index] = row;
+    write("staffDevices", rows);
+    return row;
+  },
+  async listActive(since) {
+    const rows = read<StaffDevice>("staffDevices");
+    const active = rows.filter(row => row.lastSeenAt >= since);
+    if (active.length !== rows.length) write("staffDevices", active);
+    return active;
+  },
+  async removeByEndpoint(endpoint) {
+    const rows = read<StaffDevice>("staffDevices");
+    const next = rows.filter(row => row.endpoint !== endpoint);
+    if (next.length === rows.length) return false;
+    write("staffDevices", next);
+    return true;
+  },
+};
+
 /* --------------------------------------------------- notification queue -- */
 
 const notifyJobs: NotifyJobRepo = {
@@ -875,4 +972,4 @@ const campaigns: CampaignRepo = {
   },
 };
 
-export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries, campaigns };
+export const jsonDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries, campaigns, commentLikes, rates, staffDevices };

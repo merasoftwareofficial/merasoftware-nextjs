@@ -434,3 +434,15 @@ a.admin-stat{display:block;color:inherit;text-decoration:none}
 .about-values .result-grid article,.about-values .result-grid article:first-child{min-height:auto;padding:16px 0;border-right:0;border-bottom:1px solid var(--line)}
 .about-values .result-grid h3{margin:8px 0}
 .visual-feature>.faq-list{width:100%}
+/* Admin alerts card (components/staff-alerts.tsx): fixed, so the panel's grid layout is untouched. */
+.staff-alerts{position:fixed;right:20px;bottom:20px;z-index:40;width:min(360px,calc(100% - 32px));background:var(--pn-card);color:var(--pn-text);border:1px solid var(--pn-line);border-left:4px solid var(--pn-accent);border-radius:6px;padding:18px;box-shadow:0 12px 32px rgb(0 0 0/.18)}
+.staff-alerts[data-state="denied"]{border-left-color:var(--pn-danger)}
+.staff-alerts p{margin:0 0 12px;color:var(--pn-muted);font-size:var(--fs-ui);line-height:1.5}
+.staff-alerts .staff-alerts-title{color:var(--pn-text);font-weight:800;margin-bottom:8px}
+.staff-alerts .admin-button{width:100%}
+.staff-alerts .form-error{margin:10px 0 0}
+@media(max-width:700px){.staff-alerts{right:16px;bottom:16px}}
+/* Comment likes (components/blog/comments.tsx). */
+.comment-actions .comment-like{display:inline-flex;align-items:center;gap:5px}
+.comment-actions .comment-like span{font-size:15px;line-height:1}
+.comment-actions .comment-like.is-liked,.comment-actions .comment-like.is-liked:hover:not(:disabled){color:#c2453a}

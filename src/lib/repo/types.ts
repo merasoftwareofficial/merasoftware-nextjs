@@ -226,14 +226,22 @@ export interface PushDevice {
 export type NotifyChannel = "push" | "email";
 export type NotifyJobStatus = "queued" | "running" | "done" | "skipped";
 
-/** What a job announces: a post's first publish, or a campaign from the admin panel. */
-export type NotifyJobKind = "post" | "campaign";
+/**
+ * What a job announces: a post's first publish, a campaign from the admin
+ * panel, or — to admins only — a new comment, reaction or report.
+ */
+export type NotifyJobKind = "post" | "campaign" | StaffAlertKind;
+/** Activity admins are told about on their own devices (src/docs/NOTIFICATIONS.md, "Admin alerts"). */
+export type StaffAlertKind = "comment" | "reaction" | "report";
 
 /** One announcement on one channel, worked through by src/lib/notify-queue.ts. */
 export interface NotifyJob {
   _id: string;
   kind: NotifyJobKind;
-  /** The post's or campaign's _id, by `kind`. */
+  /**
+   * By `kind`: the post's, campaign's, comment's or report's _id; for a
+   * reaction "<blogId>:<userId>:<reaction>", so toggling one never alerts twice.
+   */
   refId: string;
   channel: NotifyChannel;
   status: NotifyJobStatus;
@@ -275,6 +283,25 @@ export interface SubscriberCounts {
   byCategory: Record<string, number>;
 }
 
+/**
+ * A browser on which an admin allowed alerts (src/docs/NOTIFICATIONS.md,
+ * "Admin alerts"). Kept apart from PushDevice: a reader's topics and an admin's
+ * alerts never share a record, though one browser may be both.
+ */
+export interface StaffDevice {
+  _id: string;
+  /** The admin's website user _id. */
+  userId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+  /** Refreshed on every panel visit; a device not seen for STAFF_DEVICE_TTL_MS gets no alerts. */
+  lastSeenAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Comment {
   _id: string;
   blogId: string;
@@ -283,8 +310,19 @@ export interface Comment {
   userName: string;
   body: string;
   status: CommentStatus;
+  /** Cached total of CommentLike rows; moving it never changes updatedAt. Missing on old rows = 0. */
+  likeCount?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+/** One like on one comment. `voterKey` is "u:<userId>" or "b:<hash of the browser cookie>" (comment-rules.ts). */
+export interface CommentLike {
+  _id: string;
+  commentId: string;
+  blogId: string;
+  voterKey: string;
+  createdAt: string;
 }
 
 export interface Reaction {
@@ -445,6 +483,36 @@ export interface CommentRepo {
   create(data: Omit<Comment, "_id" | "createdAt" | "updatedAt">): Promise<Comment>;
   update(id: string, patch: Partial<Comment>): Promise<Comment | null>;
   remove(id: string): Promise<boolean>;
+  /** Atomic change of likeCount, floored at zero. Leaves updatedAt alone. Null when the comment does not exist. */
+  incrLikes(id: string, by: number): Promise<number | null>;
+}
+
+export interface CommentLikeRepo {
+  /** False when this voter already likes the comment. */
+  add(data: Omit<CommentLike, "_id" | "createdAt">): Promise<boolean>;
+  /** False when there was no like to take back. */
+  remove(commentId: string, voterKey: string): Promise<boolean>;
+  /** Which of these comments this voter likes. */
+  likedBy(voterKey: string, commentIds: string[]): Promise<string[]>;
+  /** A deleted comment's likes go with it. */
+  removeByComments(commentIds: string[]): Promise<number>;
+}
+
+/**
+ * Fixed-window counters for abuse limits (comment likes per IP). A counter is
+ * forgotten soon after its window ends.
+ */
+export interface RateRepo {
+  /** Counts one hit on `key` in the current window; false once `limit` hits were counted in it. */
+  hit(key: string, limit: number, windowMs: number): Promise<boolean>;
+}
+
+export interface StaffDeviceRepo {
+  /** Saves an admin's browser by its endpoint and marks it seen now. */
+  upsert(data: Omit<StaffDevice, "_id" | "lastSeenAt" | "createdAt" | "updatedAt">): Promise<StaffDevice>;
+  /** Devices seen since `since` (ISO time); older ones are deleted on the way. */
+  listActive(since: string): Promise<StaffDevice[]>;
+  removeByEndpoint(endpoint: string): Promise<boolean>;
 }
 
 export interface ReactionRepo {
@@ -500,6 +568,7 @@ export interface ClickRepo {
 
 export interface ReportRepo {
   list(resolved?: boolean): Promise<Report[]>;
+  findById(id: string): Promise<Report | null>;
   create(data: Omit<Report, "_id" | "createdAt">): Promise<Report>;
   update(id: string, patch: Partial<Report>): Promise<Report | null>;
 }
@@ -612,4 +681,7 @@ export interface DataDriver {
   notifyJobs: NotifyJobRepo;
   deliveries: DeliveryRepo;
   campaigns: CampaignRepo;
+  commentLikes: CommentLikeRepo;
+  rates: RateRepo;
+  staffDevices: StaffDeviceRepo;
 }

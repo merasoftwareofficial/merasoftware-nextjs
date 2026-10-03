@@ -16,6 +16,8 @@ import { SubscriberModel } from "@/models/Subscriber";
 import { PushDeviceModel } from "@/models/PushDevice";
 import { DeliveryModel, NotifyJobModel } from "@/models/NotifyJob";
 import { CampaignModel } from "@/models/Campaign";
+import { CommentLikeModel, RateHitModel } from "@/models/CommentLike";
+import { StaffDeviceModel } from "@/models/StaffDevice";
 import type {
   Blog as BlogRecord,
   BlogQuery,
@@ -31,6 +33,7 @@ import type {
   SharePlatform,
   NotifyJob as NotifyJobRecord,
   PushDevice as PushDeviceRecord,
+  StaffDevice as StaffDeviceRecord,
   Subscriber as SubscriberRecord,
   User as UserRecord,
 } from "./types";
@@ -366,6 +369,18 @@ const comments: DataDriver["comments"] = {
     const result = await Comment.deleteMany({ $or: [{ _id }, { parentId: _id }] });
     return result.deletedCount > 0;
   },
+  async incrLikes(id, by) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    // Same shape as blogs.incr(): atomic, floored at zero, updatedAt left alone.
+    const row = await Comment.findOneAndUpdate(
+      { _id },
+      [{ $set: { likeCount: { $max: [0, { $add: [{ $ifNull: ["$likeCount", 0] }, by] }] } } }],
+      { returnDocument: "after", projection: { likeCount: 1 }, timestamps: false, updatePipeline: true },
+    ).lean();
+    return row ? Number((row as Record<string, unknown>).likeCount ?? 0) : null;
+  },
 };
 
 const reactions: DataDriver["reactions"] = {
@@ -436,6 +451,13 @@ const reports: DataDriver["reports"] = {
     await connectMongo();
     const rows = await Report.find(resolved === undefined ? {} : { resolved }).sort({ createdAt: -1 }).lean();
     return rows.map((row: Record<string, unknown>) => reportRecord(row));
+  },
+  async findById(id) {
+    const _id = objectId(id);
+    if (!_id) return null;
+    await connectMongo();
+    const row = await Report.findById(_id).lean();
+    return row ? reportRecord(row as unknown as Record<string, unknown>) : null;
   },
   async create(data) {
     await connectMongo();
@@ -849,6 +871,93 @@ const pushDevices: DataDriver["pushDevices"] = {
   },
 };
 
+/* -------------------------------------------------------- comment likes -- */
+
+const commentLikes: DataDriver["commentLikes"] = {
+  async add(data) {
+    await connectMongo();
+    try {
+      await CommentLikeModel.create(data);
+      return true;
+    } catch (error) {
+      // The unique index on commentId + voterKey: this voter already likes it.
+      if (isDuplicateKey(error)) return false;
+      throw error;
+    }
+  },
+  async remove(commentId, voterKey) {
+    await connectMongo();
+    const result = await CommentLikeModel.deleteOne({ commentId, voterKey });
+    return result.deletedCount > 0;
+  },
+  async likedBy(voterKey, commentIds) {
+    if (!commentIds.length) return [];
+    await connectMongo();
+    const rows = await CommentLikeModel.find({ voterKey, commentId: { $in: commentIds } }, { commentId: 1 }).lean();
+    return rows.map((row: Record<string, unknown>) => String(row.commentId));
+  },
+  async removeByComments(commentIds) {
+    if (!commentIds.length) return 0;
+    await connectMongo();
+    const result = await CommentLikeModel.deleteMany({ commentId: { $in: commentIds } });
+    return result.deletedCount;
+  },
+};
+
+/* ---------------------------------------------------------- rate limits -- */
+
+const rates: DataDriver["rates"] = {
+  async hit(key, limit, windowMs) {
+    const _id = `${key}:${Math.floor(Date.now() / windowMs)}`;
+    await connectMongo();
+    const bump = () => RateHitModel.findOneAndUpdate(
+      { _id },
+      { $inc: { count: 1 }, $setOnInsert: { at: new Date() } },
+      { upsert: true, returnDocument: "after" },
+    ).lean();
+    let row;
+    try {
+      row = await bump();
+    } catch (error) {
+      // Two first hits of the window raced on the upsert; the row exists now.
+      if (!isDuplicateKey(error)) throw error;
+      row = await bump();
+    }
+    return Number((row as Record<string, unknown> | null)?.count ?? 1) <= limit;
+  },
+};
+
+/* -------------------------------------------------------- staff devices -- */
+
+function staffDeviceRecord(row: Record<string, unknown>): StaffDeviceRecord {
+  const device = serialize(row as never) as StaffDeviceRecord;
+  return { ...device, lastSeenAt: iso(row.lastSeenAt as Date)! };
+}
+
+const staffDevices: DataDriver["staffDevices"] = {
+  async upsert(data) {
+    await connectMongo();
+    const row = await StaffDeviceModel.findOneAndUpdate(
+      { endpoint: data.endpoint },
+      { $set: { ...data, lastSeenAt: new Date() } },
+      { returnDocument: "after", upsert: true, runValidators: true, setDefaultsOnInsert: true },
+    ).lean();
+    return staffDeviceRecord(row as unknown as Record<string, unknown>);
+  },
+  async listActive(since) {
+    await connectMongo();
+    const cutoff = new Date(since);
+    await StaffDeviceModel.deleteMany({ lastSeenAt: { $lt: cutoff } });
+    const rows = await StaffDeviceModel.find({ lastSeenAt: { $gte: cutoff } }).lean();
+    return rows.map((row: Record<string, unknown>) => staffDeviceRecord(row));
+  },
+  async removeByEndpoint(endpoint) {
+    await connectMongo();
+    const result = await StaffDeviceModel.deleteOne({ endpoint });
+    return result.deletedCount > 0;
+  },
+};
+
 /* --------------------------------------------------- notification queue -- */
 
 function notifyJobRecord(row: Record<string, unknown>): NotifyJobRecord {
@@ -967,4 +1076,4 @@ const campaigns: DataDriver["campaigns"] = {
   },
 };
 
-export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries, campaigns };
+export const mongoDriver: DataDriver = { blogs, categories, users, comments, reactions, saved, reports, settings, media, views, shares, clicks, subscribers, pushDevices, notifyJobs, deliveries, campaigns, commentLikes, rates, staffDevices };

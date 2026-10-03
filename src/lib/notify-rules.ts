@@ -32,15 +32,31 @@ export const preferencesSchema = z.object({
   offers: z.boolean(),
 });
 
-/** A browser's PushSubscription.toJSON(), plus the topics chosen with it. */
+/** A browser's PushSubscription.toJSON(). */
+const pushSubscriptionSchema = z.object({
+  endpoint: z.url().max(1000).refine(value => value.startsWith("https://"), "The push address must use https."),
+  keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+});
+
+/** A browser's push subscription, plus the topics chosen with it. */
 export const pushDeviceSchema = z.object({
-  subscription: z.object({
-    endpoint: z.url().max(1000).refine(value => value.startsWith("https://"), "The push address must use https."),
-    keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
-  }),
+  subscription: pushSubscriptionSchema,
   categories: categoryIds,
   offers: z.boolean(),
 }).refine(data => data.categories.length > 0 || data.offers, { message: "Choose at least one topic." });
+
+/** An admin's browser asking for activity alerts ("Admin alerts" in NOTIFICATIONS.md). */
+export const staffDeviceSchema = z.object({ subscription: pushSubscriptionSchema });
+
+/**
+ * An admin browser not seen in the panel for this long gets no more alerts and
+ * is deleted: the portal admin role is not stored here, so a person who lost
+ * it is dropped this way.
+ */
+export const STAFF_DEVICE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+
+/** An admin alert later than this after the activity is not sent (only a cron backstop would be that late). */
+export const STAFF_ALERT_STALE_MS = 24 * 60 * 60 * 1000;
 
 /** Cookie holding a visitor's settings token on this browser (push without login). */
 export const NOTIFY_COOKIE = "ms_notify";

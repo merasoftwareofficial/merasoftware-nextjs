@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { canDeleteComment, canModerateComment, commentPatchSchema } from "@/lib/comment-rules";
-import { commentRepo, type CommentStatus } from "@/lib/repo";
+import { commentLikeRepo, commentRepo, type CommentStatus } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -52,8 +52,10 @@ export async function DELETE(_request: Request, { params }: Params) {
       return NextResponse.json({ error: "You cannot delete this comment." }, { status: 403 });
     }
 
-    // The repo removes this comment's replies with it.
+    // The repo removes this comment's replies with it; their likes go too.
+    const replies = comment.parentId ? [] : (await commentRepo.listByBlog(comment.blogId)).filter(row => row.parentId === id);
     await commentRepo.remove(id);
+    await commentLikeRepo.removeByComments([id, ...replies.map(reply => reply._id)]);
     return NextResponse.json({ deleted: true });
   } catch (error) {
     return errorResponse(error);

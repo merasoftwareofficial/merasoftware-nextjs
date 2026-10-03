@@ -9,6 +9,9 @@
  *
  * No permission decision is made here — the API enforces all of them. The
  * flags passed in only decide which buttons are worth showing.
+ *
+ * Liking needs no login: the like button shows for everyone on a visible
+ * comment, and /api/comments/[id]/like tells browsers apart by a cookie.
  */
 
 import Link from "@/components/link";
@@ -20,6 +23,8 @@ type Props = {
   blogId: string;
   slug: string;
   comments: Comment[];
+  /** Ids of the comments this viewer (account or browser) already likes. */
+  liked: string[];
   viewerId: string | null;
   canModerate: boolean;
   canDeleteAny: boolean;
@@ -37,6 +42,7 @@ export function Comments({
   blogId,
   slug,
   comments: initial,
+  liked: initialLiked,
   viewerId,
   canModerate,
   canDeleteAny,
@@ -44,6 +50,8 @@ export function Comments({
   moderated,
 }: Props) {
   const [comments, setComments] = useState(initial);
+  const [liked, setLiked] = useState(() => new Set(initialLiked));
+  const [liking, setLiking] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
@@ -61,6 +69,31 @@ export function Comments({
     if (!response.ok) return;
     const data = await response.json();
     setComments(data.comments ?? []);
+    setLiked(new Set(data.liked ?? []));
+  }
+
+  // Not track(): a like is small and must not lock the whole thread's buttons.
+  async function toggleLike(id: string) {
+    if (liking) return;
+    setLiking(id);
+    setError("");
+    try {
+      const response = await fetch(`/api/comments/${id}/like`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data.error ?? "Could not like that comment.");
+        return;
+      }
+      setComments(rows => rows.map(row => (row._id === id ? { ...row, likeCount: data.count } : row)));
+      setLiked(current => {
+        const next = new Set(current);
+        if (data.liked) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    } finally {
+      setLiking(null);
+    }
   }
 
   async function send(text: string, parentId?: string) {
@@ -138,9 +171,11 @@ export function Comments({
   function row(comment: Comment, isReply: boolean) {
     const mine = viewerId === comment.userId;
     const replies = repliesOf(comment._id);
+    const isLiked = liked.has(comment._id);
+    const likes = comment.likeCount ?? 0;
 
     return (
-      <li className={`comment${isReply ? " is-reply" : ""}`} key={comment._id}>
+      <li className={`comment${isReply ? " is-reply" : ""}`} key={comment._id} id={`comment-${comment._id}`}>
         <div className="comment-head">
           <b>{comment.userName}</b>
           <span className="comment-when">{when(comment.createdAt)}</span>
@@ -152,6 +187,20 @@ export function Comments({
         <p className="comment-body">{comment.body}</p>
 
         <div className="comment-actions">
+          {comment.status === "visible" ? (
+            <button
+              type="button"
+              className={`comment-like${isLiked ? " is-liked" : ""}`}
+              onClick={() => toggleLike(comment._id)}
+              disabled={liking === comment._id}
+              aria-pressed={isLiked}
+              aria-label={`${isLiked ? "Unlike" : "Like"} this comment (${likes} ${likes === 1 ? "like" : "likes"})`}
+            >
+              <span aria-hidden="true">{isLiked ? "♥" : "♡"}</span>
+              {likes > 0 ? likes : "Like"}
+            </button>
+          ) : null}
+
           {viewerId && accepting && !isReply ? (
             <button type="button" onClick={() => setReplyTo(replyTo === comment._id ? null : comment._id)}>
               Reply

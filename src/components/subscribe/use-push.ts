@@ -10,16 +10,16 @@ export type PushState = "loading" | "unsupported" | "ios-install" | "denied" | "
 
 type Reply = { categories?: string[]; offers?: boolean; error?: string };
 
-function supported() {
+export function supported() {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
-function iosBrowser() {
+export function iosBrowser() {
   const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !standalone;
 }
 
-async function currentSubscription() {
+export async function currentSubscription() {
   const registration = await navigator.serviceWorker.getRegistration("/");
   return (await registration?.pushManager.getSubscription()) ?? null;
 }
@@ -36,6 +36,28 @@ function keyBytes(base64: string) {
   return Uint8Array.from(atob(padded), char => char.charCodeAt(0));
 }
 
+/**
+ * Asks permission (call it only from a click) and returns this browser's push
+ * subscription, made on first use. Shared by the reader's topics and the admin
+ * alert banner (components/staff-alerts.tsx): one browser has one subscription.
+ * Throws with a message to show when permission is not given.
+ */
+export async function subscribeBrowser(publicKey: string) {
+  await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  const registration = await navigator.serviceWorker.ready;
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    throw Object.assign(
+      new Error(permission === "denied" ? "Notifications are blocked for this site in your browser settings." : "Notifications were not allowed."),
+      { permission },
+    );
+  }
+  return (
+    (await registration.pushManager.getSubscription()) ??
+    (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }))
+  );
+}
+
 export function usePush(publicKey: string | null) {
   // Without a key there is nothing to detect: "off", so a preview box still draws its button.
   const [state, setState] = useState<PushState>(publicKey ? "loading" : "off");
@@ -48,16 +70,14 @@ export function usePush(publicKey: string | null) {
   /** Asks permission (only ever from a click), subscribes, and saves the topics with this browser. Also used to re-save topics. */
   async function enable(categories: string[], offers: boolean): Promise<Reply> {
     if (!publicKey) throw new Error("Notifications are not available yet.");
-    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    const registration = await navigator.serviceWorker.ready;
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
-      setState(permission === "denied" ? "denied" : "off");
-      throw new Error(permission === "denied" ? "Notifications are blocked for this site in your browser settings." : "Notifications were not allowed.");
+    let subscription: PushSubscription;
+    try {
+      subscription = await subscribeBrowser(publicKey);
+    } catch (error) {
+      const permission = (error as { permission?: NotificationPermission }).permission;
+      if (permission) setState(permission === "denied" ? "denied" : "off");
+      throw error;
     }
-    const subscription =
-      (await registration.pushManager.getSubscription()) ??
-      (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
 
     const response = await fetch("/api/push-devices", {
       method: "POST",

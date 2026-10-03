@@ -6,6 +6,7 @@
  * agree if they read one set of rules.
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { atLeast } from "@/lib/auth";
 import type { Blog, Comment, CommentMode, CommentStatus, Settings, User } from "@/lib/repo";
@@ -99,4 +100,37 @@ export function visibleStatuses(user: User | null, blog: Blog): CommentStatus[] 
 export function isCommentReadable(comment: Comment, user: User | null, blog: Blog) {
   if (visibleStatuses(user, blog).includes(comment.status)) return true;
   return !!user && comment.userId === user._id;
+}
+
+/* ---------------------------------------------------------------- likes -- */
+
+/**
+ * Cookie that tells one browser from another for likes. Liking needs no login
+ * (owner decision, 3 Oct 2026): a browser likes a comment once; a signed-in
+ * person likes it once from any device. Clearing cookies or a private window
+ * can like again — accepted, and kept small by LIKE_LIMIT.
+ */
+export const VOTER_COOKIE = "ms_voter";
+
+/** Likes one IP may add per window. Taking a like back is never limited. */
+export const LIKE_LIMIT = { hits: 60, windowMs: 60 * 60 * 1000 };
+
+export function newVoterToken() {
+  return randomBytes(24).toString("base64url");
+}
+
+/**
+ * Who is liking. Signed in: the account. Signed out: a hash of this browser's
+ * cookie, so the stored key cannot be replayed as the cookie. Null when a
+ * signed-out browser has no cookie yet (it has liked nothing).
+ */
+export function voterKey(user: User | null, cookieToken: string | null | undefined) {
+  if (user) return `u:${user._id}`;
+  if (!cookieToken) return null;
+  return `b:${createHash("sha256").update(cookieToken).digest("hex")}`;
+}
+
+/** May this viewer like this comment? Only a visible comment on a published post they can read. */
+export function canLikeComment(comment: Comment, blog: Blog) {
+  return comment.status === "visible" && comment.blogId === blog._id && blog.status === "published";
 }

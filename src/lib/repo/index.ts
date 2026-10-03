@@ -208,6 +208,9 @@ export const pushDeviceRepo = driver.pushDevices;
 export const notifyJobRepo = driver.notifyJobs;
 export const deliveryRepo = driver.deliveries;
 export const campaignRepo = driver.campaigns;
+export const commentLikeRepo = driver.commentLikes;
+export const rateRepo = driver.rates;
+export const staffDeviceRepo = driver.staffDevices;
 
 /** Which store is active. Shown on the admin overview so the stage is never unclear. */
 export const activeDriver = driverName;

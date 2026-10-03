@@ -1,5 +1,6 @@
 import Link from "@/components/link";
 import { atLeast, type Role } from "@/lib/auth";
+import { StaffAlerts } from "@/components/staff-alerts";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /** Every nav entry, with the lowest role that may open it. */
@@ -19,10 +20,14 @@ const navigation: [label: string, href: string, minimum: Role][] = [
  * `role` comes from the signed-in user. The panel is staff-only; hiding what a
  * role cannot open keeps them out of pages that would only answer "Not allowed"
  * — every page still checks for itself (requireStaffPage).
+ *
+ * `pushKey` is the VAPID public key, passed only for an admin while push is
+ * configured: then the admin-alert card asks this browser for permission
+ * (owner decision, 3 Oct 2026: alerts go to admins only).
  */
-export function AdminLayout({ children, role = "visitor" }: { children: React.ReactNode; role?: Role }) {
+export function AdminLayout({ children, role = "visitor", pushKey = null }: { children: React.ReactNode; role?: Role; pushKey?: string | null }) {
   const visible = navigation.filter(([, , minimum]) => atLeast(role, minimum));
-  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand" href="/"><span>mera</span>software<span className="brand-dot">.</span></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}</div>;
+  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand" href="/"><span>mera</span>software<span className="brand-dot">.</span></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
 }
 
 export function AdminHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {

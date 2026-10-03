@@ -1,12 +1,13 @@
 /**
  * GET  /api/reports    the moderation queue of reports (moderator and above)
- * POST /api/reports    any signed-in member reports a post or a comment
+ * POST /api/reports    any signed-in member reports a post or a comment; alerts the admins
  */
 
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { requireRole, requireUser } from "@/lib/auth";
 import { reportInputSchema } from "@/lib/comment-rules";
+import { queueStaffAlert } from "@/lib/notify-queue";
 import { blogRepo, commentRepo, reportRepo } from "@/lib/repo";
 
 export async function GET(request: Request) {
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       reason,
       resolved: false,
     });
+    await queueStaffAlert("report", report._id);
 
     return NextResponse.json(report, { status: 201 });
   } catch (error) {
