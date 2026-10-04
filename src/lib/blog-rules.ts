@@ -46,6 +46,8 @@ export const blogInputSchema = z.object({
   sharing: z.enum(["default", "show", "hide"]).optional(),
   /** Title size on the post's page; the title stays its <h1> either way. */
   titleSize: z.enum(["large", "medium"]).optional(),
+  /** Whether the post lists its sections; like the title size, the writer's own choice. */
+  contents: z.enum(["auto", "show", "hide"]).optional(),
   /** Shown after the article with FAQPage data; a row missing either half is dropped. */
   faqs: z
     .array(z.object({ question: z.string().trim().max(200), answer: z.string().trim().max(1500) }))

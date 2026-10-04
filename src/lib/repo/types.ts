@@ -34,6 +34,8 @@ export type ShareMode = "default" | "show" | "hide";
  * of a section heading, for a long title.
  */
 export type TitleSize = "large" | "medium";
+/** Whether a post lists its sections (rich-content.tsx, contentsEntries). Absent or "auto" decides by length. */
+export type ContentsMode = "auto" | "show" | "hide";
 export type SharePlatform = "whatsapp" | "facebook" | "x" | "linkedin" | "telegram" | "email" | "copy" | "native";
 /**
  * What a counted click was (click-rules.ts): a related post opened from the
@@ -134,6 +136,8 @@ export interface Blog {
   sharing?: ShareMode;
   /** Title size on the post's page. Absent means "large". */
   titleSize?: TitleSize;
+  /** The post's list of sections. Absent means "auto". */
+  contents?: ContentsMode;
   /** Questions and answers shown after the article. Absent on older posts. */
   faqs?: BlogFaq[];
   /** Counted clicks on this post's related posts and page buttons (click-rules.ts). Admin only. */

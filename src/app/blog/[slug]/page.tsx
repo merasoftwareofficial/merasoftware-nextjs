@@ -211,7 +211,7 @@ export default async function Article({ params }: Params) {
                 <img className="article-image" src={post.featuredImage.url} alt={post.featuredImage.alt} />
               ) : null}
             </header>
-            <RichContent content={post.content} toc faqs={post.faqs} />
+            <RichContent content={post.content} contents={post.contents ?? "auto"} faqs={post.faqs} />
           </ArticleReader>
           {post.status === "published" ? <ViewBeacon blogId={post._id} /> : null}
           {/* Without scripts the card cannot turn pages, so it shows the whole article instead. */}

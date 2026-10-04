@@ -4,31 +4,35 @@
  * The article read one screen at a time, in a card (the "reading card").
  *
  * The server renders the whole article, so search and readers without scripts
- * get all of it. In the browser the card is one screen tall: its blocks (the
- * title area, then each paragraph, heading, list or image of the body) are
- * measured and grouped into pages that fit, and only the current page shows.
- * A page never breaks inside a block, and a heading moves on with the text it
- * introduces. A block taller than the card scrolls inside it.
+ * get all of it. In the browser the card is one screen tall and its text is
+ * laid out in CSS columns, one card-wide column per page, like an e-book: the
+ * browser fills each page to the bottom and carries a paragraph on to the next
+ * page line by line, so pages are full and do not scroll. A heading stays with
+ * the text it introduces, and images, code and the contents box are never cut
+ * (globals.css, "Reading card"). Turning a page scrolls the card sideways by
+ * one page width.
  *
  * On a computer the pages turn with round arrows on the card's sides (or ← →);
  * on a touch screen by swiping, with a hint until the reader's first swipe.
  * The arrows stay for screen readers there.
+ *
+ * An article with a contents list (rich-content.tsx) gets a Contents button in
+ * the card's head instead of the list taking up page 1: it opens the list on
+ * any page and turns to the section chosen. The list stays in the server HTML
+ * for search and readers without scripts, and shows in place on a one-page
+ * article, which has no page controls.
  *
  * Pages follow the screen, so a phone has more of them than a laptop. The page
  * is kept in the address as #page-3 (replaced, not added to history, so Back
  * leaves the article); any other hash (#comments) is left alone.
  */
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { trackClick } from "@/components/blog/tracked-link";
 
 const PAGE_HASH = /^#page-(\d+)$/;
 /** The card never gets shorter than this, however small the window. */
 const MIN_CARD = 440;
-/** Blocks hidden because they belong to another page. */
-const OFF = "reader-off";
-/** The first block of the shown page, which loses its top margin. */
-const START = "reader-start";
 /** Remembers, per browser, that the reader has swiped once, so the hint stops. */
 const SWIPED_KEY = "reader-swiped";
 
@@ -55,74 +59,95 @@ type Props = {
   children: ReactNode;
 };
 
+/** One page's width: the reading area's full width, since the column gap equals its side padding (globals.css). */
+function pageWidth(box: HTMLElement) {
+  return parseFloat(getComputedStyle(box).width) || box.clientWidth || 1;
+}
+
+/** The page a point of the laid-out text is on, from its left edge on screen. */
+function pageAt(box: HTMLElement, left: number) {
+  const offset = left - box.getBoundingClientRect().left + box.scrollLeft;
+  return Math.max(0, Math.floor((offset + 2) / pageWidth(box)));
+}
+
+/** The text at the top-left of the shown page, to find the same place again after the pages change. */
+function textAtTop(box: HTMLElement): Range | null {
+  const style = getComputedStyle(box);
+  const rect = box.getBoundingClientRect();
+  const x = rect.left + parseFloat(style.paddingLeft) + 4;
+  const y = rect.top + parseFloat(style.paddingTop) + 4;
+  try {
+    const doc = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null };
+    const position = doc.caretPositionFromPoint?.(x, y);
+    if (position) {
+      const range = document.createRange();
+      range.setStart(position.offsetNode, position.offset);
+      return box.contains(range.startContainer) ? range : null;
+    }
+    const range = document.caretRangeFromPoint?.(x, y) ?? null;
+    return range && box.contains(range.startContainer) ? range : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ArticleReader({ blogId, crumb, title, children }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLDivElement>(null);
-  // pageOf[i] is the page block i is on; null until the browser has measured.
-  const [pageOf, setPageOf] = useState<number[] | null>(null);
+  const end = useRef<HTMLDivElement>(null);
+  // How many pages the article has; null until the browser has laid it out.
+  const [pages, setPages] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const busy = useRef(false);
   // The page turn in progress: its fade-out, and which way the new page slides in.
   const turn = useRef<{ out: Animation; shift: number; still: boolean } | null>(null);
   const size = useRef({ width: 0, height: 0 });
+  // The article's sections, read from the contents list rich-content.tsx wrote.
+  const [sections, setSections] = useState<{ id: string; label: string }[]>([]);
+  const [listOpen, setListOpen] = useState(false);
+  // The section being read when the list opened: the last one starting on or before the page.
+  const [currentSection, setCurrentSection] = useState(-1);
+  const listButton = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLElement>(null);
+  const listId = useId();
 
-  const count = pageOf ? pageOf[pageOf.length - 1] + 1 : 1;
+  const count = pages ?? 1;
 
-  /** The intro, then every top-level block of the article body. */
-  const blocks = useCallback((): HTMLElement[] => {
-    const box = area.current;
-    if (!box) return [];
-    const intro = box.querySelector<HTMLElement>(":scope > .reader-intro");
-    const body = box.querySelector<HTMLElement>(":scope > .article-body");
-    const end = box.querySelector<HTMLElement>(":scope > .reader-end");
-    return [...(intro ? [intro] : []), ...(body ? ([...body.children] as HTMLElement[]) : []), ...(end ? [end] : [])];
-  }, []);
-
-  /** Groups the blocks into pages that fit the card, keeping the reader near the block they were on. */
+  /** Lays the article out in pages that fit the card, keeping the reader on the text they were reading. */
   const measure = useCallback(() => {
     const box = area.current;
+    const shell = root.current;
+    if (!box || !shell) return;
     const header = document.querySelector<HTMLElement>(".site-header");
-    if (!box) return;
-    // Set on the element itself, not through state, so the measuring below already sees it.
+    const before = shell.dataset.layout === "paged" ? textAtTop(box) : null;
+
+    // Set on the elements themselves, not through state, so the measuring below already sees them.
     const cardHeight = Math.max(MIN_CARD, window.innerHeight - (header?.offsetHeight ?? 0) - 24);
-    root.current?.style.setProperty("--reader-h", `${cardHeight}px`);
+    shell.style.setProperty("--reader-h", `${cardHeight}px`);
+    shell.dataset.layout = "paged";
     size.current = { width: window.innerWidth, height: window.innerHeight };
 
-    const list = blocks();
-    const anchor = list.findIndex(block => block.classList.contains(START));
-    list.forEach(block => block.classList.remove(OFF, START));
+    const width = pageWidth(box);
+    const rects = end.current?.getClientRects();
+    const last = rects?.length ? rects[rects.length - 1] : null;
+    const total = last ? pageAt(box, last.left) + 1 : 1;
+    // A one-page article is shown at its own height, without page controls.
+    if (total < 2) shell.dataset.layout = "single";
 
-    const style = getComputedStyle(box);
-    const room = box.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-    const tops = list.map(block => block.offsetTop - parseFloat(getComputedStyle(block).marginTop));
-    const bottoms = list.map(block => block.offsetTop + block.offsetHeight + parseFloat(getComputedStyle(block).marginBottom));
-    const isHeading = (index: number) => /^H[2-4]$/.test(list[index]?.tagName ?? "");
+    const kept = before?.getClientRects()[0] ?? before?.startContainer.parentElement?.getClientRects()[0];
+    const next = total < 2 ? 0 : Math.min(total - 1, kept ? pageAt(box, kept.left) : 0);
+    box.scrollLeft = next * width;
+    setPages(total);
+    setPage(next);
+  }, []);
 
-    const result: number[] = [];
-    let start = 0;
-    let current = 0;
-    list.forEach((_, index) => {
-      if (index > start && bottoms[index] - tops[start] > room) {
-        // A heading at the end of a page goes with the text after it.
-        const cut = isHeading(index - 1) && index - 1 > start ? index - 1 : index;
-        current++;
-        for (let moved = cut; moved < index; moved++) result[moved] = current;
-        start = cut;
-      }
-      result[index] = current;
-    });
-
-    setPageOf(result);
-    if (anchor >= 0 && result[anchor] !== undefined) setPage(result[anchor]);
-  }, [blocks]);
-
-  // Measure once the card is in place, again when fonts or images change the
+  // Lay out once the card is in place, again when fonts or images change the
   // heights, and when the window really changes size (a phone's address bar
   // showing or hiding is not a new layout).
   useEffect(() => {
     const box = area.current;
     if (!box) return;
-    // Hidden pages' images would never load on their own, leaving their height unknown.
+    // Later pages' images would never load on their own, leaving their height unknown.
     const images = [...box.querySelectorAll("img")];
     images.forEach(image => (image.loading = "eager"));
 
@@ -147,36 +172,34 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
     };
   }, [measure]);
 
+  useEffect(() => {
+    const links = area.current?.querySelectorAll<HTMLAnchorElement>(":scope > .article-body > .article-toc a[href^='#']") ?? [];
+    setSections([...links].map(link => ({ id: decodeURIComponent(link.hash.slice(1)), label: link.textContent ?? "" })));
+  }, []);
+
   // A link to #page-3 opens that page once the pages are known, and a link to
   // a heading (the table of contents, rich-content.tsx) opens the page it is on.
   useEffect(() => {
-    if (!pageOf) return;
+    if (!pages) return;
     const open = () => {
       const match = PAGE_HASH.exec(window.location.hash);
-      if (match) return setPage(Math.min(Number(match[1]), count) - 1);
+      if (match) return setPage(Math.max(1, Math.min(Number(match[1]), pages)) - 1);
       const id = decodeURIComponent(window.location.hash.slice(1));
-      const target = id ? area.current?.querySelector(`[id="${CSS.escape(id)}"]`) : null;
-      if (!target) return;
-      const index = blocks().findIndex(block => block.contains(target));
-      if (index >= 0 && pageOf[index] !== undefined) setPage(pageOf[index]);
+      const box = area.current;
+      const target = id && box ? box.querySelector(`[id="${CSS.escape(id)}"]`) : null;
+      const rect = target?.getClientRects()[0];
+      if (box && rect) setPage(Math.min(pages - 1, pageAt(box, rect.left)));
     };
     open();
     window.addEventListener("hashchange", open);
     return () => window.removeEventListener("hashchange", open);
-  }, [pageOf, count, blocks]);
+  }, [pages]);
 
-  // Show only this page's blocks.
+  // Show this page: scroll the columns to it.
   useEffect(() => {
-    if (!pageOf) return;
-    const list = blocks();
-    const first = pageOf.indexOf(page);
-    list.forEach((block, index) => {
-      block.classList.toggle(OFF, pageOf[index] !== page);
-      block.classList.toggle(START, index === first);
-    });
     const box = area.current;
-    if (!box) return;
-    box.scrollTop = 0;
+    if (!pages || !box) return;
+    box.scrollLeft = page * pageWidth(box);
 
     // A page turn slides the new page in only now that it is the one showing.
     const pending = turn.current;
@@ -195,12 +218,36 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
         // A screen reader starts reading the new page, not the button.
         box.focus({ preventScroll: true });
       });
-  }, [pageOf, page, blocks]);
+  }, [pages, page]);
+
+  // The browser itself can scroll the columns — Tab onto a link on another
+  // page, find-in-page, a text selection dragged past the edge. The page then
+  // follows whatever is showing, snapped back to a whole page.
+  useEffect(() => {
+    const box = area.current;
+    if (!pages || pages < 2 || !box) return;
+    let timer = 0;
+    const scrolled = () => {
+      if (busy.current) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const width = pageWidth(box);
+        const shown = Math.min(pages - 1, Math.round(box.scrollLeft / width));
+        if (Math.abs(box.scrollLeft - shown * width) > 1) box.scrollLeft = shown * width;
+        setPage(shown);
+      }, 80);
+    };
+    box.addEventListener("scroll", scrolled);
+    return () => {
+      window.clearTimeout(timer);
+      box.removeEventListener("scroll", scrolled);
+    };
+  }, [pages]);
 
   // Tells the rest of the page how far the reader is (follow-topic.tsx offers notifications half-way).
   useEffect(() => {
-    if (pageOf) window.dispatchEvent(new CustomEvent<ReaderPage>(READER_PAGE_EVENT, { detail: { page, count } }));
-  }, [pageOf, page, count]);
+    if (pages) window.dispatchEvent(new CustomEvent<ReaderPage>(READER_PAGE_EVENT, { detail: { page, count } }));
+  }, [pages, page, count]);
 
   const go = useCallback(
     (next: number) => {
@@ -235,6 +282,42 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
     },
     [blogId, count, page],
   );
+
+  /** The page a section's heading is on. */
+  const sectionPage = useCallback((id: string) => {
+    const box = area.current;
+    const rect = box?.querySelector(`[id="${CSS.escape(id)}"]`)?.getClientRects()[0];
+    return box && rect ? Math.min(count - 1, pageAt(box, rect.left)) : null;
+  }, [count]);
+
+  function openSection(id: string) {
+    setListOpen(false);
+    const next = sectionPage(id);
+    if (next === null) return;
+    if (next === page) area.current?.focus({ preventScroll: true });
+    else go(next);
+  }
+
+  // The open list takes focus, and closes on Escape or a click outside it.
+  useEffect(() => {
+    if (!listOpen) return;
+    list.current?.querySelector<HTMLButtonElement>("[aria-current='true'], button")?.focus();
+    const away = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!list.current?.contains(target) && !listButton.current?.contains(target)) setListOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setListOpen(false);
+      listButton.current?.focus();
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [listOpen]);
 
   // ← and → turn pages while the card is on screen and nothing is being typed.
   useEffect(() => {
@@ -274,10 +357,21 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
     </svg>
   );
 
-  const single = pageOf !== null && count < 2;
+  function toggleList() {
+    if (!listOpen) {
+      let current = -1;
+      sections.forEach((section, index) => {
+        const start = sectionPage(section.id);
+        if (start !== null && start <= page) current = index;
+      });
+      setCurrentSection(current);
+    }
+    setListOpen(open => !open);
+  }
+
   const last = page === count - 1;
   return (
-    <div className={`reader${single ? " is-single" : ""}${pageOf ? " is-ready" : ""}`} ref={root}>
+    <div className={`reader${pages ? " is-ready" : ""}`} ref={root}>
       <button type="button" className="reader-arrow reader-prev" aria-label="Previous page" hidden={page === 0} onClick={() => go(page - 1)}>
         {arrow("M15 5l-7 7 7 7")}
       </button>
@@ -288,6 +382,22 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
         <div className="reader-head">
           <span className="reader-crumb">{page === 0 ? crumb : title}</span>
           <span className="reader-right">
+            {sections.length && count > 1 ? (
+              <button
+                ref={listButton}
+                type="button"
+                className="reader-toc-button"
+                aria-label="Contents"
+                aria-expanded={listOpen}
+                aria-controls={listId}
+                onClick={toggleList}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                  <path d="M4 6h16M4 12h16M4 18h10" />
+                </svg>
+                <span>Contents</span>
+              </button>
+            ) : null}
             <span className="reader-dots" hidden={count > 14}>
               {Array.from({ length: count }, (_, index) => (
                 <button key={index} type="button" aria-label={`Page ${index + 1}`} aria-current={index === page} onClick={() => go(index)} />
@@ -298,6 +408,20 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
             </span>
           </span>
         </div>
+        {listOpen ? (
+          <nav className="reader-toc" id={listId} aria-label="Contents" ref={list}>
+            <p>Contents</p>
+            <ol>
+              {sections.map((section, index) => (
+                <li key={section.id}>
+                  <button type="button" aria-current={index === currentSection} onClick={() => openSection(section.id)}>
+                    {section.label}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        ) : null}
         <div
           className="reader-area"
           ref={area}
@@ -319,8 +443,8 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
           onPointerCancel={() => (swipe.current = null)}
         >
           {children}
-          {/* Measured as the last block, so it always ends the last page. */}
-          <div className="reader-end">
+          {/* Laid out last, so the page it lands on is the article's last page. */}
+          <div className="reader-end" ref={end}>
             <span>End of article</span>
             <button type="button" onClick={() => root.current?.nextElementSibling?.scrollIntoView({ behavior: "smooth", block: "start" })}>
               Share &amp; comments <span aria-hidden="true">↓</span>

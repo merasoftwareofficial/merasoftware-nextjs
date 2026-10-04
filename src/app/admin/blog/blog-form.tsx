@@ -7,17 +7,18 @@ import { imageSourcesFor } from "@/components/image-chooser";
 import { MediaPicker } from "@/components/media-picker";
 import { TagPicker } from "@/components/tag-picker";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
-import { RichContent } from "@/components/editor/rich-content";
+import { CONTENTS_MIN_SECTIONS, CONTENTS_MIN_WORDS, RichContent, contentsPlan } from "@/components/editor/rich-content";
 import { SeoChecklist, SeoHint, SerpPreview, focusSeoField } from "@/components/seo-checks";
 import { publishingBriefWarnings } from "@/lib/content-rules";
 import { blogSeoChecks, googleDescription, googleTitle, seoIssues, type SeoField } from "@/lib/seo-rules";
 import { SITE_URL } from "@/lib/structured-data";
-import type { Blog, BlogFaq, BlogType, CommentMode, MediaAsset, Role, Settings, ShareMode, TitleSize, ViewMode, Visibility } from "@/lib/repo/types";
+import type { Blog, BlogFaq, BlogType, CommentMode, ContentsMode, MediaAsset, Role, Settings, ShareMode, TitleSize, ViewMode, Visibility } from "@/lib/repo/types";
 import styles from "./blog-preview.module.css";
 
 type Draft = {
   title: string;
   titleSize: TitleSize;
+  contents: ContentsMode;
   slug: string;
   slugTouched: boolean;
   excerpt: string;
@@ -66,6 +67,7 @@ function draftFrom(blog?: Blog): Draft {
   return {
     title: blog?.title ?? "",
     titleSize: blog?.titleSize ?? "large",
+    contents: blog?.contents ?? "auto",
     slug: blog?.slug ?? "",
     slugTouched: !!blog,
     excerpt: blog?.excerpt ?? "",
@@ -249,6 +251,13 @@ export function BlogForm({
     content: draft.content,
   };
   const seoChecks = blogSeoChecks(seoInput);
+  // What the article's contents list will do, worked out the way the public page does it.
+  const contentsNow = contentsPlan(draft.content, draft.contents, draft.faqs.filter(faq => faq.question && faq.answer).length);
+  const sectionTag = `H${contentsNow.level}`;
+  const contentsSummary = draft.contents === "hide" ? "No contents list on this post."
+    : contentsNow.show ? `Readers get a Contents button listing ${contentsNow.sections.length} ${sectionTag} section${contentsNow.sections.length === 1 ? "" : "s"}.`
+    : draft.contents === "show" ? `Not shown yet: needs at least two ${sectionTag} headings.`
+    : `Not shown yet: needs ${CONTENTS_MIN_SECTIONS}+ sections and ${CONTENTS_MIN_WORDS.toLocaleString("en-IN")}+ words (now ${contentsNow.sections.length} ${sectionTag} and ${contentsNow.words.toLocaleString("en-IN")} words).`;
   const seoProblems = seoIssues(seoChecks);
   const shownTitle = googleTitle(seoInput);
   const shownDescription = googleDescription(seoInput);
@@ -260,6 +269,7 @@ export function BlogForm({
     return {
       title: draft.title,
       titleSize: draft.titleSize,
+      contents: draft.contents,
       slug: draft.slug,
       excerpt: draft.excerpt,
       content: draft.content,
@@ -481,6 +491,17 @@ export function BlogForm({
           <p className="form-error" role="status">Possible publishing instructions in the article: {briefWarnings.join(", ")}. Review this text before publishing; it will be visible to readers.</p>
         ) : null}
         <SeoHint checks={seoChecks} field="blog-content" />
+        <label className="admin-field">
+          <span>Contents list</span>
+          <select value={draft.contents} onChange={event => set("contents", event.target.value as ContentsMode)}>
+            <option value="auto">Auto — only for a long article ({CONTENTS_MIN_SECTIONS}+ sections, {CONTENTS_MIN_WORDS.toLocaleString("en-IN")}+ words)</option>
+            <option value="show">Show — always list the sections</option>
+            <option value="hide">Hide — no contents list</option>
+          </select>
+          <small className="field-hint">
+            {contentsSummary} The list uses your largest headings (H2, or H3 when there is no H2), so keep those for section titles, not lead-in lines like &ldquo;Here are the reasons:&rdquo;.
+          </small>
+        </label>
       </div>
 
       <section className="admin-seo" id="blog-featured-image">
@@ -696,7 +717,7 @@ export function BlogForm({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={draft.imageUrl} alt={draft.imageAlt} style={{ maxWidth: "100%" }} />
               ) : null}
-              <RichContent content={draft.content} toc faqs={draft.faqs} />
+              <RichContent content={draft.content} contents={draft.contents} faqs={draft.faqs} />
             </article>
           </div>
         </div>
