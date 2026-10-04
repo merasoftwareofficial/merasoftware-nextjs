@@ -234,6 +234,11 @@ a.admin-stat{display:block;color:inherit;text-decoration:none}
 .reader-intro .lead{margin:16px 0 0;font-size:18px}
 .reader-intro .preview-flag{margin:12px 0 0}
 .reader-intro .article-image{display:block;width:100%;max-height:calc(var(--reader-h) * .32);object-fit:cover;margin-top:18px;border-radius:4px}
+/* Cover (article-reader.tsx). "picture": the title area alone is page 1, exactly one page tall, its picture taking all the room left above the Start reading button; the text starts on page 2. "title" (too little room for the picture): page 1 is the title area without it, and the picture opens page 2 above the text. Screen only, so print keeps the plain article. */
+@media screen{.reader[data-cover="picture"] .reader-intro{height:var(--reader-room);margin:0;padding-bottom:62px;display:flex;flex-direction:column;overflow:hidden;break-after:column}.reader[data-cover="picture"] .reader-intro>*{flex:none}.reader[data-cover="picture"] .reader-intro .article-image{flex:1 1 0;min-height:0;max-height:none;height:auto}.reader[data-cover="picture"] .article-body>:is(:first-child,.article-toc:first-child+*){margin-top:0}.reader[data-cover="title"] .reader-intro .article-image{break-before:column;margin-top:0}}
+.reader-begin{position:absolute;left:50%;bottom:16px;z-index:3;display:inline-flex;align-items:center;gap:10px;padding:11px 20px;border:0;border-radius:100px;background:var(--inverse);color:var(--inverse-text);font:inherit;font-size:13px;font-weight:800;white-space:nowrap;cursor:pointer;transform:translateX(-50%);transition:transform .2s}
+.reader-begin span{color:#a8d100;font-size:16px}
+.reader-begin:hover{transform:translateX(-50%) translateY(-2px)}
 .reader-area .article-body img{max-height:calc(var(--reader-h) - 170px);width:auto;object-fit:contain}
 .reader-end{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:8px 0 18px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 .reader-end button{border:0;background:transparent;padding:6px 0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer}

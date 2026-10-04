@@ -22,6 +22,14 @@
  * for search and readers without scripts, and shows in place on a one-page
  * article, which has no page controls.
  *
+ * An article longer than one page that has a featured image opens on a cover:
+ * page 1 is the title area alone, its picture filling the rest of the card,
+ * with a "Start reading" button, and the text begins at the top of page 2 —
+ * instead of a heading and two lines squeezed under the picture. Where the
+ * picture would get less than MIN_COVER_IMAGE (a small phone), page 1 is a
+ * title page instead — the title area without its picture — and the picture
+ * opens page 2, above the text.
+ *
  * Pages follow the screen, so a phone has more of them than a laptop. The page
  * is kept in the address as #page-3 (replaced, not added to history, so Back
  * leaves the article); any other hash (#comments) is left alone.
@@ -33,6 +41,8 @@ import { trackClick } from "@/components/blog/tracked-link";
 const PAGE_HASH = /^#page-(\d+)$/;
 /** The card never gets shorter than this, however small the window. */
 const MIN_CARD = 440;
+/** The least height the cover's picture may get; below it the cover is a title page. */
+const MIN_COVER_IMAGE = 140;
 /** Remembers, per browser, that the reader has swiped once, so the hint stops. */
 const SWIPED_KEY = "reader-swiped";
 
@@ -97,6 +107,8 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
   const end = useRef<HTMLDivElement>(null);
   // How many pages the article has; null until the browser has laid it out.
   const [pages, setPages] = useState<number | null>(null);
+  // Page 1 is a cover (see the top of this file).
+  const [cover, setCover] = useState(false);
   const [page, setPage] = useState(0);
   const busy = useRef(false);
   // The page turn in progress: its fade-out, and which way the new page slides in.
@@ -128,15 +140,29 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
     size.current = { width: window.innerWidth, height: window.innerHeight };
 
     const width = pageWidth(box);
-    const rects = end.current?.getClientRects();
-    const last = rects?.length ? rects[rects.length - 1] : null;
-    const total = last ? pageAt(box, last.left) + 1 : 1;
+    const style = getComputedStyle(box);
+    shell.style.setProperty("--reader-room", `${box.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)}px`);
+    const pagesNow = () => {
+      const rects = end.current?.getClientRects();
+      const last = rects?.length ? rects[rects.length - 1] : null;
+      return last ? pageAt(box, last.left) + 1 : 1;
+    };
+    // The cover is decided on the article as it lays out without one, so it never turns a one-page article into two.
+    delete shell.dataset.cover;
+    let total = pagesNow();
+    const picture = box.querySelector<HTMLElement>(":scope > .reader-intro .article-image");
+    if (total > 1 && picture) {
+      shell.dataset.cover = "picture";
+      if (picture.getBoundingClientRect().height < MIN_COVER_IMAGE) shell.dataset.cover = "title";
+      total = pagesNow();
+    }
     // A one-page article is shown at its own height, without page controls.
     if (total < 2) shell.dataset.layout = "single";
 
     const kept = before?.getClientRects()[0] ?? before?.startContainer.parentElement?.getClientRects()[0];
     const next = total < 2 ? 0 : Math.min(total - 1, kept ? pageAt(box, kept.left) : 0);
     box.scrollLeft = next * width;
+    setCover(shell.dataset.cover !== undefined);
     setPages(total);
     setPage(next);
   }, []);
@@ -451,7 +477,12 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
             </button>
           </div>
         </div>
-        {!swiped && count > 1 && page === 0 ? (
+        {cover && page === 0 && count > 1 ? (
+          <button type="button" className="reader-begin" onClick={() => go(1)}>
+            Start reading <span aria-hidden="true">→</span>
+          </button>
+        ) : null}
+        {!swiped && !cover && count > 1 && page === 0 ? (
           <div className="reader-swipe" aria-hidden="true">
             <b>←</b> Swipe for next page <b>→</b>
           </div>
