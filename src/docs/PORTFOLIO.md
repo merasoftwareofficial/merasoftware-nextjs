@@ -24,6 +24,10 @@ services list; their own entries cannot be published as duplicate cards.
    Configure the service manager to restart it after a crash. One Mongo lease coordinates
    multiple worker instances. A supported Chromium host and outbound public web access
    are required; allow enough memory for a headless browser.
+   Alternatively, set `ENABLE_PORTFOLIO_WORKER=true` on the existing backend service:
+   its startup supervises the same worker process and restarts it after a crash.
+   The service still needs the shared secret, website URL and Chromium installation.
+   Keep this flag off on development backends connected to an empty development database.
 7. Open `/admin/portfolio`: imports start as drafts. Add public content, review images,
    set visibility, and save. No existing project is published automatically.
 
