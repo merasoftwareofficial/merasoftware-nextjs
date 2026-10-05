@@ -68,7 +68,11 @@ export function CommentActions({
           className="admin-action is-danger"
           type="button"
           disabled={busy}
-          onClick={() => run(() => fetch(`/api/comments/${id}`, { method: "DELETE" }))}
+          onClick={() => {
+            // Deleting is permanent (hiding is the undoable choice), so it asks first, like every other delete in the panel.
+            if (!window.confirm("Delete this comment permanently? This cannot be undone.")) return;
+            run(() => fetch(`/api/comments/${id}`, { method: "DELETE" }));
+          }}
         >
           Delete
         </button>

@@ -52,7 +52,11 @@ export function UserActions({ id, role, banned }: { id: string; role: Role; bann
         className={banned ? "admin-action" : "admin-action is-danger"}
         type="button"
         disabled={busy}
-        onClick={() => patch({ banned: !banned })}
+        onClick={() => {
+          // Banning signs the person out of the website at once; unbanning needs no second thought.
+          if (!banned && !window.confirm("Ban this user? They are signed out of the website until you unban them.")) return;
+          patch({ banned: !banned });
+        }}
       >
         {banned ? "Unban" : "Ban"}
       </button>
