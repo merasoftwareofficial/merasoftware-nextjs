@@ -69,6 +69,7 @@ export default async function Write({
             blog={existing ?? undefined}
             type={kind}
             topics={categoryChoices(await categoryRepo.list(), existing?.type ?? kind, existing?.category)}
+            role={user.role}
           />
         </section>
       </main>

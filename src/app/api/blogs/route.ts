@@ -8,7 +8,7 @@ import { errorResponse } from "@/lib/api";
 import { blogResponse } from "@/lib/blog-response";
 import { slugify } from "@/lib/slug";
 import { atLeast, getSessionUser, requireUser } from "@/lib/auth";
-import { blogInputSchema, initialState, isReadable } from "@/lib/blog-rules";
+import { blogInputSchema, featuredImageFor, initialState, isReadable } from "@/lib/blog-rules";
 import { categoryError } from "@/lib/category-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
@@ -74,6 +74,7 @@ export async function POST(request: Request) {
       ...data,
       slug,
       type,
+      featuredImage: featuredImageFor(user, data.featuredImage),
       // A member's post follows the site default; only an editor chooses.
       comments: canSetCommentMode(user) ? data.comments ?? "default" : "default",
       showViews: canSetViewMode(user) ? data.showViews ?? "default" : "default",

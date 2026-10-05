@@ -18,7 +18,9 @@ import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
 import { emptyDoc, isEmptyDoc } from "@/components/editor/extensions";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
-import type { Blog } from "@/lib/repo/types";
+import { imageSourcesFor } from "@/components/image-chooser";
+import { MediaPicker } from "@/components/media-picker";
+import type { Blog, Role } from "@/lib/repo/types";
 
 /**
  * A member never edits the URL, but blogInputSchema validates the slug before
@@ -51,9 +53,12 @@ export function CommunityForm({
   blog,
   type: initialType,
   topics,
+  role,
 }: {
   blog?: Blog;
   type: "community" | "discussion";
+  /** Decides where images may come from — the same rule as the admin blog form. */
+  role: Role;
   /** The categories a member may file under, set by an admin (categoryChoices in category-rules.ts). */
   topics: string[];
 }) {
@@ -66,6 +71,14 @@ export function CommunityForm({
   const [category, setCategory] = useState(blog?.category ?? topics[0] ?? "");
   const [tags, setTags] = useState(blog?.tags.join(", ") ?? "");
   const [content, setContent] = useState<unknown>(blog?.content ?? emptyDoc);
+  const [image, setImage] = useState({
+    url: blog?.featuredImage?.url ?? "",
+    publicId: blog?.featuredImage?.publicId ?? "",
+    alt: blog?.featuredImage?.alt ?? "",
+  });
+  // Upload and Media Library for editors and admins, an image URL for everyone
+  // (imageSourcesFor); the API strips a library link a member's role cannot make.
+  const imageSources = imageSourcesFor(role, { allowUrl: true });
 
   const [postId, setPostId] = useState(blog?._id ?? "");
   const [status, setStatus] = useState(blog?.status ?? "draft");
@@ -111,6 +124,7 @@ export function CommunityForm({
         slug: blog?.slug ?? slugify(title),
         excerpt: excerpt.trim(),
         content,
+        featuredImage: { ...image, alt: image.alt.trim() },
         type,
         category: category || undefined,
         tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
@@ -230,6 +244,34 @@ export function CommunityForm({
         />
       </label>
 
+      <div className="community-cover">
+        <MediaPicker
+          url={image.url}
+          fromLibrary={Boolean(image.publicId)}
+          sources={imageSources}
+          onChoose={choice =>
+            // A post's alt text allows 160 characters (blog-rules.ts); library alt text may run to 300.
+            setImage(current =>
+              choice.kind === "url"
+                ? { url: choice.url, publicId: "", alt: (choice.alt || current.alt).slice(0, 160) }
+                : { url: choice.asset.url, publicId: choice.asset.publicId, alt: (choice.asset.altText || current.alt).slice(0, 160) },
+            )
+          }
+          onRemove={() => setImage({ url: "", publicId: "", alt: "" })}
+        />
+        {image.url ? (
+          <label>
+            Cover image alt text
+            <input
+              value={image.alt}
+              maxLength={160}
+              onChange={event => setImage(current => ({ ...current, alt: event.target.value }))}
+              placeholder="Describe the image"
+            />
+          </label>
+        ) : null}
+      </div>
+
       <label>
         Tags (comma separated, optional)
         <input value={tags} onChange={event => setTags(event.target.value)} placeholder="local seo, google maps" />
@@ -238,7 +280,7 @@ export function CommunityForm({
       <div style={{ marginTop: 18 }}>
         <label style={{ marginBottom: 0 }}>Content</label>
         <div className="community-editor-body">
-          <TiptapEditor value={content} onChange={setContent} placeholder={copy.bodyHint} />
+          <TiptapEditor value={content} onChange={setContent} placeholder={copy.bodyHint} imageSources={imageSources} />
         </div>
       </div>
 

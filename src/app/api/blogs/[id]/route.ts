@@ -10,7 +10,7 @@ import { blogResponse } from "@/lib/blog-response";
 import { articleContentSchema } from "@/lib/content-rules";
 import { slugify } from "@/lib/slug";
 import { getSessionUser, requireUser } from "@/lib/auth";
-import { blogInputSchema, canDelete, canEdit, isReadable } from "@/lib/blog-rules";
+import { blogInputSchema, canDelete, canEdit, featuredImageFor, isReadable } from "@/lib/blog-rules";
 import { categoryError } from "@/lib/category-rules";
 import { canSetCommentMode } from "@/lib/comment-rules";
 import { canSetViewMode } from "@/lib/view-rules";
@@ -61,9 +61,10 @@ export async function PATCH(request: Request, { params }: Params) {
 
     // Type and author are not editable through this route, and only an editor
     // may change how a post handles comments, its view count or share buttons.
-    const { type: _type, comments, showViews, sharing, ...rest } = data;
+    const { type: _type, comments, showViews, sharing, featuredImage, ...rest } = data;
     const patch = {
       ...rest,
+      ...(featuredImage ? { featuredImage: featuredImageFor(user, featuredImage) } : {}),
       ...(canSetCommentMode(user) && comments ? { comments } : {}),
       ...(canSetViewMode(user) && showViews ? { showViews } : {}),
       ...(canSetShareMode(user) && sharing ? { sharing } : {}),

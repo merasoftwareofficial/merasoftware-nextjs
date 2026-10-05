@@ -136,6 +136,17 @@ export function canDelete(user: User, blog: BlogCard) {
 }
 
 /**
+ * The featured image as this user may save it. Only a role that can open the
+ * Media Library (imageSourcesFor in image-chooser.tsx) may link a library
+ * asset by publicId; anyone else's image is kept as a plain outside URL, so a
+ * member cannot mark a library asset as used and block its deletion.
+ */
+export function featuredImageFor(user: User, image: BlogInput["featuredImage"]) {
+  if (!image || atLeast(user.role, "moderator")) return image;
+  return { ...image, publicId: "" };
+}
+
+/**
  * Where a newly created post starts: always an unpublished, unindexed draft.
  *
  * Nothing reaches the public web from creation alone. An editor moves an
