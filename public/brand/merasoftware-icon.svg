@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-95 -120 940 940">
+  <!-- App icon: the "M" mark from merasoftware-logo-dark.svg on the brand navy tile. -->
+  <defs>
+    <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="10" y1="500" x2="250" y2="300"><stop offset="0" stop-color="#01b0c8"/><stop offset=".55" stop-color="#0287a1"/><stop offset="1" stop-color="#036a85"/></linearGradient>
+    <linearGradient id="p" gradientUnits="userSpaceOnUse" x1="150" y1="500" x2="285" y2="410"><stop offset="0" stop-color="#f2f9fb"/><stop offset=".45" stop-color="#7ed2e0"/><stop offset="1" stop-color="#3cc2d2"/></linearGradient>
+    <linearGradient id="b" gradientUnits="userSpaceOnUse" x1="300" y1="195" x2="250" y2="480"><stop offset="0" stop-color="#0090ad"/><stop offset=".5" stop-color="#03829e"/><stop offset="1" stop-color="#037893"/></linearGradient>
+    <linearGradient id="c" gradientUnits="userSpaceOnUse" x1="390" y1="320" x2="450" y2="480"><stop offset="0" stop-color="#00c2df"/><stop offset="1" stop-color="#00b5cf"/></linearGradient>
+    <linearGradient id="o" gradientUnits="userSpaceOnUse" x1="390" y1="345" x2="330" y2="500"><stop offset="0" stop-color="#04617f"/><stop offset="1" stop-color="#035c79"/></linearGradient>
+    <linearGradient id="d" gradientUnits="userSpaceOnUse" x1="470" y1="262" x2="640" y2="190"><stop offset="0" stop-color="#0f5f96"/><stop offset=".5" stop-color="#1673b5"/><stop offset="1" stop-color="#2a8fd0"/></linearGradient>
+  </defs>
+  <rect x="-95" y="-120" width="940" height="940" fill="#00243d"/>
+  <polygon points="157,239 3,505 294,505" fill="url(#a)"/>
+  <polygon points="217.5,357 132,505 294,505" fill="url(#p)"/>
+  <polygon points="171,186 303,186 442.9,477 427,505 323,505" fill="url(#b)"/>
+  <polygon points="456,186 305,467 323,505 427,505 523,336" fill="url(#c)"/>
+  <polygon points="375,338 305,467 323,505 427,505 442.9,477" fill="url(#o)"/>
+  <polygon points="456,186 592,186 747,512 606,512" fill="url(#d)"/>
+</svg>

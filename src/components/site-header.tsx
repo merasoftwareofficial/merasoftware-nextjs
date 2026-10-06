@@ -34,12 +34,14 @@ const NAV_LINKS: [label: string, href: string][] = [
   ["About", "/about"],
 ];
 
-export function SiteHeader({ dark = false }: { dark?: boolean }) {
+export function SiteHeader({ dark = true }: { dark?: boolean }) {
   return (
     <header className={`site-header ${dark ? "header-dark" : ""}`}>
       <div className="container header-inner">
-        <Link className="brand" href="/">
-          <span>mera</span>software<span className="brand-dot">.</span>
+        <Link className="brand brand-logo" href="/">
+          {/* Static SVG (text already converted to paths), so it needs no font and the browser caches it. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- next/image does not serve SVG without dangerouslyAllowSVG. */}
+          <img src={dark ? "/brand/merasoftware-logo-dark.svg" : "/brand/merasoftware-logo.svg"} alt="Mera Software — Digital Solutions" width={2130} height={365} />
         </Link>
         <nav>
           {NAV_LINKS.map(([label, href]) => (

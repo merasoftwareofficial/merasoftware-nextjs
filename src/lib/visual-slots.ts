@@ -30,7 +30,7 @@ export function slotInfo(id: string) { return VISUAL_SLOTS.find(slot => slot.id 
 
 export function defaultVisual(id: VisualSlotId): SectionVisualConfig {
   const slot = slotInfo(id)!;
-  return { mode: "pattern", pattern: slot.pattern, intensity: 65, fit: "contain", focalX: 50, focalY: 50, alt: "", ...(id === "home.hero" ? { frameShape: "slot" as const } : {}), card: { enabled: false, placement: "overlay", eyebrow: "", title: "", body: "", indexText: "", background: "#191917", foreground: "#ffffff", accent: "#d9ff45" } };
+  return { mode: "pattern", pattern: slot.pattern, intensity: 65, fit: "contain", focalX: 50, focalY: 50, alt: "", ...(id === "home.hero" ? { frameShape: "slot" as const } : {}), card: { enabled: false, placement: "overlay", eyebrow: "", title: "", body: "", indexText: "", background: "#00243d", foreground: "#ffffff", accent: "#66e4ee" } };
 }
 
 

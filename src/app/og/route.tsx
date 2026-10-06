@@ -15,22 +15,35 @@ import { SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/structured-data";
 
 const SIZE = { width: 1200, height: 630 };
 
-export function GET(request: Request) {
+/** The dark-background logo as a data URI: the image renderer cannot read files from /public by path. */
+async function logoDataUri(request: Request) {
+  const response = await fetch(new URL("/brand/merasoftware-logo-dark.svg", request.url));
+  if (!response.ok) return null;
+  return `data:image/svg+xml;base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
+}
+
+export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const title = (params.get("title")?.trim() || SITE_TITLE).slice(0, 110);
   const label = (params.get("label")?.trim() || "").slice(0, 40).toUpperCase();
   const host = new URL(SITE_URL).hostname;
+  const logo = await logoDataUri(request).catch(() => null);
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "72px 80px", background: "#121211", color: "#f2f0e8" }}>
-        {/* One colour: the image renderer puts a gap between differently styled pieces of a word. */}
-        <div style={{ display: "flex", fontSize: 34, fontWeight: 700, color: "#b7d938" }}>merasoftware.</div>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "72px 80px", background: "#00243d", color: "#f4f8fc" }}>
+        {/* Logo file is 2130 × 365; the text fallback only shows if it could not be fetched. */}
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- rendered by next/og, not the browser.
+          <img src={logo} width={385} height={66} alt="" />
+        ) : (
+          <div style={{ display: "flex", fontSize: 34, fontWeight: 700, color: "#66e4ee" }}>{SITE_NAME}</div>
+        )}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {label ? <div style={{ display: "flex", fontSize: 26, letterSpacing: 4, color: "#b7d938", marginBottom: 24 }}>{label}</div> : null}
+          {label ? <div style={{ display: "flex", fontSize: 26, letterSpacing: 4, color: "#66e4ee", marginBottom: 24 }}>{label}</div> : null}
           <div style={{ display: "flex", fontSize: title.length > 60 ? 58 : 70, fontWeight: 700, lineHeight: 1.12 }}>{title}</div>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 26, color: "#b9b8b0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 26, color: "#b6cddd" }}>
           <span>{SITE_NAME}</span>
           <span>{host}</span>
         </div>

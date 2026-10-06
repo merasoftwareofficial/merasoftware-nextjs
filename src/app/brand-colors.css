@@ -1,0 +1,56 @@
+/* Logo palette. Bright cyan belongs on navy; teal keeps light-page text readable. */
+:root {
+  --brand-navy: #00243d;
+  --brand-blue: #073b60;
+  --brand-teal: #007f99;
+  --brand-cyan: #00b8cc;
+  --brand-cyan-light: #66e4ee;
+  --brand-link: #006b80;
+  --brand-ice: #ddf5f7;
+  --brand-white: #ffffff;
+  --brand-paper: #f4f8fc;
+  --brand-surface: #e8f0f6;
+  --brand-line: #ccdce8;
+  --brand-muted: #4c6475;
+  --brand-dark-bg: #001b2e;
+  --brand-dark-card: #062d47;
+  --brand-dark-field: #002239;
+  --brand-dark-line: #28506a;
+  --brand-dark-muted: #b6cddd;
+}
+
+/* Surface and component roles shared across public pages. */
+:root {
+  --section-bg: var(--brand-white);
+  --section-soft-bg: var(--brand-paper);
+  --section-dark-bg: var(--brand-navy);
+  --section-accent-bg: var(--brand-ice);
+  --card-bg: var(--brand-paper);
+  --card-footer-bg: var(--brand-surface);
+  --card-border: var(--brand-line);
+  --card-radius: 16px;
+  --card-shadow: 0 3px 8px rgb(0 36 61 / .05), 0 12px 28px rgb(0 36 61 / .12);
+  --card-shadow-active: 0 4px 10px rgb(0 36 61 / .07), 0 16px 36px rgb(0 36 61 / .16);
+  --link: var(--brand-link);
+  --ink: var(--brand-navy);
+  --paper: var(--section-bg);
+  --surface: var(--brand-surface);
+  --accent-surface: var(--section-accent-bg);
+  --muted: var(--brand-muted);
+  --line: var(--brand-line);
+  --card: var(--brand-white);
+  --inverse: var(--brand-navy);
+  --inverse-text: var(--brand-paper);
+}
+.admin-shell[data-theme="dark"] {
+  --link: var(--brand-cyan);
+  --ink: var(--brand-paper);
+  --paper: var(--brand-dark-bg);
+  --surface: var(--brand-dark-card);
+  --accent-surface: var(--brand-cyan-light);
+  --muted: var(--brand-dark-muted);
+  --line: var(--brand-dark-line);
+  --card: var(--brand-dark-card);
+  --inverse: var(--brand-paper);
+  --inverse-text: var(--brand-dark-field);
+}

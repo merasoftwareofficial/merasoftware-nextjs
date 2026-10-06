@@ -4,7 +4,7 @@ import type { PublicPortfolioEntry } from "@/lib/portfolio/types";
 import { PortfolioReactions } from "@/components/portfolio-reactions";
 export function PortfolioCard({ entry }: { entry: PublicPortfolioEntry }) {
   return <article className="portfolio-card"><Link href={`/work/${entry.slug}`} className="portfolio-card-link">
-    {entry.cover ? <img src={entry.cover.url} alt={entry.cover.alt} loading="lazy" style={{ objectPosition: `${entry.cover.focalX}% ${entry.cover.focalY}%` }} /> : null}
+    {entry.cover ? <img src={entry.cover.url} alt={entry.cover.alt} loading="lazy" style={{ objectPosition: `${entry.cover.focalX}% ${entry.cover.focalY}%` }} /> : <div className="portfolio-card-media" aria-hidden="true" />}
     <div className="portfolio-card-copy"><span className="eyebrow">{entry.category.replaceAll("_", " ")}</span>{entry.brand ? <p className="portfolio-brand">{entry.brand}</p> : null}<h2>{entry.title}</h2><p>{entry.summary}</p>{entry.services.length ? <p className="portfolio-services">{entry.services.join(" · ")}</p> : null}<span className="text-link">View project ↗</span></div>
   </Link><PortfolioReactions id={entry._id} slug={entry.slug} compact /></article>;
 }

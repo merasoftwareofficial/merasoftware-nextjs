@@ -40,7 +40,7 @@ export default async function Home() {
     <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(organisationLd(settings.organization))} />
     <SiteHeader />
     <main>
-      <section className="hero">
+      <section className="hero section-white">
         <div className="hero-grid container">
           <div className="hero-copy">
             <p className="eyebrow"><i /> {content.hero.eyebrow}</p>
@@ -73,7 +73,7 @@ export default async function Home() {
         </Link>)}</div><SectionVisual data={visuals["home.services"]} label="Services illustration" /></div>
       </section>
 
-      <section className="statement visual-home-statement">
+      <section className="statement section-navy visual-home-statement">
         <div className="container">
           <div>
           <p className="eyebrow"><i /> {content.pointOfView.eyebrow}</p>
@@ -83,7 +83,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {FEATURES.portfolio && featuredWork.length > 0 ? <section className="work-preview section">
+      {FEATURES.portfolio && featuredWork.length > 0 ? <section className="work-preview section section-white">
         <div className="container">
           <div className="section-top">
             <p className="eyebrow"><i /> {content.work.eyebrow}</p>
@@ -94,19 +94,21 @@ export default async function Home() {
         </div>
       </section> : null}
 
-      <section className="section container">
-        <div className="section-top">
-          <p className="eyebrow"><i /> {content.insights.eyebrow}</p>
-          <Link className="text-link" href="/blog">{content.insights.allLabel} <span>↗</span></Link>
+      <section className="section section-soft">
+        <div className="container">
+          <div className="section-top">
+            <p className="eyebrow"><i /> {content.insights.eyebrow}</p>
+            <Link className="text-link" href="/blog">{content.insights.allLabel} <span>↗</span></Link>
+          </div>
+          <h2 className="section-heading">{content.insights.headingBefore} <em>{content.insights.headingEmphasis}</em>{content.insights.headingAfter}</h2>
+          <div className="post-grid">{posts.map(post => <Link className="post-card" key={post._id} href={`/blog/${post.slug}`}>
+            {post.featuredImage?.url ? <img className="post-art post-art-image home-post-image" src={post.featuredImage.url} alt={post.featuredImage.alt} loading="lazy" /> : <div className="post-art">{(post.category ?? "INSIGHTS").toUpperCase()}<br /><br />{content.insights.fallbackLineOne}<br />{content.insights.fallbackLineTwo}</div>}
+            <div className="post-copy"><span>{post.category ?? "Insights"}</span><h3>{post.title}</h3><div className="post-meta"><span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : ""}</span><span>{post.authorName}</span></div></div>
+          </Link>)}</div>
         </div>
-        <h2 className="section-heading">{content.insights.headingBefore} <em>{content.insights.headingEmphasis}</em>{content.insights.headingAfter}</h2>
-        <div className="post-grid">{posts.map(post => <Link className="post-card" key={post._id} href={`/blog/${post.slug}`}>
-          {post.featuredImage?.url ? <img className="post-art post-art-image home-post-image" src={post.featuredImage.url} alt={post.featuredImage.alt} loading="lazy" /> : <div className="post-art">{(post.category ?? "INSIGHTS").toUpperCase()}<br /><br />{content.insights.fallbackLineOne}<br />{content.insights.fallbackLineTwo}</div>}
-          <div className="post-copy"><span>{post.category ?? "Insights"}</span><h3>{post.title}</h3><div className="post-meta"><span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : ""}</span><span>{post.authorName}</span></div></div>
-        </Link>)}</div>
       </section>
 
-      <section className="contact visual-home-contact">
+      <section className="contact section-accent visual-home-contact">
         <div className="container contact-inner">
           <div>
           <p className="eyebrow"><i /> {content.contact.eyebrow}</p>
