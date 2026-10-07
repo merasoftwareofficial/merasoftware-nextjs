@@ -1,0 +1,18 @@
+/** Missing facts stay empty until confirmed by the owner. Saved homepage variant content; independent of campaign changes. */
+export type TrustContent = {
+  phone: string | null; whatsapp: string | null; address: string | null; mapsUrl: string | null; reviewsUrl: string | null;
+  stats: { value: string; label: string }[];
+  work: { title: string; brand: string; category: string; description: string; image: string; imageAlt: string; url: string; liveUrl?: string }[];
+  testimonials: { name: string; business: string; quote: string }[];
+  offer: { title: string; inclusions: string[]; regularPrice: number; offerPrice: number; contactPrice: number; endsAt: string; terms: string; demoDescription: string } | null;
+};
+export const variantContent: TrustContent = {
+  phone: null, whatsapp: null, address: null, mapsUrl: null, reviewsUrl: null,
+  stats: [],
+  // Snapshot of publicly published Portfolio entries, verified 8 October 2026.
+  work: [
+    { title: "College website", brand: "Shri Lakshami Narayan Ayurvedic College", category: "Education website", description: "A custom, mobile-friendly website to present the college and its information.", image: "https://res.cloudinary.com/cpkizny3/image/upload/v1791145352/fyl3wau0wxur9ws9c2v7.jpg", imageAlt: "Shri Lakshami Narayan Ayurvedic College website screenshot", url: "/work/college-website-67ca900eb74653ac7d14d96a", liveUrl: "https://www.slnaycollege.com/" },
+    { title: "Business portfolio website", brand: "3G-Digital", category: "Business website", description: "A focused website presenting the business and its portfolio of work.", image: "https://res.cloudinary.com/cpkizny3/image/upload/v1791202768/kj0pkizsxbj4h688s5az.jpg", imageAlt: "3G-Digital business portfolio website screenshot", url: "/work/portfolio-website-6aa3ae1ea8bbc513b29bedc7", liveUrl: "https://www.3gdigital.net/" },
+    { title: "Integrated ERP software", brand: "3G-Digital", category: "Business software", description: "Staff, attendance, inventory and sales workflows brought into one dashboard.", image: "https://res.cloudinary.com/cpkizny3/image/upload/v1791088589/mri2mj3i7cq3uklr9cay.jpg", imageAlt: "3G-Digital integrated ERP software screenshot", url: "/work/crm-based-cms-67e52b857f45d6d5e3eab02d" },
+  ], testimonials: [], offer: null,
+};

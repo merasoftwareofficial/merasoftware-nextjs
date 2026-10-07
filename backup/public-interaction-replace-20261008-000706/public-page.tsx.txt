@@ -1,0 +1,4 @@
+import type { Metadata } from "next";
+import { TrustCampaign } from "@/components/campaign/trust-campaign";
+export const metadata: Metadata = { title: "Website & business promotion — Let’s talk", description: "Website, social media aur Google profile services. Starting prices samjhein aur Mera Software se baat karein.", robots: { index: false, follow: false }, openGraph: { title: "Aap business sambhaliye. Online presence hum sambhalenge.", description: "Website aur business promotion ke liye Mera Software se baat karein." } };
+export default function Page() { return <TrustCampaign/>; }

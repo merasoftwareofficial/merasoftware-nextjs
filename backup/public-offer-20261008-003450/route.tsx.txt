@@ -1,0 +1,4 @@
+import type { Metadata } from "next";
+import { PublicInteraction } from "@/components/campaign/public-interaction/page-content";
+export const metadata: Metadata = { title: "Website & business promotion — Let’s talk", description: "See starting prices, explore real projects and discuss your website, social media or Google profile with Mera Software.", robots: { index: false, follow: false }, openGraph: { title: "Your business. Online, done right.", description: "Professional websites, social content and Google profiles, with clear scope and pricing." } };
+export default function Page() { return <PublicInteraction/>; }

@@ -1,0 +1,75 @@
+/* eslint @next/next/no-img-element: off -- static brand and owner-provided work images. */
+"use client";
+import { useEffect, useState } from "react";
+import { BRAND_LOGO } from "@/lib/brand";
+import { variantContent as content } from "./content";
+const money = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
+import s from "./variant.module.css";
+
+function Icon({ type }: { type: "arrow" | "check" | "phone" | "message" }) {
+  const paths = { arrow: "M5 12h14m-6-6 6 6-6 6", check: "m5 12 4 4 10-10", phone: "M7 3H4a1 1 0 0 0-1 1c0 9 8 17 17 17a1 1 0 0 0 1-1v-3l-5-2-2 2a15 15 0 0 1-7-7l2-2-2-5Z", message: "M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-1 1v-9.5A8.5 8.5 0 0 1 11.5 3h1a8.5 8.5 0 0 1 8.5 8.5ZM7 11h10m-10 4h6" };
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[type]}/></svg>;
+}
+const email = "contact@merasoftware.com";
+function contactHref(offer = false) {
+  const text = offer ? `Hello, I would like to discuss the demo and offer for ${content.offer?.title}. Please confirm eligibility and pricing.` : "Hello, I would like to discuss a website or online promotion for my business. Please help me understand the suitable services and costs.";
+  return content.whatsapp ? `https://wa.me/${content.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(text)}` : `mailto:${email}?subject=${encodeURIComponent(offer ? "Starter offer & demo enquiry" : "Business website & promotion enquiry")}&body=${encodeURIComponent(text)}`;
+}
+function ContactButtons({ offer = false }: { offer?: boolean }) {
+  return <div className={s.actions}><a className={s.primary} href={contactHref(offer)}><Icon type="message"/>{content.whatsapp ? "Chat on WhatsApp" : "Email our team"}<Icon type="arrow"/></a>{content.phone && <a className={s.secondary} href={`tel:${content.phone.replace(/[^+\d]/g, "")}`}><Icon type="phone"/>Call us</a>}</div>;
+}
+function Countdown({ end }: { end: string }) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => { const tick = () => setRemaining(Math.max(0, Date.parse(end) - Date.now())); tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer); }, [end]);
+  if (!Number.isFinite(Date.parse(end))) return <p>Contact us for current offer details.</p>;
+  if (remaining === null) return <p>Offer deadline: {new Date(end).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p>;
+  if (!remaining) return <p>This offer has ended. Contact us for current pricing.</p>;
+  const total = Math.floor(remaining / 1000);
+  return <div className={s.timer} aria-label="Offer time remaining">{[[Math.floor(total / 86400), "Days"], [Math.floor(total / 3600) % 24, "Hours"], [Math.floor(total / 60) % 60, "Minutes"], [total % 60, "Seconds"]].map(([value, label]) => <div key={label}><b>{String(value).padStart(2, "0")}</b><span>{label}</span></div>)}</div>;
+}
+
+const services = [
+  { name: "Business setup", price: 2500, period: "one-time", scope: "Google, Instagram, Facebook & WhatsApp profiles" },
+  { name: "Google management", price: 900, period: "/ month", scope: "Profile updates, optimization & weekly posts" },
+  { name: "Business website", price: 6000, period: "website price", scope: "Mobile-friendly static website · up to 7 pages" },
+  { name: "Social media", price: 6000, period: "/ month", scope: "4 reels + 4 photo posts · you provide raw content" },
+];
+
+function StarterOffer() {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => { if (!content.offer) return; const tick = () => setNow(Date.now()); tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer); }, []);
+  const offer = content.offer;
+  if (!offer) return null;
+  const active = now !== null && Number.isFinite(Date.parse(offer.endsAt)) && now < Date.parse(offer.endsAt);
+  return <section className={s.offer}><span className={s.label}>STARTER OFFER</span><h2>{offer.title}</h2>{active ? <><p><del>{money(offer.regularPrice)}</del> · Offer {money(offer.offerPrice)}</p><strong>{money(offer.contactPrice)} <small>when you contact us before the deadline</small></strong><Countdown end={offer.endsAt}/><ul>{offer.inclusions.map(item => <li key={item}>{item}</li>)}</ul><p>{offer.demoDescription}</p><ContactButtons offer/><small>{offer.terms}</small></> : <><Countdown end={offer.endsAt}/><ContactButtons/></>}</section>;
+}
+
+export function PublicInteraction() {
+  const [activeWork, setActiveWork] = useState(0);
+  const featured = content.work[activeWork];
+  return <main className={s.page}>
+    <header className={s.header}><img src={BRAND_LOGO.light} width={BRAND_LOGO.width} height={BRAND_LOGO.height} alt={BRAND_LOGO.alt}/><a href="#work">See our work <Icon type="arrow"/></a></header>
+    <div className={s.shell}>
+      <section className={s.overview} aria-label="Services, starting prices and contact">
+        <div className={s.intro}><span className={s.label}>FOR BUSINESS OWNERS</span><h1>Your business.<br/><em>Online, done right.</em></h1><p>Websites, social media and Google profiles.<br/>Tell us your need. We&apos;ll explain the work and cost.</p></div>
+        <div className={s.proofLine}><a href="#work"><strong>{content.work.length}</strong><span>real projects to explore</span><Icon type="arrow"/></a><div><Icon type="check"/><span>Clear scope<br/><b>before you commit</b></span></div></div>
+        <div className={s.pricingHeader}><h2>A quick cost estimate</h2><span>Starting prices</span></div>
+        <div className={s.prices}>{services.map(service => <article className={s.priceCard} key={service.name}><h3>{service.name}</h3><p><strong>{money(service.price)}</strong><span>{service.period}</span></p><small>{service.scope}</small></article>)}</div>
+        <div className={s.invitation}><ContactButtons/><p>No package to choose now. Start with a conversation.</p></div>
+        <p className={s.terms}>Final scope, taxes and extras such as domain/hosting are confirmed in your quote.</p>
+      </section>
+      <section className={s.work} id="work" aria-label="Real project showcase">
+        <div className={s.workHeading}><span className={s.label}>REAL WORK. REAL BUSINESSES.</span><span>{activeWork + 1} / {content.work.length}</span></div>
+        <div className={s.workTabs} role="group" aria-label="Choose a project">{content.work.map((work, index) => <button key={work.url} aria-pressed={activeWork === index} onClick={() => setActiveWork(index)}>{index === 0 ? "College website" : index === 1 ? "Business website" : "ERP software"}</button>)}</div>
+        {featured && <article className={s.featured} key={featured.url}><a className={s.screenshot} href={featured.liveUrl ?? featured.url} target="_blank" rel="noreferrer"><div className={s.browserBar}><i/><i/><i/><span>{featured.brand}</span></div><img src={featured.image} alt={featured.imageAlt} fetchPriority={activeWork === 0 ? "high" : "auto"}/></a><div className={s.workInfo}><span className={s.category}>{featured.category}</span><h2>{featured.title}</h2><strong>{featured.brand}</strong><p>{featured.description}</p><div className={s.projectLinks}><a href={featured.url} target="_blank" rel="noreferrer">Project details <Icon type="arrow"/></a>{featured.liveUrl && <a href={featured.liveUrl} target="_blank" rel="noreferrer">Live website ↗</a>}</div></div></article>}
+        <p className={s.source}>Actual screenshots from our published portfolio.</p>
+      </section>
+      {(content.testimonials.length > 0 || content.reviewsUrl) && <section className={s.feedback}><h2>From our clients</h2>{content.testimonials.slice(0, 2).map(t => <figure key={t.name}><blockquote>“{t.quote}”</blockquote><figcaption>{t.name} · {t.business}</figcaption></figure>)}{content.reviewsUrl && <a href={content.reviewsUrl} target="_blank" rel="noreferrer">Read our Google reviews ↗</a>}</section>}
+      <StarterOffer/>
+      <section className={s.next}><div><span className={s.label}>WHAT HAPPENS NEXT</span><h2>Talk. Get a clear plan. Decide.</h2></div><p>We understand your business, recommend suitable services and share the scope and estimate.</p></section>
+      <section className={s.details}><details><summary>What do the starting prices include?<span>+</span></summary><ul>{services.map(service => <li key={service.name}><strong>{service.name}:</strong> {service.scope}.</li>)}</ul><p>Final scope, payment terms and extras such as domain, hosting and advertising costs are agreed in your quotation.</p></details><details><summary>Not sure what your business needs?<span>+</span></summary><p>You do not need to choose a package first. Tell us about your business and budget; we will explain the suitable services.</p></details></section>
+      <footer className={s.footer} id="contact"><div><img src={BRAND_LOGO.light} width={BRAND_LOGO.width} height={BRAND_LOGO.height} alt={BRAND_LOGO.alt}/><a href={`mailto:${email}`}>{email}</a>{content.phone && <a href={`tel:${content.phone.replace(/[^+\d]/g, "")}`}>{content.phone}</a>}{content.address && <address>{content.address}</address>}{content.mapsUrl && <a href={content.mapsUrl} target="_blank" rel="noreferrer">Find us on Google Maps ↗</a>}</div><a href="/privacy">Privacy policy</a></footer>
+    </div>
+    <div className={s.sticky}><div><strong>Let&apos;s discuss your business</strong><span>Service + scope + estimate</span></div><a className={s.primary} href={contactHref()}><Icon type="message"/>{content.whatsapp ? "WhatsApp us" : "Email our team"}<Icon type="arrow"/></a>{content.phone && <a className={s.call} href={`tel:${content.phone.replace(/[^+\d]/g, "")}`} aria-label="Call Mera Software"><Icon type="phone"/></a>}</div>
+  </main>;
+}
