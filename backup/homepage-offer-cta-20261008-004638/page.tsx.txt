@@ -71,7 +71,6 @@ export default async function Home() {
           <div><h3>{service.title}</h3><p>{service.description}</p></div>
           <span className="service-arrow">↗</span>
         </Link>)}</div><SectionVisual data={visuals["home.services"]} label="Services illustration" /></div>
-        <p style={{ marginTop: 28 }}><Link className="text-link" href="/campaign/business-growth">Explore our latest business starter offer <span aria-hidden="true">→</span></Link></p>
       </div></section>
 
       <section className="statement section-navy visual-home-statement">
