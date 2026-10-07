@@ -1,5 +1,6 @@
 /* eslint @next/next/no-img-element: off -- the logo is a static SVG in /public (see site-header.tsx). */
 import Link from "@/components/link";
+import { BRAND_LOGO } from "@/lib/brand";
 import { atLeast, type Role } from "@/lib/auth";
 import { StaffAlerts } from "@/components/staff-alerts";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -28,7 +29,7 @@ const navigation: [label: string, href: string, minimum: Role][] = [
  */
 export function AdminLayout({ children, role = "visitor", pushKey = null }: { children: React.ReactNode; role?: Role; pushKey?: string | null }) {
   const visible = navigation.filter(([, , minimum]) => atLeast(role, minimum));
-  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src="/brand/merasoftware-logo.svg" alt="Mera Software — Digital Solutions" width={2130} height={365} /><img className="logo-on-dark" src="/brand/merasoftware-logo-dark.svg" alt="Mera Software — Digital Solutions" width={2130} height={365} /></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
+  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /><img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
 }
 
 export function AdminHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {

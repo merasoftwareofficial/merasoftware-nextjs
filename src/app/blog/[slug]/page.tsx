@@ -258,7 +258,7 @@ export default async function Article({ params }: Params) {
         </article>
 
         {related.length ? (
-          <section className="content-section container">
+          <section className="content-section section-soft"><div className="container">
             <div className="section-top">
               <p className="eyebrow">
                 <i /> RELATED READING
@@ -275,7 +275,7 @@ export default async function Article({ params }: Params) {
                 </TrackedLink>
               ))}
             </div>
-          </section>
+          </div></section>
         ) : null}
       </main>
       <SiteFooter />

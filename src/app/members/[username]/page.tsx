@@ -72,7 +72,7 @@ export default async function MemberProfile({ params }: Params) {
           title={member.displayName}
           text={member.bio || `Member of the Mera Software community since ${when(member.createdAt)}.`}
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           <div className="section-top">
             <p className="eyebrow">
               <i /> {posts.length === 1 ? "1 PUBLISHED POST" : `${posts.length} PUBLISHED POSTS`}
@@ -118,7 +118,7 @@ export default async function MemberProfile({ params }: Params) {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

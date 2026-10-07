@@ -65,7 +65,7 @@ export default async function ManageSubscription({ searchParams }: Props) {
       <SiteHeader />
       <main>
         <PageHero eyebrow="NOTIFICATIONS" title="Your notifications." text="Choose the topics you hear about, and where." />
-        <section className="content-section container">{body}</section>
+        <section className="content-section section-soft"><div className="container">{body}</div></section>
       </main>
       <SiteFooter />
     </>

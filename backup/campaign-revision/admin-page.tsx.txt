@@ -1,0 +1,5 @@
+import type { Metadata } from "next";
+import { requireStaffPage } from "@/lib/auth";
+import { StaffPackages } from "@/components/campaign/staff-packages";
+export const metadata: Metadata = { title: "Campaign packages — staff reference", robots: { index: false, follow: false } };
+export default async function Page() { await requireStaffPage("/admin/campaign-packages"); return <main className="admin-main"><StaffPackages/></main>; }

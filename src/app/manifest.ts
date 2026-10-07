@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { BRAND_ICONS } from "@/lib/brand";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/structured-data";
 
 /**
@@ -15,8 +16,8 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#f4f8fc",
     theme_color: "#00243d",
     icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: BRAND_ICONS.icon192, sizes: "192x192", type: "image/png" },
+      { src: BRAND_ICONS.icon512, sizes: "512x512", type: "image/png" },
     ],
   };
 }

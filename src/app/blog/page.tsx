@@ -77,7 +77,7 @@ export default async function BlogPage({ searchParams }: Search) {
           text="Clear thinking about websites, search and growth — made for people building real businesses."
           visual={visuals["blog.hero"]}
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           {/* useSearchParams needs a Suspense boundary in a server page. */}
           <Suspense fallback={null}>
             <SearchBox />
@@ -155,7 +155,7 @@ export default async function BlogPage({ searchParams }: Search) {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

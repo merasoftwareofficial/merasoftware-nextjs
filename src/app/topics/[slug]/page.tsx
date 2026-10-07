@@ -59,7 +59,7 @@ export default async function Topic({ params }: Params) {
           title={label(slug)}
           text={`Official articles and approved community posts about ${label(slug)}.`}
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           {/* Only a category can be followed; a tag's page shows nothing here. */}
           <div className="topic-follow">
             <FollowTopic slug={slug} />
@@ -99,7 +99,7 @@ export default async function Topic({ params }: Params) {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

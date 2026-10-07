@@ -1,4 +1,5 @@
 /* eslint @next/next/no-img-element: off -- Cloudinary and transparent artwork use their original URLs. */
+import { cloudinaryVideoPoster } from "@/lib/cloudinary-url";
 import type { VisualSlotData } from "@/lib/section-visuals";
 
 function Pattern({ variant, intensity }: { variant: string; intensity: number }) {
@@ -48,7 +49,7 @@ export function SectionVisual({ data, className = "", label }: { data?: VisualSl
     <div className={`section-visual ${both ? "section-visual-both" : ""} ${sourceFrame ? "section-visual-source" : ""}`} aria-label={label} style={frameStyle}>
     {showPattern ? <Pattern variant={config.pattern} intensity={config.intensity} /> : null}
     {showMedia && asset ? asset.kind === "video"
-      ? <video className="section-visual-media" src={asset.url} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={{ objectFit: sourceFrame ? "contain" : config.fit, objectPosition: position, ...(sourceFrame ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
+      ? <video className="section-visual-media" src={asset.url} poster={cloudinaryVideoPoster(asset.url, 900)} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={{ objectFit: sourceFrame ? "contain" : config.fit, objectPosition: position, ...(sourceFrame ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
       : <img className="section-visual-media" src={asset.url} alt={config.alt} loading="lazy" style={{ objectFit: config.fit, objectPosition: position }} /> : null}
     {card?.placement === "overlay" ? callout : null}
     </div>

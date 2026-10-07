@@ -42,13 +42,13 @@ export default async function Write({
             title="This post cannot be edited."
             text="It may already be published, or it belongs to another member."
           />
-          <section className="content-section container">
+          <section className="content-section section-soft"><div className="container">
             <div className="admin-empty">
               <Link className="text-link" href="/account/posts">
                 Back to my posts <span>→</span>
               </Link>
             </div>
-          </section>
+          </div></section>
         </main>
         <SiteFooter />
       </>
@@ -64,14 +64,14 @@ export default async function Write({
           title={existing ? "Update your post." : "Share something useful."}
           text="Write practical, original content for business owners and digital professionals. Every post is reviewed before publication."
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           <CommunityForm
             blog={existing ?? undefined}
             type={kind}
             topics={categoryChoices(await categoryRepo.list(), existing?.type ?? kind, existing?.category)}
             role={user.role}
           />
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

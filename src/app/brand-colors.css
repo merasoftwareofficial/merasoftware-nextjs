@@ -17,6 +17,10 @@
   --brand-dark-field: #002239;
   --brand-dark-line: #28506a;
   --brand-dark-muted: #b6cddd;
+  /* Header and footer background: pure black (owner choice, 7 Oct 2026). */
+  --brand-black: #000000;
+  /* Footer background: deep cyan, dark enough that the logo's cyan and the cyan buttons stay readable (owner choice, 7 Oct 2026). */
+  --brand-deep-cyan: #00505f;
 }
 
 /* Surface and component roles shared across public pages. */

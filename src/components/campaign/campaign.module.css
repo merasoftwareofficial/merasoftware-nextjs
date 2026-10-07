@@ -1,0 +1,30 @@
+.page{background:var(--brand-paper);color:var(--brand-navy);min-height:100vh;padding:0 24px 120px;font-family:var(--font-geist-sans),Arial,sans-serif}
+.wrap{max-width:1180px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:20px;min-height:96px;border-bottom:1px solid var(--brand-line);margin-bottom:56px}
+.logo{width:230px;height:auto}
+.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:1.2px;color:var(--brand-teal);background:var(--brand-ice);padding:10px 14px;border-radius:8px}
+.hero{max-width:790px;margin:0 auto 48px;text-align:center}
+.hero h1,.showcaseHero h1{font-size:clamp(36px,5.3vw,64px);font-weight:650;line-height:1.1;letter-spacing:-2.5px;margin:20px 0;color:var(--brand-navy)}
+.hero h1 em,.showcaseHero h1 em{font-style:normal;color:var(--brand-teal)}
+.hero>p:first-child,.kicker{font-size:12px;letter-spacing:2px;font-weight:700;color:var(--brand-teal)}
+.hero p,.showcaseHero>p{color:var(--brand-muted);line-height:1.75;font-size:17px}
+.pills{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:24px 0}
+.pills span{border:1px solid var(--brand-line);background:var(--brand-white);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--brand-blue)}
+.card{background:var(--brand-white);border:1px solid var(--brand-line);border-radius:var(--card-radius);box-shadow:0 8px 28px rgb(0 36 61 / .05);padding:28px;color:var(--brand-navy);min-width:0}
+.card h2{font-size:28px;line-height:1.2;margin:12px 0;font-weight:650}.card h3{font-size:24px;margin:12px 0;font-weight:650}.card p{line-height:1.65;color:var(--brand-muted)}
+.wizard{max-width:700px;margin:0 auto;border-top:4px solid var(--brand-cyan);box-shadow:var(--card-shadow)}
+.progress{height:5px;background:var(--brand-surface);border-radius:10px;margin:16px 0 24px;overflow:hidden}.progress div{background:var(--brand-teal);height:100%;transition:width .2s}
+.options{display:grid;gap:12px;margin-top:24px}.option{display:flex;text-align:left;align-items:center;justify-content:space-between;gap:15px;padding:20px;border:1px solid var(--brand-line);border-radius:12px;background:var(--brand-paper);color:var(--brand-navy);font-size:17px;min-height:70px;transition:background .15s,border-color .15s}.option strong{font-weight:650}.option>span:last-child{color:var(--brand-teal);font-size:22px}.option:hover,.option:focus-visible{border-color:var(--brand-teal);background:var(--brand-ice)}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--brand-navy);color:var(--brand-white);border:1px solid var(--brand-navy);border-radius:8px;padding:16px 22px;font-weight:650;font-size:15px;min-height:48px;text-decoration:none}.button:hover{background:var(--brand-blue)}.secondary{background:var(--brand-white);color:var(--brand-navy);border:1px solid var(--brand-line)}.secondary:hover{background:var(--brand-ice)}
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}.price{font-size:36px;font-weight:750;color:var(--brand-teal);margin:16px 0;letter-spacing:-1px}.price small{font-size:14px;color:var(--brand-muted);font-weight:400;letter-spacing:0}
+.list{padding-left:20px;list-style:disc;line-height:1.65;margin:16px 0;font-size:14px}.list li{margin:8px 0}.list li::marker{color:var(--brand-teal)}
+.note{padding:14px;background:var(--brand-ice);border-left:3px solid var(--brand-teal);border-radius:8px;color:var(--brand-blue)!important;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}.section{margin-top:64px}.section>h2{font-size:30px;font-weight:650;margin:0 0 12px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:28px 0}.tabs button{border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-muted);border-radius:8px;padding:13px 18px;font-size:14px;font-weight:600}.tabs button[aria-pressed=true]{background:var(--brand-navy);border-color:var(--brand-navy);color:var(--brand-white)}
+.stick{position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgb(255 255 255 / .95);backdrop-filter:blur(10px);border-top:1px solid var(--brand-line);box-shadow:0 -6px 24px rgb(0 36 61 / .06);padding:14px 20px;padding-bottom:max(14px,env(safe-area-inset-bottom));display:flex;justify-content:center;align-items:center;gap:24px}.stick p{font-size:14px;margin:0;color:var(--brand-muted)}
+.fine{font-size:13px;color:var(--brand-muted);line-height:1.6}.tableWrap{overflow:auto;margin:24px 0 32px;border:1px solid var(--brand-line);border-radius:12px;background:var(--brand-white)}.table{width:100%;border-collapse:collapse;min-width:740px;color:var(--brand-navy)}.table caption{text-align:left;padding:16px;font-weight:650}.table th,.table td{text-align:left;padding:16px;border-bottom:1px solid var(--brand-line);font-size:14px}.table th{color:var(--brand-blue);background:var(--brand-ice)}.table tbody tr:last-child td{border-bottom:0}
+.staff{color:var(--brand-navy)}.staff h2{font-size:28px;font-weight:650;margin:18px 0}.showcaseHero{padding:0 0 28px;max-width:900px}.showcaseHero .pills{justify-content:flex-start}.showcaseHero>p{max-width:680px}.showcaseHero .kicker{font-size:12px;color:var(--brand-teal)}
+.status{min-height:22px;font-size:14px;color:var(--brand-teal)}.card summary{cursor:pointer;font-weight:600;margin-top:16px;padding:6px 0}.button:focus-visible,.tabs button:focus-visible,.option:focus-visible{outline:3px solid var(--brand-teal);outline-offset:4px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.page{padding:0 16px 120px}.top{min-height:80px;margin-bottom:34px;gap:12px}.logo{width:178px}.badge{font-size:9px;letter-spacing:.7px;padding:8px}.card{padding:22px}.grid{grid-template-columns:1fr}.stick{gap:12px}.stick p{max-width:140px;font-size:12px}.stick .button{font-size:14px;padding:14px 18px}.hero h1,.showcaseHero h1{letter-spacing:-1.4px}.hero p,.showcaseHero>p{font-size:15px}.tabs button{font-size:13px;padding:12px}.showcaseHero .pills{gap:6px}.pills span{font-size:12px;padding:8px 10px}}
+@media(prefers-reduced-motion:reduce){.progress div,.option{transition:none}}

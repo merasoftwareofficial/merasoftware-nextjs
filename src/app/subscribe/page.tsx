@@ -16,13 +16,13 @@ export default async function Subscribe() {
       <SiteHeader />
       <main>
         <PageHero eyebrow="NOTIFICATIONS" title="Updates on your topics." text="Pick the blog categories you care about. We notify you only about those — and offers, if you want them." visual={visuals["subscribe.hero"]} />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           {box ?? (
             <div className="admin-empty">
               <b>Notifications are not available yet.</b>
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

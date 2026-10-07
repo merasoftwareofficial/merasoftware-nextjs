@@ -293,7 +293,9 @@ export function ArticleReader({ blogId, crumb, title, children }: Props) {
       // The card is brought back to the top of the screen if it was scrolled away.
       const top = root.current?.getBoundingClientRect().top ?? 0;
       if (top < 0 || top > window.innerHeight / 3) {
-        window.scrollTo({ top: window.scrollY + top - 12, behavior: still ? "auto" : "smooth" });
+        // Scrolling up brings the sticky header back (header-scroll.tsx), so leave room for it.
+        const clearance = top < 0 ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-height")) || 0 : 0;
+        window.scrollTo({ top: window.scrollY + top - 12 - clearance, behavior: still ? "auto" : "smooth" });
       }
 
       busy.current = true;

@@ -53,7 +53,7 @@ export default async function Community({ searchParams }: Search) {
           text="A moderated space for practical digital marketing, website and business-growth learning from Mera Software and its members."
           visual={visuals["community.hero"]}
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           <Suspense fallback={null}>
             <SearchBox action="/community" placeholder="Search community posts" />
           </Suspense>
@@ -112,7 +112,7 @@ export default async function Community({ searchParams }: Search) {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

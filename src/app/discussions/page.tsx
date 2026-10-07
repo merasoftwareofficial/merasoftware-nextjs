@@ -46,7 +46,7 @@ export default async function Discussions() {
           text="Short questions, practical tips and focused conversations around websites, SEO, ads and digital growth."
           visual={visuals["discussions.hero"]}
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           <div className="section-top">
             <p className="eyebrow">
               <i /> LATEST DISCUSSIONS
@@ -79,7 +79,7 @@ export default async function Discussions() {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

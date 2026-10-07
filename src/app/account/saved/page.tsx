@@ -34,7 +34,7 @@ export default async function Saved() {
           title="Saved posts."
           text="Everything you saved with the Save button, newest first."
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           {posts.length === 0 ? (
             <div className="admin-empty">
               <b>Nothing saved yet.</b>
@@ -57,7 +57,7 @@ export default async function Saved() {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>

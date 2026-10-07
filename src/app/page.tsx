@@ -60,7 +60,7 @@ export default async function Home() {
         <div className="marquee"><div className="marquee-track" style={{ animationDuration: `${26 * MARQUEE_REPEAT}s` }}>{[false, true].map(copy => <div key={String(copy)} aria-hidden={copy || undefined}>{Array.from({ length: MARQUEE_REPEAT }, (_, round) => content.marquee.map((item, index) => <span key={`${round}-${index}`}>{item} <b>✦</b> </span>))}</div>)}</div></div>
       </section>
 
-      <section className="section container">
+      <section className="section section-soft"><div className="container">
         <div className="section-top">
           <p className="eyebrow"><i /> {content.services.eyebrow}</p>
           <p className="side-note">{content.services.sideNote}</p>
@@ -71,7 +71,7 @@ export default async function Home() {
           <div><h3>{service.title}</h3><p>{service.description}</p></div>
           <span className="service-arrow">↗</span>
         </Link>)}</div><SectionVisual data={visuals["home.services"]} label="Services illustration" /></div>
-      </section>
+      </div></section>
 
       <section className="statement section-navy visual-home-statement">
         <div className="container">

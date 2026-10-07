@@ -1,10 +1,12 @@
 import Link from "@/components/link";
+import { BRAND_LOGO } from "@/lib/brand";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";
 import { MobileMenu } from "@/components/mobile-menu";
 import { FEATURES } from "@/lib/features";
 import { SessionMenu } from "@/components/session-menu";
+import { HeaderScroll } from "@/components/header-scroll";
 
 /**
  * Reads the session cookie. Kept in its own component behind <Suspense> so the
@@ -34,14 +36,18 @@ const NAV_LINKS: [label: string, href: string][] = [
   ["About", "/about"],
 ];
 
-export function SiteHeader({ dark = true }: { dark?: boolean }) {
+export function SiteHeader({ dark = false }: { dark?: boolean }) {
   return (
-    <header className={`site-header ${dark ? "header-dark" : ""}`}>
+    <header className={`site-header ${dark ? "header-dark" : "header-light"}`}>
+      <HeaderScroll />
       <div className="container header-inner">
         <Link className="brand brand-logo" href="/">
-          {/* Static SVG (text already converted to paths), so it needs no font and the browser caches it. */}
+          {/* Static SVGs (text already converted to paths): no font needed, cached by the browser. Both are present because
+              the header turns light once scrolled (header-scroll.tsx); CSS shows the one matching its background. */}
           {/* eslint-disable-next-line @next/next/no-img-element -- next/image does not serve SVG without dangerouslyAllowSVG. */}
-          <img src={dark ? "/brand/merasoftware-logo-dark.svg" : "/brand/merasoftware-logo.svg"} alt="Mera Software — Digital Solutions" width={2130} height={365} />
+          <img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} />
+          {/* eslint-disable-next-line @next/next/no-img-element -- as above. */}
+          <img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} />
         </Link>
         <nav>
           {NAV_LINKS.map(([label, href]) => (

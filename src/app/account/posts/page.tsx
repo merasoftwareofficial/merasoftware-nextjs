@@ -49,7 +49,7 @@ export default async function MyPosts() {
           title="My posts."
           text="Everything you have written, with where each post stands in review."
         />
-        <section className="content-section container">
+        <section className="content-section section-soft"><div className="container">
           {posts.length === 0 ? (
             <div className="admin-empty">
               <b>No posts yet.</b>
@@ -95,7 +95,7 @@ export default async function MyPosts() {
               ))}
             </div>
           )}
-        </section>
+        </div></section>
       </main>
       <SiteFooter />
     </>
