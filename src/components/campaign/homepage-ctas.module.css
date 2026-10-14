@@ -1,0 +1,35 @@
+.packages {
+  margin: 24px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.packages a {
+  display: inline-block;
+  margin-left: 8px;
+  padding-block: 8px;
+  color: var(--ink);
+}
+.offers {
+  margin: 20px 0 0;
+  color: var(--brand-navy);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.offers a {
+  display: inline-block;
+  margin-left: 6px;
+  padding-block: 8px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.offers span { margin-left: 6px; }
+.packages a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.packages a:focus-visible, .offers a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+@media (max-width: 640px) {
+  .packages { font-size: 14px; }
+  .packages a, .offers a { margin-left: 0; display: block; width: fit-content; }
+}

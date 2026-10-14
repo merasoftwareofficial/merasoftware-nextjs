@@ -1,4 +1,5 @@
 /* eslint @next/next/no-img-element: off -- Cloudinary images are not configured for next/image. */
+import cta from "@/components/campaign/homepage-ctas.module.css";
 import Link from "@/components/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -71,7 +72,8 @@ export default async function Home() {
           <div><h3>{service.title}</h3><p>{service.description}</p></div>
           <span className="service-arrow">↗</span>
         </Link>)}</div><SectionVisual data={visuals["home.services"]} label="Services illustration" /></div>
-        <p style={{ marginTop: 28 }}><Link className="text-link" href="/campaign/business-growth">Explore our latest business starter offer <span aria-hidden="true">→</span></Link></p>
+        <p className={cta.packages}>Find the right support for your online presence. <Link className="text-link" href="/campaign/packages">Compare packages &amp; pricing <span aria-hidden="true">→</span></Link></p>
+
       </div></section>
 
       <section className="statement section-navy visual-home-statement">
@@ -115,6 +117,7 @@ export default async function Home() {
           <p className="eyebrow"><i /> {content.contact.eyebrow}</p>
           <h2>{content.contact.headingLineOne}<br /><em>{content.contact.headingEmphasis}</em></h2>
           <Link className="button button-light" href={content.contact.buttonHref}>{content.contact.buttonLabel} <span>→</span></Link>
+          <p className={cta.offers}>Looking for a starting point? <Link href="/offers">Explore our offers <span aria-hidden="true">→</span></Link></p>
           </div><SectionVisual data={visuals["home.contact"]} label="Contact illustration" />
         </div>
       </section>

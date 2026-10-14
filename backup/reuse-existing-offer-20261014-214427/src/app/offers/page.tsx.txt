@@ -1,0 +1,10 @@
+import type { Metadata } from "next";
+import Link from "@/components/link";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { serviceOffers } from "@/lib/service-offers";
+import s from "@/components/campaign/promotion.module.css";
+export const metadata: Metadata = { title: "Business promotion offers", description: "Explore online promotion offers, included services and terms before making an enquiry.", robots: { index: false, follow: false } };
+export default function OffersPage() {
+  return <><SiteHeader /><main className={s.section}><div className="container"><Link className={s.back} href="/">← Back to home</Link><div className={s.intro}><p className="eyebrow"><i /> BUSINESS PROMOTION</p><h1 className="section-heading">Explore our offers.</h1><p>Find a starting point for your business. Open an offer to understand its scope, pricing and terms. Design previews are labelled and are not confirmed promotions.</p></div><div className={s.grid}>{serviceOffers.map(offer => <article className={s.card} key={offer.slug}><span className={s.badge}>{offer.label}</span><h2>{offer.title}</h2><p>{offer.description}</p><Link className="button button-dark" href={`/offers/${offer.slug}`}>View offer <span aria-hidden="true">→</span></Link></article>)}</div><p style={{ marginTop: 32 }}>Want to compare our regular services? <Link className="text-link" href="/campaign/packages">Compare promotion packages →</Link></p></div></main><SiteFooter /></>;
+}

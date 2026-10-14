@@ -1,0 +1,19 @@
+import Link from "@/components/link";
+import s from "./promotion-section.module.css";
+
+export function PromotionSection() {
+  return (
+    <section className={s.section} aria-labelledby="promotion-heading">
+      <div className={`container ${s.inner}`}>
+        <div className={s.copy}>
+          <h2 id="promotion-heading">A stronger presence starts with the right plan.</h2>
+          <p>Compare our online promotion packages to see what fits your business, what’s included and what it costs.</p>
+        </div>
+        <div className={s.links}>
+          <Link className={s.primary} href="/campaign/packages">Compare packages <span aria-hidden="true">→</span></Link>
+          <Link href="/offers">Explore offers <span aria-hidden="true">→</span></Link>
+        </div>
+      </div>
+    </section>
+  );
+}

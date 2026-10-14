@@ -39,7 +39,7 @@ export function PublicInteraction() {
   const cta = expired ? "Ask about current offers" : "Enquire about this offer";
   const href = enquiryHref(preview, expired);
   return <main className={s.page}>
-    <header className={s.header}><img src={BRAND_LOGO.dark} width={BRAND_LOGO.width} height={BRAND_LOGO.height} alt={BRAND_LOGO.alt}/><a href="#work">Our work <Arrow/></a></header>
+    <header className={s.header}><img src={BRAND_LOGO.dark} width={BRAND_LOGO.width} height={BRAND_LOGO.height} alt={BRAND_LOGO.alt}/><a href="/">Back to home <Arrow/></a></header>
     <div className={s.shell}>
       <section className={s.hero}>
         <div className={s.pitch}><span className={s.local}><i/>AMRITSAR BUSINESS OWNERS</span><h1>Get your business<br/><em>noticed online.</em></h1><p>Websites. Google visibility. Social media.<br/>One team to help you take the next step.</p><div className={s.promise}><span>Understand your business</span><b>→</b><span>Recommend the right plan</span></div><a className={s.proofLink} href="#work"><span className={s.proofIcon}>↗</span><span><strong>See the work behind the promise.</strong><small>College websites · business websites · software</small></span><Arrow/></a><div className={s.clientNames}><span>WORK BUILT FOR</span><strong>3G-Digital</strong><span className={s.divider}/><strong>Shri Lakshami Narayan<br/>Ayurvedic College</strong></div></div>
