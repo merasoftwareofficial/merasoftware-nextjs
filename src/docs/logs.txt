@@ -1,0 +1,1782 @@
+[LEDGER_IDENTITY_DIAG][PHONE_LOOKUP_RESULT] {contactRecordId: 'app_1UqiuXmVCdf1N7yz7SmYrImCALr1', lookupPhones: Array(2), matchedPhone: '9653013530', matchedUid: '1UqiuXmVCdf1N7yz7SmYrImCALr1', matchedInstallState: 'installed'}
+useLedgerChatController.js:41 [LEDGER_IDENTITY_DIAG][USER_CHECK] {userExists: true, userInstallState: 'installed', isInstalledCheck: true}
+useLedgerChatController.js:41 [LEDGER_IDENTITY_DIAG][STATE_COMPARISON] {contactRecordId: 'app_1UqiuXmVCdf1N7yz7SmYrImCALr1', currentContactState: 'installed', backendState: 'installed', stateDifferent: false}
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737421646, len: 1, text: 'S'}
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737421719, len: 1, text: 'S'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737421721, msgId: 'msg_1791737421721_vdslt5eju', prevCount: 'pending'}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737421722}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737421724}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737421778, prevCount: 40}
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737421970, len: 2, text: 'Ss'}
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737422047, len: 2, text: 'Ss'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737422048, msgId: 'msg_1791737422048_2ekkcdpl3', prevCount: 'pending'}
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737422048, prevCount: 41}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737422049}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737422049}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737422282, len: 3, text: 'Ssa'}
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737422341, len: 3, text: 'Ssa'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737422341, msgId: 'msg_1791737422341_lk1d11qz6', prevCount: 'pending'}
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737422342, prevCount: 42}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737422343}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737422344}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737422578, len: 4, text: 'Ssas'}
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737422638, len: 4, text: 'Ssas'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737422639, msgId: 'msg_1791737422639_at63g7onp', prevCount: 'pending'}
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737422640, prevCount: 43}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737422640}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737422641}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737421721_vdslt5eju","roundTripMs":889,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+messagingService.js:539 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+scheduleDeliveryRetry @ messagingService.js:539
+?anon_0_ @ messagingService.js:616
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+messagingService.js:540 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+scheduleDeliveryRetry @ messagingService.js:540
+?anon_0_ @ messagingService.js:616
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737422873}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737422873, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737422875, itemCount: 44}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737422876}
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737422881, len: 5, text: 'Ssass'}
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737422048_2ekkcdpl3","roundTripMs":610,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737422893}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737422894, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1053 [BUBBLE_TRACE] LT2 loadUnifiedTimeline-SKIPPED-dedup {t: 1791737422894, sinceMs: 21}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737422895}
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737422341_lk1d11qz6","roundTripMs":512,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737423093}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737423093, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737423095, itemCount: 44}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737423096}
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737423097, len: 5, text: 'Ssass'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737423097, msgId: 'msg_1791737423097_ttdz02d74', prevCount: 'pending'}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737423098}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737423098}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737423144, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 2, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737423151, conversationVersion: 2, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737423153, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737423181, prevCount: 44}
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737423348, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 3, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737423351, conversationVersion: 3, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737423353, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737423359, itemCount: 45}
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737423362, itemCount: 45}
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737423368, len: 6, text: 'Ssassa'}
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737423582, len: 7, text: 'Ssassaa'}
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737423584, len: 7, text: 'Ssassaa'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737423584, msgId: 'msg_1791737423584_zzgz9ps5u', prevCount: 'pending'}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737423585}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737423585}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737423641, prevCount: 45}
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737422639_at63g7onp","roundTripMs":948,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737423839}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737423840, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737423841, itemCount: 46}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737423842}
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737423849, len: 8, text: 'Ssassaaa'}
+useLedgerChatController.js:625 [SEND_DIAG] send-press {t: 1791737424023, len: 8, text: 'Ssassaaa'}
+useLedgerChatController.js:667 [BUBBLE_TRACE] T1 optimistic-add {t: 1791737424024, msgId: 'msg_1791737424024_npmdggvbr', prevCount: 'pending'}
+ChatComposer.js:40 [SEND_DIAG] clear-requested {t: 1791737424024}
+useLedgerChatController.js:673 [BUBBLE_TRACE] T4 before-sendMessageToUser {t: 1791737424024}
+messagingService.js:589 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:589
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:555
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+transmitQueuedMessage @ messagingService.js:549
+?anon_0_ @ messagingService.js:608
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+sendMessageToUser @ messagingService.js:588
+?anon_0_ @ useLedgerChatController.js:676
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ useLedgerChatController.js:730
+onSendPress @ LedgerContactDetailScreen.js:2721
+anonymous @ ChatComposer.js:47
+onPressIn @ TouchableOpacity.js:222
+_activate @ Pressability.js:771
+_performTransitionSideEffects @ Pressability.js:738
+_receiveSignal @ Pressability.js:696
+onResponderGrant @ Pressability.js:468
+executeDirectDispatch @ ReactFabric-dev.js:748
+extractEvents @ ReactFabric-dev.js:16444
+anonymous @ ReactFabric-dev.js:1278
+batchedUpdatesImpl @ ReactFabric-dev.js:18891
+batchedUpdates$1 @ ReactFabric-dev.js:1216
+dispatchEvent @ ReactFabric-dev.js:1266
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737424064, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 4, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737424072, conversationVersion: 4, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737424074, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+useLedgerChatController.js:669 [BUBBLE_TRACE] T2 setUnifiedTimeline-called {t: 1791737424097, prevCount: 46}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737424288, itemCount: 47}
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737423097_ttdz02d74","roundTripMs":927,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737424300}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737424300, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737424301, itemCount: 47}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737424302}
+messagingService.js:556 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:556
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737424307, len: 9, text: 'Ssassaaaa'}
+ChatComposer.js:33 [SEND_DIAG] native-change {t: 1791737424500, len: 10, text: 'Ssassaaaas'}
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737423584_zzgz9ps5u","roundTripMs":656,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737424512}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737424512, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737424514, itemCount: 47}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737424514}
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737424544, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 5, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737424547, conversationVersion: 5, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737424549, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737424552, itemCount: 47}
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737424748, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 6, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737424754, conversationVersion: 6, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737424756, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737424760, itemCount: 47}
+messagingService.js:564 [SEND_DIAG] server-roundtrip {"messageId":"msg_1791737424024_npmdggvbr","roundTripMs":603,"status":200,"serverTimings":null}
+messagingService.js:566 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:566
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+useLedgerChatController.js:692 [BUBBLE_TRACE] T5 sendMessageToUser-done {t: 1791737424915}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737424915, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737424917, itemCount: 47}
+useLedgerChatController.js:694 [BUBBLE_TRACE] T6 loadUnifiedTimeline-done (success) {t: 1791737424919}
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737425127, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 7, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737425130, conversationVersion: 7, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737425131, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737425135, itemCount: 47}
+messagingService.js:1815 Foreground message received: {originalPriority: 2, priority: 2, sentTime: 1791737432817, data: {…}, from: '787026486912', messageId: '0:1791737432823979%ac4887b5f9fd7ecd', ttl: 2419200}
+messagingService.js:1517 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1517
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1666 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1666
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1667 📦 [RECEIPT] Delivery receipt received: {messageId: 'msg_1791737423584_zzgz9ps5u', status: 'delivered'}
+messagingService.js:1673 ✅ [RECEIPT] Message status updated to: delivered
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737432397, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 8, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737432401, conversationVersion: 8, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737432404, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737432411, itemCount: 47}
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+messagingService.js:543 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+anonymous @ messagingService.js:543
+messagingService.js:1826 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1826
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingMessages @ messagingService.js:1825
+anonymous @ messagingService.js:544
+messagingService.js:539 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+scheduleDeliveryRetry @ messagingService.js:539
+?anon_0_ @ messagingService.js:1852
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingMessages @ messagingService.js:1825
+anonymous @ messagingService.js:544
+messagingService.js:540 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+scheduleDeliveryRetry @ messagingService.js:540
+?anon_0_ @ messagingService.js:1852
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingMessages @ messagingService.js:1825
+anonymous @ messagingService.js:544
+messagingService.js:1755 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1755
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingReceipts @ messagingService.js:1754
+anonymous @ messagingService.js:545
+messagingService.js:1785 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1785
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingReceipts @ messagingService.js:1754
+anonymous @ messagingService.js:545
+messagingService.js:539 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+scheduleDeliveryRetry @ messagingService.js:539
+?anon_0_ @ messagingService.js:1789
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingReceipts @ messagingService.js:1754
+anonymous @ messagingService.js:545
+messagingService.js:540 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+scheduleDeliveryRetry @ messagingService.js:540
+?anon_0_ @ messagingService.js:1789
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+processPendingReceipts @ messagingService.js:1754
+anonymous @ messagingService.js:545
+messagingService.js:1815 Foreground message received: {originalPriority: 2, priority: 2, sentTime: 1791737439363, data: {…}, from: '787026486912', messageId: '0:1791737439368509%ac4887b5f9fd7ecd', ttl: 2419200}
+messagingService.js:1517 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1517
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1666 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1666
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1667 📦 [RECEIPT] Delivery receipt received: {messageId: 'msg_1791737422639_at63g7onp', status: 'delivered'}
+messagingService.js:1673 ✅ [RECEIPT] Message status updated to: delivered
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737438771, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 9, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737438774, conversationVersion: 9, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737438776, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737438782, itemCount: 47}
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+messagingService.js:1815 Foreground message received: {originalPriority: 2, priority: 2, sentTime: 1791737440978, data: {…}, from: '787026486912', messageId: '0:1791737440983255%ac4887b5f9fd7ecd', ttl: 2419200}
+messagingService.js:1517 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1517
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1666 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1666
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1667 📦 [RECEIPT] Delivery receipt received: {messageId: 'msg_1791737421721_vdslt5eju', status: 'delivered'}
+messagingService.js:1673 ✅ [RECEIPT] Message status updated to: delivered
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737440396, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 10, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737440399, conversationVersion: 10, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737440401, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737440405, itemCount: 47}
+messagingService.js:1815 Foreground message received: {originalPriority: 2, priority: 2, sentTime: 1791737442687, data: {…}, from: '787026486912', messageId: '0:1791737442693086%ac4887b5f9fd7ecd', ttl: 2419200}
+messagingService.js:1517 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1517
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1666 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:1666
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+handleIncomingMessage @ messagingService.js:1506
+?anon_0_ @ messagingService.js:1816
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+anonymous @ messagingService.js:1817
+emit @ EventEmitter.js:130
+anonymous @ nativeModule.js:162
+listenerDebugger @ RNFBNativeEventEmitter.js:68
+emit @ EventEmitter.js:130
+anonymous @ RCTDeviceEventEmitter.js:14
+emit @ RCTDeviceEventEmitter.js:34
+messagingService.js:1667 📦 [RECEIPT] Delivery receipt received: {messageId: 'msg_1791737424024_npmdggvbr', status: 'delivered'}
+messagingService.js:1673 ✅ [RECEIPT] Message status updated to: delivered
+LedgerContactDetailScreen.js:874 [BUBBLE_TRACE] EFF1 conversationVersion-effect-fired {t: 1791737442516, conversationId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', conversationVersion: 11, isAppUser: true}
+LedgerContactDetailScreen.js:896 [BUBBLE_TRACE] EFF2 effect-triggering-loadUnifiedTimeline {t: 1791737442520, conversationVersion: 11, timelineCacheFresh: false}
+LedgerContactDetailScreen.js:1049 [BUBBLE_TRACE] LT1 loadUnifiedTimeline-called {t: 1791737442524, convId: '1UqiuXmVCdf1N7yz7SmYrImCALr1_PthEU5dESiQbrpo0Yz3lmuHvRpG3', stack: 'at next (native)'}
+LedgerContactDetailScreen.js:1080 [BUBBLE_TRACE] LT3 applyTimelineState-called {t: 1791737442528, itemCount: 47}
+messagingService.js:304 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22 Please use `getApp()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+warnIfNotModularCall @ index.js:695
+getApp @ app.js:81
+firebaseModuleWithApp @ namespace.js:138
+?anon_0_ @ messagingService.js:304
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47
+messagingService.js:308 This method is deprecated (as well as all React Native Firebase namespaced API) and will be removed in the next major release as part of move to match Firebase Web modular SDK API. Please see migration guide for more details: https://rnfirebase.io/migrating-to-v22. Method called was `getIdToken`. Please use `getIdToken()` instead.
+anonymous @ console.js:662
+overrideMethod @ backend.js:17416
+anonymous @ setUpDeveloperTools.js:42
+registerWarning @ LogBox.js:222
+anonymous @ LogBox.js:84
+deprecationConsoleWarning @ index.js:517
+anonymous @ index.js:658
+?anon_0_ @ messagingService.js:308
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+getAuthToken @ messagingService.js:303
+?anon_0_ @ messagingService.js:757
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+syncPendingMessagesForConversation @ messagingService.js:746
+?anon_0_ @ LedgerContactDetailScreen.js:565
+asyncGeneratorStep @ asyncToGenerator.js:3
+_next @ asyncToGenerator.js:17
+anonymous @ asyncToGenerator.js:22
+anonymous @ asyncToGenerator.js:14
+runPendingSync @ LedgerContactDetailScreen.js:539
+anonymous @ LedgerContactDetailScreen.js:908
+anonymous @ InteractionManager.js:124
+anonymous @ immediateShim.js:47

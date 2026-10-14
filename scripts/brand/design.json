@@ -1,5 +1,5 @@
 {
- "//": "Approved artwork (version A, measured from the owner's reference logo, 6 Oct 2026) before any proportion changes. build.mjs derives every logo file from this; do not edit by hand.",
+ "//": "Approved artwork (version A, measured from the owner's reference logo, 6 Oct 2026; first leg, centre and dark palette revised by the owner 12 Oct 2026) before any proportion changes. build.mjs derives every logo file from this; do not edit by hand. Mark order matters: c is drawn before b so b covers the crossing with no seam.",
  "viewBox": [
   0,
   180,
@@ -14,11 +14,15 @@
      239
     ],
     [
-     3,
+     222.1,
+     365.4
+    ],
+    [
+     153.45,
      505
     ],
     [
-     294,
+     3,
      505
     ]
    ],
@@ -27,44 +31,23 @@
   {
    "points": [
     [
-     217.5,
-     357
-    ],
-    [
-     132,
-     505
+     222.1,
+     365.4
     ],
     [
      294,
      505
+    ],
+    [
+     198.57,
+     505
+    ],
+    [
+     174.89,
+     461.4
     ]
    ],
    "gradient": "p"
-  },
-  {
-   "points": [
-    [
-     171,
-     186
-    ],
-    [
-     303,
-     186
-    ],
-    [
-     442.9,
-     477
-    ],
-    [
-     427,
-     505
-    ],
-    [
-     323,
-     505
-    ]
-   ],
-   "gradient": "b"
   },
   {
    "points": [
@@ -94,27 +77,27 @@
   {
    "points": [
     [
-     375,
-     338
+     171,
+     186
     ],
     [
-     305,
-     467
+     303,
+     186
     ],
     [
-     323,
-     505
+     442.9,
+     477
     ],
     [
      427,
      505
     ],
     [
-     442.9,
-     477
+     323,
+     505
     ]
    ],
-   "gradient": "o"
+   "gradient": "b"
   },
   {
    "points": [
@@ -162,12 +145,6 @@
    320,
    450,
    480
-  ],
-  "o": [
-   390,
-   345,
-   330,
-   500
   ],
   "d": [
    470,
@@ -236,11 +213,11 @@
     "b": [
      [
       0,
-      "#00718c"
+      "#0a8fab"
      ],
      [
       0.5,
-      "#02677f"
+      "#037590"
      ],
      [
       1,
@@ -254,17 +231,7 @@
      ],
      [
       1,
-      "#00b5cf"
-     ]
-    ],
-    "o": [
-     [
-      0,
-      "#025d79"
-     ],
-     [
-      1,
-      "#015a74"
+      "#a6e8f3"
      ]
     ],
     "d": [
@@ -291,83 +258,73 @@
     "a": [
      [
       0,
-      "#01b0c8"
+      "#6fd8f5"
      ],
      [
       0.55,
-      "#0287a1"
+      "#2cbde9"
      ],
      [
       1,
-      "#036a85"
+      "#0aa6dc"
      ]
     ],
     "p": [
      [
       0,
-      "#f2f9fb"
+      "#ffffff"
      ],
      [
-      0.45,
-      "#7ed2e0"
+      0.6,
+      "#e9f9fe"
      ],
      [
       1,
-      "#3cc2d2"
+      "#a9e6f8"
      ]
     ],
     "b": [
      [
       0,
-      "#0090ad"
+      "#9af2fc"
      ],
      [
       0.5,
-      "#03829e"
+      "#4fd0f0"
      ],
      [
       1,
-      "#037893"
+      "#12b2e3"
      ]
     ],
     "c": [
      [
       0,
-      "#00c2df"
+      "#14b0e2"
      ],
      [
       1,
-      "#00b5cf"
-     ]
-    ],
-    "o": [
-     [
-      0,
-      "#04617f"
-     ],
-     [
-      1,
-      "#035c79"
+      "#d8f6fd"
      ]
     ],
     "d": [
      [
       0,
-      "#0f5f96"
+      "#7ccff2"
      ],
      [
       0.5,
-      "#1673b5"
+      "#c3ecfb"
      ],
      [
       1,
-      "#2a8fd0"
+      "#f2fbff"
      ]
     ]
    },
-   "mera": "#f4f8fc",
-   "software": "#00b8cc",
-   "tagline": "#b6cddd"
+   "mera": "#ffffff",
+   "software": "#5fd6f5",
+   "tagline": "#d6ecf6"
   }
  }
 }

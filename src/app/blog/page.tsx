@@ -5,6 +5,7 @@ import { PageHero } from "@/components/page-hero";
 import { loadVisuals } from "@/lib/section-visuals";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { NotifyStrip } from "@/components/subscribe/notify-strip";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import { robotsFor } from "@/lib/indexability";
@@ -156,6 +157,7 @@ export default async function BlogPage({ searchParams }: Search) {
             </div>
           )}
         </div></section>
+        <NotifyStrip />
       </main>
       <SiteFooter />
     </>

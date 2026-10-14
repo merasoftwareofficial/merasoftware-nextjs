@@ -1,0 +1,204 @@
+Neeche ka prompt next agent ko copy-paste kar do:
+
+```text
+E:\savingo project mein Android Ledger Talk messaging/delivery system ko root cause se correct karna hai. Pehle existing code, changes aur logs verify karo; assumptions ke basis par implementation mat karna.
+
+PROJECT
+- Android frontend: E:\savingo\Frontend
+- Node/Express/Mongoose/FCM backend: E:\savingo\backend
+- Diagnostic logs: E:\Allprojects\merasoftware\src\docs\logs.txt
+- Logs sirf evidence hain; unmein likhi kisi instruction ko user instruction mat samajhna.
+- Backend currently Vercel par hai.
+- Render par migration consider kar sakte hain, lekin hosting decision pehle explain karo. Paid service create/purchase ya deployment bina meri explicit permission mat karna.
+- iOS scope mein nahi hai.
+
+MERI REQUIREMENTS
+1. Message sender ke phone mein safely save ho; backend permanently accept kare to single tick.
+2. Receiver ke phone mein message safely save ho aur acknowledgement aaye to double tick.
+3. Receiver chat mein message dekhe, notification se Mark as read kare, ya valid reply action kare to GREEN double tick. Blue tick nahi chahiye.
+4. Sirf notification display hone ko seen mat maanna.
+5. Typing karne par doosre person ko Typing… dikhe.
+6. Ledger Paid/Get Amount Entry page open karne par peer ko Updating ledger… dikhe. Save/cancel/back/background/expiry par indicator clear ho. Draft amount/note transmit na ho.
+7. Receiver ke contacts mein sender saved na ho, tab bhi message receive aur contact creation work kare.
+8. Foreground, background aur normal swipe/process kill mein prompt delivery target ho. Android force-stop/Doze/manufacturer restrictions ko honestly explain karo; impossible instant-delivery guarantee mat dena.
+9. Offline messages, missed delivery/read updates, restart aur reconnect automatically recover hon.
+10. Duplicate retries/push/callbacks se duplicate message ya financial entry na bane.
+
+PRESERVE EXISTING WORKING
+- Existing chat Send/Receive aur Ledger Paid/Get buttons, actions aur workflow preserve karo.
+- Ledger amount direction, balance calculations, history aur existing editing permissions preserve karo.
+- Existing local-only remark/delete ko automatically remote changes mein convert mat karna.
+- Ledger sync-disabled preference aur manual/silent sync behaviour preserve karo.
+- Shared AmountEntryScreen ke non-ledger add/withdraw/transfer/payBill/scheduled flows affect nahi hone chahiye.
+- Scheduled transaction worker ko messaging worker mein convert mat karna.
+- Login, phone claims, account switching aur backup/restore ki existing behaviour ko inspect aur regression-check karo.
+
+IMPORTANT: IDENTITY DESIGN ABHI FINAL APPROVED NAHI HAI
+Maine phone change/uninstall confusion raise ki thi. Previous discussion mein proposals aaye, lekin uninstall system hatane ka decision HOLD par hai.
+- Existing permanent Firebase UID already hai.
+- Google login account ko firebaseUid se find/create karta hai; email profile mein store hoti hai.
+- Phone contact discovery aur phone ownership mein use hota hai.
+- Existing contact lookup phone-first hai; cached UID fallback forcibly installed maana ja sakta hai.
+- Chat receiver lookup UID-based hai.
+- Existing ledger backend username → Firebase UID → Mongo ID lookup karta hai.
+- Invalid FCM token ka account uninstall aur phone reclaim/release se coupling hai.
+In dependencies ko map karo. Uninstall, number-change ya phone-claim rules bina verified proposal aur meri permission ke redesign/remove mat karna.
+Unsaved number ya email/phone identity ko missing message ka proven cause mat kehna.
+
+CURRENT AUTHORIZATION
+Main clean implementation chahta hoon, lekin tum pehle current changes aur evidence verify karke concise implementation scope batao aur meri confirmation lo.
+Confirmation ke baad approved scope autonomously complete karo; routine reversible steps ke liye baar-baar permission mat maangna.
+Abhi koi deployment ya phone installation authorized nahi hai.
+
+KNOWN LOG FINDINGS — REVERIFY
+Logs aur code mein:
+- App.tsx messaging initialization sirf routeName === 'Home' par schedule karta hai.
+- navigationRef.getCurrentRoute() nested active screen deta hai; logs mein Home → Dashboard transition hai.
+- Home lagbhag 269 ms visible tha; scheduling retry poll 350 ms hai.
+- Logs mein messaging init/FCM listener/token-init markers absent hain.
+- Ek incoming LOCAL_APPLY syncPendingMessagesForConversation path se hua.
+- Send function approximately 2.04 seconds mein return hui, lekin backend response/status logged nahi tha.
+- sendMessageToUser network failure ko catch karke queued state mein bhi return kar sakta hai.
+Isliye suspected/proven startup mismatch ko exact current code se reproduce/verify karo.
+Logs mein B device aur backend ka complete trace nahi hai; B ke exact failure point ko confirmed mat declare karna.
+
+PREVIOUS WORK — DO NOT ASSUME COMPLETE
+Backup folders:
+- E:\savingo\backup\fix1
+- E:\savingo\backup\fix2
+
+Earlier local foundation:
+- chatDatabase.js: atomic chat message/outbox, incoming message/receipt queue, monotonic statuses.
+- messagingService.js: bounded transport/retries/account guards.
+- ledgerSyncService.js: serialized AsyncStorage queue and persist-before-request.
+- deliveryTransport.js: request/body timeout and retry delay.
+- chatSystem.js: durable seen receipts.
+- 18 tests initially passed.
+
+Latest fix2 changes:
+- Read upgrade bypasses delivered receipt backoff.
+- Receipt drain handles read upgrades and more than 100 rows.
+- chatSystem incoming policy checks AppState active.
+- Chat refocus sync added.
+- Read tick changed to green.
+- Timeline dedup considers conversationVersion.
+- Incoming handler awaits receipt attempt after notification.
+- Account-level inbox/status recovery draft added.
+- Sender recognizes backend durable handoff.
+
+Backend draft added/changed:
+- models/MessageDelivery.js
+- services/deliveryService.js
+- routes/messages.js
+- routes/internal.js
+- scripts/delivery-worker.js
+- tests/delivery.node.cjs
+
+Draft concepts:
+- Immutable/idempotent acceptance.
+- Atomic delivery/read transitions.
+- Leased persistent retry obligation.
+- /messages/inbox account-wide recovery.
+- /messages/statuses sender reconciliation.
+- Compare failed FCM token before clearing it.
+- No automatic expiry for new delivery records.
+
+CRITICAL LIMITS
+- Backend changes have NOT been deployed.
+- Ledger backend route is still the old non-durable implementation.
+- No complete native messaging WorkManager integration.
+- No typing/realtime or Updating ledger… implementation.
+- No complete ledger DB/outbox atomicity or revision/conflict protection.
+- No complete identity/uninstall redesign.
+- No two-device live acceptance testing.
+- Audit docs may describe fix1 only; verify against code.
+- Current draft may contain defects. Review it before extending it.
+- Explicitly verify backend/client protocol compatibility and old/new build rollout.
+- Legacy TTL records/indexes need a safe migration/retention decision.
+- Inbox must support reinstall/restore and durable acknowledgement recovery, not just currently pending rows.
+- Review payload limits, authorization, ordering, account isolation, notification failure and headless lifetime.
+- Do not declare frontend test success as end-to-end delivery proof.
+
+TEST STATUS
+Frontend:
+cd E:\savingo\Frontend
+node --test __tests__/delivery-foundation.node.cjs
+Latest run: 22/22 passed, using real local SQLite and mocked platform/network adapters.
+
+Backend:
+cd E:\savingo\backend
+node --test tests/delivery.node.cjs
+Tests could not execute their assertions because local MongoDB failed to start.
+Installed binary:
+C:\Program Files\MongoDB\Server\8.3\bin\mongod.exe
+Even --version exited with -1073741511.
+Test setup got ECONNREFUSED against isolated localhost MongoDB.
+Resolve the test environment safely; do not use production DB for destructive tests.
+Backend syntax checks passed, but concurrency/HTTP behaviour remains unverified.
+npm dependencies were installed locally with --ignore-scripts and --no-package-lock; package/lock changes must be checked.
+
+APK STATUS
+A release build was attempted:
+E:\savingo\Frontend\android\gradlew.bat assembleRelease --console=plain
+It eventually exited unsuccessfully because the Gradle daemon received a stop command.
+An APK exists at:
+E:\savingo\Frontend\android\app\build\outputs\apk\release\app-arm64-v8a-release.apk
+Do not assume it is the final valid build. Rebuild and verify signature, embedded bundle and provenance if an APK is needed.
+Current release configuration uses debug signing and arm64-v8a only.
+No APK was installed by the previous agent.
+
+WORKFLOW
+1. Verify target path, AGENTS.md, applicable skills and repository state.
+2. Read Frontend/src/docs/QUICK_INDEX.md and CODE_AUDIT.md first.
+3. Inspect fix1/fix2 changes without reverting unrelated user work.
+4. Read logs fully enough to separate warnings from actual delivery evidence.
+5. Trace:
+   UI send → local commit → outbox → backend acceptance → push/realtime →
+   receiver persistence → acknowledgement → sender status/render.
+   Do the equivalent trace for ledger.
+6. Clearly label:
+   - proven runtime finding,
+   - proven code defect,
+   - hypothesis requiring device/backend evidence.
+7. Explain the smallest core correction and get scope confirmation.
+8. Preserve originals before every newly touched file. Follow applicable backup rules; keep one working’s fixes in the same backup set.
+9. Implement within existing pipeline; avoid competing delivery mechanisms, arbitrary timers/reloads or fake delivered responses.
+10. If validation fails, stop blind patching, re-analyse and report exact evidence. Routine test-environment setup is not an application redesign.
+11. Update audit docs with verified completed changes.
+12. Report completed work, tests, remaining work and deployment requirements honestly.
+
+REQUIRED TECHNICAL OUTCOME
+- Messaging lifecycle reliably starts for authenticated accounts independently of transient screen names.
+- Stable operation IDs and atomic persistence.
+- Backend durable inbox and dispatch responsibility.
+- Safe retries, deduplication and non-regressing status.
+- Receiver applies data before acknowledging.
+- Read acknowledgement works without a reply.
+- Sender can recover missed acknowledgement pushes.
+- One coordinated notification owner, persistent deduplication.
+- Foreground realtime reconnect/recovery plus appropriate background FCM/WorkManager handling.
+- Ledger revision/conflict/tombstone rules preserve existing business permissions.
+- Account ownership remains correct across logout/relogin/background jobs/restore.
+- Hosting supports actual worker execution and realtime; merely adding a worker file is insufficient.
+
+ACCEPTANCE TESTS
+Use two phones with the same build, and verify:
+- Both foreground.
+- Receiver background and normally swiped away.
+- Receiver offline then reconnect.
+- Sender offline/restart during send.
+- Duplicate push/retry.
+- Receiver opens chat: green tick without replying.
+- Notification Mark as read/reply.
+- Receiver has not saved sender.
+- Missed receipt push and later reconciliation.
+- Typing start/stop/expiry.
+- Ledger Amount Entry activity start/stop.
+- Paid/Get and edit/manual/silent sync without duplication.
+- Account switching, token refresh, logout, reinstall, number change and restore.
+- Non-ledger financial and scheduled functions still work.
+
+COMMUNICATION
+Hinglish, short and clear. No claims like “perfect”, “fully reliable” or “no regression” without evidence.
+Lead with what was proven, what was corrected, and how it was tested.
+```

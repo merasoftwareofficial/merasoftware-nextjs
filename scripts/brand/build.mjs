@@ -21,10 +21,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
-/** Owner choices (7 Oct 2026). */
+/** Owner choices (7 Oct 2026; markRatio 1.8 → 1.65 on 12 Oct 2026). */
 const BRAND = {
   /** The "M" is this many times as wide as it is tall (the reference artwork is ~2.3). */
-  markRatio: 1.8,
+  markRatio: 1.65,
   /** "Digital Solutions" relative to the reference artwork. */
   taglineScale: 1.15,
   /** Minimum space between "MERA SOFTWARE" and "Digital Solutions", in artwork units. */
