@@ -1,8 +1,10 @@
 import { notFound, permanentRedirect } from "next/navigation";
-import { serviceOffers } from "@/lib/service-offers";
+import { settingsRepo } from "@/lib/repo";
+import { publishedOffers } from "@/lib/offers";
+export const dynamic = "force-dynamic";
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const offer = serviceOffers.find(item => item.slug === slug);
-  if (!offer) notFound();
-  permanentRedirect(offer.href);
+  const target = slug === "business-growth" ? "page" : slug;
+  if (!publishedOffers((await settingsRepo.get()).offers).some(item => item.slug === target)) notFound();
+  permanentRedirect(`/offer/${target}`);
 }

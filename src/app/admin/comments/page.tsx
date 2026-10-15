@@ -1,3 +1,4 @@
+import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
@@ -35,7 +36,7 @@ export default async function CommentsAdmin({
 
   if (!atLeast(user.role, "moderator")) {
     return (
-      <main className="admin-main">
+      <main className="admin-main"><BlogManagementNav />
         <AdminHeader
           eyebrow="MODERATION"
           title="Comments"
@@ -108,7 +109,7 @@ export default async function CommentsAdmin({
   }
 
   return (
-    <main className="admin-main">
+    <main className="admin-main"><BlogManagementNav />
       <AdminHeader
         eyebrow="MODERATION"
         title="Comments"
@@ -143,7 +144,7 @@ export default async function CommentsAdmin({
         <AdminTable headers={["Comment", "On post", "Kind", "Status", "Written", ""]} rows={rows} />
       )}
 
-      <section className="admin-section">
+      <section className="admin-section" id="reports" style={{ scrollMarginTop: 24 }}>
         <AdminHeader
           eyebrow="REPORTS"
           title="Open reports"

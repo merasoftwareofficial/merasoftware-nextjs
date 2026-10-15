@@ -1,3 +1,4 @@
+import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { RichContent, readingTime } from "@/components/editor/rich-content";
@@ -22,7 +23,7 @@ export default async function ReviewQueue() {
   // Members must never see other people's unpublished work.
   if (!atLeast(user.role, "moderator")) {
     return (
-      <main className="admin-main">
+      <main className="admin-main"><BlogManagementNav />
         <AdminHeader
           eyebrow="MODERATION"
           title="Review queue"
@@ -43,7 +44,7 @@ export default async function ReviewQueue() {
   const pending = await blogRepo.list({ status: "pending" });
 
   return (
-    <main className="admin-main">
+    <main className="admin-main"><BlogManagementNav />
       <AdminHeader
         eyebrow="MODERATION"
         title="Review queue"

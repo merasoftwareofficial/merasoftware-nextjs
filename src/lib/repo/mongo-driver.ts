@@ -497,6 +497,17 @@ function withSettingsDefaults(row: unknown): SettingsRecord {
 }
 
 const settings: DataDriver["settings"] = {
+  async saveOffer(offer, creating) {
+    await connectMongo();
+    await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });
+    const path = `offers.${offer.slug}`;
+    const row = await Settings.findOneAndUpdate(
+      { _id: "site", ...(creating ? { [path]: { $exists: false } } : {}) },
+      { $set: { [path]: offer } },
+      { returnDocument: "after", runValidators: true },
+    ).lean();
+    return Boolean(row);
+  },
   async get() {
     await connectMongo();
     // A plain read: pages call this on every article view. Until an admin first

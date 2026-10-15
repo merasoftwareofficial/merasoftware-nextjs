@@ -1,3 +1,4 @@
+import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { notFound } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
@@ -23,7 +24,7 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
 
   if (!canEdit(user, blog)) {
     return (
-      <main className="admin-main">
+      <main className="admin-main"><BlogManagementNav />
         <AdminHeader eyebrow="EDIT ARTICLE" title="Not allowed" description="You cannot edit this post." />
         <div className="admin-empty">
           This post belongs to {blog.authorName}. Ask an editor or moderator to make changes.
@@ -33,7 +34,7 @@ export default async function EditBlog({ params }: { params: Promise<{ slug: str
   }
 
   return (
-    <main className="admin-main">
+    <main className="admin-main"><BlogManagementNav />
       <AdminHeader
         eyebrow="EDIT ARTICLE"
         title="Update post"

@@ -1,3 +1,4 @@
+import type { Offer, OfferListing } from "@/lib/offers";
 /**
  * Data layer contract.
  *
@@ -619,6 +620,9 @@ export interface Settings {
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
   sectionVisuals?: Record<string, SectionVisualConfig>;
   homepageContent?: HomepageContent;
+  offers?: Record<string, Offer>;
+  offerUniversalTerms?: string[];
+  offerListing?: OfferListing;
   /** Keyed by page (PAGE_SEO_PAGES in lib/page-seo.ts). */
   pageSeo?: Partial<Record<string, PageSeo>>;
   /** The business as search engines describe it (Organization data, structured-data.ts). */
@@ -650,6 +654,7 @@ export interface SectionVisualConfig {
 }
 
 export interface SettingsRepo {
+  saveOffer(offer: Offer, creating: boolean): Promise<boolean>;
   get(): Promise<Settings>;
   update(patch: Partial<Omit<Settings, "_id" | "updatedAt">>): Promise<Settings>;
   updateHomepageSection<K extends HomepageSection>(section: K, content: HomepageContent[K], images: Partial<Record<HomeImageSlot, HomepageImage | null>>): Promise<Settings>;

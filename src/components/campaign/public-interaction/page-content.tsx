@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
-import { starterOffer as offer, resolveOfferTerms } from "./offer-content";
+import type { Offer } from "@/lib/offers";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -9,7 +9,7 @@ function Arrow() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>;
 }
 
-export function PublicInteraction() {
+export function PublicInteraction({ offer, terms, preview = false }: { offer: Offer; terms: string[]; preview?: boolean }) {
   const [now, setNow] = useState<number | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const end = Date.parse(offer.endsAt);
@@ -30,23 +30,30 @@ export function PublicInteraction() {
     [seconds % 60, "SECS"],
   ];
   const message = expired
-    ? "Hello, please share your current Business Growth Starter pricing and availability."
+    ? `Hello, please share your current ${offer.title} pricing and availability.`
     : `Hello, I am interested in ${offer.title}. Please confirm the price, included services and availability for my business.`;
-  const href = `mailto:contact@merasoftware.com?subject=${encodeURIComponent(offer.title + " enquiry")}&body=${encodeURIComponent(message)}`;
+  const href = offer.contactHref.startsWith("mailto:") ? (() => {
+    const url = new URL(offer.contactHref);
+    url.searchParams.set("subject", offer.title + " enquiry");
+    url.searchParams.set("body", message);
+    return url.toString();
+  })() : offer.contactHref;
+  const channel = offer.contactHref.startsWith("mailto:") ? "Opens email" : offer.contactHref.startsWith("tel:") ? "Opens phone" : "Contact us";
 
-  return <main className={s.page}>
+
+  return <main className={`${s.page}${preview ? ` ${s.previewPage}` : ""}`} >
     <div className={s.shell}>
       <Link className={s.back} href="/offer">← All offers</Link>
       <section className={s.hero}>
         <div className={s.pitch}>
-          <span className={s.local}><i /> YOUR BUSINESS, ONLINE</span>
-          <h1>Get your business<br /><em>noticed online.</em></h1>
-          <p>{offer.description}<br />One team to help you take the next step.</p>
+          <span className={s.local}><i /> {offer.eyebrow}</span>
+          <h1>{offer.heading}{offer.headingHighlight && <><br /><em>{offer.headingHighlight}</em></>}</h1>
+          <p>{offer.description}{offer.supportingLine && <><br />{offer.supportingLine}</>}</p>
           <h2 className={s.benefitsHeading}>{offer.subheading}</h2>
           <ul className={s.benefits}>{offer.inclusions.map(item => <li key={item}>{item}</li>)}</ul>
         </div>
         <section className={s.offer} aria-label={offer.title}>
-          <div className={s.offerTop}><span>{offer.tagline}</span><span className={s.offerBadge}>STARTER OFFER</span></div>
+          <div className={s.offerTop}><span>{offer.tagline}</span><span className={s.offerBadge}>{offer.badge}</span></div>
           <h2>{offer.title}</h2>
           {expired ? <div className={s.expired}><h3>This offer has ended.</h3><p>Ask us about current pricing and availability.</p></div> : <>
             <div className={s.oldPrices} aria-label="Price comparison">
@@ -61,8 +68,8 @@ export function PublicInteraction() {
               <div className={s.timer} role="timer" aria-label="Time remaining">{clock.map(([value, label]) => <div key={label}><b>{ready ? String(value).padStart(2, "0") : "—"}</b><span>{label}</span></div>)}</div>
             </div>
           </>}
-          <a className={s.claim} href={href}>{expired ? "Ask about current offers" : "Enquire about this offer"}<Arrow /></a>
-          <div className={s.cardFooter}><span>Opens email</span><button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
+          <a className={s.claim} href={href}>{expired ? "Ask about current offers" : offer.ctaLabel}<Arrow /></a>
+          <div className={s.cardFooter}><span>{channel}</span><button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
         </section>
       </section>
     </div>
@@ -70,9 +77,9 @@ export function PublicInteraction() {
       <div className={s.dialogContent}>
         <div className={s.dialogHeader}><h2 id="offer-terms-title">Terms &amp; conditions</h2><button type="button" aria-label="Close terms and conditions" onClick={() => dialog.current?.close()}>×</button></div>
         <p>{offer.title}</p>
-        <ul>{resolveOfferTerms(offer.terms).map(term => <li key={term}>{term}</li>)}</ul>
+        <ul>{terms.map(term => <li key={term}>{term}</li>)}</ul>
       </div>
     </dialog>
-    <div className={s.sticky}><div><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></div><a href={href}>{expired ? "Contact us" : "Enquire now"}<Arrow /></a></div>
+    {!preview && <div className={s.sticky}><div><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></div><a href={href}>{expired ? "Contact us" : offer.ctaLabel}<Arrow /></a></div>}
   </main>;
 }

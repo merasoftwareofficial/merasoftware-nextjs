@@ -1,3 +1,4 @@
+import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
@@ -20,7 +21,7 @@ export default async function UsersAdmin() {
 
   if (!atLeast(user.role, "admin")) {
     return (
-      <main className="admin-main">
+      <main className="admin-main"><BlogManagementNav />
         <AdminHeader eyebrow="ACCESS CONTROL" title="Users" description="Only admins can manage users." />
         <div className="admin-empty">
           <b>Not allowed.</b>
@@ -52,7 +53,7 @@ export default async function UsersAdmin() {
   ]);
 
   return (
-    <main className="admin-main">
+    <main className="admin-main"><BlogManagementNav />
       <AdminHeader
         eyebrow="ACCESS CONTROL"
         title="Users"

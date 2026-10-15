@@ -42,7 +42,7 @@ export const CONTENT_PAGES: ContentPage[] = [
   ] },
   { id: "offers", label: "Offers", href: "/offer", sections: [
     { id: "listing", label: "Offer listing", description: "Directory heading, card descriptions and previews." },
-    { id: "details", label: "Offer details", description: "Eyebrow, headings, benefits, prices, expiry and enquiry action.", reference: { href: "/offer/page", label: "View current offer" } },
+    { id: "details", label: "Manage offers", description: "Create, preview and publish offers. Edit content, benefits, prices, expiry and enquiry actions." },
     { id: "terms", label: "Common & offer T&C", description: "Universal, offer-specific and combined terms." },
   ] },
   { id: "packages", label: "Packages", href: "/campaign/packages", sections: [

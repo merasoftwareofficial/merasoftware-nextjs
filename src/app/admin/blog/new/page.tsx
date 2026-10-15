@@ -1,3 +1,4 @@
+import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
@@ -13,7 +14,7 @@ export default async function NewBlog() {
   const [settings, categories, assets, tags] = await Promise.all([settingsRepo.get(), categoryRepo.list(), mediaRepo.list(), tagSuggestions()]);
 
   return (
-    <main className="admin-main">
+    <main className="admin-main"><BlogManagementNav />
       <AdminHeader
         eyebrow="BLOG POSTS"
         title="New article"

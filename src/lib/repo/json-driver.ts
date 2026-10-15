@@ -525,12 +525,22 @@ const SETTINGS_DEFAULTS: Omit<Settings, "updatedAt"> = {
 };
 
 const settings: SettingsRepo = {
+  async saveOffer(offer, creating) {
+    // Synchronous read/merge/write prevents different offers overwriting each other.
+    const current = read<Settings>("settings").find(item => item._id === "site");
+    if (creating && current?.offers?.[offer.slug]) return false;
+    const row: Settings = { ...SETTINGS_DEFAULTS, ...current, offers: { ...current?.offers, [offer.slug]: offer }, updatedAt: now() };
+    write("settings", [row]);
+    return true;
+  },
   async get() {
     const row = read<Settings>("settings").find(item => item._id === "site");
     return { ...SETTINGS_DEFAULTS, updatedAt: now(), ...row };
   },
   async update(patch) {
-    const current = await settings.get();
+    // Keep the merge in one synchronous operation: a concurrent offer save
+    // must not disappear when global offer terms/listing settings are saved.
+    const current = { ...SETTINGS_DEFAULTS, ...read<Settings>("settings").find(item => item._id === "site") };
     const row: Settings = { ...current, ...patch, _id: "site", updatedAt: now() };
     write("settings", [row]);
     return row;

@@ -33,7 +33,7 @@ Trust-page revision: scoped ESLint and TypeScript passed. Playwright checked 360
 
 - Homepage integrates packages into the end of Services (understanding scope and pricing) and offers into the final Contact section (finding a starting point). Each has a short contextual sentence and one text link. The standalone promotion block has been removed; the original hero, approach, work, journal and contact headline remain intact.
 - `/campaign/packages` is the customer comparison page with package enquiry actions; staff quotation guidance is available only through the editor-protected `/admin/packages` page. Admin navigation includes Packages and an Offers directory shortcut. Neither is a content editor.
-- `/offer` displays offer cards from `src/lib/service-offers.ts`; the current card opens the existing offer experience at `/offer/page`. Previous offers URLs redirect to the corresponding directory or detail route.
+- `/offer` displays offer cards from `src/lib/offers.ts`; the current card opens the existing offer experience at `/offer/page`. Previous offers URLs redirect to the corresponding directory or detail route.
 - The only current entry is the existing Business Growth Starter design preview. No new discounts or validity claims were created. Its legacy `/campaign/business-growth` URL redirects to `/offer/page`. The detail page links back to `/offer`.
 - Campaign pages retain noindex/nofollow until their offer details and publication policy are confirmed.
 
@@ -43,9 +43,9 @@ Trust-page revision: scoped ESLint and TypeScript passed. Playwright checked 360
 - `/offer/page` renders the original offer design, with an All offers return link. No changes to its offer content or pricing.
 - Homepage, admin and package-page offers links now target `/offer`.
 - `/offers` permanently redirects to `/offer`; `/offers/business-growth` and `/campaign/business-growth` permanently redirect to `/offer/page`. Unknown legacy offer slugs return 404.
-- Directory entries in `src/lib/service-offers.ts` have an explicit detail href so future offers can have independent pages.
+- Offers have a unique fixed slug and open at `/offer/[slug]`.
 
-- Offer directory simplified: short heading, screenshot preview per offer, one-line description and a View offer action. The full card is clickable. Preview image metadata is required for each entry in `service-offers.ts`; the current local image captures the existing offer hero. The current preview is labelled Sample offer.
+- Offer directory uses a short heading, automatic visual preview per published offer, one-line description and a View offer action. The full card is clickable. Older screenshots remain in backup history.
 
 ## Focused offer detail template — 15 October 2026
 
@@ -54,3 +54,12 @@ Trust-page revision: scoped ESLint and TypeScript passed. Playwright checked 360
 - `public-interaction/offer-content.ts` holds the sample configuration, including a fixed sample deadline of 22 October 2026 at 23:59:59 IST. Countdown shows days/hours/minutes/seconds and does not reset on refresh; expiry removes promotional prices and changes the enquiry action.
 - T&C opens an accessible native dialog with Escape/backdrop/close support. Configuration supports universal, offer-specific or combined terms. Admin editing is a later phase.
 - Prices, newly proposed inclusions and deadline remain labelled sample content pending actual publication details.
+
+## Dynamic offers — 15 October 2026
+
+- Website Content → Offers provides Listing, Manage offers and Common & offer T&C controls. Editor/admin permissions apply on the page and API.
+- Saved offers live in existing site settings, with atomic per-offer Mongo paths and synchronous JSON merge writes. The original offer is a published fallback at slug `page`; edits override it, and Draft/Archived hides it without resurrection. New slugs stay fixed after creation.
+- `/offer/[slug]` and `/offer` load published saved content on every request. Draft/Archived and unknown slugs return 404. Past deadlines show the existing expired state, not active discount claims. Legacy URLs remain redirected.
+- Native card previews now render saved heading, inclusions and prices, so no screenshot refresh is required. Admin offers have an unsaved detail preview.
+- Universal, offer-specific and combined T&C modes are saved; the validity sentence is generated from the fixed deadline in IST. Admin expiry inputs explicitly use IST.
+- Draft, published and archived are explicit statuses. API validates slug uniqueness, allowed contact links, date syntax and price ordering. No offer notifications, payments or publishing outside this site were added.

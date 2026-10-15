@@ -1,3 +1,4 @@
+import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { AdminTable } from "@/components/admin-table";
@@ -104,7 +105,7 @@ export default async function BlogAdmin({
   };
 
   return (
-    <main className="admin-main">
+    <main className="admin-main"><BlogManagementNav />
       <AdminHeader
         eyebrow="CONTENT MANAGEMENT"
         title="Blog posts"

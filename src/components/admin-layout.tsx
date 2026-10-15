@@ -7,15 +7,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 /** Every nav entry, with the lowest role that may open it. */
 const navigation: [label: string, href: string, minimum: Role][] = [
-  ["Overview", "/admin", "moderator"], ["Blog posts", "/admin/blog", "moderator"],
-  ["Review queue", "/admin/blog/review", "moderator"],
-  ["Categories", "/admin/categories", "admin"],
-  ["Comments", "/admin/comments", "moderator"],
+  ["Overview", "/admin", "moderator"], ["Blog Management", "/admin/blog-management", "moderator"],
   ["Website Content", "/admin/content", "editor"], ["Section visuals", "/admin/visuals", "editor"],
   ["Homepage variants", "/admin/homepage-variants", "editor"],
   ["Portfolio", "/admin/portfolio", "editor"], ["Leads", "/admin/leads", "editor"],
   ["Media library", "/admin/media", "editor"], ["SEO health", "/admin/seo", "editor"], ["Page SEO", "/admin/page-seo", "editor"], ["Site settings", "/admin/settings", "admin"],
-  ["Users", "/admin/users", "admin"],
 ];
 
 /**
