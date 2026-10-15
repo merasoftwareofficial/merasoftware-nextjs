@@ -1,0 +1,37 @@
+import Link from "@/components/link";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { pageMetadata } from "@/lib/page-seo";
+import { loadVisuals } from "@/lib/section-visuals";
+import { SectionVisual } from "@/components/section-visual";
+import s from "./services.module.css";
+
+export const dynamic = "force-dynamic";
+export function generateMetadata() { return pageMetadata("services"); }
+
+const catalogue = [
+  { title: "Website Development", slot: "services.website", description: "Professional websites that present your business and make enquiries easy.", items: ["Business websites & landing pages", "Responsive design", "Dynamic content & custom features"], href: "/services/website-development", action: "View development services" },
+  { title: "Mobile App Development", slot: "services.apps", description: "Custom mobile apps for your customers, services and internal teams.", items: ["Customer-facing applications", "Business workflows", "Features planned to your requirements"], href: "/contact", action: "Discuss your app" },
+  { title: "Cloud Software & CRM", slot: "services.software", description: "Connected systems to organise customer information and everyday operations.", items: ["Custom CRM systems", "Cloud-based business software", "Workflow management & automation"], href: "/contact", action: "Discuss your software" },
+  { title: "Online Setup & SEO", slot: "services.seo", description: "Establish your business profiles and improve how customers find you online.", items: ["Google Business Profile", "Relevant social profile setup", "Local search & website SEO"], href: "/services/seo", action: "View setup & SEO services" },
+  { title: "Social Media & Content", slot: "services.social", description: "Consistent content and professional presentation on the platforms that fit your business.", items: ["Content planning, design & captions", "Social media management", "Photography & content shoots"], href: "/services/performance-marketing", action: "View content & marketing services" },
+  { title: "Paid Advertising", slot: "services.marketing", description: "Targeted campaigns to promote your services to relevant audiences.", items: ["Google Ads", "Social media ad campaigns", "Campaign creative & optimisation"], href: "/services/performance-marketing", action: "View advertising services" },
+] as const;
+
+export default async function ServicesPage() {
+  const visuals = await loadVisuals(["services.hero", ...catalogue.map(service => service.slot)]);
+  return <><SiteHeader /><main className={s.page}>
+    <section className={s.intro}><div className={`container ${s.introGrid}`}>
+      <div><p className={s.eyebrow}>OUR SERVICES</p><h1>Websites. Apps.<br /><em>Digital marketing.</em></h1><p>Development, business software and marketing services—choose the support your business needs.</p></div>
+      <div className={s.heroVisual}><SectionVisual data={visuals["services.hero"]} label="Development and digital marketing services" /></div>
+    </div></section>
+    <section className={s.catalogue} aria-label="Available services"><div className="container">
+      <div className={s.grid}>{catalogue.map(service => <article className={s.card} key={service.title}>
+        <div className={s.cardHeading}><div className={s.visual}><SectionVisual data={visuals[service.slot]} label={`${service.title} illustration`} /></div><h2>{service.title}</h2></div>
+        <p>{service.description}</p><ul>{service.items.map(item => <li key={item}>{item}</li>)}</ul>
+        <Link className={s.cardLink} href={service.href}>{service.action}<span aria-hidden="true">↗</span></Link>
+      </article>)}</div>
+    </div></section>
+    <section className={s.next}><div className={`container ${s.nextInner}`}><div><h2>Need a package or a custom solution?</h2><p>Compare our packages or discuss your requirements with the team.</p></div><div className={s.actions}><Link className={s.button} href="/campaign/packages">Packages & pricing <span aria-hidden="true">↗</span></Link><Link className={s.contact} href="/contact">Discuss your project <span aria-hidden="true">↗</span></Link></div></div></section>
+  </main><SiteFooter /></>;
+}
