@@ -46,6 +46,8 @@ function TextField({ label, value, onChange, multiline = false }: { label: strin
 
 export function HomepageImageEditor({
   initialContent,
+  initialSection,
+  embedded = false,
   initialImages,
   assets,
   links,
@@ -53,6 +55,8 @@ export function HomepageImageEditor({
   focusSlot,
 }: {
   initialContent: HomepageContent;
+  initialSection?: keyof HomepageContent;
+  embedded?: boolean;
   initialImages: ImageMap;
   assets: MediaAsset[];
   /** The signed-in user's role; decides upload/library access in the image chooser. */
@@ -66,7 +70,7 @@ export function HomepageImageEditor({
   const [images, setImages] = useState<ImageMap>(initialImages);
   const [savedContent, setSavedContent] = useState(initialContent);
   const [savedImages, setSavedImages] = useState<ImageMap>(initialImages);
-  const [activeSection, setActiveSection] = useState<CopyKey | null>(focusSlot ? (focusSlot === "hero" ? "hero" : "work") : null);
+  const [activeSection, setActiveSection] = useState<CopyKey | null>(focusSlot ? (focusSlot === "hero" ? "hero" : "work") : initialSection ?? null);
   const [pendingSection, setPendingSection] = useState<CopyKey | null | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"content" | "images">(focusSlot && focusSlot !== "hero" ? "images" : "content");
   const [activeWorkCard, setActiveWorkCard] = useState<number | null>(null);
@@ -100,12 +104,12 @@ export function HomepageImageEditor({
       if (!link || link.getAttribute("target") === "_blank") return;
       event.preventDefault();
       event.stopPropagation();
-      setError("Save this section first, or use Back to discard your changes.");
+      setError(embedded ? "Save or discard your changes before switching sections." : "Save this section first, or use Back to discard your changes.");
     };
     window.addEventListener("beforeunload", warn);
     document.addEventListener("click", guardLinks, true);
     return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guardLinks, true); };
-  }, [dirty]);
+  }, [dirty, embedded]);
 
   function openSection(section: CopyKey | null) {
     if (busy) return;
@@ -261,7 +265,7 @@ export function HomepageImageEditor({
     </section> : <>
 
     <div className="homepage-editor-bar">
-      <button className="admin-action" type="button" onClick={() => openSection(null)}>← All sections</button>
+      {!embedded && <button className="admin-action" type="button" onClick={() => openSection(null)}>← All sections</button>}
       <h2>{sections.find(item => item.key === activeSection)?.label}</h2>
       {dirty ? <span className="homepage-dirty">Unsaved changes</span> : null}
     </div>
@@ -446,7 +450,7 @@ export function HomepageImageEditor({
     </section> : null}
     </fieldset>
 
-    <div className="homepage-save-bar"><button className="admin-action" type="button" disabled={busy} onClick={() => openSection(null)}>Back</button><button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void saveSection()}>{busy ? "Saving…" : `Save ${sections.find(item => item.key === activeSection)?.label ?? "section"}`}</button></div>
+    <div className="homepage-save-bar">{embedded ? <button className="admin-action" type="button" disabled={busy || !dirty} onClick={() => { setContent(savedContent); setImages(savedImages); setError(""); setMessage(""); }}>Discard changes</button> : <button className="admin-action" type="button" disabled={busy} onClick={() => openSection(null)}>Back</button>}<button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void saveSection()}>{busy ? "Saving…" : `Save ${sections.find(item => item.key === activeSection)?.label ?? "section"}`}</button></div>
     </>}
     {pendingSection !== undefined ? <div className="homepage-unsaved-backdrop" role="presentation"><div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="homepage-unsaved-title"><h2 id="homepage-unsaved-title">Unsaved changes</h2><p>Your changes to this section are not saved yet. What would you like to do?</p><div><button className="admin-button" type="button" disabled={busy} onClick={() => void saveSection(pendingSection)}>Save and continue</button><button className="admin-action" type="button" disabled={busy} onClick={discardAndOpen}>Discard changes</button><button className="admin-action" type="button" disabled={busy} onClick={() => setPendingSection(undefined)}>Continue editing</button></div></div></div> : null}
   </>;

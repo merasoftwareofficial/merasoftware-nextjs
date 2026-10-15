@@ -117,7 +117,7 @@ export default async function Home() {
           <p className="eyebrow"><i /> {content.contact.eyebrow}</p>
           <h2>{content.contact.headingLineOne}<br /><em>{content.contact.headingEmphasis}</em></h2>
           <Link className="button button-light" href={content.contact.buttonHref}>{content.contact.buttonLabel} <span>→</span></Link>
-          <p className={cta.offers}>Looking for a starting point? <Link href="/offers">Explore our offers <span aria-hidden="true">→</span></Link></p>
+          <p className={cta.offers}>Looking for a starting point? <Link href="/offer">Explore our offers <span aria-hidden="true">→</span></Link></p>
           </div><SectionVisual data={visuals["home.contact"]} label="Contact illustration" />
         </div>
       </section>

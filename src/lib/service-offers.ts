@@ -1,5 +1,24 @@
-/** Offer directory. Add an entry here for each new offer detail page. */
-export type ServiceOffer = { slug: string; title: string; description: string; label: string };
+/** Each offer has a detail page and a preview image of that page. */
+export type ServiceOffer = {
+  slug: string;
+  href: string;
+  title: string;
+  description: string;
+  label: string;
+  preview: { src: string; alt: string; width: number; height: number };
+};
 export const serviceOffers: ServiceOffer[] = [
-  { slug: "business-growth", title: "Business Growth Starter", description: "Explore a starter concept for websites, Google visibility and social media. Sample pricing and countdown are for design review; contact us to confirm availability and scope.", label: "Design preview" },
+  {
+    slug: "business-growth",
+    href: "/offer/page",
+    title: "Business Growth Starter",
+    description: "Websites, Google visibility and social media for your business.",
+    label: "Starter offer",
+    preview: {
+      src: "/offers/business-growth-preview.png",
+      alt: "Business Growth Starter offer page preview",
+      width: 1122,
+      height: 671,
+    },
+  },
 ];

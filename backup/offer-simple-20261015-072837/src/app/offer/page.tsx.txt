@@ -1,0 +1,37 @@
+import type { Metadata } from "next";
+import Link from "@/components/link";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { serviceOffers } from "@/lib/service-offers";
+import s from "@/components/campaign/promotion.module.css";
+
+export const metadata: Metadata = {
+  title: "Business promotion offers",
+  description: "Explore our online promotion offers and see the details before making an enquiry.",
+  robots: { index: false, follow: false },
+};
+
+export default function OffersPage() {
+  return <>
+    <SiteHeader />
+    <main className={s.section}>
+      <div className="container">
+        <Link className={s.back} href="/">← Back to home</Link>
+        <div className={s.intro}>
+          <p className="eyebrow"><i /> BUSINESS PROMOTION</p>
+          <h1 className="section-heading">Explore our offers.</h1>
+          <p>Find a starting point for your business. Open an offer to see its details, included services and terms.</p>
+        </div>
+        <div className={s.grid}>
+          {serviceOffers.map(offer => <Link className={`${s.card} ${s.offerCard}`} href={offer.href} key={offer.slug}>
+            <span className={s.badge}>{offer.label}</span>
+            <h2>{offer.title}</h2>
+            <p>{offer.description}</p>
+            <span className={s.cardAction}>View offer <span aria-hidden="true">→</span></span>
+          </Link>)}
+        </div>
+      </div>
+    </main>
+    <SiteFooter />
+  </>;
+}

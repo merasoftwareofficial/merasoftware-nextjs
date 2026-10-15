@@ -11,10 +11,9 @@ const navigation: [label: string, href: string, minimum: Role][] = [
   ["Review queue", "/admin/blog/review", "moderator"],
   ["Categories", "/admin/categories", "admin"],
   ["Comments", "/admin/comments", "moderator"],
-  ["Homepage", "/admin/homepage", "editor"], ["Homepage variants", "/admin/homepage-variants", "editor"], ["Section visuals", "/admin/visuals", "editor"], ["Services", "/admin/services", "editor"],
-  ["Packages", "/admin/packages", "editor"], ["Offers", "/offers", "editor"],
-  ["Portfolio", "/admin/portfolio", "editor"], ["Testimonials", "/admin/testimonials", "editor"],
-  ["FAQs", "/admin/faqs", "editor"], ["Leads", "/admin/leads", "editor"],
+  ["Website Content", "/admin/content", "editor"], ["Section visuals", "/admin/visuals", "editor"],
+  ["Homepage variants", "/admin/homepage-variants", "editor"],
+  ["Portfolio", "/admin/portfolio", "editor"], ["Leads", "/admin/leads", "editor"],
   ["Media library", "/admin/media", "editor"], ["SEO health", "/admin/seo", "editor"], ["Page SEO", "/admin/page-seo", "editor"], ["Site settings", "/admin/settings", "admin"],
   ["Users", "/admin/users", "admin"],
 ];

@@ -1,6 +1,6 @@
 # Static campaign pages
 
-- Client route: `/campaign/business-growth`. Public, no login; noindex/nofollow. The homepage links to `/offers`, which reuses this existing offer page directly. Absent from the main menu and sitemap.
+- Client route: `/campaign/business-growth`. Public, no login; noindex/nofollow. The homepage links to `/offer`, whose card opens the existing design at `/offer/page`; the old route redirects there. Absent from the main menu and sitemap.
 - Current public page (8 October 2026): English starter-offer design aimed at Amritsar business owners, "Get your business noticed online." One dominant offer card replaces the service-price grid. The owner's example (₹10,000 → ₹4,000 → ₹699) is explicitly marked as a design preview; the 00:29:59 timer is a fixed, labelled visual sample, not a claimed expiry. Contact messages ask for actual service, price and validity confirmation. `content.offer` remains null until an actual offer is approved; when configured, its fixed deadline drives the real countdown and expired offers hide promotional prices. No unsupported top-agency or ranking claims were added.
 - Backup: `backup/public-offer-20261008-003450/`. Scoped lint and TypeScript passed; browser checks cover crossed-out prices, preview labelling, first-screen enquiry CTA at 320x700/360x740/390x844, desktop layout, project switching, noindex and public access. Saved homepage hashes remained unchanged.
 - Before this compact redesign, the restored original English design was shown publicly and backed up at `backup/public-compact-20261008-001401/`. Saved homepage variant files remained untouched; SHA-256 comparison verified that in the browser check. Scoped ESLint, TypeScript, desktop/mobile widths, public access, project switching, expandable answers, enquiry links and noindex checks passed.
@@ -33,6 +33,24 @@ Trust-page revision: scoped ESLint and TypeScript passed. Playwright checked 360
 
 - Homepage integrates packages into the end of Services (understanding scope and pricing) and offers into the final Contact section (finding a starting point). Each has a short contextual sentence and one text link. The standalone promotion block has been removed; the original hero, approach, work, journal and contact headline remain intact.
 - `/campaign/packages` is the customer comparison page with package enquiry actions; staff quotation guidance is available only through the editor-protected `/admin/packages` page. Admin navigation includes Packages and an Offers directory shortcut. Neither is a content editor.
-- `/offers` reuses the existing `/campaign/business-growth` page and metadata directly, rather than showing a separate directory. Homepage, packages and admin offer links all open the established offer experience. The previously added `/offers/[slug]` route remains available for direct detail links.
-- The only current entry is the existing Business Growth Starter design preview. No new discounts or validity claims were created. Its legacy `/campaign/business-growth` URL remains available. The existing offer experience links back to the homepage.
+- `/offer` displays offer cards from `src/lib/service-offers.ts`; the current card opens the existing offer experience at `/offer/page`. Previous offers URLs redirect to the corresponding directory or detail route.
+- The only current entry is the existing Business Growth Starter design preview. No new discounts or validity claims were created. Its legacy `/campaign/business-growth` URL redirects to `/offer/page`. The detail page links back to `/offer`.
 - Campaign pages retain noindex/nofollow until their offer details and publication policy are confirmed.
+
+## Offer directory — 15 October 2026
+
+- `/offer` is the card directory; the entire Business Growth Starter card opens `/offer/page`.
+- `/offer/page` renders the original offer design, with an All offers return link. No changes to its offer content or pricing.
+- Homepage, admin and package-page offers links now target `/offer`.
+- `/offers` permanently redirects to `/offer`; `/offers/business-growth` and `/campaign/business-growth` permanently redirect to `/offer/page`. Unknown legacy offer slugs return 404.
+- Directory entries in `src/lib/service-offers.ts` have an explicit detail href so future offers can have independent pages.
+
+- Offer directory simplified: short heading, screenshot preview per offer, one-line description and a View offer action. The full card is clickable. Preview image metadata is required for each entry in `service-offers.ts`; the current local image captures the existing offer hero. The current preview is labelled Sample offer.
+
+## Focused offer detail template — 15 October 2026
+
+- Existing navy/cyan/orange design retained with the shared site header. Business/client/work sections removed.
+- Five proposed starter inclusions appear as bullets under the hero; three prices and a short price description stay in the offer card.
+- `public-interaction/offer-content.ts` holds the sample configuration, including a fixed sample deadline of 22 October 2026 at 23:59:59 IST. Countdown shows days/hours/minutes/seconds and does not reset on refresh; expiry removes promotional prices and changes the enquiry action.
+- T&C opens an accessible native dialog with Escape/backdrop/close support. Configuration supports universal, offer-specific or combined terms. Admin editing is a later phase.
+- Prices, newly proposed inclusions and deadline remain labelled sample content pending actual publication details.
