@@ -1,0 +1,40 @@
+export const services = [
+  {
+    slug: "website-development", eyebrow: "01 / WEBSITES & SOFTWARE",
+    title: "Websites, apps and software for your business.",
+    description: "Present your business online or make daily work easier. We build websites, mobile apps, cloud software and CRM systems around what you need.",
+    points: ["Business websites and landing pages", "Mobile apps for your customers or team", "Cloud software and CRM systems", "Custom features for your business workflow"],
+    audience: "For businesses that need a website, an app or a better way to manage their work.",
+    preparation: "Share your business details, images, videos and the tasks you want the system to handle. We help you decide which features are needed.",
+    support: "We handle content, design and development. Follow progress in your portal, then get help with changes, fixes and upgrades through the agreed service package.",
+  },
+  {
+    slug: "seo", eyebrow: "02 / ONLINE SETUP & SEARCH",
+    title: "Help customers find your business online.",
+    description: "We set up your Google Business Profile and relevant social profiles, organise your business information and improve your website for search. The approach follows your business and customers.",
+    points: ["Google Business Profile setup and updates", "Business details and relevant social profile setup", "Website and local search improvements", "Content planning and ongoing visibility work"],
+    audience: "For local businesses getting online for the first time, or improving an existing online presence.",
+    preparation: "Share your business name, services, location, contact details and photos. We guide you through profile access and any verification steps that need your involvement.",
+    support: "We explain which platforms fit your business and handle the agreed setup and improvement work. Ongoing updates and management depend on your chosen package.",
+  },
+  {
+    slug: "performance-marketing", eyebrow: "03 / CONTENT & PROMOTION",
+    title: "Reach the right people with the right message.",
+    description: "We plan your content, design posts and run social media and paid campaigns. A clothing shop and a professional service need different platforms, so we choose the approach that fits your audience.",
+    points: ["Social media planning and management", "Post designs, captions and video content", "Photo shoots through suitable packages", "Google and social media ad campaigns"],
+    audience: "For businesses that need regular content and promotion but do not have the time or team to manage it.",
+    preparation: "Tell us what you offer and whom you want to reach. Share your business images and videos, or choose a package with content shoots.",
+    support: "We handle planning, content, design and the agreed promotional work. Your package sets the platforms, content quantity, shoots and any included ad budget.",
+  },
+];
+
+export const faqs = [
+  ["I am new to digital. Can you handle everything?", "Yes. Tell us about your business and what you need. We explain your options and handle the agreed content, design, planning and technical work. We guide you whenever your input or approval is needed."],
+  ["What do I need to provide?", "Your business details, requirements, images and videos. Some services also need account access, verification or approvals. We explain what is needed. Photo shoots are available through suitable packages."],
+  ["Does my business need every social media platform?", "We choose platforms based on your business and customers. A clothing shop may benefit from Instagram, while a professional service may need LinkedIn. We discuss the right setup with you."],
+  ["Do you build apps and business software too?", "Yes. Along with websites, we build mobile apps, cloud software and CRM systems based on your business requirements."],
+  ["How will I know what is happening with my project?", "You can follow your project in the client portal. Progress updates and email notifications keep you informed from the start of the project to completion."],
+  ["Can I get a custom package?", "Yes. Choose an existing package or discuss a custom mix of services for your business, including ongoing promotion."],
+  ["Can you help after the project is complete?", "Yes. We help with changes, fixes, updates and upgrades through the agreed support arrangement or a suitable service package."],
+  ["Can you improve my existing website or profiles?", "Yes. We review what you already have and discuss the changes or new work needed before agreeing on the scope."],
+];

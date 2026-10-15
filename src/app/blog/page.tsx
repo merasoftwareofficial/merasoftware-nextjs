@@ -74,8 +74,8 @@ export default async function BlogPage({ searchParams }: Search) {
       <main>
         <PageHero
           eyebrow="INSIGHTS"
-          title="Ideas for doing digital work better."
-          text="Clear thinking about websites, search and growth — made for people building real businesses."
+          title="Simple guides for your business online."
+          text="Understand business profiles, websites, social media and digital tools. Practical advice for business owners, including those just getting started."
           visual={visuals["blog.hero"]}
         />
         <section className="content-section section-soft"><div className="container">

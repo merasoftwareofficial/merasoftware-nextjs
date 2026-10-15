@@ -1,9 +1,43 @@
-import Link from "@/components/link"; import { notFound } from "next/navigation"; import { SiteFooter } from "@/components/site-footer"; import { SiteHeader } from "@/components/site-header"; import { services } from "@/lib/site-data";
+import Link from "@/components/link";
+import { notFound } from "next/navigation";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
+import { services } from "@/lib/site-data";
 import { pageMetadata } from "@/lib/page-seo";
 import { loadVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import type { VisualSlotId } from "@/lib/visual-slots";
-// Search details are editable at /admin/page-seo, so they are read per request.
+
 export const dynamic = "force-dynamic";
-export async function generateMetadata({params}:{params:Promise<{slug:string}>}){const {slug}=await params;return services.some(s=>s.slug===slug)?pageMetadata(`service-${slug}`):{title:"Service"};}
-export default async function ServiceDetail({params}:{params:Promise<{slug:string}>}){const {slug}=await params;const service=services.find(s=>s.slug===slug);if(!service)notFound();const visualKey=slug==="website-development"?"service.website":slug==="seo"?"service.seo":"service.marketing";const heroSlot=`${visualKey}.hero` as VisualSlotId;const includedSlot=`${visualKey}.included` as VisualSlotId;const visuals=await loadVisuals([heroSlot,includedSlot]);return <><SiteHeader/><main><section className="page-hero"><div className="container visual-page-hero"><div><p className="eyebrow"><i/> {service.eyebrow}</p><h1>{service.title}</h1><p>{service.description}</p></div><SectionVisual data={visuals[heroSlot]} label={`${service.title} illustration`} /></div></section><section className="content-section section-soft"><div className="container"><div className="section-top"><p className="eyebrow"><i/> WHAT&apos;S INCLUDED</p><p className="side-note">A focused engagement, tailored to your current priorities.</p></div><div className="visual-feature"><div><div className="service-list" style={{marginTop:48}}>{service.points.map((point,index)=><div className="service" key={point}><span className="service-number">0{index+1}</span><h3>{point}</h3><span className="service-arrow">+</span></div>)}</div><div style={{marginTop:56}}><Link className="button button-dark" href="/contact">Talk about this service <span>→</span></Link></div></div><SectionVisual data={visuals[includedSlot]} label="Services included illustration" /></div></div></section></main><SiteFooter/></>}
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return services.some(service => service.slug === slug) ? pageMetadata(`service-${slug}`) : { title: "Service" };
+}
+export default async function ServiceDetail({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const service = services.find(item => item.slug === slug);
+  if (!service) notFound();
+  const visualKey = slug === "website-development" ? "service.website" : slug === "seo" ? "service.seo" : "service.marketing";
+  const heroSlot = `${visualKey}.hero` as VisualSlotId;
+  const includedSlot = `${visualKey}.included` as VisualSlotId;
+  const visuals = await loadVisuals([heroSlot, includedSlot]);
+  return <><SiteHeader /><main>
+    <section className="page-hero"><div className="container visual-page-hero"><div>
+      <p className="eyebrow"><i /> {service.eyebrow}</p><h1>{service.title}</h1><p>{service.description}</p>
+    </div><SectionVisual data={visuals[heroSlot]} label={`${service.title} illustration`} /></div></section>
+    <section className="content-section section-soft"><div className="container">
+      <div className="section-top"><p className="eyebrow"><i /> HOW WE CAN HELP</p><p className="side-note">A focused service, planned around your business priorities.</p></div>
+      <div className="visual-feature"><div><div className="service-list" style={{ marginTop: 48 }}>
+        {service.points.map((point, index) => <div className="service" key={point}><span className="service-number">0{index + 1}</span><h2 style={{ fontSize: 23, margin: 0 }}>{point}</h2><span className="service-arrow" aria-hidden="true">+</span></div>)}
+      </div></div><SectionVisual data={visuals[includedSlot]} label="Service options illustration" /></div>
+    </div></section>
+    <section className="content-section"><div className="container">
+      <div className="result-grid" style={{ marginTop: 0 }}>
+        <article><span>01</span><h2 style={{ fontSize: 26 }}>Who this is for</h2><p>{service.audience}</p></article>
+        <article><span>02</span><h2 style={{ fontSize: 26 }}>What we need from you</h2><p>{service.preparation}</p></article>
+        <article><span>03</span><h2 style={{ fontSize: 26 }}>What we take care of</h2><p>{service.support}</p></article>
+      </div>
+      <div className="hero-actions" style={{ flexWrap: "wrap" }}><Link className="button button-dark" href="/contact">Discuss your requirements <span aria-hidden="true">→</span></Link><Link className="text-link" href="/campaign/packages">Explore packages <span aria-hidden="true">↗</span></Link></div>
+    </div></section>
+  </main><SiteFooter /></>;
+}

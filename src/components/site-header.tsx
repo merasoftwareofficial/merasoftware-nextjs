@@ -36,14 +36,13 @@ const NAV_LINKS: [label: string, href: string][] = [
   ["About", "/about"],
 ];
 
-export function SiteHeader({ dark = false }: { dark?: boolean }) {
+export function SiteHeader({ dark = true }: { dark?: boolean }) {
   return (
     <header className={`site-header ${dark ? "header-dark" : "header-light"}`}>
       <HeaderScroll />
       <div className="container header-inner">
         <Link className="brand brand-logo" href="/">
-          {/* Static SVGs (text already converted to paths): no font needed, cached by the browser. Both are present because
-              the header turns light once scrolled (header-scroll.tsx); CSS shows the one matching its background. */}
+          {/* Static SVGs (text already converted to paths): no font needed, cached by the browser. CSS shows the version matching the header background, including while scrolling. */}
           {/* eslint-disable-next-line @next/next/no-img-element -- next/image does not serve SVG without dangerouslyAllowSVG. */}
           <img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} />
           {/* eslint-disable-next-line @next/next/no-img-element -- as above. */}

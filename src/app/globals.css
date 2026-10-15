@@ -509,7 +509,7 @@ button.admin-action.is-danger:hover:not(:disabled){background:var(--pn-err-bg);b
 @media(max-width:700px){.brand-logo img{height:38px}}
 
 /* Navy header with a matching light logo and readable menu surfaces. */
-.site-header.header-dark{--paper:var(--brand-black);--ink:var(--brand-paper);--muted:var(--brand-dark-muted);--line:var(--brand-dark-line);--surface:var(--brand-blue);--card:var(--brand-dark-card);--inverse:var(--brand-cyan-light);--inverse-text:var(--brand-navy);color:var(--ink)}
+.site-header.header-dark{--paper:var(--brand-navy);--ink:var(--brand-paper);--muted:var(--brand-dark-muted);--line:var(--brand-dark-line);--surface:var(--brand-blue);--card:var(--brand-dark-card);--inverse:var(--brand-cyan-light);--inverse-text:var(--brand-navy);color:var(--ink)}
 .site-header.header-dark nav a:hover,.site-header.header-dark .mobile-menu-panel a[aria-current=page]{color:var(--brand-cyan-light)}
 .site-header.header-dark .nav-cta span,.site-header.header-dark .mobile-menu-cta span{color:var(--brand-navy)}
 .site-header.header-dark :where(a,button):focus-visible{outline-color:var(--brand-cyan-light)}
@@ -523,7 +523,7 @@ button.admin-action.is-danger:hover:not(:disabled){background:var(--pn-err-bg);b
 /* "Stay updated" band (NotifyStrip, /blog only): the footer's navy look, outside the footer. */
 .notify-strip{background:var(--brand-navy);color:var(--paper)}.notify-strip .footer-label{color:var(--brand-cyan-light)}
 
-/* Light header (SiteHeader dark={false}, the default), white (owner choice, 7 Oct 2026): navy text, navy "Let's talk" and the light logo come from the default header styles. */
+/* Optional light header: navy text and the logo for a light background. */
 .site-header.header-light{--paper:var(--brand-white);border-bottom-color:var(--brand-line);box-shadow:0 6px 18px rgb(0 36 61 / .07)}
 
 /* "Sign in" as an outlined pill, matching the signed-in .session-trigger next to the solid "Let's talk". */
@@ -536,21 +536,17 @@ button.admin-action.is-danger:hover:not(:disabled){background:var(--pn-err-bg);b
 /* Desktop: the menu sits on the exact centre line, whatever the widths of the logo and the buttons. */
 @media(min-width:1025px){.site-header .header-inner{display:grid;grid-template-columns:1fr auto 1fr}.site-header .header-inner>.brand{justify-self:start}.site-header .header-actions{justify-self:end}}
 
-/* Sticky header (header-scroll.tsx). Black at the top of the page; once it has scrolled out of view it becomes a light
-   glass bar that stays hidden while scrolling down and slides in when scrolling up. Owner choice B, 7 Oct 2026. */
+/* Sticky header keeps its colours: hides on scroll down and slides in on scroll up. */
 .site-header{z-index:50;transition:transform .3s ease,box-shadow .3s ease}
-.site-header[data-scrolled]{position:sticky;top:0;--paper:rgb(255 255 255 / .72);--ink:var(--brand-navy);--muted:var(--brand-muted);--line:rgb(0 36 61 / .1);--surface:var(--brand-surface);--card:var(--brand-white);--inverse:var(--brand-navy);--inverse-text:var(--brand-paper);color:var(--ink);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);box-shadow:0 8px 24px rgb(0 36 61 / .08)}
+.site-header[data-scrolled]{position:sticky;top:0;box-shadow:0 8px 24px rgb(0 36 61 / .16)}
 .site-header[data-hidden]{transform:translateY(calc(-100% - 30px));box-shadow:none}
-.site-header[data-scrolled] .nav-cta span,.site-header[data-scrolled] .mobile-menu-cta span{color:var(--brand-cyan-light)}
-.site-header[data-scrolled] :where(a,button):focus-visible{outline-color:var(--brand-link)}
 /* The phone menu is solid: page text must never show through it. */
-.site-header[data-scrolled] .mobile-menu-panel{background:var(--brand-white)}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.site-header[data-scrolled]{--paper:rgb(255 255 255 / .96)}}
+.site-header[data-scrolled] .mobile-menu-panel{background:var(--paper)}
 @media(prefers-reduced-motion:reduce){.site-header{transition:none}}
-/* Light logo on the light bar, dark logo on the black one. */
+/* Logo follows the header background in both normal and sticky states. */
 .site-header .brand-logo .logo-on-dark{display:none}
-.site-header.header-dark:not([data-scrolled]) .brand-logo .logo-on-dark{display:block}
-.site-header.header-dark:not([data-scrolled]) .brand-logo .logo-on-light{display:none}
+.site-header.header-dark .brand-logo .logo-on-dark{display:block}
+.site-header.header-dark .brand-logo .logo-on-light{display:none}
 /* Keep in-page jumps and the editor toolbar clear of the header. */
 html{scroll-padding-top:var(--header-height,0px)}
 .tiptap-bar{top:var(--header-offset,0px);transition:top .3s ease}

@@ -27,7 +27,7 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     label: "Services",
     path: "/services",
     title: "Services",
-    description: "Every engagement starts with the business outcome. Then we choose the right tools, channels and pace to get there.",
+    description: "Strategy, design and technology for local businesses. Explore online presence, website, app, business software and marketing services.",
   },
   ...services.map(service => ({
     key: `service-${service.slug}`,
@@ -41,14 +41,14 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     label: "About",
     path: "/about",
     title: "About",
-    description: "We pair strategic clarity with considered digital execution, so your marketing feels connected instead of cobbled together.",
+    description: "Established in 2022, Mera Software helps local businesses build their online presence, connect with customers and improve operations through digital solutions.",
   },
   {
     key: "contact",
     label: "Contact",
     path: "/contact",
     title: "Contact",
-    description: "Share a little about your business, the challenge and where you want to go. We'll come back with a useful next step.",
+    description: "Tell us what your business needs. We help you understand your digital options and choose the right service or custom package.",
   },
 ];
 

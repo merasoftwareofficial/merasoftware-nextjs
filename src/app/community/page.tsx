@@ -49,8 +49,8 @@ export default async function Community({ searchParams }: Search) {
       <main>
         <PageHero
           eyebrow="MERA COMMUNITY"
-          title="Useful ideas are better when they are shared."
-          text="A moderated space for practical digital marketing, website and business-growth learning from Mera Software and its members."
+          title="Learn from other business owners."
+          text="Read and share practical experiences about taking a business online, using digital tools and reaching customers. Posts are reviewed before publication."
           visual={visuals["community.hero"]}
         />
         <section className="content-section section-soft"><div className="container">

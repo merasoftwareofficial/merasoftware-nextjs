@@ -15,7 +15,7 @@ export default async function Subscribe() {
     <>
       <SiteHeader />
       <main>
-        <PageHero eyebrow="NOTIFICATIONS" title="Updates on your topics." text="Pick the blog categories you care about. We notify you only about those — and offers, if you want them." visual={visuals["subscribe.hero"]} />
+        <PageHero eyebrow="NOTIFICATIONS" title="Useful updates for your business." text="Choose the topics you want to learn about. Get notified when new posts are published in those categories, and choose whether to receive offers." visual={visuals["subscribe.hero"]} />
         <section className="content-section section-soft"><div className="container">
           {box ?? (
             <div className="admin-empty">

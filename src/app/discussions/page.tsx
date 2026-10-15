@@ -42,8 +42,8 @@ export default async function Discussions() {
       <main>
         <PageHero
           eyebrow="COMMUNITY DISCUSSIONS"
-          title="Ask, learn and move forward together."
-          text="Short questions, practical tips and focused conversations around websites, SEO, ads and digital growth."
+          title="Have a digital question? Start here."
+          text="Ask about business profiles, websites, social media, ads or software. Share what you need help with and learn through community discussions."
           visual={visuals["discussions.hero"]}
         />
         <section className="content-section section-soft"><div className="container">

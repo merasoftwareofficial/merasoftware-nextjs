@@ -10,10 +10,10 @@ const STEP = 6;
  * nothing visible: it only sets two attributes on the surrounding <header>,
  * so the page never re-renders while scrolling.
  *
- * - At the top the header scrolls away with the page, black as always.
- * - Once it is out of view, `data-scrolled` makes it sticky in its light glass
+ * - At the top the dark header scrolls away with the page.
+ * - Once it is out of view, `data-scrolled` makes it sticky in the same dark
  *   style, and `data-hidden` keeps it above the screen while scrolling down.
- * - Scrolling up slides it in; back at the very top it is the black header again.
+ * - Scrolling up slides it in; back at the very top it returns to normal page flow.
  * - It never hides while the phone menu, the account menu or a focused link is in it.
  *
  * It also publishes the header's height for anything that must stay clear of it:
