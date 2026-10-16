@@ -51,6 +51,7 @@ const api = createRequire(import.meta.url)(path.join(folder, 'server.cjs'));
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
+    if (url.pathname === '/api/time') { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify({ now: Date.now() })); return; }
     if (url.pathname === '/api/offers') {
       const chunks = []; for await (const chunk of request) chunks.push(chunk);
       const result = await api.handle(new Request(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: Buffer.concat(chunks).toString() }), request.headers['x-test-role']);
@@ -70,7 +71,7 @@ try {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ extraHTTPHeaders: { 'x-test-role': 'editor' } });
+  const context = await browser.newContext({ timezoneId: 'America/New_York', extraHTTPHeaders: { 'x-test-role': 'editor' } });
   const page = await context.newPage();
   const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:', error.message); });
   await page.goto(origin + '/admin');
@@ -96,7 +97,8 @@ try {
   const draft = await save('Save offer');
   console.log('Draft saved:', draft.slug);
   await page.screenshot({ path: path.join(folder, 'admin-after-save.png'), fullPage: true });
-  assert.equal(draft.endsAt, '2030-10-20T23:59:59+05:30');
+  assert.equal(draft.endsAt, '2030-10-20T18:29:59.999Z');
+  assert.equal(await page.getByLabel('Expires at (India time / IST)', { exact: true }).inputValue(), '2030-10-20T23:59');
   assert.equal((await context.request.get(origin + '/offer/diwali')).status(), 404);
   await page.getByLabel('Status', { exact: true }).selectOption('published');
   const published = await save('Save & publish');

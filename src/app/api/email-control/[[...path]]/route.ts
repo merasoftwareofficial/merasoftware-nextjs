@@ -8,7 +8,7 @@ import { subscriberRepo } from "@/lib/repo";
 
 type Context = { params: Promise<{ path?: string[] }> };
 const allowed = (method: string, path: string) => (
-  (method === "GET" && (path === "" || /^drafts\/[a-f\d]{24}$/i.test(path))) ||
+  (method === "GET" && (path === "" || path === "outbox" || /^drafts\/[a-f\d]{24}$/i.test(path))) ||
   (method === "POST" && (path === "templates" || path === "templates/preview" || /^drafts\/[a-f\d]{24}\/(decision|preview)$/i.test(path))) ||
   (method === "PUT" && (/^policies\/[\w.]+$/.test(path) || /^templates\/[a-f\d]{24}$/i.test(path)))
 );
@@ -26,7 +26,15 @@ async function handle(request: Request, context: Context) {
     const actorId = session.user.portalUserId;
     if (!token || !actorId) throw new AuthError("Sign in again to manage email.", 401);
     const authorization = application === "website" ? { access: "admin" as const, actorId } : { cookie: token };
-    const query = `?application=${application}`;
+    const queryParams = new URLSearchParams({ application });
+    if (path === "outbox") {
+      const input = new URL(request.url).searchParams;
+      for (const key of ["status", "q", "from", "to", "page"]) {
+        const value = input.get(key);
+        if (value !== null) queryParams.set(key, value);
+      }
+    }
+    const query = `?${queryParams}`;
     const body = request.method === "GET" ? undefined : await request.json();
     if (application === "website" && path.endsWith("/decision") && body.choice === "send") {
       const draft = await emailControlRequest<EmailDraft>(`/${path.replace(/\/decision$/, "")}${query}`, "GET", undefined, authorization);
@@ -38,9 +46,12 @@ async function handle(request: Request, context: Context) {
         }
       }
     }
-    const data = await emailControlRequest<{ status?: string; reference?: { subscriberId?: string } }>(`/${path}${query}`, request.method, body, authorization);
+    const data = await emailControlRequest<{ status?: string; sentAt?: string; reference?: { subscriberId?: string } }>(`/${path}${query}`, request.method, body, authorization);
     if (application === "website" && path.endsWith("/decision") && data.status === "sent" && data.reference?.subscriberId) {
-      try { await subscriberRepo.update(data.reference.subscriberId, { confirmSentAt: new Date().toISOString() }); }
+      try {
+        if (!data.sentAt || !Number.isFinite(Date.parse(data.sentAt))) throw new Error("Sending service did not return sentAt");
+        await subscriberRepo.update(data.reference.subscriberId, { confirmSentAt: data.sentAt });
+      }
       catch { console.error("[email] Email delivered; subscriber delivery timestamp could not be updated."); }
     }
     return NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });

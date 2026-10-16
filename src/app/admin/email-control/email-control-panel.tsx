@@ -1,20 +1,15 @@
 "use client";
 
+import { formatIndiaDateTime } from "@/lib/date-time";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTask } from "@/components/loading/navigation";
+import { useServerTime } from "@/components/use-server-time";
+import { emailControlApi as api } from "@/lib/email-control-client";
+import { EmailOutbox } from "./email-outbox";
 import type { Application, EmailControlData, EmailDraft, EmailTemplate } from "@/lib/email-control-types";
 import styles from "./email-control.module.css";
 
 type TemplateEditor = Omit<EmailTemplate, "_id"> & { _id?: string };
-async function api<T>(application: Application, path = "", method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/api/email-control${path}?application=${application}`, {
-    method, signal, headers: { "Content-Type": "application/json" },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Could not complete the email request.");
-  return result.data as T;
-}
 const reason = (error: unknown) => error instanceof Error ? error.message : "Email request failed.";
 export function EmailControlPanel({ initialApplication, canManagePortal }: { initialApplication: Application; canManagePortal: boolean }) {
   const [application, setApplication] = useState(initialApplication);
@@ -34,11 +29,13 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
   const [dialogError, setDialogError] = useState("");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [observedAt, setObservedAt] = useState(0);
+  const serverNow = useServerTime();
+  const [revision, setRevision] = useState(0);
   const dialog = useRef<HTMLDialogElement>(null);
   const generation = useRef(0);
   const load = useCallback(async (signal?: AbortSignal) => {
     const current = ++generation.current;
-    try { const result = await request<EmailControlData>("", "GET", undefined, signal); if (current === generation.current) { setData(result); setObservedAt(Date.now()); setError(""); } }
+    try { const result = await request<EmailControlData>("", "GET", undefined, signal); if (current === generation.current) { setData(result); setObservedAt(result.serverNow); setRevision(value => value + 1); setError(""); } }
     catch (err) { if (!signal?.aborted && current === generation.current) setError(reason(err)); }
     finally { if (current === generation.current) setLoading(false); }
   }, [request]);
@@ -48,7 +45,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
     // Initial data follows the fetch lifecycle. Interactive work below uses
     // the shared task loader, whose state changes start from user actions.
     api<EmailControlData>(application, "", "GET", undefined, controller.signal)
-      .then(result => { if (current === generation.current) { setData(result); setObservedAt(Date.now()); setError(""); } })
+      .then(result => { if (current === generation.current) { setData(result); setObservedAt(result.serverNow); setError(""); } })
       .catch(err => { if (!controller.signal.aborted && current === generation.current) setError(reason(err)); })
       .finally(() => { if (!controller.signal.aborted && current === generation.current) setLoading(false); });
     return () => controller.abort();
@@ -101,7 +98,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
   async function decide(choice: "send" | "skip") {
     if (!draft || busy) return; setBusy(true); setDialogError("");
     try {
-      await request( `/drafts/${draft._id}/decision`, "POST", { choice, subject, text });
+      await request( `/drafts/${draft._id}/decision`, "POST", { choice, subject, text, templateId });
       setDraft(null); await load(); setNotice(choice === "send" ? "Email sent." : "Email skipped. The original request is saved.");
     } catch (err) {
       setDialogError(reason(err));
@@ -115,7 +112,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
     finally { setBusy(false); }
   }
   const drafts = data?.drafts.filter(row => ["pending", "failed", "sending"].includes(row.status)) || [];
-  const status = (row: { status: string; expiresAt: string }) => ["pending", "failed", "sending"].includes(row.status) && Date.parse(row.expiresAt) <= observedAt ? "expired" : row.status;
+  const status = (row: { status: string; expiresAt: string }) => ["pending", "failed", "sending"].includes(row.status) && Date.parse(row.expiresAt) <= (serverNow ?? observedAt) ? "expired" : row.status;
   const history = data?.history.filter(row => historyFilter === "all" || status(row) === historyFilter) || [];
   const off = draft && data?.policies.find(row => row.event === draft.event)?.mode === "off";
   return <div className={styles.panel}>
@@ -146,9 +143,10 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
         {!drafts.length && <p>No emails awaiting review.</p>}
         {drafts.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{data.events.find(event => event.key === row.event)?.label} · {row.status}</small>{row.failure && <p className={styles.error}>{row.failure}</p>}</div><button className="admin-action" disabled={busy || row.status === "sending"} onClick={() => void review(row._id)}>{row.status === "failed" ? "Review / retry" : row.status === "sending" ? "Sending…" : "Review email"}</button></article>)}
       </section>
+      <EmailOutbox key={application} application={application} revision={revision} />
       <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><label>Status <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>{["all", "pending", "sent", "skipped", "failed", "expired"].map(value => <option key={value}>{value}</option>)}</select></label></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
         {!history.length && <p>No matching email records.</p>}
-        {history.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{status(row)} · {new Date(row.updatedAt).toLocaleString("en-IN")}</small></div></article>)}
+        {history.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{status(row)} · {row.status === "sent" ? `Sent: ${row.sentAt ? formatIndiaDateTime(row.sentAt) : "Time unavailable"}` : `Updated: ${formatIndiaDateTime(row.updatedAt)}`}</small></div></article>)}
       </section>
     </>}
     <dialog ref={dialog} className={styles.dialog} aria-labelledby="email-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) { if (draft) void decide("skip"); else setEditor(null); } }}>

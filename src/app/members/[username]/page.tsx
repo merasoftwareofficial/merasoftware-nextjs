@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import Link from "@/components/link";
 import { notFound } from "next/navigation";
 import { PageHero } from "@/components/page-hero";
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: Params) {
 
 function when(value?: string) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /**

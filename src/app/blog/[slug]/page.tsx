@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import Link from "@/components/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
@@ -71,7 +72,7 @@ export async function generateMetadata({ params }: Params) {
 
 function when(value?: string) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "long", year: "numeric" });
 }
 
 export default async function Article({ params }: Params) {

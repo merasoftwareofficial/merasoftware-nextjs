@@ -1,3 +1,4 @@
+import { formatIndiaDate, formatIndiaDateTime } from "@/lib/date-time";
 import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
@@ -32,7 +33,7 @@ const STATUS_CLASS: Record<BlogStatus, string> = {
 
 function when(value?: string) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /**
@@ -41,14 +42,7 @@ function when(value?: string) {
  */
 function scheduledAt(value?: string) {
   if (!value) return "";
-  return new Date(value).toLocaleString("en-GB", {
-    timeZone: "Asia/Kolkata",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return formatIndiaDateTime(value, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 /** Shown after the editor form sends the user back here, completed with the post's title. */

@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import Link from "@/components/link";
 import { Suspense } from "react";
 import { SearchBox } from "@/components/blog/search-box";
@@ -29,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 function when(value?: string) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "long", year: "numeric" });
 }
 
 export default async function BlogPage({ searchParams }: Search) {

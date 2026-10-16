@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:time": "node --import tsx --test tests/date-time.test.ts tests/server-time.browser.mjs",
+    "test:email": "node --test tests/email-control.test.mjs",
     "test:portfolio": "node --conditions=react-server --import tsx --test tests/portfolio.test.ts",
     "test:portfolio:browser": "node tests/portfolio-browser.mjs",
     "dev": "next dev",

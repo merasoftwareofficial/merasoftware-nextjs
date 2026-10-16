@@ -60,7 +60,7 @@ before(async () => {
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
     stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true}/>);`, loader: 'tsx', resolveDir: root } });
-  database = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
+  database = await MongoMemoryServer.create({ instance: { launchTimeout: Number(process.env.EMAIL_TEST_MONGO_TIMEOUT || 60000) } });
   await mongoose.connect(database.getUri(), { dbName: 'website-email-isolated' });
   [admin, websiteAdmin] = await userModel.create([{ name: 'Portal Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Website Admin', email: 'website-admin@example.test', roles: ['member'] }]);
   const app = express(); app.use(express.json()); app.use(backend('cookie-parser')()); app.use(requestMiddleware); app.use('/api/email-control', backend('./routes/emailControl'));
@@ -77,6 +77,7 @@ before(async () => {
   websiteServer = http.createServer(async (req, res) => {
     try {
       if (req.url === '/panel.js' || req.url === '/panel.css') { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css'); return res.end(readFileSync(path.join(qaDir, req.url.slice(1)))); }
+      if (req.url === '/api/time') { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); return res.end(JSON.stringify({ now: Date.now() })); }
       if (req.url.startsWith('/api/email-control')) {
         const chunks = []; for await (const chunk of req) chunks.push(chunk);
         const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : undefined;
@@ -147,6 +148,7 @@ test('Send delivers reviewed text, stamps delivery and still requires opt-in con
   const result = await request(`/api/email-control/drafts/${draft._id}/decision?application=website`, 'POST', { choice: 'send', subject: 'Approved subject', text: 'Edited without the link' }, websiteAdmin);
   assert.equal(result.data.status, 'sent'); assert.ok(providerCalls.at(-1).body.text.includes(draft.requiredLinks[0]));
   let subscriber = await qa.subscriberRepo.findByEmail('approved@example.test'); assert.ok(subscriber.confirmSentAt); assert.equal(subscriber.emailStatus, 'pending');
+  assert.equal(subscriber.confirmSentAt, result.data.sentAt);
   subscriber = await qa.confirmSubscription(subscriber.token); assert.equal(subscriber.emailStatus, 'active');
   assert.equal((await EmailHistory.findOne({ draftId: draft._id })).status, 'sent');
 });
@@ -181,7 +183,9 @@ test('manage-link request never changes an already-active subscriber', async () 
 test('browser: tabs, sample preview, default selection, editable review, Send and Skip', async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage(); const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('Email panel browser error:', error.message); });
+    const page = await browser.newPage({ timezoneId: 'America/New_York' });
+    await page.addInitScript(() => { const original = Date.now; Date.now = () => original() + 2 * 86400000; });
+    const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('Email panel browser error:', error.message); });
     await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
     const row = page.getByRole('row').filter({ hasText: 'Subscription confirmation' });
     await row.getByRole('button', { name: 'Add template' }).click();
@@ -204,6 +208,17 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' }); await page.getByText('Email sent.', { exact: true }).waitFor();
     assert.ok(providerCalls.at(-1).body.text.includes('Browser one-off edit')); assert.ok(providerCalls.at(-1).body.text.includes(draft.requiredLinks[0]));
+    const outbox = page.getByRole('region', { name: 'Outbox', exact: true });
+    await outbox.getByRole('row').filter({ hasText: 'browser@example.test' }).waitFor();
+    const sentRecord = await EmailHistory.findOne({ draftId: draft._id }).lean();
+    const expectedTime = `${new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(sentRecord.sentAt)} IST`;
+    assert.ok((await outbox.getByRole('row').filter({ hasText: 'browser@example.test' }).innerText()).includes(expectedTime));
+    await outbox.getByLabel('Search recipient or subject').fill('browser@example.test');
+    await outbox.getByRole('button', { name: 'Apply filters' }).click();
+    await outbox.getByText('1 matching mail', { exact: true }).waitFor();
+    await outbox.getByText('Mail details', { exact: true }).click();
+    await outbox.getByText('Template: Browser template', { exact: true }).waitFor();
+    await outbox.getByRole('button', { name: 'Clear filters' }).click();
     const retry = await pending('browser-retry@example.test'); await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.locator('article').filter({ hasText: 'browser-retry@example.test' }).filter({ has: page.getByRole('button', { name: 'Review email', exact: true }) }).getByRole('button', { name: 'Review email', exact: true }).click();
     await page.getByLabel('Subject', { exact: true }).fill('Browser retry approval');

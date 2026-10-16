@@ -1,5 +1,6 @@
 "use client";
 
+import { formatIndiaDate } from "@/lib/date-time";
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
 import { SeoHint, focusSeoField } from "@/components/seo-checks";
@@ -176,7 +177,7 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
         <b>{asset.altText || "Alt text not set"}</b>
         {editing || asset.kind === "video" ? null : <SeoHint checks={mediaSeoChecks(asset).filter(check => check.level !== "ok")} field="image-alt" />}
         <small>{asset.width} × {asset.height} · {asset.format.toUpperCase()} · {Math.round(asset.bytes / 1024)} KB</small>
-        <small>Uploaded {new Date(asset.createdAt).toLocaleDateString()}</small>
+        <small>Uploaded {formatIndiaDate(asset.createdAt)}</small>
         {places.length ? (
           <div className="media-uses">
             <span>Used in:</span>

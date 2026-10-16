@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { useServerTime } from "@/components/use-server-time";
 import Link from "@/components/link";
 import type { Offer } from "@/lib/offers";
 import s from "./variant.module.css";
@@ -10,15 +11,9 @@ function Arrow() {
 }
 
 export function PublicInteraction({ offer, terms, preview = false }: { offer: Offer; terms: string[]; preview?: boolean }) {
-  const [now, setNow] = useState<number | null>(null);
+  const now = useServerTime();
   const dialog = useRef<HTMLDialogElement>(null);
   const end = Date.parse(offer.endsAt);
-  useEffect(() => {
-    const update = () => setNow(Date.now());
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
   const validEnd = Number.isFinite(end);
   const expired = !validEnd || (now !== null && now >= end);
   const ready = now !== null;

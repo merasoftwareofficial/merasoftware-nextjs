@@ -1,3 +1,4 @@
+import { formatIndiaDateTime } from "@/lib/date-time";
 import { z } from "zod";
 import { starterOffer } from "@/components/campaign/public-interaction/offer-content";
 
@@ -54,7 +55,7 @@ export function publishedOffers(saved?: Record<string, Offer>) {
   return resolvedOffers(saved).filter(offer => offer.status === "published");
 }
 export function resolvedTerms(offer: Offer, universal: string[]) {
-  const validity = `Offer valid until ${new Date(offer.endsAt).toLocaleString("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })} IST.`;
+  const validity = `Offer valid until ${formatIndiaDateTime(offer.endsAt, { day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })}.`;
   return [...new Set([
     validity,
     ...(offer.termsMode !== "offer" ? universal : []),

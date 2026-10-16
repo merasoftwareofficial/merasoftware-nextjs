@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 /* eslint @next/next/no-img-element: off -- Cloudinary images are not configured for next/image. */
 import cta from "@/components/campaign/homepage-ctas.module.css";
 import Link from "@/components/link";
@@ -106,7 +107,7 @@ export default async function Home() {
           <h2 className="section-heading">{content.insights.headingBefore} <em>{content.insights.headingEmphasis}</em>{content.insights.headingAfter}</h2>
           <div className="post-grid">{posts.map(post => <Link className="post-card" key={post._id} href={`/blog/${post.slug}`}>
             {post.featuredImage?.url ? <img className="post-art post-art-image home-post-image" src={post.featuredImage.url} alt={post.featuredImage.alt} loading="lazy" /> : <div className="post-art">{(post.category ?? "INSIGHTS").toUpperCase()}<br /><br />{content.insights.fallbackLineOne}<br />{content.insights.fallbackLineTwo}</div>}
-            <div className="post-copy"><span>{post.category ?? "Insights"}</span><h3>{post.title}</h3><div className="post-meta"><span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : ""}</span><span>{post.authorName}</span></div></div>
+            <div className="post-copy"><span>{post.category ?? "Insights"}</span><h3>{post.title}</h3><div className="post-meta"><span>{post.publishedAt ? formatIndiaDate(post.publishedAt, { day: "numeric", month: "long", year: "numeric" }) : ""}</span><span>{post.authorName}</span></div></div>
           </Link>)}</div>
         </div>
       </section>

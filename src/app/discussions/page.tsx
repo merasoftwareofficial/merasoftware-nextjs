@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import Link from "@/components/link";
 import { PageHero } from "@/components/page-hero";
 import { loadPageVisuals } from "@/lib/section-visuals";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 function when(value?: string) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /**

@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    // Upload links issued while the portal ran on this domain still point here; the
+    // browser carries their #token fragment across the redirect to the portal page.
+    const portalUrl = process.env.PORTAL_URL;
+    if (!portalUrl) throw new Error("PORTAL_URL is not set — see src/docs/login.md");
+    return [
+      {
+        source: "/external-upload",
+        destination: `${portalUrl.replace(/\/$/, "")}/external-upload`,
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

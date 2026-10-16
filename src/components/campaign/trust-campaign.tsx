@@ -1,6 +1,7 @@
 /* eslint @next/next/no-img-element: off -- static brand and owner-provided work images. */
 "use client";
-import { useEffect, useState } from "react";
+import { formatIndiaDateTime } from "@/lib/date-time";
+import { useServerTime } from "@/components/use-server-time";
 import { BRAND_LOGO } from "@/lib/brand";
 import { campaignTrust as content } from "@/lib/campaign-trust";
 import { money, packages } from "@/lib/campaign-packages";
@@ -19,17 +20,16 @@ function ContactButtons({ offer = false }: { offer?: boolean }) {
   return <div className={s.actions}><a className={s.primary} href={contactHref(offer)}><Icon type="message"/>{content.whatsapp ? "WhatsApp par baat karein" : "Message karein"}<Icon type="arrow"/></a>{content.phone && <a className={s.secondary} href={`tel:${content.phone.replace(/[^+\d]/g, "")}`}><Icon type="phone"/>Call karein</a>}</div>;
 }
 function Countdown({ end }: { end: string }) {
-  const [remaining, setRemaining] = useState<number | null>(null);
-  useEffect(() => { const tick = () => setRemaining(Math.max(0, Date.parse(end) - Date.now())); tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer); }, [end]);
+  const now = useServerTime();
+  const remaining = now === null ? null : Math.max(0, Date.parse(end) - now);
   if (!Number.isFinite(Date.parse(end))) return <p>Current offer details ke liye contact karein.</p>;
-  if (remaining === null) return <p>Offer deadline: {new Date(end).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p>;
+  if (remaining === null) return <p>Offer deadline: {formatIndiaDateTime(end)}</p>;
   if (!remaining) return <p>Offer end ho chuka hai. Current pricing ke liye contact karein.</p>;
   const total = Math.floor(remaining / 1000);
   return <div className={s.timer} aria-label="Offer time remaining">{[[Math.floor(total / 86400), "Days"], [Math.floor(total / 3600) % 24, "Hours"], [Math.floor(total / 60) % 60, "Minutes"], [total % 60, "Seconds"]].map(([value, label]) => <div key={label}><b>{String(value).padStart(2, "0")}</b><span>{label}</span></div>)}</div>;
 }
 export function TrustCampaign() {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => { const tick = () => setNow(Date.now()); tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer); }, []);
+  const now = useServerTime();
   const offer = content.offer;
   const active = !!offer && now !== null && Number.isFinite(Date.parse(offer.endsAt)) && now < Date.parse(offer.endsAt);
   const price = (id: string) => packages.find(p => p.id === id)!.price;

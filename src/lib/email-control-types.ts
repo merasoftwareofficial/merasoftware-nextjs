@@ -7,10 +7,21 @@ export type EmailDraft = {
   failure?: string; expiresAt: string; createdAt: string;
   reference?: { subscriberId?: string; tokenHash?: string };
 };
-export type EmailHistory = { _id: string; draftId: string; event: string; to: string[]; subject: string; status: string; expiresAt: string; updatedAt: string; failure?: string };
+export type EmailHistory = {
+  _id: string; draftId: string; event: string; to: string[]; subject: string; status: string;
+  expiresAt: string; updatedAt: string; sentAt?: string; failure?: string;
+  sender?: string; templateName?: string; source?: string; providerId?: string;
+  attemptCount?: number; lastAttemptAt?: string;
+  attempts?: { at: string; status: string; failure?: string }[];
+};
+export type EmailOutboxData = {
+  rows: EmailHistory[]; total: number; page: number; pageSize: number; pages: number;
+  summary: { sent: number; todaySent: number; sentRecipients: number; failed: number; sending: number };
+  serverNow: number;
+};
 export type EmailControlData = {
   application: Application;
   events: { key: string; section: string; label: string; application: Application }[];
   policies: { event: string; mode: "review" | "off"; defaultTemplate: string | null }[];
-  templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false;
+  templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false; serverNow: number;
 };

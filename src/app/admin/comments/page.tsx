@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
@@ -17,7 +18,7 @@ const FILTERS: { label: string; value: string }[] = [
 ];
 
 function when(value: string) {
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /**

@@ -1,4 +1,5 @@
 "use client";
+import { formatIndiaDateTime } from "@/lib/date-time";
 import { useState } from "react";
 import { useNavigate } from "@/components/loading/navigation";
 export function PortfolioSync() {
@@ -9,7 +10,7 @@ export function PortfolioSync() {
     try {
       const response = await fetch('/api/portfolio/sync', { method, cache: 'no-store' });
       const result = await response.json(); if (!response.ok) throw new Error(result.error);
-      setMessage(method === 'POST' ? 'Sync queued. The running backend worker will deliver the latest data on its next cycle.' : `${result.pending} pending · ${result.failed} retrying · Last delivery: ${result.lastDelivery ? new Date(result.lastDelivery).toLocaleString() : 'None yet'}`);
+      setMessage(method === 'POST' ? 'Sync queued. The running backend worker will deliver the latest data on its next cycle.' : `${result.pending} pending · ${result.failed} retrying · Last delivery: ${result.lastDelivery ? formatIndiaDateTime(result.lastDelivery) : 'None yet'}`);
       router.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Sync unavailable.'); }
     finally { setBusy(false); }

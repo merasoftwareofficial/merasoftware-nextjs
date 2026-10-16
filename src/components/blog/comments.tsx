@@ -1,5 +1,6 @@
 "use client";
 
+import { formatIndiaDate } from "@/lib/date-time";
 /**
  * The comment thread under an article.
  *
@@ -35,7 +36,7 @@ type Props = {
 };
 
 function when(value: string) {
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function Comments({

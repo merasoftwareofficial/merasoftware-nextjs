@@ -1,15 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import Link from "@/components/link";
 import { PublicInteraction } from "@/components/campaign/public-interaction/page-content";
 import { OfferPreview } from "@/components/campaign/offer-preview";
 import { DEFAULT_OFFER, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
 import s from "./offers-manager.module.css";
 
-function toIndiaInput(iso: string) {
-  if (!iso || !Number.isFinite(Date.parse(iso))) return "";
-  return new Date(Date.parse(iso) + 330 * 60000).toISOString().slice(0, 16);
-}
 function Lines({ label, value, change }: { label: string; value: string[]; change: (value: string[]) => void }) {
   return <label className="admin-field"><span>{label}</span><textarea aria-label={label} rows={6} value={value.join("\n")} onChange={event => change(event.target.value.split("\n"))} /><small>One item per line.</small></label>;
 }
@@ -94,7 +91,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         <div className="form-columns">{field("Price-card tagline", "tagline")}{field("Offer badge", "badge")}</div>
         <h3>Prices & expiry</h3><div className={s.prices}>{([ ["Main price (₹)", "mainPrice"], ["Normal discount price (₹)", "discountPrice"], ["Offer price (₹)", "offerPrice"] ] as const).map(([label,key]) => <label className="admin-field" key={key}><span>{label}</span><input type="number" min={0} max={10000000} step="0.01" required value={selected[key]} onChange={e => update(key, Number(e.target.value))} /></label>)}</div>
         {field("Short price description", "priceDescription")}
-        <label className="admin-field"><span>Expires at (India time / IST)</span><input aria-label="Expires at (India time / IST)" type="datetime-local" required value={toIndiaInput(selected.endsAt)} onChange={e => update("endsAt", e.target.value ? `${e.target.value}:59+05:30` : "")} /><small>One fixed deadline. The countdown never resets on refresh.</small></label>
+        <label className="admin-field"><span>Expires at (India time / IST)</span><input aria-label="Expires at (India time / IST)" type="datetime-local" required value={toIndiaInput(selected.endsAt)} onChange={e => update("endsAt", e.target.value ? indiaInputToUtc(e.target.value, true) : "")} /><small>One fixed deadline. The countdown never resets on refresh.</small></label>
         <h3>Enquiry action</h3>{field("CTA label", "ctaLabel")}{field("Contact destination", "contactHref")}<small>Use mailto: for email, tel: for phone, or an HTTPS contact link.</small>
         <h3>Terms & conditions</h3><label className="admin-field"><span>Terms to show</span><select aria-label="Terms to show" value={selected.termsMode} onChange={e => update("termsMode", e.target.value as Offer["termsMode"])}><option value="universal">Universal only</option><option value="offer">Offer-specific only</option><option value="combined">Universal + offer-specific</option></select></label>
         <Lines label="Offer-specific terms" value={selected.terms} change={v => update("terms", v)} /><p>Validity is added automatically from the expiry date.</p>

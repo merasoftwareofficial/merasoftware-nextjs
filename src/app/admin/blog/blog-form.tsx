@@ -1,5 +1,6 @@
 "use client";
 
+import { formatIndiaDateTime, indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useEffect, useRef, useState } from "react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
@@ -52,17 +53,6 @@ function slugify(value: string) {
     .replace(/^-|-$/g, "");
 }
 
-/**
- * A stored UTC time as a datetime-local value in the viewer's own timezone.
- * The input has no timezone, so slicing the ISO string showed UTC as if it
- * were local (5½ hours early in India) and re-saving shifted it further.
- */
-function localInput(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-}
-
 function draftFrom(blog?: Blog): Draft {
   return {
     title: blog?.title ?? "",
@@ -84,7 +74,7 @@ function draftFrom(blog?: Blog): Draft {
     comments: blog?.comments ?? "default",
     showViews: blog?.showViews ?? "default",
     sharing: blog?.sharing ?? "default",
-    scheduledFor: localInput(blog?.scheduledFor),
+    scheduledFor: toIndiaInput(blog?.scheduledFor),
     faqs: blog?.faqs ?? [],
   };
 }
@@ -657,7 +647,7 @@ export function BlogForm({
         <section className="admin-seo">
           <h2>Schedule</h2>
           <label className="admin-field">
-            <span>Publish at (your local time)</span>
+            <span>Publish at (India time / IST)</span>
             <input type="datetime-local" value={draft.scheduledFor} onChange={event => set("scheduledFor", event.target.value)} />
           </label>
         </section>
@@ -706,7 +696,7 @@ export function BlogForm({
                 <dt>Visibility</dt><dd>{draft.visibility}</dd>
                 <dt>Comments</dt><dd>{commentsSummary}</dd>
                 <dt>Featured image</dt><dd>{draft.imageUrl ? draft.imageAlt || "Alt text is missing" : "No featured image selected"}</dd>
-                <dt>Publication</dt><dd>{!reviewAction ? `Current status: ${status}` : reviewAction.action === "schedule" ? `Scheduled for ${new Date(draft.scheduledFor).toLocaleString()}` : status === "scheduled" && reviewAction.action === "save-draft" ? `Keeps the saved schedule: ${blog?.scheduledFor ? new Date(blog.scheduledFor).toLocaleString() : "scheduled"}` : status === "published" ? "Updates the live article immediately" : "Publish makes this article live immediately"}</dd>
+                <dt>Publication</dt><dd>{!reviewAction ? `Current status: ${status}` : reviewAction.action === "schedule" ? `Scheduled for ${formatIndiaDateTime(indiaInputToUtc(draft.scheduledFor))}` : status === "scheduled" && reviewAction.action === "save-draft" ? `Keeps the saved schedule: ${blog?.scheduledFor ? formatIndiaDateTime(blog.scheduledFor) : "scheduled"}` : status === "published" ? "Updates the live article immediately" : "Publish makes this article live immediately"}</dd>
               </dl>
             </details>
             {briefWarnings.length > 0 ? <p className="form-error">Review these possible instructions in the reader preview: {briefWarnings.join(", ")}. Nothing is removed automatically.</p> : null}
@@ -749,7 +739,7 @@ export function BlogForm({
                 className="admin-button secondary"
                 type="button"
                 disabled={busy}
-                onClick={() => runAction("schedule", { scheduledFor: new Date(draft.scheduledFor).toISOString() })}
+                onClick={() => runAction("schedule", { scheduledFor: indiaInputToUtc(draft.scheduledFor) })}
               >
                 Schedule
               </button>

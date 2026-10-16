@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import { BlogManagementNav } from "@/components/blog-management-nav";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
@@ -75,11 +76,7 @@ export default async function ReviewQueue() {
                   <h2>{post.title}</h2>
                   <p className="review-by">
                     {post.authorName} · {readingTime(post.content)} · submitted{" "}
-                    {new Date(post.updatedAt).toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    {formatIndiaDate(post.updatedAt, { day: "numeric", month: "short", year: "numeric" })}
                   </p>
                 </div>
                 <Link className="admin-action" href={`/blog/${post.slug}`} target="_blank">

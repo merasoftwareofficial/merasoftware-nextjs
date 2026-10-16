@@ -4,6 +4,7 @@
  */
 
 import { createHmac } from "node:crypto";
+import { indiaDayKey } from "@/lib/date-time";
 import { atLeast } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import type { Blog, Settings, User } from "@/lib/repo";
@@ -43,7 +44,7 @@ export function visitorKey(ip: string, userAgent: string, blogId: string, scope?
 /** Calendar day in India time (YYYY-MM-DD), `daysAgo` days before now. */
 export function dayKey(daysAgo = 0) {
   const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(date);
+  return indiaDayKey(date);
 }
 
 /** Is the view count shown to readers? The post's own choice wins over the site setting. */

@@ -1,3 +1,4 @@
+import { formatIndiaDate } from "@/lib/date-time";
 import Link from "@/components/link";
 import { redirect } from "next/navigation";
 import { PageHero } from "@/components/page-hero";
@@ -22,7 +23,7 @@ const STATUS_LABEL: Record<BlogStatus, string> = {
 
 function when(value?: string) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatIndiaDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Where the author edits this post: members through the community form, official posts in the panel. */

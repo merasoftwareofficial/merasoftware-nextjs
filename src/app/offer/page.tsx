@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { settingsRepo } from "@/lib/repo";
 import { publishedOffers, DEFAULT_OFFER_LISTING } from "@/lib/offers";
-import { OfferPreview } from "@/components/campaign/offer-preview";
+import { OfferBadge, OfferPreview } from "@/components/campaign/offer-preview";
 import s from "./offers.module.css";
 
 export const metadata: Metadata = {
@@ -30,7 +30,7 @@ export default async function OffersPage() {
           {offers.map(offer => <Link className={s.card} href={`/offer/${offer.slug}`} key={offer.slug}>
             <OfferPreview offer={offer} />
             <div className={s.content}>
-              <span className={s.label}>{Date.now() >= Date.parse(offer.endsAt) ? "Offer ended" : offer.badge}</span>
+              <span className={s.label}><OfferBadge offer={offer} /></span>
               <h2>{offer.title}</h2>
               <p>{offer.description}</p>
               <span className={s.action}>View offer <span aria-hidden="true">→</span></span>

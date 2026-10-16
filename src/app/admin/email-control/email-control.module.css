@@ -18,6 +18,14 @@
 .actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; }
 .actions button:not([class]) { border:1px solid var(--line, #cbd0d4); background:transparent; color:inherit; padding:9px 13px; border-radius:7px; cursor:pointer; }
 .section { display:grid; gap:12px; margin-top:10px; }
+.summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin:0; }
+.summary div { padding:16px; border:1px solid var(--line, #cbd0d4); border-radius:9px; }
+.summary dt { font-size:13px; opacity:.75; }
+.summary dd { font-size:24px; font-weight:650; margin:6px 0 0; }
+.filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+.filters label { display:grid; gap:6px; font-size:13px; }
+.filters input,.filters select { max-width:100%; padding:9px; border:1px solid var(--line, #cbd0d4); border-radius:6px; color:inherit; background:var(--surface, #fff); }
+.filters input:focus-visible,.filters select:focus-visible { outline:2px solid #377c63; outline-offset:3px; }
 .card { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:16px; border:1px solid var(--line, #cbd0d4); border-radius:9px; }
 .card p { margin:5px 0; overflow-wrap:anywhere; }
 .card small { opacity:.75; }
