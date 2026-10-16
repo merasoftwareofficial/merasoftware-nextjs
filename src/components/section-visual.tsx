@@ -1,6 +1,8 @@
 /* eslint @next/next/no-img-element: off -- Cloudinary and transparent artwork use their original URLs. */
 import { cloudinaryVideoPoster } from "@/lib/cloudinary-url";
 import type { VisualSlotData } from "@/lib/section-visuals";
+import { mediaGeometry, resolveCrop } from "@/lib/visual-layout";
+import "@/app/visual-layout.css";
 
 function Pattern({ variant, intensity }: { variant: string; intensity: number }) {
   const shared = { fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -28,16 +30,33 @@ function Pattern({ variant, intensity }: { variant: string; intensity: number })
   </svg>;
 }
 
-export function SectionVisual({ data, className = "", label }: { data?: VisualSlotData; className?: string; label?: string }) {
+export function SectionVisual({ data, className = "", label, previewDevice, children }: { data?: VisualSlotData; className?: string; label?: string; previewDevice?: "desktop" | "mobile"; children?: React.ReactNode }) {
   if (!data) return null;
   const { config, asset } = data;
   const showMedia = config.mode !== "pattern" && !!asset;
   const showPattern = config.mode !== "media" || !asset;
   const both = showMedia && showPattern;
   const position = `${config.focalX}% ${config.focalY}%`;
-  const sourceFrame = showMedia && config.frameShape === "source" && !!asset && asset.width > 0 && asset.height > 0;
+  const sourceFrame = !config.frame && showMedia && config.frameShape === "source" && !!asset && asset.width > 0 && asset.height > 0;
   const frameRatio = config.frameShape === "square" ? "1 / 1" : sourceFrame ? `${asset.width} / ${asset.height}` : undefined;
-  const frameStyle = frameRatio ? { aspectRatio: frameRatio } : undefined;
+  const frameStyle = config.frame ? undefined : frameRatio ? { aspectRatio: frameRatio } : undefined;
+  const frame = config.frame;
+  const mobile = frame?.mobile ?? frame;
+  const stackStyle = frame ? {
+    "--visual-width": `${frame.width}px`, "--visual-ratio": `${frame.width} / ${frame.height}`,
+    "--visual-mobile-width": `${mobile!.width}px`, "--visual-mobile-ratio": `${mobile!.width} / ${mobile!.height}`,
+    "--visual-radius": `${frame.radius}px`,
+  } as React.CSSProperties : undefined;
+  const mediaStyle = frame && asset ? (() => {
+    const desktopGeometry = mediaGeometry(frame, asset, config.fit, resolveCrop(config, frame, asset));
+    const mobileGeometry = mediaGeometry(mobile!, asset, config.fit, resolveCrop(config, mobile!, asset));
+    return {
+      "--media-width": `${desktopGeometry.width / frame.width * 100}%`, "--media-height": `${desktopGeometry.height / frame.height * 100}%`,
+      "--media-left": `${50 + desktopGeometry.x}%`, "--media-top": `${50 + desktopGeometry.y}%`,
+      "--media-mobile-width": `${mobileGeometry.width / mobile!.width * 100}%`, "--media-mobile-height": `${mobileGeometry.height / mobile!.height * 100}%`,
+      "--media-mobile-left": `${50 + mobileGeometry.x}%`, "--media-mobile-top": `${50 + mobileGeometry.y}%`,
+    } as React.CSSProperties;
+  })() : undefined;
   const card = config.card;
   const callout = card?.enabled && (card.eyebrow || card.title || card.body || card.indexText) ? <aside className={`visual-callout ${card.placement === "overlay" ? "is-overlay" : "is-below"}`} style={{ "--callout-bg": card.background, "--callout-fg": card.foreground, "--callout-accent": card.accent } as React.CSSProperties}>
     {card.eyebrow ? <span className="visual-callout-eyebrow">{card.eyebrow}</span> : null}
@@ -45,12 +64,13 @@ export function SectionVisual({ data, className = "", label }: { data?: VisualSl
     {card.title ? <h3>{card.title}</h3> : null}
     {card.body ? <p>{card.body}</p> : null}
   </aside> : null;
-  return <div className={`section-visual-stack ${className}`}>
+  return <div className={`section-visual-stack ${className}`} data-custom-frame={frame ? "true" : undefined} data-device={previewDevice} style={stackStyle}>
     <div className={`section-visual ${both ? "section-visual-both" : ""} ${sourceFrame ? "section-visual-source" : ""}`} aria-label={label} style={frameStyle}>
     {showPattern ? <Pattern variant={config.pattern} intensity={config.intensity} /> : null}
     {showMedia && asset ? asset.kind === "video"
-      ? <video className="section-visual-media" src={asset.url} poster={cloudinaryVideoPoster(asset.url, 900)} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={{ objectFit: sourceFrame ? "contain" : config.fit, objectPosition: position, ...(sourceFrame ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
-      : <img className="section-visual-media" src={asset.url} alt={config.alt} loading="lazy" style={{ objectFit: config.fit, objectPosition: position }} /> : null}
+      ? <video className={`section-visual-media${mediaStyle ? " is-cropped" : ""}`} src={asset.url} poster={cloudinaryVideoPoster(asset.url, 900)} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={mediaStyle ?? { objectFit: sourceFrame ? "contain" : config.fit, objectPosition: position, ...(sourceFrame ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
+      : <img className={`section-visual-media${mediaStyle ? " is-cropped" : ""}`} src={asset.url} alt={config.alt} loading="lazy" draggable={false} style={mediaStyle ?? { objectFit: config.fit, objectPosition: position }} /> : null}
+    {children}
     {card?.placement === "overlay" ? callout : null}
     </div>
     {card?.placement === "below" ? callout : null}

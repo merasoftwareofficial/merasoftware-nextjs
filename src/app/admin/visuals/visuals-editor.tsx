@@ -2,20 +2,20 @@
 
 import { useState } from "react";
 import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
-import { SectionVisual } from "@/components/section-visual";
+import { VisualFrameEditor } from "./visual-frame-editor";
+import { DEFAULT_CROP, recommendedFrame, resolveFrame } from "@/lib/visual-layout";
 import { VISUAL_SLOTS, defaultVisual, slotInfo, type VisualSlotId, type VisualSlotInfo } from "@/lib/visual-slots";
 import { VISUAL_PATTERN_DETAILS, VISUAL_PATTERN_IDS } from "@/lib/visual-patterns";
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
 
 type Configs = Record<string, SectionVisualConfig>;
 
-export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_SLOTS], onChange, onAssetSelected }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string; slots?: VisualSlotInfo[]; onChange?: (configs: Configs) => void; onAssetSelected?: (asset: MediaAsset) => void }) {
+export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_SLOTS], onChange, onAssetSelected, onSlotSelected }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string; slots?: VisualSlotInfo[]; onChange?: (configs: Configs) => void; onAssetSelected?: (asset: MediaAsset) => void; onSlotSelected?: (slot: string) => void }) {
   const [selected, setSelected] = useState<VisualSlotId>(() => (slots.find(item => item.id === focusSlot)?.id ?? slots[0].id) as VisualSlotId);
   const [configs, setConfigs] = useState<Configs>(initial);
   const [saved, setSaved] = useState<Configs>(initial);
   const [library, setLibrary] = useState(assets);
   const [chooser, setChooser] = useState(false);
-  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -34,7 +34,7 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
 
   function select(next: VisualSlotId) {
     if (next === selected) return;
-    if (onChange) { setSelected(next); setError(""); setMessage(""); return; }
+    if (onChange) { setSelected(next); onSlotSelected?.(next); setError(""); setMessage(""); return; }
     if (dirty && !window.confirm("Discard unsaved changes to this visual?")) return;
     setConfigs(current => ({ ...current, [selected]: saved[selected] ?? defaultVisual(selected) }));
     setSelected(next);
@@ -64,14 +64,9 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
     </aside>
     <section className="admin-form visuals-fields" aria-labelledby="visuals-title">
       <h2 id="visuals-title">{slot.page} → {slot.label}</h2>
-      <p className="field-hint">The frame is transparent. Choose a pattern, media, or both. With no media, the pattern fills the space.</p>
-      <label className="admin-field"><span>Frame size</span><select aria-label="Frame size" value={config.frameShape ?? "slot"} onChange={event => update({ frameShape: event.target.value as NonNullable<SectionVisualConfig["frameShape"]> })}><option value="slot">Current section frame</option><option value="square">Square frame</option><option value="source" disabled={config.mode === "pattern" || !asset?.width || !asset.height || (selected === "home.hero" && asset.kind !== "video")}>Original media proportions (no crop)</option></select><small className="field-hint">Original proportions use the selected image or video’s width and height.</small></label>
+      <p className="field-hint">Choose media, set the frame size, then adjust its crop. Add a pattern behind the media if needed.</p>
       <div className="visuals-mode" role="group" aria-label="Display mode">
         {(["pattern", "media", "both"] as const).map(mode => <button key={mode} type="button" aria-pressed={config.mode === mode} disabled={mode !== "pattern" && !asset} onClick={() => update({ mode })}>{mode === "both" ? "Pattern + media" : mode === "media" ? "Media only" : "Pattern only"}</button>)}
-      </div>
-      <div className="form-columns">
-        <label className="admin-field"><span>Pattern design (20 choices)</span><select value={config.pattern} onChange={event => update({ pattern: event.target.value as SectionVisualConfig["pattern"] })}>{VISUAL_PATTERN_IDS.map(pattern => <option key={pattern} value={pattern === "flow" && config.pattern === "default" ? "default" : pattern}>{VISUAL_PATTERN_DETAILS[pattern].label}</option>)}</select><small className="field-hint">{config.pattern === "default" ? "Ideas and actions working together." : VISUAL_PATTERN_DETAILS[config.pattern].description}</small></label>
-        <label className="admin-field"><span>Pattern intensity: {config.intensity}%</span><input type="range" min="0" max="100" value={config.intensity} onChange={event => update({ intensity: Number(event.target.value) })} /></label>
       </div>
       <div className="visuals-media-actions">
         <button className="admin-button" type="button" onClick={() => setChooser(true)}>{asset ? "Change media" : "Choose image, GIF or MP4"}</button>
@@ -80,12 +75,12 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
       {asset ? <>
         <p className="field-hint">Selected: {asset.format.toUpperCase()} · {asset.width} × {asset.height} px. Videos play muted and loop without controls.</p>
         <label className="admin-field"><span>Accessible description</span><input id="visual-alt" value={config.alt} maxLength={300} onChange={event => update({ alt: event.target.value })} placeholder="Describe the visual" /></label>
-        <div className="form-columns">
-          <label className="admin-field"><span>Fit inside frame</span><select value={config.fit} onChange={event => update({ fit: event.target.value as "contain" | "cover" })}><option value="contain">Fit whole media (transparent artwork)</option><option value="cover">Fill and crop (photos or video)</option></select></label>
-          <label className="admin-field"><span>Horizontal position: {config.focalX}%</span><input type="range" min="0" max="100" value={config.focalX} onChange={event => update({ focalX: Number(event.target.value) })} /></label>
-          <label className="admin-field"><span>Vertical position: {config.focalY}%</span><input type="range" min="0" max="100" value={config.focalY} onChange={event => update({ focalY: Number(event.target.value) })} /></label>
-        </div>
       </> : null}
+      <VisualFrameEditor key={selected} config={config} asset={asset} slotId={selected} label={slot.label} update={update} />
+      {config.mode !== "media" ? <div className="form-columns">
+        <label className="admin-field"><span>Pattern design (20 choices)</span><select value={config.pattern} onChange={event => update({ pattern: event.target.value as SectionVisualConfig["pattern"] })}>{VISUAL_PATTERN_IDS.map(pattern => <option key={pattern} value={pattern === "flow" && config.pattern === "default" ? "default" : pattern}>{VISUAL_PATTERN_DETAILS[pattern].label}</option>)}</select><small className="field-hint">{config.pattern === "default" ? "Ideas and actions working together." : VISUAL_PATTERN_DETAILS[config.pattern].description}</small></label>
+        <label className="admin-field"><span>Pattern intensity: {config.intensity}%</span><input type="range" min="0" max="100" value={config.intensity} onChange={event => update({ intensity: Number(event.target.value) })} /></label>
+      </div> : null}
       <fieldset className="admin-field visual-card-editor"><legend>Optional information card</legend>
         <label><input type="checkbox" checked={card.enabled} onChange={event => update({ card: { ...card, enabled: event.target.checked } })} /> Show a card with this section</label>
         {card.enabled ? <>
@@ -99,8 +94,6 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
           <div className="form-columns visual-card-colors">{([ ["background", "Card background"], ["foreground", "Text"], ["accent", "Accent"] ] as const).map(([key, label]) => <label className="admin-field" key={key}><span>{label}</span><input type="color" value={card[key]} onChange={event => update({ card: { ...card, [key]: event.target.value } })} /></label>)}</div>
         </> : null}
       </fieldset>
-      <div className="homepage-device-switch"><button type="button" aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>Desktop preview</button><button type="button" aria-pressed={device === "mobile"} onClick={() => setDevice("mobile")}>Mobile preview</button></div>
-      <div className={`visuals-preview ${device}`} style={{ aspectRatio: config.frameShape === "square" ? "1 / 1" : config.frameShape === "source" && asset?.width && asset.height ? `${asset.width} / ${asset.height}` : slot.ratio }}><SectionVisual data={{ config, asset }} label={slot.label} /></div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
       {onChange ? <p className="field-hint">Visual changes are saved with the section’s Save changes button.</p> : <button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save visual"}</button>}
@@ -110,7 +103,7 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
       if (choice.kind !== "library") return;
       onAssetSelected?.(choice.asset);
       setLibrary(current => [choice.asset, ...current.filter(item => item._id !== choice.asset._id)]);
-      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "both", fit: choice.asset.kind === "video" ? "cover" : "contain", focalX: 50, focalY: 50, ...(config.frameShape === "source" && (!choice.asset.width || !choice.asset.height) ? { frameShape: "slot" as const } : {}) });
+      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "media", fit: "cover", focalX: 50, focalY: 50, frame: config.frame ?? (config.frameShape === "source" ? recommendedFrame(selected) : resolveFrame(config, selected)), frameShape: "slot", crop: { ...DEFAULT_CROP } });
     }} /> : null}
   </div>;
 }

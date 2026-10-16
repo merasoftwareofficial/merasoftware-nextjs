@@ -641,6 +641,13 @@ export interface SectionVisualConfig {
   focalY: number;
   alt: string;
   frameShape?: "slot" | "square" | "source";
+  frame?: {
+    width: number;
+    height: number;
+    radius: number;
+    mobile?: { width: number; height: number };
+  };
+  crop?: { zoom: number; x: number; y: number; free: boolean };
   card?: {
     enabled: boolean;
     placement: "overlay" | "below";

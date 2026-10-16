@@ -54,6 +54,7 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [visualFocus, setVisualFocus] = useState<string>();
   const slots = sectionVisualOptions(page, section, content);
   const activeVisuals = Object.fromEntries(Object.entries(visuals).filter(([slot]) => slots.some(item => item.id === slot)));
   const dirty = JSON.stringify({ content, visuals: activeVisuals }) !== saved;
@@ -82,7 +83,7 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
   }
   return <div className={s.root}>
     <fieldset disabled={busy} className={`admin-form ${s.fields}`}><legend>Section content</legend><Field name="section" value={content} links={links} onChange={next => { setContent(next as Fields); setMessage(""); }} /></fieldset>
-    {slots.length ? <fieldset disabled={busy} className={s.visuals}><legend>Section visuals</legend><p>Choose media and frame settings below. Content and visuals save together.</p><VisualsEditor key={`${slots.map(slot => slot.id).join(",")}-${revision}`} initial={activeVisuals} slots={slots} assets={library} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(next); setMessage(""); }} /></fieldset> : null}
+    {slots.length ? <fieldset disabled={busy} className={s.visuals}><legend>Section visuals</legend><p>Choose media and frame settings below. Content and visuals save together.</p><VisualsEditor key={`${slots.map(slot => slot.id).join(",")}-${revision}`} initial={activeVisuals} slots={slots} assets={library} focusSlot={visualFocus} onSlotSelected={setVisualFocus} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(next); setMessage(""); }} /></fieldset> : null}
     <div className={s.saveBar}>{error ? <p className="form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}<button type="button" className="admin-button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save changes"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { if (!window.confirm("Discard unsaved changes to this section?")) return; const previous = JSON.parse(saved); setContent(previous.content); setVisuals(previous.visuals); setRevision(current => current + 1); setError(""); setMessage(""); }}>Discard changes</button><span>{dirty ? "Unsaved changes" : "All changes saved"}</span></div>
   </div>;
 }

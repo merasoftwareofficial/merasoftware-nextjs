@@ -1,4 +1,5 @@
 import type { SectionVisualConfig } from "@/lib/repo/types";
+import { isPersonVisual, recommendedFrame } from "@/lib/visual-layout";
 
 export const VISUAL_SLOTS = [
   { id: "home.hero", page: "Home", label: "Hero", pattern: "orbit", ratio: "4 / 3" },
@@ -46,7 +47,7 @@ export function slotInfo(id: string): VisualSlotInfo | undefined {
 
 export function defaultVisual(id: VisualSlotId): SectionVisualConfig {
   const slot = slotInfo(id)!;
-  return { mode: "pattern", pattern: slot.pattern, intensity: 65, fit: "contain", focalX: 50, focalY: 50, alt: "", ...(id === "home.hero" ? { frameShape: "slot" as const } : {}), card: { enabled: false, placement: "overlay", eyebrow: "", title: "", body: "", indexText: "", background: "#00243d", foreground: "#ffffff", accent: "#66e4ee" } };
+  return { mode: "pattern", pattern: slot.pattern, intensity: 65, fit: isPersonVisual(id) ? "cover" : "contain", focalX: 50, focalY: 50, alt: "", ...(isPersonVisual(id) ? { frame: recommendedFrame(id) } : {}), ...(id === "home.hero" ? { frameShape: "slot" as const } : {}), card: { enabled: false, placement: "overlay", eyebrow: "", title: "", body: "", indexText: "", background: "#00243d", foreground: "#ffffff", accent: "#66e4ee" } };
 }
 
 

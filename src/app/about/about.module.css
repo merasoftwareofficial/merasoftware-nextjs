@@ -24,7 +24,7 @@
 .heading{max-width:1000px;margin-bottom:36px}
 .leadership{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px}
 .leadership article{min-width:0;border-top:1px solid var(--brand-line);padding-top:24px}
-.personFrame{width:112px;margin-bottom:20px;background:var(--brand-paper)}
+.personFrame{width:100%;margin-bottom:20px;background:var(--brand-paper)}
 .personFrame :global(.section-visual){aspect-ratio:1;padding:8px}
 .personFrame:not(:has(:global(.section-visual-media))) :global(.section-visual-pattern){opacity:.15!important}
 .initials{position:absolute;inset:0;display:grid;place-items:center;font-family:Georgia,serif;font-size:40px;color:var(--brand-navy);pointer-events:none}
@@ -57,3 +57,12 @@
 .purpose .copy:last-child{margin-bottom:0}
 .cta .copy{margin:20px 0 0;max-width:560px}
 @media(max-width:600px){.purpose{padding:44px 0}}
+
+/* The shared visual owns custom dimensions; wrappers provide section context. */
+.frame:has(>:global(.section-visual-stack[data-custom-frame])){width:100%;max-width:none;overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
+.frame>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual){outline:1px solid var(--brand-line);outline-offset:-1px;background:var(--brand-surface)}
+.heroFrame>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual),.personFrame>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual){background:var(--brand-paper)}
+.dark .frame>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual){background:var(--brand-dark-card);outline-color:var(--brand-dark-line)}
+.projectImage:has(>:global(.section-visual-stack[data-custom-frame])){border:0;border-radius:0;background:transparent;overflow:visible}
+.projectImage>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual){outline:1px solid var(--brand-line);outline-offset:-1px;background:var(--brand-paper)}
+@media(max-width:600px){.leadership article{display:block}.personFrame{width:100%;margin:0 0 20px}.personFrame>:global(.section-visual-stack[data-custom-frame]){margin-inline:auto}.leadership h3{font-size:22px}.role{margin-bottom:16px}}

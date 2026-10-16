@@ -37,6 +37,8 @@
 .serviceLink{display:flex;align-items:center;justify-content:space-between;gap:20px;font-size:13px;line-height:1.6;font-weight:700;color:var(--brand-link)}
 .serviceMedia{max-width:240px;border:1px solid var(--brand-line);border-radius:8px;overflow:hidden;margin-bottom:18px}
 .page :is(a,summary):focus-visible{outline:3px solid var(--brand-link);outline-offset:4px}
+.heroVisual:has(>:global(.section-visual-stack[data-custom-frame])),.serviceMedia:has(>:global(.section-visual-stack[data-custom-frame])){width:100%;max-width:none;border:0;border-radius:0;background:transparent;overflow:visible}
+.heroVisual>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual),.serviceMedia>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual){outline:1px solid var(--brand-line);outline-offset:-1px;background:var(--brand-paper)}
 .next{padding:30px 0;background:var(--brand-paper);border-top:1px solid var(--brand-line)}
 .nextInner{display:flex;align-items:center;justify-content:space-between;gap:28px}
 .next h2{font-size:24px;line-height:1.3;margin:0 0 8px}

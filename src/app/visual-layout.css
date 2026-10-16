@@ -1,0 +1,37 @@
+/* Explicit frames share their layout on public pages and in the crop editor. */
+div.section-visual-stack[data-custom-frame="true"]{width:min(100%,var(--visual-width));max-width:100%;height:auto;min-width:0}
+.section-visual-stack[data-custom-frame="true"]>.section-visual{width:100%;height:auto;aspect-ratio:var(--visual-ratio);padding:0;border-radius:var(--visual-radius);isolation:isolate}
+.section-visual-stack[data-custom-frame="true"]>.section-visual>.section-visual-media.is-cropped{position:absolute;display:block;width:var(--media-width);height:var(--media-height);left:var(--media-left);top:var(--media-top);max-width:none;max-height:none;aspect-ratio:auto;transform:translate(-50%,-50%);object-fit:fill;user-select:none;pointer-events:none}
+.section-visual-stack[data-custom-frame="true"][data-device="mobile"]{width:min(100%,var(--visual-mobile-width))}
+.section-visual-stack[data-custom-frame="true"][data-device="mobile"]>.section-visual{aspect-ratio:var(--visual-mobile-ratio)}
+.section-visual-stack[data-custom-frame="true"][data-device="mobile"]>.section-visual>.section-visual-media.is-cropped{width:var(--media-mobile-width);height:var(--media-mobile-height);left:var(--media-mobile-left);top:var(--media-mobile-top)}
+@media(max-width:600px){
+  .section-visual-stack[data-custom-frame="true"]:not([data-device="desktop"]){width:min(100%,var(--visual-mobile-width))}
+  .section-visual-stack[data-custom-frame="true"]:not([data-device="desktop"])>.section-visual{aspect-ratio:var(--visual-mobile-ratio)}
+  .section-visual-stack[data-custom-frame="true"]:not([data-device="desktop"])>.section-visual>.section-visual-media.is-cropped{width:var(--media-mobile-width);height:var(--media-mobile-height);left:var(--media-mobile-left);top:var(--media-mobile-top)}
+}
+.hero-art.visual-home-hero[data-frame-shape="custom"]{width:100%;height:auto;max-height:none;aspect-ratio:auto}
+.hero-art.visual-home-hero[data-frame-shape="custom"]>.section-visual-stack[data-custom-frame="true"]{width:min(100%,var(--visual-width));height:auto;margin-left:auto}
+@media(max-width:600px){.hero-art.visual-home-hero[data-frame-shape="custom"]>.section-visual-stack[data-custom-frame="true"]{width:min(100%,var(--visual-mobile-width))}}
+.visual-frame-editor{border:1px solid var(--line);padding:20px;margin:20px 0 28px;border-radius:10px;min-width:0}
+.visual-frame-editor>legend{padding:0 8px;font-weight:700}
+.visual-frame-workspace{display:grid;grid-template-columns:minmax(190px,.8fr) minmax(0,1fr);gap:24px;align-items:start}
+.visual-frame-controls{display:flex;flex-direction:column;gap:16px;min-width:0}
+.visual-frame-controls .form-columns{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.visual-frame-controls .admin-field{margin:0;min-width:0}
+.visual-frame-controls input,.visual-frame-controls select{min-width:0;max-width:100%}
+.visual-check{display:flex;align-items:center;gap:8px;font-size:13px;line-height:1.5;margin:8px 0}
+.visual-check input{flex:none;width:auto}
+.visual-preview-column{min-width:0;position:sticky;top:20px}
+.visual-frame-editor .visuals-preview{width:100%;max-width:100%;height:auto;min-height:40px;margin:0 0 12px;background-color:var(--paper);background-image:linear-gradient(45deg,#8881 25%,transparent 25%),linear-gradient(-45deg,#8881 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#8881 75%),linear-gradient(-45deg,transparent 75%,#8881 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+.visual-frame-editor .visuals-preview.mobile{max-width:342px}
+.visual-frame-editor .visuals-preview>.section-visual-stack{height:auto}
+.visual-frame-editor .visuals-preview.is-draggable{cursor:grab;touch-action:none}
+.visual-frame-editor .visuals-preview.is-draggable:active{cursor:grabbing}
+@media(max-width:1100px){
+  .visual-frame-workspace{display:flex;flex-direction:column}
+  .visual-frame-controls{width:100%}
+  .visual-preview-column{order:-1;position:sticky;top:8px;z-index:3;width:100%;padding:8px 0;background:var(--paper)}
+  .visual-frame-editor .visuals-preview{max-width:min(100%,calc(min(36vh,320px) * var(--preview-ratio)))}
+  .visual-frame-editor{padding:14px}
+}

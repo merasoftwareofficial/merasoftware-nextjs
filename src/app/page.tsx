@@ -52,7 +52,7 @@ export default async function Home() {
               <Link className="text-link" href={content.hero.secondaryHref}>{content.hero.secondaryLabel} <span>↓</span></Link>
             </div>
           </div>
-          <div className={`hero-art visual-home-hero${heroVisual?.asset ? " has-image" : ""}`} data-frame-shape={heroVideo ? "source" : heroVisual?.config.frameShape === "square" ? "square" : "slot"} style={heroVideo ? { "--media-ratio": heroVideo.width / heroVideo.height } as React.CSSProperties : undefined}>
+          <div className={`hero-art visual-home-hero${heroVisual?.asset ? " has-image" : ""}`} data-frame-shape={heroVisual?.config.frame ? "custom" : heroVideo ? "source" : heroVisual?.config.frameShape === "square" ? "square" : "slot"} style={heroVideo ? { "--media-ratio": heroVideo.width / heroVideo.height } as React.CSSProperties : undefined}>
             <SectionVisual data={heroVisual} label="Homepage hero artwork" />
           </div>
         </div>

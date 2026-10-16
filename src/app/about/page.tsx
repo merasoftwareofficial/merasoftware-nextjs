@@ -43,7 +43,7 @@ export default async function About() {
     {content.leadership.enabled ? <section className={s.section}><div className="container">
       <div className={s.heading}><p className={s.eyebrow}>{content.leadership.eyebrow}</p><ContentHeading content={content.leadership} /></div>
       <div className={s.leadership}>{content.leadership.members.map(({ id, name, position, role, description }) => <article key={id}>
-        <div className={`${s.frame} ${s.personFrame}`}><SectionVisual data={visuals[memberSlot(id)]} label={`${name} profile`} />{(!visuals[memberSlot(id)]?.asset || visuals[memberSlot(id)]?.config.mode === "pattern") ? <span className={s.initials} aria-hidden="true">{name.split(" ").map(part => part[0]).join("")}</span> : null}</div>
+        <div className={`${s.frame} ${s.personFrame}`}><SectionVisual data={visuals[memberSlot(id)]} label={`${name} profile`}>{(!visuals[memberSlot(id)]?.asset || visuals[memberSlot(id)]?.config.mode === "pattern") ? <span className={s.initials} aria-hidden="true">{name.split(" ").map(part => part[0]).join("")}</span> : null}</SectionVisual></div>
         <div><p className={s.position}>{position}</p><h3>{name}</h3><p className={s.role}>{role}</p></div><p className={s.bio}>{description}</p>
       </article>)}</div>
     </div></section> : null}
