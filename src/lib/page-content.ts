@@ -1,7 +1,8 @@
 import { z } from "zod";
 import defaults from "./page-content-defaults.json";
 import type { Settings } from "@/lib/repo/types";
-import { slotInfo, type VisualSlotId } from "@/lib/visual-slots";
+import { sectionSlots } from "@/lib/visual-slots";
+export { memberSlot, projectSlot, serviceSlot } from "@/lib/visual-slots";
 
 const text = (max = 300) => z.string().trim().max(max);
 const id = z.string().regex(/^[a-z0-9-]{1,80}$/, "Use a stable lowercase entry ID.");
@@ -54,27 +55,9 @@ export function resolveAbout(settings: Pick<Settings, "pageContent">): AboutCont
 export function resolveServices(settings: Pick<Settings, "pageContent">): ServicesContent {
   return Object.fromEntries(Object.entries(servicesSchemas).map(([key, schema]) => [key, schema.parse({ ...DEFAULT_SERVICES[key as keyof ServicesContent], ...settings.pageContent?.services?.[key as keyof ServicesContent] })])) as ServicesContent;
 }
-const memberLegacy: Record<string, VisualSlotId> = { jasmeet: "about.jasmeet", sahilpreet: "about.sahilpreet", deep: "about.deep" };
-const serviceLegacy: Record<string, VisualSlotId> = { website: "services.website", apps: "services.apps", software: "services.software", seo: "services.seo", social: "services.social", marketing: "services.marketing" };
-export const memberSlot = (entry: string): VisualSlotId => Object.hasOwn(memberLegacy, entry) ? memberLegacy[entry] : `about.person.${entry}`;
-export const projectSlot = (entry: string): VisualSlotId => `about.project.${entry}`;
-export const serviceSlot = (entry: string): VisualSlotId => Object.hasOwn(serviceLegacy, entry) ? serviceLegacy[entry] : `services.item.${entry}`;
-export function sectionVisualIds(page: ManagedPage, section: string, content: unknown): VisualSlotId[] {
-  if (page === "about") {
-    if (section === "hero") return ["about.hero"];
-    if (section === "approach") return ["about.presence"];
-    if (section === "partnership") return ["about.values"];
-    if (section === "leadership") return (content as AboutContent["leadership"]).members.map(member => memberSlot(member.id));
-    if (section === "work") return (content as AboutContent["work"]).projects.map(project => projectSlot(project.id));
-  } else {
-    if (section === "hero") return ["services.hero"];
-    if (section === "catalogue") return (content as ServicesContent["catalogue"]).groups.flatMap(group => group.items.map(service => serviceSlot(service.id)));
-  }
-  return [];
+export function sectionVisualIds(page: string, section: string, content?: unknown) {
+  return sectionSlots(page, section, content).map(slot => slot.id);
 }
 export function sectionVisualOptions(page: ManagedPage, section: string, content: unknown) {
-  const labels: string[] = section === "leadership" ? (content as AboutContent["leadership"]).members.map(item => item.name)
-    : section === "work" ? (content as AboutContent["work"]).projects.map(item => item.brand)
-    : section === "catalogue" ? (content as ServicesContent["catalogue"]).groups.flatMap(group => group.items.map(item => item.title)) : [];
-  return sectionVisualIds(page, section, content).map((id, index) => ({ ...slotInfo(id)!, label: labels[index] || slotInfo(id)!.label }));
+  return sectionSlots(page, section, content);
 }

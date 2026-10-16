@@ -4,7 +4,8 @@ import { requireRole } from "@/lib/auth";
 import { errorResponse } from "@/lib/api";
 import { mediaRepo, settingsRepo } from "@/lib/repo";
 import { sectionSchema, sectionVisualIds } from "@/lib/page-content";
-import { normaliseVisual, visualSchema } from "@/lib/visual-validation";
+import { visualSchema } from "@/lib/visual-validation";
+import { prepareVisualWrites } from "@/lib/visual-save";
 
 const payloadSchema = z.object({ page: z.enum(["about", "services"]), section: z.string().max(50), content: z.unknown(), visuals: z.record(z.string(), visualSchema).default({}) }).strict();
 export async function PATCH(request: Request) {
@@ -19,10 +20,8 @@ export async function PATCH(request: Request) {
     const allowed = new Set<string>(sectionVisualIds(payload.page, payload.section, content));
     if (Object.keys(payload.visuals).some(slot => !allowed.has(slot))) return NextResponse.json({ error: "Visual is not part of this section." }, { status: 400 });
     const ids = [...new Set(Object.values(payload.visuals).map(config => config.assetId).filter((id): id is string => !!id))];
-    const assets = new Map((await mediaRepo.findByIds(ids)).map(asset => [asset._id, asset]));
-    if (assets.size !== ids.length) return NextResponse.json({ error: "Choose media from the library." }, { status: 400 });
-    for (const config of Object.values(payload.visuals)) normaliseVisual(config, config.assetId ? assets.get(config.assetId) : undefined);
-    await settingsRepo.updatePageSection(payload.page, payload.section, content, payload.visuals);
-    return NextResponse.json({ content, visuals: payload.visuals });
+    const visuals = prepareVisualWrites(payload.visuals, allowed, await mediaRepo.findByIds(ids));
+    await settingsRepo.updatePageSection(payload.page, payload.section, content, visuals);
+    return NextResponse.json({ content, visuals });
   } catch (error) { return errorResponse(error); }
 }

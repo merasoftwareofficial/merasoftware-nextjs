@@ -4,9 +4,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { services } from "@/lib/site-data";
 import { pageMetadata } from "@/lib/page-seo";
-import { loadVisuals } from "@/lib/section-visuals";
+import { loadPageVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
-import type { VisualSlotId } from "@/lib/visual-slots";
+import { sectionSlots } from "@/lib/visual-slots";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -17,10 +17,9 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
   const { slug } = await params;
   const service = services.find(item => item.slug === slug);
   if (!service) notFound();
-  const visualKey = slug === "website-development" ? "service.website" : slug === "seo" ? "service.seo" : "service.marketing";
-  const heroSlot = `${visualKey}.hero` as VisualSlotId;
-  const includedSlot = `${visualKey}.included` as VisualSlotId;
-  const visuals = await loadVisuals([heroSlot, includedSlot]);
+  const heroSlot = sectionSlots(slug, "hero")[0].id;
+  const includedSlot = sectionSlots(slug, "included")[0].id;
+  const visuals = await loadPageVisuals(slug);
   return <><SiteHeader /><main>
     <section className="page-hero"><div className="container visual-page-hero"><div>
       <p className="eyebrow"><i /> {service.eyebrow}</p><h1>{service.title}</h1><p>{service.description}</p>

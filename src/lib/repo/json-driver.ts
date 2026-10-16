@@ -525,6 +525,12 @@ const SETTINGS_DEFAULTS: Omit<Settings, "updatedAt"> = {
 };
 
 const settings: SettingsRepo = {
+  async migrateVisuals(visuals) {
+    const current = { ...SETTINGS_DEFAULTS, ...read<Settings>("settings").find(item => item._id === "site") };
+    const row: Settings = { ...current, sectionVisuals: { ...visuals, ...current.sectionVisuals }, updatedAt: now() };
+    write("settings", [row]);
+    return row;
+  },
   async updatePageSection(page, section, content, visuals) {
     const current = { ...SETTINGS_DEFAULTS, ...read<Settings>("settings").find(item => item._id === "site") };
     const row: Settings = { ...current, pageContent: { ...current.pageContent, [page]: { ...current.pageContent?.[page], [section]: content } }, sectionVisuals: { ...current.sectionVisuals, ...visuals }, updatedAt: now() };
@@ -557,8 +563,8 @@ const settings: SettingsRepo = {
     write("settings", [row]);
     return row;
   },
-  async updateHomepageSection(section, content, images) {
-    const current = await settings.get();
+  async updateHomepageSection(section, content, images, visuals = {}) {
+    const current = { ...SETTINGS_DEFAULTS, ...read<Settings>("settings").find(item => item._id === "site") };
     const nextImages = { ...current.homepageImages };
     for (const slot of Object.keys(images) as (keyof typeof nextImages)[]) {
       const image = images[slot];
@@ -569,6 +575,7 @@ const settings: SettingsRepo = {
       ...current,
       homepageContent: { ...(current.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT), [section]: content },
       homepageImages: nextImages,
+      sectionVisuals: { ...current.sectionVisuals, ...visuals },
       updatedAt: now(),
     };
     write("settings", [row]);

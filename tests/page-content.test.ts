@@ -6,7 +6,10 @@ import path from "node:path";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { DEFAULT_ABOUT, DEFAULT_SERVICES, aboutSchemas, servicesSchemas, resolveAbout, resolveServices, memberSlot, sectionSchema, sectionVisualIds, contentHref } from "../src/lib/page-content";
-import { defaultVisual, slotInfo } from "../src/lib/visual-slots";
+import { defaultVisual, slotInfo, sectionSlots, VISUAL_SLOTS } from "../src/lib/visual-slots";
+import { activeVisualSlots, resolveVisualConfig, visualMigrationPlan, visualSlotsForPage } from "../src/lib/visual-config";
+import { prepareVisualWrites } from "../src/lib/visual-save";
+import { DEFAULT_HOMEPAGE_CONTENT } from "../src/lib/homepage-content";
 import { normaliseVisual, visualSchema } from "../src/lib/visual-validation";
 import { DEFAULT_CROP, mediaGeometry, recommendedFrame, resolveCrop } from "../src/lib/visual-layout";
 import type { DataDriver, MediaAsset } from "../src/lib/repo/types";
@@ -117,4 +120,55 @@ for (const index of [0, 1]) test(`${index === 0 ? "JSON" : "Mongo"}: save/reload
   assert.equal("about" in (saved.sectionVisuals ?? {}), false, "Visual IDs must retain literal dots");
   await repo.updatePageSection("about", "work", { ...DEFAULT_ABOUT.work, projects: [] }, {});
   assert.equal(resolveAbout(await repo.get()).work.projects.length, 0);
+});
+
+test("Registry owns active page/section connections, frames and stable dynamic IDs", () => {
+  assert.equal(new Set(VISUAL_SLOTS.map(slot => slot.id)).size, VISUAL_SLOTS.length);
+  assert.equal(slotInfo("about.technology"), undefined);
+  assert.equal(slotInfo("about.communication"), undefined);
+  for (const slot of VISUAL_SLOTS) {
+    assert.ok(sectionSlots(slot.pageId, slot.section, slot.section === "leadership" ? DEFAULT_ABOUT.leadership : slot.section === "catalogue" ? DEFAULT_SERVICES.catalogue : undefined).some(item => item.id === slot.id));
+    assert.deepEqual(recommendedFrame(slot.id), slot.recommendedFrame);
+  }
+  const settings = { pageContent: { about: { leadership: { ...DEFAULT_ABOUT.leadership, members: [] } } } };
+  assert.equal(activeVisualSlots(settings).some(slot => slot.id === "about.jasmeet"), false);
+  assert.equal(sectionSlots("home", "pointOfView")[0].id, "home.statement");
+  assert.equal(visualSlotsForPage({ pageContent: { about: { hero: { enabled: "invalid" } } } } as never, "contact").length, 2, "Unrelated page content must not affect static visual loading");
+});
+
+test("Shared resolver preserves legacy sources, links and crops; canonical values win", () => {
+  const legacy = { homepageImages: { hero: { assetId: "old", alt: "Legacy alt", focalX: 17, focalY: 81 } } };
+  assert.equal(resolveVisualConfig(legacy, "home.hero").focalX, 17);
+  const source = resolveVisualConfig({}, "services.hero");
+  assert.equal(source.externalMedia?.url, DEFAULT_SERVICES.hero.previewImageUrl);
+  assert.equal(source.previewLink?.href, DEFAULT_SERVICES.hero.previewHref);
+  assert.equal(source.previewLink?.caption, DEFAULT_SERVICES.hero.previewLabel);
+  assert.equal(source.legacyLayout, "services-preview");
+  const canonical = { ...defaultVisual("home.hero"), frame: { width: 300, height: 400, radius: 8 }, crop: { zoom: 2, x: 30, y: -20, free: true } };
+  assert.deepEqual(resolveVisualConfig({ ...legacy, sectionVisuals: { "home.hero": canonical } }, "home.hero").crop, canonical.crop);
+  const plan = visualMigrationPlan(legacy);
+  assert.ok(plan.patches["home.hero"]);
+  assert.equal(visualMigrationPlan({ ...legacy, sectionVisuals: plan.patches }).patches["home.hero"], undefined);
+  const external = prepareVisualWrites({ "services.hero": source }, ["services.hero"], []);
+  assert.equal(external["services.hero"].mode, "media");
+  assert.throws(() => prepareVisualWrites({ "services.hero": source }, ["about.hero"], []));
+  assert.throws(() => prepareVisualWrites({ "services.hero": { ...source, externalMedia: { url: "javascript:alert(1)", width: 0, height: 0 } } }, ["services.hero"], []));
+});
+
+for (const index of [0, 1]) test(`${index === 0 ? "JSON" : "Mongo"}: migration is idempotent and homepage text/visual writes are atomic`, async () => {
+  const repo = drivers[index].settings;
+  const original = { ...defaultVisual("home.hero"), frame: { width: 399, height: 500, radius: 9 }, crop: { zoom: 2.2, x: 30, y: -10, free: true } };
+  await repo.updateVisual("home.hero", original);
+  const patches = { "home.hero": defaultVisual("home.hero"), "services.hero": resolveVisualConfig({}, "services.hero") };
+  await repo.migrateVisuals(patches); await repo.migrateVisuals(patches);
+  assert.deepEqual((await repo.get()).sectionVisuals?.["home.hero"].crop, original.crop);
+  await Promise.all([
+    repo.updateHomepageSection("services", { ...DEFAULT_HOMEPAGE_CONTENT.services, headingBefore: "$literal heading" }, {}, { "home.services": { ...defaultVisual("home.services"), intensity: 23 } }),
+    repo.updateVisual("contact.hero", { ...defaultVisual("contact.hero"), intensity: 71 }),
+  ]);
+  const saved = await repo.get();
+  assert.equal(saved.homepageContent?.services.headingBefore, "$literal heading");
+  assert.equal(saved.sectionVisuals?.["home.services"].intensity, 23);
+  assert.equal(saved.sectionVisuals?.["contact.hero"].intensity, 71);
+  assert.equal(Object.keys(saved.sectionVisuals ?? {}).includes("home.services"), true);
 });

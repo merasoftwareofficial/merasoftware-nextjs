@@ -1,21 +1,21 @@
 import type { MediaAsset, SectionVisualConfig, Settings } from "@/lib/repo/types";
 import { mediaRepo, settingsRepo } from "@/lib/repo";
-import { defaultVisual, type VisualSlotId } from "@/lib/visual-slots";
+import { slotInfo, type VisualSlotId, type VisualSlotInfo } from "@/lib/visual-slots";
+import { externalVisualAsset, resolveVisualConfig, visualSlotsForPage } from "@/lib/visual-config";
 
-export type VisualSlotData = { config: SectionVisualConfig; asset?: MediaAsset };
+export type VisualSlotData = { config: SectionVisualConfig; asset?: MediaAsset; slot?: VisualSlotInfo };
 export type Visuals = Partial<Record<VisualSlotId, VisualSlotData>>;
+
+export async function loadPageVisuals(page: string, existingSettings?: Settings): Promise<Visuals> {
+  const settings = existingSettings ?? await settingsRepo.get();
+  return loadVisuals(visualSlotsForPage(settings, page).map(slot => slot.id), settings);
+}
 
 export async function loadVisuals(ids: VisualSlotId[], existingSettings?: Settings): Promise<Visuals> {
   const settings = existingSettings ?? await settingsRepo.get();
-  const configs = ids.map(id => {
-    const legacy = id === "home.hero" && !settings.sectionVisuals?.[id] ? settings.homepageImages?.hero : undefined;
-    const defaults = defaultVisual(id);
-    const saved = settings.sectionVisuals?.[id];
-    const config: SectionVisualConfig = { ...defaults, ...(legacy ? { mode: "both", assetId: legacy.assetId, alt: legacy.alt, focalX: legacy.focalX, focalY: legacy.focalY, fit: "cover" } as const : {}), ...saved, card: { ...defaults.card!, ...saved?.card } };
-    return { id, config };
-  });
+  const configs = ids.map(id => ({ id, config: resolveVisualConfig(settings, id) }));
   const assetIds = [...new Set(configs.map(item => item.config.assetId).filter((id): id is string => !!id))];
   const assets = new Map((await mediaRepo.findByIds(assetIds)).map(asset => [asset._id, asset]));
-  return Object.fromEntries(configs.map(({ id, config }) => [id, { config, asset: config.assetId ? assets.get(config.assetId) : undefined }])) as Visuals;
+  return Object.fromEntries(configs.map(({ id, config }) => [id, { config, slot: slotInfo(id), asset: config.assetId ? assets.get(config.assetId) : externalVisualAsset(config) }])) as Visuals;
 }
 

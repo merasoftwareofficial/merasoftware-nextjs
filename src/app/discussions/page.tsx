@@ -1,6 +1,6 @@
 import Link from "@/components/link";
 import { PageHero } from "@/components/page-hero";
-import { loadVisuals } from "@/lib/section-visuals";
+import { loadPageVisuals } from "@/lib/section-visuals";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
@@ -29,7 +29,7 @@ function when(value?: string) {
  * a short question, so the title and who asked it are what matter.
  */
 export default async function Discussions() {
-  const visuals = await loadVisuals(["discussions.hero"]);
+  const visuals = await loadPageVisuals("discussions");
   const viewer = await getSessionUser();
 
   const posts = (await blogRepo.listCards({ type: "discussion", status: "published" })).filter(

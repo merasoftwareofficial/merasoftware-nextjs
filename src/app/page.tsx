@@ -9,7 +9,7 @@ import { FEATURES } from "@/lib/features";
 import { portfolioRepo } from "@/lib/portfolio/repo";
 import { publicPortfolio } from "@/lib/portfolio/types";
 import { PortfolioCard } from "@/components/portfolio";
-import { loadVisuals } from "@/lib/section-visuals";
+import { loadPageVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import { pageMetadata } from "@/lib/page-seo";
 import { jsonLd, organisationLd } from "@/lib/structured-data";
@@ -31,7 +31,7 @@ export default async function Home() {
     portfolioRepo.list(true),
   ]);
   const content = resolveHomepageContent(settings.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT);
-  const visuals = await loadVisuals(["home.hero", "home.services", "home.statement", "home.contact"], settings);
+  const visuals = await loadPageVisuals("home", settings);
   const featuredWork = portfolio.filter(entry => entry.featured).slice(0, 3).map(publicPortfolio);
   const heroVisual = visuals["home.hero"];
   const heroVideo = heroVisual?.config.mode !== "pattern" && heroVisual?.config.frameShape === "source" && heroVisual.asset?.kind === "video" && heroVisual.asset.width > 0 && heroVisual.asset.height > 0 ? heroVisual.asset : undefined;

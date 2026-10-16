@@ -42,7 +42,7 @@ function Field({ name, value, onChange, links }: { name: string; value: Value; o
       </div>;
     })}<button type="button" className="admin-action" disabled={value.length >= limit} onClick={() => onChange([...value, newItem(name)])}>Add {name === "items" ? "service" : name === "groups" ? "group" : name === "members" ? "team member" : name === "projects" ? "project" : name === "paragraphs" ? "paragraph" : "inclusion"} +</button></fieldset>;
   }
-  return <div>{Object.entries(value).filter(([key]) => key !== "id").map(([key, child]) => <Field key={key} name={key} value={child} links={links} onChange={next => onChange({ ...value, [key]: next })} />)}</div>;
+  return <div>{Object.entries(value).filter(([key]) => !["id", "imageUrl", "alt", "previewImageUrl", "previewAlt", "previewLabel", "previewHref"].includes(key)).map(([key, child]) => <Field key={key} name={key} value={child} links={links} onChange={next => onChange({ ...value, [key]: next })} />)}</div>;
 }
 
 export function PageSectionEditor({ page, section, initial, initialVisuals, assets, links }: { page: ManagedPage; section: string; initial: unknown; initialVisuals: Record<string, SectionVisualConfig>; assets: MediaAsset[]; links: LinkGroup[] }) {
@@ -83,7 +83,7 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
   }
   return <div className={s.root}>
     <fieldset disabled={busy} className={`admin-form ${s.fields}`}><legend>Section content</legend><Field name="section" value={content} links={links} onChange={next => { setContent(next as Fields); setMessage(""); }} /></fieldset>
-    {slots.length ? <fieldset disabled={busy} className={s.visuals}><legend>Section visuals</legend><p>Choose media and frame settings below. Content and visuals save together.</p><VisualsEditor key={`${slots.map(slot => slot.id).join(",")}-${revision}`} initial={activeVisuals} slots={slots} assets={library} focusSlot={visualFocus} onSlotSelected={setVisualFocus} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(next); setMessage(""); }} /></fieldset> : null}
+    {slots.length ? <fieldset disabled={busy} className={s.visuals}><legend>Section visuals</legend><p>Choose media and frame settings below. Content and visuals save together.</p><VisualsEditor key={`${slots.map(slot => slot.id).join(",")}-${revision}`} initial={activeVisuals} slots={slots} assets={library} links={links} focusSlot={visualFocus} onSlotSelected={setVisualFocus} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(next); setMessage(""); }} /></fieldset> : null}
     <div className={s.saveBar}>{error ? <p className="form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}<button type="button" className="admin-button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save changes"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { if (!window.confirm("Discard unsaved changes to this section?")) return; const previous = JSON.parse(saved); setContent(previous.content); setVisuals(previous.visuals); setRevision(current => current + 1); setError(""); setMessage(""); }}>Discard changes</button><span>{dirty ? "Unsaved changes" : "All changes saved"}</span></div>
   </div>;
 }

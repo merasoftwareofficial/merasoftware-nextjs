@@ -4,6 +4,7 @@ import { useRef, useState, type PointerEvent } from "react";
 import { SectionVisual } from "@/components/section-visual";
 import { DEFAULT_CROP, mediaGeometry, recommendedFrame, resolveCrop, resolveFrame, type FrameSize, type VisualCrop } from "@/lib/visual-layout";
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
+import { slotInfo } from "@/lib/visual-slots";
 
 function DimensionInput({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
   const [input, setInput] = useState({ value, text: String(value) });
@@ -17,19 +18,25 @@ function DimensionInput({ label, value, onChange }: { label: string; value: numb
   }} onBlur={() => { const next = Math.round(Math.max(40, Math.min(2400, Number(draft) || value))); setDraft(String(next)); onChange(next); }} /></label>;
 }
 
-export function VisualFrameEditor({ config, asset, slotId, label, update }: {
+export function VisualFrameEditor({ config, asset: providedAsset, slotId, label, update: commit }: {
   config: SectionVisualConfig; asset?: MediaAsset; slotId: string; label: string; update: (patch: Partial<SectionVisualConfig>) => void;
 }) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [locked, setLocked] = useState(true);
+  const [intrinsic, setIntrinsic] = useState<{ url: string; width: number; height: number }>();
+  const asset = providedAsset && intrinsic?.url === providedAsset.url ? { ...providedAsset, width: intrinsic.width, height: intrinsic.height } : providedAsset;
+  function update(patch: Partial<SectionVisualConfig>) {
+    commit({ ...patch, ...(config.externalMedia && asset?.width && asset.height ? { externalMedia: { url: asset.url, width: asset.width, height: asset.height } } : {}) });
+  }
   const drag = useRef<{ pointer: number; startX: number; startY: number; x: number; y: number; width: number; height: number } | null>(null);
   const frame = resolveFrame(config, slotId, asset);
   const size = device === "mobile" ? frame.mobile ?? frame : frame;
   const crop = resolveCrop(config, size, asset);
   const geometry = mediaGeometry(size, asset ?? size, config.fit, crop);
   const recommendation = recommendedFrame(slotId);
+  const defaultFrame = slotInfo(slotId)!.defaultFrame;
   const hasMedia = !!asset && config.mode !== "pattern";
-  const previewConfig = config.frame ? config : { ...config, frame, crop };
+  const previewConfig = config.frame || config.legacyLayout ? config : { ...config, frame, crop };
 
   function changeFrame(next: FrameSize) {
     update({ frameShape: "slot", frame: device === "mobile" ? { ...frame, mobile: next } : { ...frame, ...next }, crop });
@@ -68,12 +75,12 @@ export function VisualFrameEditor({ config, asset, slotId, label, update }: {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
-  return <fieldset className="visual-frame-editor"><legend>Frame &amp; crop</legend>
+  return <fieldset className="visual-frame-editor" onLoadCapture={event => { const target = event.target; if (config.externalMedia && target instanceof HTMLImageElement && target.naturalWidth && target.naturalHeight) setIntrinsic({ url: config.externalMedia.url, width: target.naturalWidth, height: target.naturalHeight }); }}><legend>Frame &amp; crop</legend>
     <div className="homepage-device-switch"><button type="button" aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>Desktop preview</button><button type="button" aria-pressed={device === "mobile"} onClick={() => setDevice("mobile")}>Mobile preview</button></div>
     <p className="field-hint">Recommended: {recommendation.width} × {recommendation.height} px. Frames shrink proportionally to fit the section.</p>
     <div className="visuals-media-actions">
       <button type="button" className="admin-action" onClick={() => { update({ frame: { ...recommendation }, frameShape: "slot", crop }); }}>Apply recommended</button>
-      <button type="button" className="admin-action" onClick={() => { update({ frame: { ...recommendation }, frameShape: "slot", crop }); setLocked(true); }}>Reset frame</button>
+      <button type="button" className="admin-action" onClick={() => { update({ frame: { ...defaultFrame }, frameShape: "slot", crop }); setLocked(true); }}>Reset frame</button>
     </div>
     {device === "mobile" ? <label className="visual-check"><input type="checkbox" checked={!!frame.mobile} onChange={event => update({ frame: { ...frame, mobile: event.target.checked ? { width: frame.width, height: frame.height } : undefined }, frameShape: "slot", crop })} />Use separate mobile dimensions</label> : null}
     <div className="visual-frame-workspace">
@@ -100,7 +107,7 @@ export function VisualFrameEditor({ config, asset, slotId, label, update }: {
       </div>
       <div className="visual-preview-column">
         <div className={`visuals-preview ${device}${hasMedia ? " is-draggable" : ""}`} style={{ "--preview-ratio": size.width / size.height } as React.CSSProperties} aria-label={`${device === "mobile" ? "Mobile" : "Desktop"} frame preview`} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={() => { drag.current = null; }}>
-          <SectionVisual data={{ config: previewConfig, asset }} label={label} previewDevice={device} />
+          <SectionVisual data={{ config: previewConfig, asset, slot: slotInfo(slotId) }} label={label} previewDevice={device} />
         </div>
         <p className="field-hint">{hasMedia ? "Drag the media to adjust its crop. Zoom and position apply to both desktop and mobile. Anything outside the frame is hidden." : "Choose media to enable crop controls."}</p>
         {!config.frame ? <p className="field-hint">Existing visual: this is the editable frame preview. Apply a frame setting to use these dimensions on the website.</p> : null}

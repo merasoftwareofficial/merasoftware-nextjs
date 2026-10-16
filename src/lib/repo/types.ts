@@ -635,6 +635,9 @@ export interface SectionVisualConfig {
   mode: "pattern" | "media" | "both";
   assetId?: string;
   pattern: "default" | import("@/lib/visual-patterns").VisualPatternId;
+  externalMedia?: { url: string; width: number; height: number };
+  previewLink?: { href: string; caption: string };
+  legacyLayout?: "project" | "services-preview";
   intensity: number;
   fit: "contain" | "cover";
   focalX: number;
@@ -662,12 +665,13 @@ export interface SectionVisualConfig {
 }
 
 export interface SettingsRepo {
+  migrateVisuals(visuals: Record<string, SectionVisualConfig>): Promise<Settings>;
   updatePageSection(page: "about" | "services", section: string, content: unknown, visuals: Record<string, SectionVisualConfig>): Promise<Settings>;
   updateVisual(slot: string, config: SectionVisualConfig): Promise<void>;
   saveOffer(offer: Offer, creating: boolean): Promise<boolean>;
   get(): Promise<Settings>;
   update(patch: Partial<Omit<Settings, "_id" | "updatedAt">>): Promise<Settings>;
-  updateHomepageSection<K extends HomepageSection>(section: K, content: HomepageContent[K], images: Partial<Record<HomeImageSlot, HomepageImage | null>>): Promise<Settings>;
+  updateHomepageSection<K extends HomepageSection>(section: K, content: HomepageContent[K], images: Partial<Record<HomeImageSlot, HomepageImage | null>>, visuals?: Record<string, SectionVisualConfig>): Promise<Settings>;
 }
 
 export interface MediaRepo {

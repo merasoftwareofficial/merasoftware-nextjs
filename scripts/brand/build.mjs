@@ -11,12 +11,18 @@
  *         src/app/favicon.ico
  *         src/lib/brand-logo.json                  size + version, read by src/lib/brand.ts
  *
+ * The client portal (../frontend, a sibling checkout) shows the same logo and "M" favicon, so the
+ * same files are written there too — one command keeps both products identical. Skipped when the
+ * portal checkout is not next to this one. Commit the portal repo as well after running this.
+ * Portal: public/brand/*.svg, public/icons/{icon-192,icon-512,apple-touch-icon}.png,
+ *         public/favicon.ico, src/helpers/brand-logo.json (read by src/helpers/brand.js)
+ *
  * Every coordinate is written out directly (no transforms), so a file always
  * shows exactly what these rules say. Rendering uses sharp, which ships with Next.
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -202,21 +208,46 @@ const write = (path, data) => {
   console.log(`  ${path}`);
 };
 
+const PORTAL = join(ROOT, "..", "frontend");
+const hasPortal = existsSync(join(PORTAL, "package.json")) && existsSync(join(PORTAL, "public"));
+const writePortal = (path, data) => {
+  if (!hasPortal) return;
+  mkdirSync(dirname(join(PORTAL, path)), { recursive: true });
+  writeFileSync(join(PORTAL, path), data);
+  console.log(`  portal: ${path}`);
+};
+
 const logoLight = logoSvg("light");
 const logoDark = logoSvg("dark");
 const icon = iconSvg({ fill: BRAND.iconFill });
 const favicon = iconSvg({ fill: BRAND.faviconFill, radius: 0.114 });
 
 console.log(`M ${markWidth}×${markHeight} (ratio ${BRAND.markRatio}), logo viewBox ${viewBox.join(" ")}`);
+const icon192 = await png(icon, 192);
+const icon512 = await png(icon, 512);
+const appleTouch = await png(icon, 180);
+const faviconIco = ico(await Promise.all([16, 32, 48, 256].map(async size => ({ size, data: await png(favicon, size) }))));
 write("public/brand/merasoftware-logo.svg", logoLight);
 write("public/brand/merasoftware-logo-dark.svg", logoDark);
 write("public/brand/merasoftware-icon.svg", icon);
-write("public/icons/icon-192.png", await png(icon, 192));
-write("public/icons/icon-512.png", await png(icon, 512));
-write("public/icons/apple-touch-icon.png", await png(icon, 180));
+write("public/icons/icon-192.png", icon192);
+write("public/icons/icon-512.png", icon512);
+write("public/icons/apple-touch-icon.png", appleTouch);
 write("public/icons/badge-96.png", await png(badgeSvg(), 96));
-write("src/app/favicon.ico", ico(await Promise.all([16, 32, 48, 256].map(async size => ({ size, data: await png(favicon, size) })))));
+write("src/app/favicon.ico", faviconIco);
 
 // The version changes whenever the artwork does, so browsers fetch the new files (src/lib/brand.ts).
 const version = createHash("sha1").update(logoLight + logoDark + icon).digest("hex").slice(0, 8);
-write("src/lib/brand-logo.json", `${JSON.stringify({ width: viewBox[2], height: viewBox[3], version }, null, 2)}\n`);
+const logoInfo = `${JSON.stringify({ width: viewBox[2], height: viewBox[3], version }, null, 2)}\n`;
+write("src/lib/brand-logo.json", logoInfo);
+
+// Same files for the client portal (see the header comment).
+writePortal("public/brand/merasoftware-logo.svg", logoLight);
+writePortal("public/brand/merasoftware-logo-dark.svg", logoDark);
+writePortal("public/brand/merasoftware-icon.svg", icon);
+writePortal("public/icons/icon-192.png", icon192);
+writePortal("public/icons/icon-512.png", icon512);
+writePortal("public/icons/apple-touch-icon.png", appleTouch);
+writePortal("public/favicon.ico", faviconIco);
+writePortal("src/helpers/brand-logo.json", logoInfo);
+if (!hasPortal) console.log("  (portal checkout ../frontend not found — portal files skipped)");

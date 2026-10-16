@@ -3,8 +3,8 @@ import "server-only";
 import { pageSeoPage } from "@/lib/page-seo";
 import { blogRepo, settingsRepo } from "@/lib/repo";
 import { portfolioRepo } from "@/lib/portfolio/repo";
-import type { Blog, HomeImageSlot, MediaAsset } from "@/lib/repo/types";
-import { resolveAbout, resolveServices, projectSlot } from "@/lib/page-content";
+import type { Blog, MediaAsset } from "@/lib/repo/types";
+import { activeVisualSlots, resolveVisualConfig } from "@/lib/visual-config";
 
 /** One place a library image is shown, with the admin page that changes it. */
 export interface MediaUse {
@@ -12,11 +12,6 @@ export interface MediaUse {
   href: string;
 }
 
-const HOMEPAGE_SLOTS: Record<HomeImageSlot, string> = {
-  hero: "Homepage → Hero artwork",
-  "work-northstar": "Homepage → Selected work: Northstar Advisory",
-  "work-oasis": "Homepage → Selected work: Oasis Living",
-};
 
 /** Every image src in a Tiptap document (image nodes only). */
 function contentImageSources(node: unknown, found: string[] = []): string[] {
@@ -59,21 +54,12 @@ export async function findMediaUsage(assets: MediaAsset[]): Promise<Map<string, 
     for (const id of new Set(images.map(image => image.assetId))) usage.get(id)?.push({ label: `Portfolio → ${entry.title}`, href: `/admin/portfolio/${entry._id}` });
   }
 
-  for (const [slot, image] of Object.entries(settings.homepageImages ?? {}) as [HomeImageSlot, { assetId: string } | undefined][]) {
-    if (image) usage.get(image.assetId)?.push({ label: HOMEPAGE_SLOTS[slot] ?? `Homepage → ${slot}`, href: "/admin/homepage" });
-  }
-  for (const [slot, visual] of Object.entries(settings.sectionVisuals ?? {})) {
-    if (visual.assetId && visual.mode !== "pattern") usage.get(visual.assetId)?.push({ label: `Website visual → ${slot}`, href: "/admin/visuals" });
-  }
-
-  const about = resolveAbout(settings);
-  for (const project of about.work.projects) {
-    if (settings.sectionVisuals?.[projectSlot(project.id)]) continue;
-    for (const asset of assets) if (pointsAt(project.imageUrl, asset)) usage.get(asset._id)?.push({ label: `About → ${project.brand}`, href: "/admin/content?page=about&section=work" });
-  }
-  const services = resolveServices(settings);
-  if (!settings.sectionVisuals?.["services.hero"]) {
-    for (const asset of assets) if (pointsAt(services.hero.previewImageUrl, asset)) usage.get(asset._id)?.push({ label: "Services → Hero preview", href: "/admin/content?page=services&section=hero" });
+  for (const slot of activeVisualSlots(settings)) {
+    const visual = resolveVisualConfig(settings, slot.id);
+    if (visual.mode === "pattern") continue;
+    const use = { label: `${slot.page} → ${slot.label}`, href: `/admin/visuals?slot=${slot.id}` };
+    if (visual.assetId) usage.get(visual.assetId)?.push(use);
+    else if (visual.externalMedia) for (const asset of assets) if (pointsAt(visual.externalMedia.url, asset)) usage.get(asset._id)?.push(use);
   }
 
   const logo = settings.organization?.logoUrl;

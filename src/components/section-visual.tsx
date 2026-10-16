@@ -32,14 +32,18 @@ function Pattern({ variant, intensity }: { variant: string; intensity: number })
 
 export function SectionVisual({ data, className = "", label, previewDevice, children }: { data?: VisualSlotData; className?: string; label?: string; previewDevice?: "desktop" | "mobile"; children?: React.ReactNode }) {
   if (!data) return null;
-  const { config, asset } = data;
+  const { config, asset, slot } = data;
   const showMedia = config.mode !== "pattern" && !!asset;
   const showPattern = config.mode !== "media" || !asset;
   const both = showMedia && showPattern;
   const position = `${config.focalX}% ${config.focalY}%`;
   const sourceFrame = !config.frame && showMedia && config.frameShape === "source" && !!asset && asset.width > 0 && asset.height > 0;
   const frameRatio = config.frameShape === "square" ? "1 / 1" : sourceFrame ? `${asset.width} / ${asset.height}` : undefined;
-  const frameStyle = config.frame ? undefined : frameRatio ? { aspectRatio: frameRatio } : undefined;
+  const registered = !config.frame && !config.legacyLayout && slot;
+  const frameStyle = config.frame ? undefined : registered ? {
+    "--legacy-ratio": frameRatio ?? slot.legacyRatio, "--legacy-mobile-ratio": frameRatio ?? slot.legacyMobileRatio,
+    padding: showMedia ? 0 : slot.patternPadding,
+  } as React.CSSProperties : frameRatio ? { aspectRatio: frameRatio } : undefined;
   const frame = config.frame;
   const mobile = frame?.mobile ?? frame;
   const stackStyle = frame ? {
@@ -47,7 +51,7 @@ export function SectionVisual({ data, className = "", label, previewDevice, chil
     "--visual-mobile-width": `${mobile!.width}px`, "--visual-mobile-ratio": `${mobile!.width} / ${mobile!.height}`,
     "--visual-radius": `${frame.radius}px`,
   } as React.CSSProperties : undefined;
-  const mediaStyle = frame && asset ? (() => {
+  const mediaStyle = frame && asset && asset.width > 0 && asset.height > 0 ? (() => {
     const desktopGeometry = mediaGeometry(frame, asset, config.fit, resolveCrop(config, frame, asset));
     const mobileGeometry = mediaGeometry(mobile!, asset, config.fit, resolveCrop(config, mobile!, asset));
     return {
@@ -64,15 +68,18 @@ export function SectionVisual({ data, className = "", label, previewDevice, chil
     {card.title ? <h3>{card.title}</h3> : null}
     {card.body ? <p>{card.body}</p> : null}
   </aside> : null;
-  return <div className={`section-visual-stack ${className}`} data-custom-frame={frame ? "true" : undefined} data-device={previewDevice} style={stackStyle}>
+  const legacy = !frame ? config.legacyLayout : undefined;
+  return <div className={`section-visual-stack ${className}${legacy ? ` visual-legacy-${legacy}` : ""}`} data-registered-frame={registered ? "true" : undefined} data-custom-frame={frame ? "true" : undefined} data-device={previewDevice} style={stackStyle}>
     <div className={`section-visual ${both ? "section-visual-both" : ""} ${sourceFrame ? "section-visual-source" : ""}`} aria-label={label} style={frameStyle}>
     {showPattern ? <Pattern variant={config.pattern} intensity={config.intensity} /> : null}
     {showMedia && asset ? asset.kind === "video"
       ? <video className={`section-visual-media${mediaStyle ? " is-cropped" : ""}`} src={asset.url} poster={cloudinaryVideoPoster(asset.url, 900)} muted autoPlay loop playsInline preload="metadata" aria-label={config.alt || label} style={mediaStyle ?? { objectFit: sourceFrame ? "contain" : config.fit, objectPosition: position, ...(sourceFrame ? { aspectRatio: `${asset.width} / ${asset.height}` } : {}) }} />
       : <img className={`section-visual-media${mediaStyle ? " is-cropped" : ""}`} src={asset.url} alt={config.alt} loading="lazy" draggable={false} style={mediaStyle ?? { objectFit: config.fit, objectPosition: position }} /> : null}
     {children}
+    {config.previewLink?.href && !previewDevice ? <a className="visual-media-link" href={config.previewLink.href} target="_blank" rel="noopener noreferrer" aria-label={config.previewLink.caption || config.alt || label} /> : null}
     {card?.placement === "overlay" ? callout : null}
     </div>
     {card?.placement === "below" ? callout : null}
+    {config.previewLink?.caption ? config.previewLink.href && !previewDevice ? <a className="visual-media-caption" href={config.previewLink.href} target="_blank" rel="noopener noreferrer">{config.previewLink.caption}<span aria-hidden="true">↗</span></a> : <span className="visual-media-caption">{config.previewLink.caption}{config.previewLink.href ? <span aria-hidden="true">↗</span> : null}</span> : null}
   </div>;
 }

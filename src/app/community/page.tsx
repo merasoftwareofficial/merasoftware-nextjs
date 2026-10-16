@@ -2,7 +2,7 @@ import Link from "@/components/link";
 import { Suspense } from "react";
 import { SearchBox } from "@/components/blog/search-box";
 import { PageHero } from "@/components/page-hero";
-import { loadVisuals } from "@/lib/section-visuals";
+import { loadPageVisuals } from "@/lib/section-visuals";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
@@ -34,7 +34,7 @@ function when(value?: string) {
  * ones are reachable by link but never listed — the same rule /blog follows.
  */
 export default async function Community({ searchParams }: Search) {
-  const visuals = await loadVisuals(["community.hero"]);
+  const visuals = await loadPageVisuals("community");
   const viewer = await getSessionUser();
   const { q } = await searchParams;
   const term = q?.trim() ?? "";

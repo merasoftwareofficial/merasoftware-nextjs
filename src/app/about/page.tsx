@@ -7,7 +7,7 @@ import { settingsRepo } from "@/lib/repo";
 import { resolveAbout, memberSlot, projectSlot } from "@/lib/page-content";
 import { ContentHeading } from "@/components/content-heading";
 import { pageMetadata } from "@/lib/page-seo";
-import { loadVisuals } from "@/lib/section-visuals";
+import { loadPageVisuals } from "@/lib/section-visuals";
 import s from "./about.module.css";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export function generateMetadata() { return pageMetadata("about"); }
 export default async function About() {
   const settings = await settingsRepo.get();
   const content = resolveAbout(settings);
-  const visuals = await loadVisuals(["about.hero", "about.presence", "about.values", ...content.leadership.members.map(member => memberSlot(member.id)), ...content.work.projects.map(project => projectSlot(project.id))], settings);
+  const visuals = await loadPageVisuals("about", settings);
   return <><SiteHeader /><main className={s.page}>
     {content.hero.enabled ? <section className={s.hero}><div className={`container ${s.heroGrid}`}>
       <div><p className={s.eyebrow}>{content.hero.eyebrow}</p>
@@ -57,7 +57,7 @@ export default async function About() {
     {content.work.enabled ? <section className={s.section}><div className="container">
       <div className={s.heading}><p className={s.eyebrow}>{content.work.eyebrow}</p><ContentHeading content={content.work} /></div>
       <div className={s.projects}>{content.work.projects.map(project => <a className={s.project} key={project.id} href={project.href || undefined} target="_blank" rel="noopener noreferrer">
-        <div className={s.projectImage}>{settings.sectionVisuals?.[projectSlot(project.id)] || !project.imageUrl ? <SectionVisual data={visuals[projectSlot(project.id)]} label={project.alt || project.brand} /> : <img src={project.imageUrl} alt={project.alt} loading="lazy" width={960} height={600} />}</div>
+        <div className={s.projectImage}><SectionVisual data={visuals[projectSlot(project.id)]} label={project.alt || project.brand} /></div>
         <div className={s.projectCaption}><div><p className={s.position}>{project.category}</p><h3>{project.brand}</h3><p className={s.copy}>{project.description}</p></div>{project.href ? <span aria-label="Visit website in a new tab">↗</span> : null}</div>
       </a>)}</div>
     </div></section> : null}

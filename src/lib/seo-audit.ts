@@ -8,18 +8,17 @@
  *   Drafts and pending posts are checked where they are written and reviewed.
  * - The site's fixed pages (lib/page-seo.ts): their title and description,
  *   built-in or the editor's, and the share image's alt text.
- * - Homepage images that are on the live homepage (the "Selected work" ones
- *   only while FEATURES.portfolio is on).
+ * - The resolved homepage hero visual. Portfolio images retain their own checks.
  * - Every Media Library image: its alt text is the default for each new use.
  *
  * Every issue carries the admin address that fixes it.
  */
 
 import { cache } from "react";
-import { FEATURES } from "@/lib/features";
+import { resolveVisualConfig } from "@/lib/visual-config";
 import { isIndexable } from "@/lib/indexability";
 import { blogRepo, mediaRepo, settingsRepo } from "@/lib/repo";
-import type { HomeImageSlot, HomepageImage } from "@/lib/repo/types";
+import type { HomeImageSlot } from "@/lib/repo/types";
 import { PAGE_SEO_PAGES } from "@/lib/page-seo";
 import { blogSeoChecks, homepageImageSeoChecks, mediaSeoChecks, organizationSeoChecks, pageSeoChecks, resolvePageSeo, seoInputOf, seoIssues, type SeoCheck } from "@/lib/seo-rules";
 
@@ -83,22 +82,11 @@ export const seoAudit = cache(async (): Promise<SeoAuditRow[]> => {
     issues: seoIssues(organizationSeoChecks(settings.organization)).map(issue => ({ ...issue, href: `/admin/page-seo?page=organization#${issue.field}` })),
   });
 
-  const liveSlots: HomeImageSlot[] = FEATURES.portfolio ? ["hero", "work-northstar", "work-oasis"] : ["hero"];
-  for (const slot of liveSlots) {
-    const heroVisual = slot === "hero" ? settings.sectionVisuals?.["home.hero"] : undefined;
-    const image: Pick<HomepageImage, "alt"> | undefined = heroVisual
-      ? heroVisual.mode !== "pattern" && heroVisual.assetId ? heroVisual : undefined
-      : settings.homepageImages?.[slot];
-    if (!image) continue;
-    rows.push({
-      key: `homepage-${slot}`,
-      group: "Homepage",
-      title: HOMEPAGE_SLOT_LABEL[slot],
-      meta: "homepage image",
-      viewHref: "/",
-      issues: seoIssues(homepageImageSeoChecks(image, slot)).map(issue => ({ ...issue, href: slot === "hero" ? "/admin/visuals?slot=home.hero#visual-alt" : `/admin/homepage?image=${slot}` })),
-    });
-  }
+  const heroVisual = resolveVisualConfig(settings, "home.hero");
+  if (heroVisual.mode !== "pattern" && (heroVisual.assetId || heroVisual.externalMedia)) rows.push({
+    key: "homepage-hero", group: "Homepage", title: HOMEPAGE_SLOT_LABEL.hero, meta: "homepage image", viewHref: "/",
+    issues: seoIssues(homepageImageSeoChecks(heroVisual, "hero")).map(issue => ({ ...issue, href: "/admin/visuals?slot=home.hero#visual-alt" })),
+  });
 
   for (const asset of assets) {
     rows.push({

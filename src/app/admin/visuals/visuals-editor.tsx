@@ -7,10 +7,13 @@ import { DEFAULT_CROP, recommendedFrame, resolveFrame } from "@/lib/visual-layou
 import { VISUAL_SLOTS, defaultVisual, slotInfo, type VisualSlotId, type VisualSlotInfo } from "@/lib/visual-slots";
 import { VISUAL_PATTERN_DETAILS, VISUAL_PATTERN_IDS } from "@/lib/visual-patterns";
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
+import { externalVisualAsset, mergeVisual } from "@/lib/visual-config";
+import { LinkPicker } from "@/components/link-picker";
+import type { LinkGroup } from "@/lib/link-options";
 
 type Configs = Record<string, SectionVisualConfig>;
 
-export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_SLOTS], onChange, onAssetSelected, onSlotSelected }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string; slots?: VisualSlotInfo[]; onChange?: (configs: Configs) => void; onAssetSelected?: (asset: MediaAsset) => void; onSlotSelected?: (slot: string) => void }) {
+export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_SLOTS], onChange, onAssetSelected, onSlotSelected, links }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string; slots?: VisualSlotInfo[]; onChange?: (configs: Configs) => void; onAssetSelected?: (asset: MediaAsset) => void; onSlotSelected?: (slot: string) => void; links?: LinkGroup[] }) {
   const [selected, setSelected] = useState<VisualSlotId>(() => (slots.find(item => item.id === focusSlot)?.id ?? slots[0].id) as VisualSlotId);
   const [configs, setConfigs] = useState<Configs>(initial);
   const [saved, setSaved] = useState<Configs>(initial);
@@ -20,13 +23,13 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const slot = slots.find(item => item.id === selected) ?? slotInfo(selected)!;
-  const config = { ...defaultVisual(selected), ...configs[selected] };
-  const asset = library.find(item => item._id === config.assetId);
+  const config = mergeVisual(selected, configs[selected]);
+  const asset = library.find(item => item._id === config.assetId) ?? externalVisualAsset(config);
   const card = { ...defaultVisual(selected).card!, ...config.card };
-  const dirty = JSON.stringify(config) !== JSON.stringify({ ...defaultVisual(selected), ...saved[selected] });
+  const dirty = JSON.stringify(config) !== JSON.stringify(mergeVisual(selected, saved[selected]));
 
   function update(patch: Partial<SectionVisualConfig>) {
-    const next = { ...configs, [selected]: { ...defaultVisual(selected), ...configs[selected], ...patch } };
+    const next = { ...configs, [selected]: mergeVisual(selected, { ...config, ...patch }) };
     setConfigs(next);
     onChange?.(next);
     setMessage("");
@@ -70,12 +73,14 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
       </div>
       <div className="visuals-media-actions">
         <button className="admin-button" type="button" onClick={() => setChooser(true)}>{asset ? "Change media" : "Choose image, GIF or MP4"}</button>
-        {asset ? <button className="admin-action" type="button" onClick={() => update({ assetId: undefined, mode: "pattern", alt: "", ...(config.frameShape === "source" ? { frameShape: "slot" as const } : {}) })}>Remove media</button> : null}
+        {asset ? <button className="admin-action" type="button" onClick={() => update({ assetId: undefined, externalMedia: undefined, previewLink: undefined, legacyLayout: undefined, mode: "pattern", alt: "", ...(config.frameShape === "source" ? { frameShape: "slot" as const } : {}) })}>Remove media</button> : null}
       </div>
       {asset ? <>
-        <p className="field-hint">Selected: {asset.format.toUpperCase()} · {asset.width} × {asset.height} px. Videos play muted and loop without controls.</p>
+        <p className="field-hint">Selected: {config.externalMedia ? "External image" : `${asset.format.toUpperCase()} · ${asset.width} × ${asset.height} px`}. Videos play muted and loop without controls.</p>
+        {config.externalMedia ? <label className="admin-field"><span>Image URL</span><input type="url" value={config.externalMedia.url} onChange={event => update({ externalMedia: { url: event.target.value, width: 0, height: 0 } })} /></label> : null}
         <label className="admin-field"><span>Accessible description</span><input id="visual-alt" value={config.alt} maxLength={300} onChange={event => update({ alt: event.target.value })} placeholder="Describe the visual" /></label>
       </> : null}
+      {config.previewLink ? <div className="form-columns">{links ? <LinkPicker label="Preview destination" groups={links} value={config.previewLink.href} onChange={href => update({ previewLink: { ...config.previewLink!, href } })} /> : <label className="admin-field"><span>Preview destination</span><input value={config.previewLink.href} onChange={event => update({ previewLink: { ...config.previewLink!, href: event.target.value } })} /></label>}<label className="admin-field"><span>Preview caption</span><input value={config.previewLink.caption} onChange={event => update({ previewLink: { ...config.previewLink!, caption: event.target.value } })} /></label></div> : null}
       <VisualFrameEditor key={selected} config={config} asset={asset} slotId={selected} label={slot.label} update={update} />
       {config.mode !== "media" ? <div className="form-columns">
         <label className="admin-field"><span>Pattern design (20 choices)</span><select value={config.pattern} onChange={event => update({ pattern: event.target.value as SectionVisualConfig["pattern"] })}>{VISUAL_PATTERN_IDS.map(pattern => <option key={pattern} value={pattern === "flow" && config.pattern === "default" ? "default" : pattern}>{VISUAL_PATTERN_DETAILS[pattern].label}</option>)}</select><small className="field-hint">{config.pattern === "default" ? "Ideas and actions working together." : VISUAL_PATTERN_DETAILS[config.pattern].description}</small></label>
@@ -96,14 +101,14 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
       </fieldset>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
-      {onChange ? <p className="field-hint">Visual changes are saved with the section’s Save changes button.</p> : <button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save visual"}</button>}
+      {onChange ? <p className="field-hint">Save this section to apply its visual changes.</p> : <button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save visual"}</button>}
     </section>
     {chooser ? <ImageChooser sources={imageSourcesFor("editor", { allowUrl: false })} allowVideo onClose={() => setChooser(false)} onChoose={choice => {
       setChooser(false);
       if (choice.kind !== "library") return;
       onAssetSelected?.(choice.asset);
       setLibrary(current => [choice.asset, ...current.filter(item => item._id !== choice.asset._id)]);
-      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "media", fit: "cover", focalX: 50, focalY: 50, frame: config.frame ?? (config.frameShape === "source" ? recommendedFrame(selected) : resolveFrame(config, selected)), frameShape: "slot", crop: { ...DEFAULT_CROP } });
+      update({ assetId: choice.asset._id, externalMedia: undefined, legacyLayout: undefined, alt: choice.asset.altText, mode: "media", fit: "cover", focalX: 50, focalY: 50, frame: config.frame ?? (config.frameShape === "source" ? recommendedFrame(selected) : resolveFrame(config, selected)), frameShape: "slot", crop: { ...DEFAULT_CROP } });
     }} /> : null}
   </div>;
 }

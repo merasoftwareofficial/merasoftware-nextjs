@@ -1,26 +1,22 @@
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
+import { slotInfo } from "@/lib/visual-slots";
 
 export type FrameSize = { width: number; height: number };
 export type VisualFrame = NonNullable<SectionVisualConfig["frame"]>;
 export type VisualCrop = NonNullable<SectionVisualConfig["crop"]>;
 export const DEFAULT_CROP: VisualCrop = { zoom: 1, x: 0, y: 0, free: false };
-export const isPersonVisual = (id: string) => /^about\.(jasmeet|sahilpreet|deep|person\..+)$/.test(id);
 
 /** Preferred CSS-pixel dimensions; the renderer scales them down to the column. */
 export function recommendedFrame(id: string): VisualFrame {
-  if (isPersonVisual(id)) return { width: 280, height: 350, radius: 12 };
-  if (id === "home.hero") return { width: 430, height: 323, radius: 0 };
-  if (id === "about.hero") return { width: 480, height: 480, radius: 12 };
-  if (id === "services.hero") return { width: 450, height: 225, radius: 10 };
-  if (id.startsWith("services.")) return { width: 240, height: 240, radius: 8 };
-  if (id.startsWith("about.project.")) return { width: 560, height: 315, radius: 8 };
-  return { width: 480, height: 360, radius: 12 };
+  const slot = slotInfo(id);
+  if (!slot) throw new Error(`Unknown visual slot: ${id}`);
+  return { ...slot.recommendedFrame };
 }
 
 /** Legacy configs are read without silently rewriting their saved composition. */
 export function resolveFrame(config: SectionVisualConfig, id: string, asset?: MediaAsset): VisualFrame {
   if (config.frame) return config.frame;
-  const frame = recommendedFrame(id);
+  const frame = { ...slotInfo(id)!.defaultFrame };
   if (config.frameShape === "square") return { ...frame, height: frame.width };
   if (config.frameShape === "source" && asset?.width && asset.height) {
     return { ...frame, height: Math.max(40, Math.min(2400, Math.round(frame.width * asset.height / asset.width))) };

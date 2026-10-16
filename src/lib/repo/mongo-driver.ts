@@ -497,6 +497,12 @@ function withSettingsDefaults(row: unknown): SettingsRecord {
 }
 
 const settings: DataDriver["settings"] = {
+  async migrateVisuals(visuals) {
+    await connectMongo();
+    await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });
+    await Settings.updateOne({ _id: "site" }, [{ $set: { sectionVisuals: { $mergeObjects: [{ $literal: visuals }, "$sectionVisuals"] }, updatedAt: "$$NOW" } }], { updatePipeline: true });
+    return this.get();
+  },
   async updatePageSection(page, section, content, visuals) {
     await connectMongo();
     await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });
@@ -542,7 +548,7 @@ const settings: DataDriver["settings"] = {
     ).lean();
     return withSettingsDefaults(row);
   },
-  async updateHomepageSection(section, content, images) {
+  async updateHomepageSection(section, content, images, visuals = {}) {
     await connectMongo();
     // Initialise old sites once, then update only this section's paths atomically.
     await Settings.updateOne(
@@ -560,11 +566,11 @@ const settings: DataDriver["settings"] = {
       if (image === null) unset[`homepageImages.${slot}`] = 1;
       else if (image) set[`homepageImages.${slot}`] = image;
     }
-    const row = await Settings.findOneAndUpdate(
-      { _id: "site" },
-      { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}) },
-      { new: true, runValidators: true },
-    ).lean();
+    // Literal keys contain dots; merge the visual map in the same atomic pipeline.
+    const row = await Settings.findOneAndUpdate({ _id: "site" }, [
+      { $set: { ...Object.fromEntries(Object.entries(set).map(([key, value]) => [key, { $literal: value }])), sectionVisuals: { $mergeObjects: ["$sectionVisuals", { $literal: visuals }] } } },
+      ...(Object.keys(unset).length ? [{ $unset: Object.keys(unset) }] : []),
+    ], { returnDocument: "after", updatePipeline: true }).lean();
     return withSettingsDefaults(row);
   },
 };

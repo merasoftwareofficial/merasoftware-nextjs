@@ -6,7 +6,7 @@ import Link from "@/components/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { pageMetadata } from "@/lib/page-seo";
-import { loadVisuals } from "@/lib/section-visuals";
+import { loadPageVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import s from "./services.module.css";
 
@@ -17,11 +17,11 @@ export default async function ServicesPage() {
   const settings = await settingsRepo.get();
   const content = resolveServices(settings);
   const catalogue = content.catalogue.groups.flatMap(group => group.items);
-  const visuals = await loadVisuals(["services.hero", ...catalogue.map(service => serviceSlot(service.id))], settings);
+  const visuals = await loadPageVisuals("services", settings);
   return <><SiteHeader /><main className={s.page}>
     {content.hero.enabled ? <section className={s.intro}><div className={`container ${s.introGrid}`}>
       <div><p className={s.eyebrow}>{content.hero.eyebrow}</p><ContentHeading content={content.hero} level={1} /><p>{content.hero.description}</p></div>
-      <div className={s.heroVisual}>{settings.sectionVisuals?.["services.hero"] || visuals["services.hero"]?.asset ? <SectionVisual data={visuals["services.hero"]} label="Mera Software services" /> : content.hero.previewImageUrl ? <a href={content.hero.previewHref || undefined} target="_blank" rel="noopener noreferrer"><img src={content.hero.previewImageUrl} alt={content.hero.previewAlt} width={960} height={600} /><span>{content.hero.previewLabel} {content.hero.previewHref ? <span aria-hidden="true">↗</span> : null}</span></a> : null}</div>
+      <div className={s.heroVisual}>{settings.sectionVisuals?.["services.hero"] || visuals["services.hero"]?.asset ? <SectionVisual data={visuals["services.hero"]} label="Mera Software services" /> : null}</div>
     </div></section> : null}
     {content.catalogue.enabled ? <section className={s.catalogue} aria-label="Available services"><div className="container">
       <p className={s.hint}>{content.catalogue.hint}</p>
