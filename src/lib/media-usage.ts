@@ -4,6 +4,7 @@ import { pageSeoPage } from "@/lib/page-seo";
 import { blogRepo, settingsRepo } from "@/lib/repo";
 import { portfolioRepo } from "@/lib/portfolio/repo";
 import type { Blog, HomeImageSlot, MediaAsset } from "@/lib/repo/types";
+import { resolveAbout, resolveServices, projectSlot } from "@/lib/page-content";
 
 /** One place a library image is shown, with the admin page that changes it. */
 export interface MediaUse {
@@ -63,6 +64,16 @@ export async function findMediaUsage(assets: MediaAsset[]): Promise<Map<string, 
   }
   for (const [slot, visual] of Object.entries(settings.sectionVisuals ?? {})) {
     if (visual.assetId && visual.mode !== "pattern") usage.get(visual.assetId)?.push({ label: `Website visual → ${slot}`, href: "/admin/visuals" });
+  }
+
+  const about = resolveAbout(settings);
+  for (const project of about.work.projects) {
+    if (settings.sectionVisuals?.[projectSlot(project.id)]) continue;
+    for (const asset of assets) if (pointsAt(project.imageUrl, asset)) usage.get(asset._id)?.push({ label: `About → ${project.brand}`, href: "/admin/content?page=about&section=work" });
+  }
+  const services = resolveServices(settings);
+  if (!settings.sectionVisuals?.["services.hero"]) {
+    for (const asset of assets) if (pointsAt(services.hero.previewImageUrl, asset)) usage.get(asset._id)?.push({ label: "Services → Hero preview", href: "/admin/content?page=services&section=hero" });
   }
 
   const logo = settings.organization?.logoUrl;

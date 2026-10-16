@@ -620,6 +620,7 @@ export interface Settings {
   homepageImages?: Partial<Record<HomeImageSlot, HomepageImage>>;
   sectionVisuals?: Record<string, SectionVisualConfig>;
   homepageContent?: HomepageContent;
+  pageContent?: import("@/lib/page-content").PageContent;
   offers?: Record<string, Offer>;
   offerUniversalTerms?: string[];
   offerListing?: OfferListing;
@@ -654,6 +655,8 @@ export interface SectionVisualConfig {
 }
 
 export interface SettingsRepo {
+  updatePageSection(page: "about" | "services", section: string, content: unknown, visuals: Record<string, SectionVisualConfig>): Promise<Settings>;
+  updateVisual(slot: string, config: SectionVisualConfig): Promise<void>;
   saveOffer(offer: Offer, creating: boolean): Promise<boolean>;
   get(): Promise<Settings>;
   update(patch: Partial<Omit<Settings, "_id" | "updatedAt">>): Promise<Settings>;

@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
 import { SectionVisual } from "@/components/section-visual";
-import { VISUAL_SLOTS, defaultVisual, slotInfo, type VisualSlotId } from "@/lib/visual-slots";
+import { VISUAL_SLOTS, defaultVisual, slotInfo, type VisualSlotId, type VisualSlotInfo } from "@/lib/visual-slots";
 import { VISUAL_PATTERN_DETAILS, VISUAL_PATTERN_IDS } from "@/lib/visual-patterns";
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
 
 type Configs = Record<string, SectionVisualConfig>;
 
-export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string }) {
-  const [selected, setSelected] = useState<VisualSlotId>(() => (slotInfo(focusSlot ?? "")?.id ?? VISUAL_SLOTS[0].id) as VisualSlotId);
+export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_SLOTS], onChange, onAssetSelected }: { initial: Configs; assets: MediaAsset[]; focusSlot?: string; slots?: VisualSlotInfo[]; onChange?: (configs: Configs) => void; onAssetSelected?: (asset: MediaAsset) => void }) {
+  const [selected, setSelected] = useState<VisualSlotId>(() => (slots.find(item => item.id === focusSlot)?.id ?? slots[0].id) as VisualSlotId);
   const [configs, setConfigs] = useState<Configs>(initial);
   const [saved, setSaved] = useState<Configs>(initial);
   const [library, setLibrary] = useState(assets);
@@ -19,19 +19,22 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const slot = slotInfo(selected)!;
+  const slot = slots.find(item => item.id === selected) ?? slotInfo(selected)!;
   const config = { ...defaultVisual(selected), ...configs[selected] };
   const asset = library.find(item => item._id === config.assetId);
   const card = { ...defaultVisual(selected).card!, ...config.card };
   const dirty = JSON.stringify(config) !== JSON.stringify({ ...defaultVisual(selected), ...saved[selected] });
 
   function update(patch: Partial<SectionVisualConfig>) {
-    setConfigs(current => ({ ...current, [selected]: { ...defaultVisual(selected), ...current[selected], ...patch } }));
+    const next = { ...configs, [selected]: { ...defaultVisual(selected), ...configs[selected], ...patch } };
+    setConfigs(next);
+    onChange?.(next);
     setMessage("");
   }
 
   function select(next: VisualSlotId) {
     if (next === selected) return;
+    if (onChange) { setSelected(next); setError(""); setMessage(""); return; }
     if (dirty && !window.confirm("Discard unsaved changes to this visual?")) return;
     setConfigs(current => ({ ...current, [selected]: saved[selected] ?? defaultVisual(selected) }));
     setSelected(next);
@@ -54,15 +57,15 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
 
   return <div className="visuals-admin">
     <aside className="visuals-slot-list" aria-label="Website visual slots">
-      {VISUAL_SLOTS.map((item, index) => <div key={item.id}>
-        {index === 0 || VISUAL_SLOTS[index - 1].page !== item.page ? <h2>{item.page}</h2> : null}
+      {slots.map((item, index) => <div key={item.id}>
+        {index === 0 || slots[index - 1].page !== item.page ? <h2>{item.page}</h2> : null}
         <button type="button" aria-current={selected === item.id ? "true" : undefined} onClick={() => select(item.id)}>{item.label}</button>
       </div>)}
     </aside>
     <section className="admin-form visuals-fields" aria-labelledby="visuals-title">
       <h2 id="visuals-title">{slot.page} → {slot.label}</h2>
       <p className="field-hint">The frame is transparent. Choose a pattern, media, or both. With no media, the pattern fills the space.</p>
-      {selected === "home.hero" ? <label className="admin-field"><span>Hero frame size</span><select value={config.frameShape === "source" && (config.mode === "pattern" || asset?.kind !== "video" || !asset.width || !asset.height) ? "slot" : config.frameShape ?? "slot"} onChange={event => update({ frameShape: event.target.value as NonNullable<SectionVisualConfig["frameShape"]> })}><option value="slot">Current hero frame</option><option value="square">Square frame</option><option value="source" disabled={config.mode === "pattern" || asset?.kind !== "video" || !asset.width || !asset.height}>Fit frame to video (no crop)</option></select><small className="field-hint">The video’s original proportions fit inside the hero column; portrait video stays narrow and landscape video stays wide.</small></label> : null}
+      <label className="admin-field"><span>Frame size</span><select aria-label="Frame size" value={config.frameShape ?? "slot"} onChange={event => update({ frameShape: event.target.value as NonNullable<SectionVisualConfig["frameShape"]> })}><option value="slot">Current section frame</option><option value="square">Square frame</option><option value="source" disabled={config.mode === "pattern" || !asset?.width || !asset.height || (selected === "home.hero" && asset.kind !== "video")}>Original media proportions (no crop)</option></select><small className="field-hint">Original proportions use the selected image or video’s width and height.</small></label>
       <div className="visuals-mode" role="group" aria-label="Display mode">
         {(["pattern", "media", "both"] as const).map(mode => <button key={mode} type="button" aria-pressed={config.mode === mode} disabled={mode !== "pattern" && !asset} onClick={() => update({ mode })}>{mode === "both" ? "Pattern + media" : mode === "media" ? "Media only" : "Pattern only"}</button>)}
       </div>
@@ -97,16 +100,17 @@ export function VisualsEditor({ initial, assets, focusSlot }: { initial: Configs
         </> : null}
       </fieldset>
       <div className="homepage-device-switch"><button type="button" aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>Desktop preview</button><button type="button" aria-pressed={device === "mobile"} onClick={() => setDevice("mobile")}>Mobile preview</button></div>
-      <div className={`visuals-preview ${device}`} style={{ aspectRatio: selected === "home.hero" && config.frameShape === "square" ? "1 / 1" : selected === "home.hero" && config.frameShape === "source" && asset?.kind === "video" && asset.width && asset.height ? `${asset.width} / ${asset.height}` : slot.ratio }}><SectionVisual data={{ config, asset }} label={slot.label} /></div>
+      <div className={`visuals-preview ${device}`} style={{ aspectRatio: config.frameShape === "square" ? "1 / 1" : config.frameShape === "source" && asset?.width && asset.height ? `${asset.width} / ${asset.height}` : slot.ratio }}><SectionVisual data={{ config, asset }} label={slot.label} /></div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}
-      <button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save visual"}</button>
+      {onChange ? <p className="field-hint">Visual changes are saved with the section’s Save changes button.</p> : <button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save visual"}</button>}
     </section>
     {chooser ? <ImageChooser sources={imageSourcesFor("editor", { allowUrl: false })} allowVideo onClose={() => setChooser(false)} onChoose={choice => {
       setChooser(false);
       if (choice.kind !== "library") return;
+      onAssetSelected?.(choice.asset);
       setLibrary(current => [choice.asset, ...current.filter(item => item._id !== choice.asset._id)]);
-      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "both", fit: choice.asset.kind === "video" ? "cover" : "contain", focalX: 50, focalY: 50, ...(config.frameShape === "source" && (choice.asset.kind !== "video" || !choice.asset.width || !choice.asset.height) ? { frameShape: "slot" as const } : {}) });
+      update({ assetId: choice.asset._id, alt: choice.asset.altText, mode: "both", fit: choice.asset.kind === "video" ? "cover" : "contain", focalX: 50, focalY: 50, ...(config.frameShape === "source" && (!choice.asset.width || !choice.asset.height) ? { frameShape: "slot" as const } : {}) });
     }} /> : null}
   </div>;
 }

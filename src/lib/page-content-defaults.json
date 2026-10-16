@@ -1,0 +1,234 @@
+{
+  "about": {
+    "hero": {
+      "enabled": true,
+      "eyebrow": "ABOUT MERA SOFTWARE · EST. 2022",
+      "heading": "Built around business.",
+      "emphasis": "Driven by responsibility.",
+      "lineBreak": true,
+      "lead": "Established in 2022, Mera Software helps local businesses build their online presence, connect with customers and improve operations through digital solutions.",
+      "description": "We bring business understanding, creative design and technical development into one coordinated service.",
+      "buttonLabel": "Talk to our team",
+      "buttonHref": "/contact"
+    },
+    "purpose": {
+      "enabled": true,
+      "eyebrow": "OUR PURPOSE",
+      "heading": "Making digital decisions clearer.",
+      "emphasis": "Making execution dependable.",
+      "lineBreak": true,
+      "paragraphs": [
+        "Mera Software began when Jasmeet Kaur saw the challenges businesses faced in moving online—from unclear advice to poorly managed services.",
+        "That experience shaped our purpose: to give business owners informed guidance, relevant solutions and clear responsibility for the work."
+      ]
+    },
+    "approach": {
+      "enabled": true,
+      "eyebrow": "OUR APPROACH",
+      "heading": "Your business determines",
+      "emphasis": "the solution.",
+      "lineBreak": false,
+      "paragraphs": [
+        "We understand your services, customers and priorities before recommending platforms or technology.",
+        "From business profiles and websites to mobile apps, CRM and marketing, our work follows a plan suited to your needs. We coordinate the content, design and development required to deliver it."
+      ],
+      "buttonLabel": "Explore our expertise",
+      "buttonHref": "/services"
+    },
+    "leadership": {
+      "enabled": true,
+      "eyebrow": "LEADERSHIP & MANAGEMENT",
+      "heading": "The people behind",
+      "emphasis": "Mera Software.",
+      "lineBreak": false,
+      "members": [
+        {
+          "id": "jasmeet",
+          "name": "Jasmeet Kaur",
+          "position": "Co-owner",
+          "role": "Development & Delivery",
+          "description": "Leads business direction, technical development and project delivery."
+        },
+        {
+          "id": "sahilpreet",
+          "name": "Sahilpreet Kaur",
+          "position": "Co-owner",
+          "role": "Creative & Canada Client Relations",
+          "description": "Shapes creative content and UI design, and manages client relationships in Canada."
+        },
+        {
+          "id": "deep",
+          "name": "Deep Kaur",
+          "position": "Management",
+          "role": "Marketing & Operations Manager",
+          "description": "Coordinates marketing activities and daily operations to keep planned work on track."
+        }
+      ]
+    },
+    "partnership": {
+      "enabled": true,
+      "eyebrow": "WORKING WITH US",
+      "heading": "Clear responsibility.",
+      "emphasis": "Visible progress. Continued support.",
+      "lineBreak": true,
+      "paragraphs": [
+        "Projects follow an agreed scope, with progress available through our client portal and email notifications.",
+        "Beyond completion, we support updates, improvements and ongoing promotion through suitable service arrangements."
+      ]
+    },
+    "work": {
+      "enabled": true,
+      "eyebrow": "SELECTED WORK",
+      "heading": "Our capabilities, reflected",
+      "emphasis": "in our work.",
+      "lineBreak": true,
+      "projects": [
+        {
+          "id": "sln",
+          "brand": "Shri Lakshami Narayan Ayurvedic College",
+          "category": "Education website",
+          "description": "A custom, mobile-friendly website to present the college and its information.",
+          "imageUrl": "https://res.cloudinary.com/cpkizny3/image/upload/v1791145352/fyl3wau0wxur9ws9c2v7.jpg",
+          "alt": "Shri Lakshami Narayan Ayurvedic College website screenshot",
+          "href": "https://www.slnaycollege.com/"
+        },
+        {
+          "id": "3gdigital",
+          "brand": "3G-Digital",
+          "category": "Business website",
+          "description": "A focused website presenting the business and its portfolio of work.",
+          "imageUrl": "https://res.cloudinary.com/cpkizny3/image/upload/v1791202768/kj0pkizsxbj4h688s5az.jpg",
+          "alt": "3G-Digital business portfolio website screenshot",
+          "href": "https://www.3gdigital.net/"
+        }
+      ]
+    },
+    "contact": {
+      "enabled": true,
+      "eyebrow": "LET’S CONNECT",
+      "heading": "Let’s understand what your\nbusiness needs",
+      "emphasis": "next.",
+      "lineBreak": false,
+      "description": "Share your requirements with our team. We will help you define a practical way forward.",
+      "buttonLabel": "Start a conversation",
+      "buttonHref": "/contact"
+    }
+  },
+  "services": {
+    "hero": {
+      "enabled": true,
+      "eyebrow": "OUR SERVICES",
+      "heading": "Built for business.",
+      "emphasis": "Made to stand out.",
+      "lineBreak": true,
+      "description": "Websites, apps, business software and digital marketing. Find the service that fits your next step.",
+      "previewImageUrl": "https://res.cloudinary.com/cpkizny3/image/upload/v1791145352/fyl3wau0wxur9ws9c2v7.jpg",
+      "previewAlt": "Shri Lakshami Narayan Ayurvedic College website screenshot",
+      "previewLabel": "Selected website work · SLN",
+      "previewHref": "https://www.slnaycollege.com/"
+    },
+    "catalogue": {
+      "enabled": true,
+      "hint": "Select a service to see what’s included.",
+      "groups": [
+        {
+          "id": "build",
+          "title": "Websites, apps & software",
+          "label": "BUILD",
+          "description": "Digital experiences and systems built for your business.",
+          "items": [
+            {
+              "id": "website",
+              "title": "Website Development",
+              "description": "Professional websites that present your business and make enquiries easy.",
+              "inclusions": [
+                "Business websites & landing pages",
+                "Responsive design",
+                "Dynamic content & custom features"
+              ],
+              "href": "/services/website-development",
+              "action": "View development services"
+            },
+            {
+              "id": "apps",
+              "title": "Mobile App Development",
+              "description": "Custom mobile apps for your customers, services and internal teams.",
+              "inclusions": [
+                "Customer-facing applications",
+                "Business workflows",
+                "Features planned to your requirements"
+              ],
+              "href": "/contact",
+              "action": "Discuss your app"
+            },
+            {
+              "id": "software",
+              "title": "Cloud Software & CRM",
+              "description": "Connected systems to organise customer information and everyday operations.",
+              "inclusions": [
+                "Custom CRM systems",
+                "Cloud-based business software",
+                "Workflow management & automation"
+              ],
+              "href": "/contact",
+              "action": "Discuss your software"
+            }
+          ]
+        },
+        {
+          "id": "grow",
+          "title": "Digital marketing",
+          "label": "GROW",
+          "description": "Visibility, content and campaigns for the right audience.",
+          "items": [
+            {
+              "id": "seo",
+              "title": "Online Setup & SEO",
+              "description": "Establish your business profiles and improve how customers find you online.",
+              "inclusions": [
+                "Google Business Profile",
+                "Relevant social profile setup",
+                "Local search & website SEO"
+              ],
+              "href": "/services/seo",
+              "action": "View setup & SEO services"
+            },
+            {
+              "id": "social",
+              "title": "Social Media & Content",
+              "description": "Consistent content and professional presentation on the platforms that fit your business.",
+              "inclusions": [
+                "Content planning, design & captions",
+                "Social media management",
+                "Photography & content shoots"
+              ],
+              "href": "/services/performance-marketing",
+              "action": "View content & marketing services"
+            },
+            {
+              "id": "marketing",
+              "title": "Paid Advertising",
+              "description": "Targeted campaigns to promote your services to relevant audiences.",
+              "inclusions": [
+                "Google Ads",
+                "Social media ad campaigns",
+                "Campaign creative & optimisation"
+              ],
+              "href": "/services/performance-marketing",
+              "action": "View advertising services"
+            }
+          ]
+        }
+      ]
+    },
+    "contact": {
+      "enabled": true,
+      "heading": "One service or a complete package.",
+      "description": "Choose a plan, or talk to us about a custom requirement.",
+      "buttonLabel": "Packages & pricing",
+      "buttonHref": "/campaign/packages",
+      "secondaryLabel": "Discuss your project",
+      "secondaryHref": "/contact"
+    }
+  }
+}

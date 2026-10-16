@@ -1,13 +1,11 @@
-/**
- * The one place mail leaves the website (src/docs/NOTIFICATIONS.md).
- *
- * Sends through Resend's REST API when RESEND_API_KEY and FROM_EMAIL are set.
- * Until then nothing is sent: outside production the mail is printed to the
- * server log so the flow can be tested, and production logs one warning.
- * Callers treat `false` as "not sent" and keep the work for later.
+/** Website mail is prepared by the portal SSOT; it never contacts a provider.
+ * Public/cron email is disabled. Authenticated portal admins may prepare drafts
+ * and review them in the shared Email Control screen.
  */
+import { cookies } from "next/headers";
 
 export type Mail = {
+  event?: "website.subscription.confirm" | "website.subscription.manage";
   to: string;
   subject: string;
   html: string;
@@ -15,43 +13,20 @@ export type Mail = {
   headers?: Record<string, string>;
 };
 
-export function mailConfigured() {
-  return !!process.env.RESEND_API_KEY && !!process.env.FROM_EMAIL;
-}
-
-let warned = false;
+// The public newsletter must not offer a delivery flow while unattended mail is off.
+export function mailConfigured() { return false; }
 
 export async function sendMail(mail: Mail): Promise<boolean> {
-  if (!mailConfigured()) {
-    if (process.env.NODE_ENV !== "production") {
-      console.info(`[mail] not configured — would send to ${mail.to}: ${mail.subject}\n${mail.text}`);
-    } else if (!warned) {
-      warned = true;
-      console.warn("[mail] RESEND_API_KEY / FROM_EMAIL are not set; no mail is sent.");
-    }
-    return false;
-  }
-
+  if (!mail.event || !process.env.PORTAL_API_URL) return false;
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: `${process.env.FROM_NAME || "Mera Software"} <${process.env.FROM_EMAIL}>`,
-        to: [mail.to],
-        subject: mail.subject,
-        html: mail.html,
-        text: mail.text,
-        headers: mail.headers,
-      }),
+    const token = (await cookies()).get("token")?.value;
+    if (!token) return false;
+    await fetch(`${process.env.PORTAL_API_URL.replace(/\/$/, "")}/api/email-control/website-drafts`, {
+      method: "POST", cache: "no-store", signal: AbortSignal.timeout(10000),
+      headers: { "Content-Type": "application/json", Cookie: `token=${token}` },
+      body: JSON.stringify({ event: mail.event, to: [mail.to], subject: mail.subject, text: mail.text, headers: mail.headers }),
     });
-    if (!response.ok) {
-      console.error("[mail] Resend refused the mail", response.status, await response.text());
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error("[mail] sending failed", error);
-    return false;
-  }
+  } catch { /* Unavailable review service never falls back to automatic delivery. */ }
+  // Preparing a draft is never reported as delivery (no confirmSentAt stamp).
+  return false;
 }

@@ -497,6 +497,19 @@ function withSettingsDefaults(row: unknown): SettingsRecord {
 }
 
 const settings: DataDriver["settings"] = {
+  async updatePageSection(page, section, content, visuals) {
+    await connectMongo();
+    await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });
+    // Visual IDs contain literal dots; merge the map atomically rather than using dotted update paths.
+    const pipeline = [{ $set: { [`pageContent.${page}.${section}`]: { $literal: content }, sectionVisuals: { $mergeObjects: ["$sectionVisuals", { $literal: visuals }] }, updatedAt: "$$NOW" } }];
+    const row = await Settings.findOneAndUpdate({ _id: "site" }, pipeline, { returnDocument: "after", updatePipeline: true }).lean();
+    return withSettingsDefaults(row);
+  },
+  async updateVisual(slot, config) {
+    await connectMongo();
+    await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });
+    await Settings.updateOne({ _id: "site" }, [{ $set: { sectionVisuals: { $mergeObjects: ["$sectionVisuals", { $literal: { [slot]: config } }] }, ...(slot === "home.hero" ? { "homepageImages.hero": "$$REMOVE" } : {}), updatedAt: "$$NOW" } }], { updatePipeline: true });
+  },
   async saveOffer(offer, creating) {
     await connectMongo();
     await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });

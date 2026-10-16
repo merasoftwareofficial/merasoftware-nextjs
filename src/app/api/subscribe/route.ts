@@ -11,8 +11,10 @@ import { errorResponse } from "@/lib/api";
 import { getSessionUser } from "@/lib/auth";
 import { linkBase, NOTIFY_COOKIE, subscribeSchema } from "@/lib/notify-rules";
 import { subscribe } from "@/lib/subscription-actions";
+import { mailConfigured } from "@/lib/mailer";
 
 export async function POST(request: Request) {
+  if (!mailConfigured()) return NextResponse.json({ error: "Email subscriptions are paused while automatic email is disabled." }, { status: 503 });
   try {
     const input = subscribeSchema.parse(await request.json());
     const cookie = (await cookies()).get(NOTIFY_COOKIE)?.value ?? null;

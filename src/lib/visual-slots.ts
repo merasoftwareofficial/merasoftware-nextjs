@@ -34,8 +34,15 @@ export const VISUAL_SLOTS = [
   { id: "subscribe.hero", page: "Newsletter", label: "Hero", pattern: "mail", ratio: "4 / 3" },
 ] as const;
 
-export type VisualSlotId = (typeof VISUAL_SLOTS)[number]["id"];
-export function slotInfo(id: string) { return VISUAL_SLOTS.find(slot => slot.id === id); }
+export type VisualSlotId = (typeof VISUAL_SLOTS)[number]["id"] | `about.person.${string}` | `about.project.${string}` | `services.item.${string}`;
+export type VisualSlotInfo = { id: VisualSlotId; page: string; label: string; pattern: SectionVisualConfig["pattern"]; ratio: string };
+export function slotInfo(id: string): VisualSlotInfo | undefined {
+  const fixed = VISUAL_SLOTS.find(slot => slot.id === id);
+  if (fixed) return fixed;
+  const match = /^(about\.(person|project)|services\.item)\.([a-z0-9-]{1,80})$/.exec(id);
+  if (!match) return undefined;
+  return { id: id as VisualSlotId, page: id.startsWith("about.") ? "About" : "Services", label: match[3], pattern: "grid", ratio: match[2] === "person" ? "1 / 1" : "4 / 3" };
+}
 
 export function defaultVisual(id: VisualSlotId): SectionVisualConfig {
   const slot = slotInfo(id)!;

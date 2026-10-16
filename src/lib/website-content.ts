@@ -13,12 +13,18 @@ export const CONTENT_PAGES: ContentPage[] = [
     { id: "promotion-links", label: "Packages & offers links", description: "Supporting sentences and links within Services and Contact CTA." },
   ] },
   { id: "about", label: "About", href: "/about", sections: [
-    { id: "hero", label: "Hero", description: "Eyebrow, heading and introduction." },
-    { id: "values", label: "Values", description: "Clear, Curious and Accountable value statements." },
+    { id: "hero", label: "Hero", description: "Introduction, heading, button and main visual." },
+    { id: "purpose", label: "Purpose", description: "Company purpose and supporting paragraphs." },
+    { id: "approach", label: "Approach", description: "Business approach, link and visual." },
+    { id: "leadership", label: "Leadership", description: "Team names, roles, descriptions, order and photos." },
+    { id: "partnership", label: "Working with us", description: "Delivery, project visibility, support and visual." },
+    { id: "work", label: "Selected work", description: "Project highlights, descriptions, destinations and images." },
+    { id: "contact", label: "Closing CTA", description: "Closing heading, description and conversation button." },
   ] },
   { id: "services", label: "Services", href: "/services", sections: [
-    { id: "intro", label: "Listing introduction", description: "Eyebrow, heading and description." },
-    { id: "cards", label: "Service cards", description: "Service names and summaries.", reference: { href: "/admin/services", label: "View service list & SEO links" } },
+    { id: "hero", label: "Hero & preview", description: "Introduction, selected-work preview and main visual." },
+    { id: "catalogue", label: "Service groups & entries", description: "Service groups, inclusions, links, order and media." },
+    { id: "contact", label: "Packages & contact", description: "Closing message, packages link and project enquiry." },
   ] },
   ...[
     ["website-development", "Website development"], ["seo", "SEO"], ["performance-marketing", "Performance marketing"],

@@ -525,6 +525,18 @@ const SETTINGS_DEFAULTS: Omit<Settings, "updatedAt"> = {
 };
 
 const settings: SettingsRepo = {
+  async updatePageSection(page, section, content, visuals) {
+    const current = { ...SETTINGS_DEFAULTS, ...read<Settings>("settings").find(item => item._id === "site") };
+    const row: Settings = { ...current, pageContent: { ...current.pageContent, [page]: { ...current.pageContent?.[page], [section]: content } }, sectionVisuals: { ...current.sectionVisuals, ...visuals }, updatedAt: now() };
+    write("settings", [row]);
+    return row;
+  },
+  async updateVisual(slot, config) {
+    const current = { ...SETTINGS_DEFAULTS, ...read<Settings>("settings").find(item => item._id === "site") };
+    const homepageImages = { ...current.homepageImages };
+    if (slot === "home.hero") delete homepageImages.hero;
+    write("settings", [{ ...current, homepageImages, sectionVisuals: { ...current.sectionVisuals, [slot]: config }, updatedAt: now() }]);
+  },
   async saveOffer(offer, creating) {
     // Synchronous read/merge/write prevents different offers overwriting each other.
     const current = read<Settings>("settings").find(item => item._id === "site");

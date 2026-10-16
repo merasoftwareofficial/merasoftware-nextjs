@@ -3,7 +3,9 @@ import Link from "@/components/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { SectionVisual } from "@/components/section-visual";
-import { variantContent } from "@/components/campaign/public-interaction/content";
+import { settingsRepo } from "@/lib/repo";
+import { resolveAbout, memberSlot, projectSlot } from "@/lib/page-content";
+import { ContentHeading } from "@/components/content-heading";
 import { pageMetadata } from "@/lib/page-seo";
 import { loadVisuals } from "@/lib/section-visuals";
 import s from "./about.module.css";
@@ -11,63 +13,55 @@ import s from "./about.module.css";
 export const dynamic = "force-dynamic";
 export function generateMetadata() { return pageMetadata("about"); }
 
-const leadership = [
-  ["Jasmeet Kaur", "Co-owner", "Development & Delivery", "Leads business direction, technical development and project delivery."],
-  ["Sahilpreet Kaur", "Co-owner", "Creative & Canada Client Relations", "Shapes creative content and UI design, and manages client relationships in Canada."],
-  ["Deep Kaur", "Management", "Marketing & Operations Manager", "Coordinates marketing activities and daily operations to keep planned work on track."],
-];
-
 export default async function About() {
-  const peopleSlots = ["about.jasmeet", "about.sahilpreet", "about.deep"] as const;
-  const visuals = await loadVisuals(["about.hero", "about.presence", "about.values", ...peopleSlots]);
+  const settings = await settingsRepo.get();
+  const content = resolveAbout(settings);
+  const visuals = await loadVisuals(["about.hero", "about.presence", "about.values", ...content.leadership.members.map(member => memberSlot(member.id)), ...content.work.projects.map(project => projectSlot(project.id))], settings);
   return <><SiteHeader /><main className={s.page}>
-    <section className={s.hero}><div className={`container ${s.heroGrid}`}>
-      <div><p className={s.eyebrow}>ABOUT MERA SOFTWARE · EST. 2022</p>
-        <h1>Built around business.<br /><em>Driven by responsibility.</em></h1>
-        <p className={s.lead}>Established in 2022, Mera Software helps local businesses build their online presence, connect with customers and improve operations through digital solutions.</p>
-        <p className={s.copy}>We bring business understanding, creative design and technical development into one coordinated service.</p>
-        <Link className={s.button} href="/contact">Talk to our team <span aria-hidden="true">↗</span></Link>
+    {content.hero.enabled ? <section className={s.hero}><div className={`container ${s.heroGrid}`}>
+      <div><p className={s.eyebrow}>{content.hero.eyebrow}</p>
+        <ContentHeading content={content.hero} level={1} />
+        <p className={s.lead}>{content.hero.lead}</p>
+        <p className={s.copy}>{content.hero.description}</p>
+        {content.hero.buttonHref && content.hero.buttonLabel ? <Link className={s.button} href={content.hero.buttonHref}>{content.hero.buttonLabel} <span aria-hidden="true">↗</span></Link> : null}
       </div><div className={`${s.frame} ${s.heroFrame}`}><SectionVisual data={visuals["about.hero"]} label="Mera Software brand visual" /></div>
-    </div></section>
+    </div></section> : null}
 
-    <section className={s.purpose}><div className={`container ${s.split}`}>
-      <div><p className={s.eyebrow}>OUR PURPOSE</p><h2>Making digital decisions clearer.<br /><em>Making execution dependable.</em></h2></div>
-      <div><p className={s.copy}>Mera Software began when Jasmeet Kaur saw the challenges businesses faced in moving online—from unclear advice to poorly managed services.</p>
-        <p className={s.copy}>That experience shaped our purpose: to give business owners informed guidance, relevant solutions and clear responsibility for the work.</p></div>
-    </div></section>
+    {content.purpose.enabled ? <section className={s.purpose}><div className={`container ${s.split}`}>
+      <div><p className={s.eyebrow}>{content.purpose.eyebrow}</p><ContentHeading content={content.purpose} /></div>
+      <div>{content.purpose.paragraphs.map((paragraph, index) => <p className={s.copy} key={index}>{paragraph}</p>)}</div>
+    </div></section> : null}
 
-    <section className={s.soft}><div className={`container ${s.split}`}>
+    {content.approach.enabled ? <section className={s.soft}><div className={`container ${s.split}`}>
       <div className={s.frame}><SectionVisual data={visuals["about.presence"]} label="Understanding your business and digital needs" /></div>
-      <div><p className={s.eyebrow}>OUR APPROACH</p><h2>Your business determines <em>the solution.</em></h2>
-        <p className={s.copy}>We understand your services, customers and priorities before recommending platforms or technology.</p>
-        <p className={s.copy}>From business profiles and websites to mobile apps, CRM and marketing, our work follows a plan suited to your needs. We coordinate the content, design and development required to deliver it.</p>
-        <Link className={s.textLink} href="/services">Explore our expertise <span aria-hidden="true">↗</span></Link>
+      <div><p className={s.eyebrow}>{content.approach.eyebrow}</p><ContentHeading content={content.approach} />
+        {content.approach.paragraphs.map((paragraph, index) => <p className={s.copy} key={index}>{paragraph}</p>)}
+        {content.approach.buttonHref && content.approach.buttonLabel ? <Link className={s.textLink} href={content.approach.buttonHref}>{content.approach.buttonLabel} <span aria-hidden="true">↗</span></Link> : null}
       </div>
-    </div></section>
+    </div></section> : null}
 
-    <section className={s.section}><div className="container">
-      <div className={s.heading}><p className={s.eyebrow}>LEADERSHIP & MANAGEMENT</p><h2>The people behind <em>Mera Software.</em></h2></div>
-      <div className={s.leadership}>{leadership.map(([name, position, role, description], index) => <article key={name}>
-        <div className={`${s.frame} ${s.personFrame}`}><SectionVisual data={visuals[peopleSlots[index]]} label={`${name} profile`} />{(!visuals[peopleSlots[index]]?.asset || visuals[peopleSlots[index]]?.config.mode === "pattern") ? <span className={s.initials} aria-hidden="true">{name.split(" ").map(part => part[0]).join("")}</span> : null}</div>
+    {content.leadership.enabled ? <section className={s.section}><div className="container">
+      <div className={s.heading}><p className={s.eyebrow}>{content.leadership.eyebrow}</p><ContentHeading content={content.leadership} /></div>
+      <div className={s.leadership}>{content.leadership.members.map(({ id, name, position, role, description }) => <article key={id}>
+        <div className={`${s.frame} ${s.personFrame}`}><SectionVisual data={visuals[memberSlot(id)]} label={`${name} profile`} />{(!visuals[memberSlot(id)]?.asset || visuals[memberSlot(id)]?.config.mode === "pattern") ? <span className={s.initials} aria-hidden="true">{name.split(" ").map(part => part[0]).join("")}</span> : null}</div>
         <div><p className={s.position}>{position}</p><h3>{name}</h3><p className={s.role}>{role}</p></div><p className={s.bio}>{description}</p>
       </article>)}</div>
-    </div></section>
+    </div></section> : null}
 
-    <section className={s.dark}><div className={`container ${s.split}`}>
-      <div><p className={s.eyebrow}>WORKING WITH US</p><h2>Clear responsibility.<br /><em>Visible progress. Continued support.</em></h2>
-        <p className={s.copy}>Projects follow an agreed scope, with progress available through our client portal and email notifications.</p>
-        <p className={s.copy}>Beyond completion, we support updates, improvements and ongoing promotion through suitable service arrangements.</p>
+    {content.partnership.enabled ? <section className={s.dark}><div className={`container ${s.split}`}>
+      <div><p className={s.eyebrow}>{content.partnership.eyebrow}</p><ContentHeading content={content.partnership} />
+        {content.partnership.paragraphs.map((paragraph, index) => <p className={s.copy} key={index}>{paragraph}</p>)}
       </div><div className={s.frame}><SectionVisual data={visuals["about.values"]} label="Project coordination and client visibility" /></div>
-    </div></section>
+    </div></section> : null}
 
-    <section className={s.section}><div className="container">
-      <div className={s.heading}><p className={s.eyebrow}>SELECTED WORK</p><h2>Our capabilities, reflected<br /><em>in our work.</em></h2></div>
-      <div className={s.projects}>{variantContent.work.slice(0, 2).map(project => <a className={s.project} key={project.url} href={project.liveUrl} target="_blank" rel="noopener noreferrer">
-        <div className={s.projectImage}><img src={project.image} alt={project.imageAlt} loading="lazy" width={960} height={600} /></div>
-        <div className={s.projectCaption}><div><p className={s.position}>{project.category}</p><h3>{project.brand}</h3><p className={s.copy}>{project.description}</p></div><span aria-label="Visit website in a new tab">↗</span></div>
+    {content.work.enabled ? <section className={s.section}><div className="container">
+      <div className={s.heading}><p className={s.eyebrow}>{content.work.eyebrow}</p><ContentHeading content={content.work} /></div>
+      <div className={s.projects}>{content.work.projects.map(project => <a className={s.project} key={project.id} href={project.href || undefined} target="_blank" rel="noopener noreferrer">
+        <div className={s.projectImage}>{settings.sectionVisuals?.[projectSlot(project.id)] || !project.imageUrl ? <SectionVisual data={visuals[projectSlot(project.id)]} label={project.alt || project.brand} /> : <img src={project.imageUrl} alt={project.alt} loading="lazy" width={960} height={600} />}</div>
+        <div className={s.projectCaption}><div><p className={s.position}>{project.category}</p><h3>{project.brand}</h3><p className={s.copy}>{project.description}</p></div>{project.href ? <span aria-label="Visit website in a new tab">↗</span> : null}</div>
       </a>)}</div>
-    </div></section>
+    </div></section> : null}
 
-    <section className={s.cta}><div className="container"><div><p className={s.eyebrow}>LET’S CONNECT</p><h2>Let’s understand what your<br />business needs <em>next.</em></h2><p className={s.copy}>Share your requirements with our team. We will help you define a practical way forward.</p></div><Link className={s.button} href="/contact">Start a conversation <span aria-hidden="true">↗</span></Link></div></section>
+    {content.contact.enabled ? <section className={s.cta}><div className="container"><div><p className={s.eyebrow}>{content.contact.eyebrow}</p><ContentHeading content={content.contact} /><p className={s.copy}>{content.contact.description}</p></div>{content.contact.buttonHref && content.contact.buttonLabel ? <Link className={s.button} href={content.contact.buttonHref}>{content.contact.buttonLabel} <span aria-hidden="true">↗</span></Link> : null}</div></section> : null}
   </main><SiteFooter /></>;
 }

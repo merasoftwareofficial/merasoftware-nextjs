@@ -35,7 +35,7 @@ export function SectionVisual({ data, className = "", label }: { data?: VisualSl
   const showPattern = config.mode !== "media" || !asset;
   const both = showMedia && showPattern;
   const position = `${config.focalX}% ${config.focalY}%`;
-  const sourceFrame = showMedia && config.frameShape === "source" && asset?.kind === "video" && asset.width > 0 && asset.height > 0;
+  const sourceFrame = showMedia && config.frameShape === "source" && !!asset && asset.width > 0 && asset.height > 0;
   const frameRatio = config.frameShape === "square" ? "1 / 1" : sourceFrame ? `${asset.width} / ${asset.height}` : undefined;
   const frameStyle = frameRatio ? { aspectRatio: frameRatio } : undefined;
   const card = config.card;

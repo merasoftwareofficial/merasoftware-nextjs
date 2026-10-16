@@ -41,6 +41,7 @@ const SettingsSchema = new Schema({
   homepageImages: { type: Schema.Types.Mixed, default: {} },
   sectionVisuals: { type: Schema.Types.Mixed, default: {} },
   homepageContent: { type: Schema.Types.Mixed },
+  pageContent: { type: Schema.Types.Mixed, default: {} },
   offers: { type: Schema.Types.Mixed, default: {} },
   offerUniversalTerms: { type: [String], default: undefined },
   offerListing: { type: Schema.Types.Mixed },

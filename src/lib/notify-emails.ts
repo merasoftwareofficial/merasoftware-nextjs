@@ -27,6 +27,7 @@ export function confirmMail(to: string, topics: string[], confirmUrl: string): M
   const intro = `Please confirm that you want updates from ${SITE_NAME} about ${topicLine(topics)}.`;
   const ignore = "If you did not ask for this, ignore this mail — nothing will be sent to you.";
   return {
+    event: "website.subscription.confirm",
     to,
     subject: `Confirm your ${SITE_NAME} updates`,
     html: layout("Confirm your subscription", [intro], { label: "Yes, send me updates", href: confirmUrl }, ignore),
@@ -39,6 +40,7 @@ export function manageMail(to: string, manageUrl: string): Mail {
   const intro = `This address is already subscribed to ${SITE_NAME} updates. You can change your topics or unsubscribe from the link below.`;
   const ignore = "If you did not ask for this, ignore this mail — nothing has changed.";
   return {
+    event: "website.subscription.manage",
     to,
     subject: `Your ${SITE_NAME} updates`,
     html: layout("Manage your updates", [intro], { label: "Manage my updates", href: manageUrl }, ignore),
