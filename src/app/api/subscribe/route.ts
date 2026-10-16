@@ -14,7 +14,7 @@ import { subscribe } from "@/lib/subscription-actions";
 import { mailConfigured } from "@/lib/mailer";
 
 export async function POST(request: Request) {
-  if (!mailConfigured()) return NextResponse.json({ error: "Email subscriptions are paused while automatic email is disabled." }, { status: 503 });
+  if (!mailConfigured()) return NextResponse.json({ error: "Email requests are temporarily unavailable." }, { status: 503 });
   try {
     const input = subscribeSchema.parse(await request.json());
     const cookie = (await cookies()).get(NOTIFY_COOKIE)?.value ?? null;

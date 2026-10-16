@@ -10,13 +10,14 @@ import "server-only";
  * owner a manage link instead.
  */
 
-import { sendMail } from "@/lib/mailer";
+import { createHash } from "node:crypto";
+import { queueWebsiteMail, type Mail } from "@/lib/mailer";
 import { confirmMail, manageMail } from "@/lib/notify-emails";
 import { canMail, cleanCategories, newToken } from "@/lib/notify-rules";
 import { categoryRepo, pushDeviceRepo, subscriberRepo, type Category, type Subscriber, type User } from "@/lib/repo";
 
-/** "check-inbox" is also the answer when nothing was changed, so the reply never tells a stranger whether an address is subscribed. */
-export type SubscribeResult = "check-inbox" | "saved";
+/** "review" is also the answer when nothing was changed, so the reply never tells a stranger whether an address is subscribed. */
+export type SubscribeResult = "review" | "saved";
 
 const confirmUrl = (base: string, subscriber: Subscriber) => `${base}/api/subscribe/confirm?token=${encodeURIComponent(subscriber.token)}`;
 const manageUrl = (base: string, subscriber: Subscriber) => `${base}/subscribe/manage?token=${encodeURIComponent(subscriber.token)}`;
@@ -27,10 +28,13 @@ function topicNames(categories: Category[], subscriber: Pick<Subscriber, "catego
 }
 
 /** Sends one confirm or manage-link mail unless one went out in the last 10 minutes. */
-async function mailOnce(subscriber: Subscriber, build: () => Parameters<typeof sendMail>[0]) {
+async function mailOnce(subscriber: Subscriber, build: () => Mail) {
   if (!canMail(subscriber)) return;
-  // Not stamped when mail is not configured, so the mail can still go once it is.
-  if (await sendMail(build())) await subscriberRepo.update(subscriber._id, { confirmSentAt: new Date().toISOString() });
+  const mail = build();
+  const tokenHash = createHash("sha256").update(subscriber.token).digest("hex");
+  const dedupeKey = createHash("sha256").update(`${subscriber._id}:${mail.event}:${Math.floor(Date.now() / 600000)}`).digest("hex");
+  await queueWebsiteMail(mail, { subscriberId: subscriber._id, tokenHash }, dedupeKey);
+  // confirmSentAt is updated only when an admin actually delivers this email.
 }
 
 export async function subscribe(
@@ -40,7 +44,7 @@ export async function subscribe(
   cookieToken?: string | null,
 ): Promise<SubscribeResult> {
   // A bot filled the hidden field: answer as usual and do nothing.
-  if (input.website) return "check-inbox";
+  if (input.website) return "review";
 
   const categories = await categoryRepo.list();
   const chosen = cleanCategories(categories, input.categories);
@@ -59,10 +63,10 @@ export async function subscribe(
       if (byEmail.emailStatus === "active") return "saved";
       const updated = (await subscriberRepo.findById(byEmail._id))!;
       await mailOnce(updated, () => confirmMail(updated.email!, topicNames(categories, updated), confirmUrl(base, updated)));
-      return "check-inbox";
+      return "review";
     }
     await mailOnce(byEmail, () => manageMail(byEmail.email!, manageUrl(base, byEmail)));
-    return "check-inbox";
+    return "review";
   }
 
   // This account's or this browser's settings without an email (push) take the address.
@@ -85,13 +89,13 @@ export async function subscribe(
       subscriber = await subscriberRepo.create({ ...choice, token: newToken() });
     } catch (error) {
       // Another request created this address a moment ago; it gets its own confirm mail.
-      if (error instanceof Error && error.message.includes("already subscribed")) return "check-inbox";
+      if (error instanceof Error && error.message.includes("already subscribed")) return "review";
       throw error;
     }
   }
 
   await mailOnce(subscriber, () => confirmMail(subscriber.email!, topicNames(categories, subscriber), confirmUrl(base, subscriber)));
-  return "check-inbox";
+  return "review";
 }
 
 /**

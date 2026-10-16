@@ -34,10 +34,10 @@ export async function SubscribeBox({ category, title, open = false }: { category
   const followed = mine ? topics.filter(topic => mine.categories.includes(topic._id)).length + (mine.offers ? 1 : 0) : 0;
 
   const pushShown = !!pushKey || preview;
-  const heading = title ?? (pushShown ? "Get new posts on your phone" : "Get new posts by email");
+  const heading = title ?? (pushShown ? "Get new posts on your phone" : "Request email updates");
   const lead = mine
     ? `You follow ${followed} ${followed === 1 ? "topic" : "topics"}.`
-    : "Pick the topics you like. We notify you only when a post on those goes live.";
+    : pushShown ? "Pick the topics you like. We notify you only when a post on those goes live." : "Choose topics for your email request. Our team reviews requests before sending a confirmation link.";
   const perks = pushShown ? ["Free", "No login or email needed", "Turn off anytime"] : ["Free", "Unsubscribe anytime"];
 
   return (

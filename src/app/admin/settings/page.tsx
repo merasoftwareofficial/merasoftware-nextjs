@@ -1,4 +1,3 @@
-import { portalAddresses } from "@/lib/portal";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { Field } from "@/components/admin-form";
@@ -35,7 +34,7 @@ export default async function Settings() {
 
       <p><Link className="admin-action" href="/admin/blog-management/settings">Comments, views and sharing settings → Blog Management</Link></p>
 
-      <p><a className="admin-action" href={`${portalAddresses().portalUrl}/admin-panel/email-control`}>Email Control — shared website and portal templates, rules and approvals →</a></p>
+      <p><Link className="admin-action" href="/admin/email-control">Email Control — website and portal templates, rules and approvals →</Link></p>
 
       <form className="admin-form">
         <div className="form-columns">

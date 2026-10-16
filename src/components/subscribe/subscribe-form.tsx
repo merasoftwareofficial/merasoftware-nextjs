@@ -49,7 +49,7 @@ export function SubscribeForm({
   const [website, setWebsite] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [mailDone, setMailDone] = useState<"check-inbox" | "saved" | null>(null);
+  const [mailDone, setMailDone] = useState<"review" | "saved" | null>(null);
   const { busy, track } = useTask();
   const push = usePush(pushKey);
 
@@ -98,7 +98,7 @@ export function SubscribeForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, categories: chosen, offers, website }),
       });
-      const reply = (await response.json()) as { result?: "check-inbox" | "saved"; error?: string };
+      const reply = (await response.json()) as { result?: "review" | "saved"; error?: string };
       if (!response.ok || !reply.result) throw new Error(reply.error || "Could not subscribe. Try again.");
       setMailDone(reply.result);
     });
@@ -136,7 +136,7 @@ export function SubscribeForm({
       {mailOn ? (
         mailDone ? (
           <p className="form-message" role="status">
-            {mailDone === "saved" ? "Your email topics are saved." : "Almost done — check your inbox and click the link in our mail to confirm."}
+            {mailDone === "saved" ? "Your email topics are saved." : "Your request has been received for review. If approved, you will receive a confirmation link by email."}
           </p>
         ) : (
           <form className="subscribe-mail" onSubmit={subscribeMail}>
@@ -148,10 +148,10 @@ export function SubscribeForm({
                 <input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" required autoComplete="email" />
               </label>
               <button className={pushKey ? "button button-light" : "button button-dark"} type="submit" disabled={busy}>
-                {busy ? "Subscribing…" : "Subscribe"}
+                {busy ? "Submitting…" : "Request email updates"}
               </button>
             </div>
-            <p className="subscribe-note">We send a confirmation mail first. Unsubscribe any time from the link in every mail.</p>
+            <p className="subscribe-note">Our team reviews email requests before sending a confirmation link. You are subscribed only after you confirm.</p>
           </form>
         )
       ) : null}

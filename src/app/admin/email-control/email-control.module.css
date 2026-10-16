@@ -1,0 +1,36 @@
+.panel { display:grid; gap:20px; min-width:0; }
+.tabs { display:flex; gap:8px; border-bottom:1px solid var(--line, #d8dbde); padding-bottom:12px; }
+.tabs button { padding:10px 24px; border:1px solid var(--line, #cbd0d4); border-radius:8px; background:transparent; color:inherit; cursor:pointer; }
+.tabs button[aria-selected="true"] { background:var(--brand-link, #006b80); color:#fff; border-color:var(--brand-link, #006b80); }
+.panel button:disabled { opacity:.5; cursor:default; }
+.banner { padding:14px 18px; border:1px solid var(--line, #bad3c6); border-left:4px solid var(--brand-teal, #007f99); background:var(--surface, #edf5f0); color:var(--ink, #204638); border-radius:10px; line-height:1.6; }
+.toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.toolbar h2,.section h2 { font-size:19px; font-weight:650; margin:0; }
+.notice { color:var(--link, #006b80); padding:10px 0; }
+.error { color:#b12a2a; line-height:1.5; }
+.muted { opacity:.75; font-size:13px; line-height:1.6; }
+.tableWrap { overflow:auto; border:1px solid var(--line, #cbd0d4); border-radius:10px; }
+.table { width:100%; border-collapse:collapse; text-align:left; font-size:14px; min-width:720px; }
+.table td,.table th { padding:15px; border-bottom:1px solid var(--line, #d8dbde); vertical-align:top; }
+.table td strong,.table td small { display:block; }
+.table td small { opacity:.65; margin-bottom:5px; }
+.table select,.toolbar select { max-width:230px; padding:7px; border:1px solid var(--line, #cbd0d4); border-radius:6px; color:inherit; background:var(--surface, #fff); }
+.actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+.actions button:not([class]) { border:1px solid var(--line, #cbd0d4); background:transparent; color:inherit; padding:9px 13px; border-radius:7px; cursor:pointer; }
+.section { display:grid; gap:12px; margin-top:10px; }
+.card { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:16px; border:1px solid var(--line, #cbd0d4); border-radius:9px; }
+.card p { margin:5px 0; overflow-wrap:anywhere; }
+.card small { opacity:.75; }
+.dialog { width:min(740px, 94vw); max-height:90vh; overflow:auto; border:1px solid var(--line, #cbd0d4); border-radius:14px; padding:26px; background:var(--surface, #fff); color:var(--ink, #1d1d1b); }
+.dialog::backdrop { background:rgb(0 0 0 / .55); }
+.dialog h2 { font-size:22px; font-weight:650; margin-bottom:12px; }
+.dialog p { line-height:1.6; margin:10px 0; }
+.dialog label { display:block; margin:16px 0 6px; font-size:14px; font-weight:600; }
+.dialog input,.dialog textarea,.dialog select { width:100%; border:1px solid var(--line, #aeb8bb); border-radius:7px; padding:10px; background:var(--surface, #fff); color:inherit; font:inherit; }
+.dialog textarea { resize:vertical; line-height:1.6; }
+.dialog input:focus-visible,.dialog textarea:focus-visible,.dialog button:focus-visible,.tabs button:focus-visible { outline:2px solid #377c63; outline-offset:3px; }
+.sample { margin-top:16px; border:1px solid var(--line, #cbd0d4); border-radius:8px; padding:14px; }
+.sample pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; margin-top:8px; }
+.link { overflow-wrap:anywhere; font-size:13px; }
+
+:global(.admin-shell[data-theme="dark"]) .error { color:#ff9d9d; }
