@@ -29,5 +29,6 @@ export type EmailControlData = {
   application: Application;
   events: { key: string; section: string; label: string; application: Application }[];
   policies: { event: string; mode: "review" | "off"; defaultTemplate: string | null }[];
-  catalog: TemplateCatalog; templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false; serverNow: number;
+  // Absent from a backend older than the template system; the panel then shows legacy choices.
+  catalog?: TemplateCatalog; templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false; serverNow: number;
 };

@@ -77,7 +77,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
   // Review choices for the table, matching the server's draft templateOptions.
   function templateChoices(event: string): TemplateOption[] {
     const options = (data?.templates || []).filter(row => row.event === event).map(row => ({ id: row._id, name: row.name, system: !!row.system }));
-    return data?.catalog[event]?.system ? options : [{ id: "", name: "Built-in action template", system: true }, ...options];
+    return data?.catalog?.[event]?.system ? options : [{ id: "", name: "Built-in action template", system: true }, ...options];
   }
   async function saveTemplate(event: React.FormEvent) {
     event.preventDefault(); if (!editor || busy) return; setBusy(true); setDialogError("");
@@ -141,8 +141,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
   const status = (row: { status: string; expiresAt: string }) => ["pending", "failed", "sending"].includes(row.status) && Date.parse(row.expiresAt) <= (serverNow ?? observedAt) ? "expired" : row.status;
   const history = data?.history.filter(row => historyFilter === "all" || status(row) === historyFilter) || [];
   const off = draft && data?.policies.find(row => row.event === draft.event)?.mode === "off";
-  const editorCatalog = editor ? data?.catalog[editor.event] : undefined;
-  const draftCatalog = draft ? data?.catalog[draft.event] : undefined;
+  const editorCatalog = editor ? data?.catalog?.[editor.event] : undefined;
+  const draftCatalog = draft ? data?.catalog?.[draft.event] : undefined;
   return <div className={styles.panel}>
     <div className={styles.tabs} role="tablist" aria-label="Email application">
       <button role="tab" aria-selected={application === "website"} disabled={busy} onClick={() => changeTab("website")}>Website</button>

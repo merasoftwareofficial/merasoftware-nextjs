@@ -295,3 +295,24 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+test('browser: panel still renders when the backend predates the template catalog', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    // A backend deployed after the website answers without `catalog` until it updates.
+    await page.route(/\/api\/email-control\?application=/, async route => {
+      const response = await route.fetch(); const body = await response.json();
+      delete body.data.catalog; body.data.templates = body.data.templates.filter(row => !row.system);
+      await route.fulfill({ response, json: body });
+    });
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    const row = page.getByRole('row').filter({ hasText: 'Project created' });
+    assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
+    await row.getByRole('button', { name: 'Add template', exact: true }).click();
+    await page.getByRole('heading', { name: 'New email template' }).waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
