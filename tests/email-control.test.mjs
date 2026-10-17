@@ -239,3 +239,59 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+test('browser: built-in template edit, variable insert, preview, reset and section-aware review', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    page.on('dialog', dialog => dialog.accept());
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    const row = page.getByRole('row').filter({ hasText: 'Project created' });
+    const system = await EmailTemplate.findOne({ event: 'sendProjectCreatedEmail', system: true }).lean();
+    assert.equal(await row.getByLabel('Project created default template').inputValue(), String(system._id));
+    await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
+    const message = page.getByLabel('Message', { exact: true });
+    await message.fill('Hello ');
+    await message.evaluate(element => element.setSelectionRange(6, 6));
+    await page.getByRole('button', { name: '{{name}}', exact: true }).click();
+    assert.equal(await message.inputValue(), 'Hello {{name}}');
+    await page.getByRole('button', { name: 'Preview sample' }).click();
+    await page.getByRole('dialog').getByText('Your Project Has Started', { exact: true }).waitFor();
+    assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /Hello Ravi Kumar/);
+    await page.getByRole('button', { name: 'Save template', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    assert.equal((await EmailTemplate.findById(system._id).lean()).text, 'Hello {{name}}');
+    await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
+    await page.getByRole('button', { name: 'Reset to original', exact: true }).click();
+    await page.getByText('Built-in template restored to its original wording.', { exact: true }).waitFor();
+    assert.match(await message.inputValue(), /^Hello \{\{name\}\},\n/);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    const refund = { html: '<h2>Refund Details</h2><table><tr><td>UPI</td></tr></table>', text: 'Refund Details\nUPI' };
+    const draft = await EmailDraft.create({
+      event: 'sendProjectCancellationEmail', actor: admin._id, application: 'portal', status: 'pending', to: ['client@example.test'],
+      subject: 'Project Cancelled', text: 'Hello Ravi,\n\n{{refundTable}}', plain: 'Hello Ravi,\n\nRefund Details\nUPI', html: '<p>prepared</p>',
+      values: { name: 'Ravi', project: 'Shop', cancelledOn: 'Today', reason: '' }, blocks: { refundTable: refund }, templateName: 'Standard',
+      expiresAt: new Date(Date.now() + 3600000),
+    });
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await page.locator('article').filter({ hasText: 'client@example.test' }).getByRole('button', { name: 'Review email', exact: true }).click();
+    await page.getByRole('heading', { name: 'Review email' }).waitFor();
+    const options = await page.getByLabel('Template', { exact: true }).locator('option').allTextContents();
+    assert.deepEqual(options, ['Current draft', 'Standard (built-in)']);
+    assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /prepared/);
+    await message.fill('Dear {{name}}, sorry for {{project}}.\n\n{{refundTable}}');
+    await page.getByRole('button', { name: 'Update preview', exact: true }).click();
+    await page.waitForFunction(() => /Dear Ravi, sorry for Shop\./.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
+    assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /Refund Details/);
+    await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    const sent = providerCalls.at(-1).body;
+    assert.match(sent.html, /Dear Ravi, sorry for Shop\./); assert.match(sent.html, /Refund Details/);
+    assert.equal(sent.text, 'Dear Ravi, sorry for Shop.\n\nRefund Details\nUPI');
+    assert.equal((await EmailDraft.findById(draft._id)).status, 'sent');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
