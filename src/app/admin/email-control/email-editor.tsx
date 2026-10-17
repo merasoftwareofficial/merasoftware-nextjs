@@ -120,8 +120,30 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
       </div>
       <EditorContent editor={editor} />
     </div>
-    {!singleLine && !!choices.length && <p className={styles.muted}>Point at a detail to see what it holds. A line whose details are all empty is left out of the email.</p>}
+    {!singleLine && !!choices.length && <DetailsGuide label={label} choices={choices} disabled={disabled || !editor} onInsert={choice => insert({ type: choice.kind, attrs: { key: choice.key } })} />}
   </div>;
+}
+
+type Choice = TemplateVariable & { kind: string };
+/**
+ * Always-visible list of the details this email can hold: what each one is filled with, an
+ * example (or, in a review, this email's own value), and a click inserts it at the cursor.
+ */
+function DetailsGuide({ label, choices, disabled, onInsert }: { label: string; choices: Choice[]; disabled: boolean; onInsert: (choice: Choice) => void }) {
+  const example = (row: Choice) => (row.value !== undefined ? (row.value ? `In this email: ${row.value}` : "Empty in this email") : row.sample ? `e.g. ${row.sample}` : "");
+  return <section className={styles.details} aria-label={`Available details for ${label}`}>
+    <h3>Available details</h3>
+    <p className={styles.muted}>Click a detail to put it where the cursor is. When the email is prepared, each detail is replaced by the real value — for example the client&apos;s own name. A line whose details are all empty is left out.</p>
+    <ul>
+      {choices.map(row => <li key={`${row.kind}:${row.key}`}>
+        <button type="button" disabled={disabled} className={row.kind === "emailSection" ? styles.sectionChip : styles.chip} onMouseDown={event => event.preventDefault()} onClick={() => onInsert(row)}>
+          {row.kind === "emailSection" ? `▦ ${row.label}` : row.label}
+        </button>
+        <span>{row.hint || (row.kind === "emailSection" ? "A section this action builds; keep it on its own line" : "Filled in automatically")}</span>
+        {example(row) && <span className={styles.muted}>{example(row)}</span>}
+      </li>)}
+    </ul>
+  </section>;
 }
 
 /** The final mail as the backend rendered it; sandboxed so it can never run script. */

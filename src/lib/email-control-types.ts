@@ -5,10 +5,11 @@ export type Application = "website" | "portal";
 export type EmailPolicyMode = "review" | "auto" | "off";
 // `doc`/`subjectDoc` are the visual editor's documents (absent from a backend older than the editor).
 export type EmailTemplate = { _id: string; event: string; name: string; subject: string; text: string; system?: boolean; doc?: JSONContent; subjectDoc?: JSONContent };
-export type TemplateVariable = { key: string; label: string; hint?: string };
+/** A detail an email may hold: `sample` is an example (template editor), `value` this email's own value (review). */
+export type TemplateVariable = { key: string; label: string; hint?: string; sample?: string; value?: string };
 /** Per action: whether it has an editable built-in (system) template, and what templates may use. */
 export type TemplateCatalog = Record<string, { system: boolean; variables: TemplateVariable[]; blocks: TemplateVariable[] }>;
-/** A review's template choices, built-in first; id "" is a not-yet-migrated action's code-built mail. */
+/** A review's template choices, built-in first; id "" is an older backend's code-built mail. */
 export type TemplateOption = { id: string; name: string; system: boolean };
 export type EmailDraft = {
   _id: string; event: string; to: string[]; subject: string; text: string;
