@@ -142,6 +142,10 @@ test('default and selected templates preserve the protected confirmation link', 
   const draft = await pending('template@example.test'); assert.equal(draft.subject, 'Friendly subject'); assert.ok(draft.text.includes(draft.requiredLinks[0]));
   const preview = await request(`/api/email-control/drafts/${draft._id}/preview?application=website`, 'POST', { templateId: template._id }, websiteAdmin);
   assert.ok(preview.data.text.includes(draft.requiredLinks[0]));
+  // The Standard template fills the reader's topics and the link from the website's request.
+  const standard = await request(`/api/email-control/drafts/${draft._id}/preview?application=website`, 'POST', { templateId: '' }, websiteAdmin);
+  assert.equal(standard.data.subject, 'Confirm your Mera Software updates'); assert.match(standard.data.text, /\*\*Topics:\*\* \S/);
+  assert.ok(standard.data.text.includes(`**Yes, send me updates:** ${draft.requiredLinks[0]}`));
 });
 test('Send delivers reviewed text, stamps delivery and still requires opt-in confirmation', async () => {
   const draft = await pending('approved@example.test');
@@ -307,6 +311,50 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
   } finally { await browser.close(); }
 });
 
+test('browser: every action offers its Standard template, and the details guide inserts and explains details', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    for (const tab of ['Website', 'Portal']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click(); await page.getByRole('heading', { name: `${tab} email rules` }).waitFor();
+      const rows = page.locator('tbody tr');
+      for (let index = 0; index < await rows.count(); index += 1) {
+        const label = await rows.nth(index).locator('strong').innerText();
+        assert.equal(await rows.nth(index).getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).count(), 1, label);
+        assert.equal(await rows.nth(index).getByRole('option', { name: 'Built-in action template' }).count(), 0, label);
+      }
+    }
+    const row = page.getByRole('row').filter({ hasText: 'Client account created' });
+    await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
+    const message = page.getByLabel('Message', { exact: true });
+    await message.waitFor();
+    assert.match(await message.innerText(), /You have been added as a client/);
+    const guide = page.getByRole('region', { name: 'Available details for Message' });
+    const nameDetail = guide.getByRole('listitem').filter({ hasText: 'Customer name' });
+    await nameDetail.getByText('e.g. Ravi Kumar', { exact: true }).waitFor();
+    await nameDetail.getByText(/Filled with the customer’s name/).waitFor();
+    await message.fill('Dear ');
+    await nameDetail.getByRole('button', { name: 'Customer name', exact: true }).click();
+    assert.match(await message.innerText(), /^Dear Customer name\s*$/);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    // A review shows each detail's value in this very email.
+    await EmailDraft.create({
+      event: 'sendClientAccountCreatedEmail', actor: admin._id, application: 'portal', status: 'pending', to: ['neha@example.test'],
+      subject: 'Welcome', text: 'Hello Neha,', plain: 'Hello Neha,', html: '<p>prepared</p>',
+      values: { name: 'Neha', email: 'neha@example.test', loginLink: '' }, templateName: 'Standard', expiresAt: new Date(Date.now() + 3600000),
+    });
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await page.locator('article').filter({ hasText: 'neha@example.test' }).getByRole('button', { name: 'Review email', exact: true }).click();
+    const reviewGuide = page.getByRole('region', { name: 'Available details for Message' });
+    await reviewGuide.getByRole('listitem').filter({ hasText: 'Customer name' }).getByText('In this email: Neha', { exact: true }).waitFor();
+    await reviewGuide.getByRole('listitem').filter({ hasText: 'Login link' }).getByText('Empty in this email', { exact: true }).waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
 test('browser: panel still renders when the backend predates the template catalog', async () => {
   const browser = await chromium.launch({ headless: true });
   try {
@@ -321,6 +369,7 @@ test('browser: panel still renders when the backend predates the template catalo
     await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
     await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
     const row = page.getByRole('row').filter({ hasText: 'Project created' });
+    await row.getByLabel('Project created default template').locator('option').first().waitFor({ state: 'attached' });
     assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
     await row.getByRole('button', { name: 'Add template', exact: true }).click();
     await page.getByRole('heading', { name: 'New email template' }).waitFor();

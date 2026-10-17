@@ -1,6 +1,7 @@
 /**
- * The mails of the subscribe flow. Plain markup with inline styles, since mail
- * clients ignore stylesheets. Sent through src/lib/mailer.ts.
+ * The mails of the subscribe flow, sent through src/lib/mailer.ts. The mail that goes out is
+ * the action's editable template in Email Control (backend helpers/emailDefinitions.js), filled
+ * with `values` and the required link; subject/html/text here are the request's own copy.
  */
 
 import type { Mail } from "@/lib/mailer";
@@ -29,6 +30,7 @@ export function confirmMail(to: string, topics: string[], confirmUrl: string): M
   return {
     event: "website.subscription.confirm",
     requiredLinks: [confirmUrl],
+    values: { topics: topicLine(topics) },
     to,
     subject: `Confirm your ${SITE_NAME} updates`,
     html: layout("Confirm your subscription", [intro], { label: "Yes, send me updates", href: confirmUrl }, ignore),
