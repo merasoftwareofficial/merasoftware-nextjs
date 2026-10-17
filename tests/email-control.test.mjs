@@ -193,7 +193,7 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     await page.getByLabel('Subject', { exact: true }).fill('Browser approval');
     await page.getByLabel('Message', { exact: true }).fill('Browser message');
     await page.getByRole('button', { name: 'Preview sample' }).click();
-    await page.getByRole('dialog').getByText('Browser approval', { exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Sample email' }).getByText('Browser approval', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Save template', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     const template = await EmailTemplate.findOne({ name: 'Browser template' }).lean();
@@ -225,7 +225,7 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     await page.getByLabel('Message', { exact: true }).fill('Reviewed retry text');
     providerFails = true; await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
     await page.getByRole('dialog').getByText('A retry uses the originally reviewed content and the same delivery key to prevent duplicates.', { exact: true }).waitFor();
-    assert.equal(await page.getByLabel('Message', { exact: true }).isDisabled(), true);
+    assert.equal(await page.getByLabel('Message', { exact: true }).getAttribute('contenteditable'), 'false');
     providerFails = false; await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     assert.equal((await EmailDraft.findById(retry._id)).status, 'sent');
@@ -253,12 +253,16 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     assert.equal(await row.getByLabel('Project created default template').inputValue(), String(system._id));
     await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
     const message = page.getByLabel('Message', { exact: true });
+    await message.waitFor();
+    // Details show as named chips; no markup or {{ }} is visible to the user.
+    assert.equal(await message.locator('[data-email-variable="name"]').first().innerText(), 'Customer name');
+    assert.doesNotMatch(await message.innerText(), /\{\{|\*\*|## /);
+    assert.equal(await message.locator('strong').first().innerText(), 'Project:');
     await message.fill('Hello ');
-    await message.evaluate(element => element.setSelectionRange(6, 6));
-    await page.getByRole('button', { name: '{{name}}', exact: true }).click();
-    assert.equal(await message.inputValue(), 'Hello {{name}}');
+    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Customer name' });
+    assert.match(await message.innerText(), /^Hello Customer name\s*$/);
     await page.getByRole('button', { name: 'Preview sample' }).click();
-    await page.getByRole('dialog').getByText('Your Project Has Started', { exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Sample email' }).getByText('Your Project Has Started', { exact: true }).waitFor();
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /Hello Ravi Kumar/);
     await page.getByRole('button', { name: 'Save template', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
@@ -266,7 +270,7 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
     await page.getByRole('button', { name: 'Reset to original', exact: true }).click();
     await page.getByText('Built-in template restored to its original wording.', { exact: true }).waitFor();
-    assert.match(await message.inputValue(), /^Hello \{\{name\}\},\n/);
+    assert.match(await message.innerText(), /^Hello Customer name,/);
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
     const refund = { html: '<h2>Refund Details</h2><table><tr><td>UPI</td></tr></table>', text: 'Refund Details\nUPI' };
@@ -282,7 +286,14 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     const options = await page.getByLabel('Template', { exact: true }).locator('option').allTextContents();
     assert.deepEqual(options, ['Current draft', 'Standard (built-in)']);
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /prepared/);
-    await message.fill('Dear {{name}}, sorry for {{project}}.\n\n{{refundTable}}');
+    assert.equal(await message.locator('[data-email-section="refundTable"]').count(), 1);
+    // Rewrite the greeting with detail chips; the refund section chip stays.
+    await message.locator('p').first().click();
+    await page.keyboard.press('Home'); await page.keyboard.press('Shift+End'); await page.keyboard.type('Dear ');
+    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Customer name' });
+    await page.keyboard.type(', sorry for ');
+    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Project name' });
+    await page.keyboard.type('.');
     await page.getByRole('button', { name: 'Update preview', exact: true }).click();
     await page.waitForFunction(() => /Dear Ravi, sorry for Shop\./.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /Refund Details/);
@@ -313,6 +324,29 @@ test('browser: panel still renders when the backend predates the template catalo
     assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
     await row.getByRole('button', { name: 'Add template', exact: true }).click();
     await page.getByRole('heading', { name: 'New email template' }).waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('browser: customer actions have their own On/Off section, Off by default', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Customer actions (automatic)' }).count(), 0);
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    const section = page.getByRole('region', { name: 'Customer actions (automatic)' });
+    const row = section.getByRole('row').filter({ hasText: 'Update request received' });
+    const mail = row.getByLabel('Update request received mail');
+    assert.equal(await mail.inputValue(), 'off');
+    assert.deepEqual(await mail.locator('option').allTextContents(), ['On — send automatically', 'Off']);
+    assert.equal(await section.getByRole('row').filter({ hasText: 'Project created' }).count(), 0);
+    assert.deepEqual(await page.getByLabel('Project created sending rule').locator('option').allTextContents(), ['Ask before sending', 'Off']);
+    await mail.selectOption('auto');
+    await page.getByText('Email rule saved.', { exact: true }).waitFor();
+    assert.equal((await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean()).mode, 'auto');
+    assert.equal(await mail.inputValue(), 'auto');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

@@ -40,10 +40,16 @@
 .sample { margin-top:16px; border:1px solid var(--line, #cbd0d4); border-radius:8px; padding:14px; }
 .sample pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; margin-top:8px; }
 .link { overflow-wrap:anywhere; font-size:13px; }
-.toolbarRow,.variables { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 8px; }
-.variables { margin:8px 0 0; }
-.toolbarRow button,.variables button { border:1px solid var(--line, #cbd0d4); background:transparent; color:inherit; padding:5px 10px; border-radius:6px; font-size:13px; cursor:pointer; }
-.variables button { font-family:ui-monospace,Consolas,monospace; }
+.editorField { margin-top:16px; }
+.editorLabel { display:block; margin:0 0 6px; font-size:14px; font-weight:600; }
+.editorField .surface { min-height:220px; padding:16px; font-size:15px; line-height:1.6; }
+.editorField .surface p { margin:0 0 12px; }
+.editorField .singleLine { min-height:0; padding:10px 14px; }
+.editorField .singleLine p { margin:0; }
+.chip { display:inline-block; padding:1px 8px; margin:0 1px; border:1px solid var(--brand-teal, #007f99); border-radius:999px; background:rgb(0 127 153 / .14); color:inherit; font-size:.9em; line-height:1.5; white-space:nowrap; }
+.sectionChip { margin:0 0 12px; padding:12px 14px; border:1px dashed var(--brand-teal, #007f99); border-radius:8px; background:rgb(0 127 153 / .1); color:inherit; font-weight:600; }
+.chip:global(.ProseMirror-selectednode),.sectionChip:global(.ProseMirror-selectednode) { outline:2px solid var(--brand-link, #006b80); outline-offset:1px; }
+.dialog .insertDetail,.insertDetail { width:auto; margin-left:4px; padding:6px 8px; border:1px solid var(--line, #cbd0d4); border-radius:6px; background:var(--surface, #fff); color:inherit; font:inherit; font-size:13px; }
 .preview { display:block; width:100%; height:420px; margin-top:12px; border:1px solid var(--line, #cbd0d4); border-radius:8px; background:#fff; }
 
 :global(.admin-shell[data-theme="dark"]) .error { color:#ff9d9d; }

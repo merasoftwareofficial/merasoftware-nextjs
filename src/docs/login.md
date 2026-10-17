@@ -44,6 +44,7 @@
 - Blog roles and bans: website `/admin/users` → `PATCH /api/users/[id]`.
 - The website header shows the portal link by the cookie's active portal role (admin → portal admin panel, customer → My Portal), matching portal guards. Full account roles still determine website permissions. Temporary portal HTTP failures are not cached as signed out for 60 seconds. See `src/lib/auth.ts` and `src/lib/portal.ts`.
 - Settings the website needs (Vercel and `.env.local`): `TOKEN_SECRET_KEY` (exactly the backend's value), `PORTAL_API_URL`, `PORTAL_URL`, `MONGODB_URI`, `DATA_DRIVER`. Without them the build fails on `/login` (this happened on 28 Sep 2026).
+- Upload links made while the portal ran on `www` (`/external-upload#token=…`) are redirected by `next.config.ts` → `redirects()` to `PORTAL_URL/external-upload` (307; the browser keeps the `#token`). Before 17 Oct 2026 they answered 404 here. New links follow the backend's `FORNTEND_URL`, which should be `https://portal.merasoftware.com` (portal map §7a).
 - Settings the backend needs on Render: `MONGODB_URI`, `TOKEN_SECRET_KEY`, `RESEND_API_KEY`, `FROM_EMAIL`, `FROM_NAME`, `ADMIN_EMAIL`, `ADMIN_DASHBOARD_URL`, `FORNTEND_URL` (spelled as in the code), `KEEP_ALIVE_URL`, `COOKIE_DOMAIN`, `EXTERNAL_UPLOAD_TOKEN_SECRET`, `GOOGLE_DRIVE_CREDENTIALS_PATH` + secret file `google-drive-credentials.json`, and `ENABLE_CRONS=true` on production only.
 
 ## Working rules

@@ -1,6 +1,11 @@
+import type { JSONContent } from "@tiptap/core";
+
 export type Application = "website" | "portal";
-export type EmailTemplate = { _id: string; event: string; name: string; subject: string; text: string; system?: boolean };
-export type TemplateVariable = { key: string; label: string };
+/** review/off: an admin's action asks before sending. auto/off: customer-started mail is On or Off. */
+export type EmailPolicyMode = "review" | "auto" | "off";
+// `doc`/`subjectDoc` are the visual editor's documents (absent from a backend older than the editor).
+export type EmailTemplate = { _id: string; event: string; name: string; subject: string; text: string; system?: boolean; doc?: JSONContent; subjectDoc?: JSONContent };
+export type TemplateVariable = { key: string; label: string; hint?: string };
 /** Per action: whether it has an editable built-in (system) template, and what templates may use. */
 export type TemplateCatalog = Record<string, { system: boolean; variables: TemplateVariable[]; blocks: TemplateVariable[] }>;
 /** A review's template choices, built-in first; id "" is a not-yet-migrated action's code-built mail. */
@@ -12,6 +17,8 @@ export type EmailDraft = {
   failure?: string; expiresAt: string; createdAt: string;
   reference?: { subscriberId?: string; tokenHash?: string };
   html?: string; templateOptions?: TemplateOption[];
+  // The review as an editor document, and the chips it may use.
+  doc?: JSONContent; editorFields?: { variables: TemplateVariable[]; blocks: TemplateVariable[] };
 };
 export type EmailHistory = {
   _id: string; draftId: string; event: string; to: string[]; subject: string; status: string;
@@ -27,8 +34,9 @@ export type EmailOutboxData = {
 };
 export type EmailControlData = {
   application: Application;
-  events: { key: string; section: string; label: string; application: Application }[];
-  policies: { event: string; mode: "review" | "off"; defaultTemplate: string | null }[];
+  // `trigger` is absent from a backend older than customer-action control; treat it as "admin".
+  events: { key: string; section: string; label: string; application: Application; trigger?: "admin" | "customer" }[];
+  policies: { event: string; mode: EmailPolicyMode; defaultTemplate: string | null }[];
   // Absent from a backend older than the template system; the panel then shows legacy choices.
   catalog?: TemplateCatalog; templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false; serverNow: number;
 };
