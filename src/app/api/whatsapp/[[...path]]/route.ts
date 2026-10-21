@@ -7,8 +7,8 @@ import { PortalApiError, portalApiRequest } from "@/lib/portal-api";
 // Admins only, on both sides: the website admin role here, the portal admin role in the backend.
 type Context = { params: Promise<{ path?: string[] }> };
 const allowed = (method: string, path: string) => (
-  (method === "GET" && (path === "status" || path === "queue")) ||
-  (method === "POST" && (path === "pause" || path === "resume" || path === "unlink" || /^queue\/[a-f\d]{24}\/retry$/i.test(path)))
+  (method === "GET" && (path === "status" || path === "queue" || path === "settings")) ||
+  (method === "POST" && (path === "pause" || path === "resume" || path === "unlink" || path === "settings" || path === "settings/reset" || /^queue\/[a-f\d]{24}\/retry$/i.test(path)))
 );
 async function handle(request: Request, context: Context) {
   try {
@@ -27,7 +27,9 @@ async function handle(request: Request, context: Context) {
         if (value !== null) query.set(key, value);
       }
     }
-    const data = await portalApiRequest("WhatsApp", `/api/whatsapp-control/${path}${query.size ? `?${query}` : ""}`, request.method, { Cookie: `token=${token}` });
+    // Only saving the sending rules carries a body; the backend checks every value.
+    const body = request.method === "POST" && path === "settings" ? await request.json().catch(() => ({})) : undefined;
+    const data = await portalApiRequest("WhatsApp", `/api/whatsapp-control/${path}${query.size ? `?${query}` : ""}`, request.method, { Cookie: `token=${token}` }, body);
     return NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof AuthError || error instanceof PortalApiError ? error.status : 400;

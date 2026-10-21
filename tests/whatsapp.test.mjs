@@ -17,6 +17,7 @@ const express = backend('express');
 const jwt = backend('jsonwebtoken');
 const userModel = backend('./models/userModel');
 const { Queue, State } = backend('./whatsapp/src/models.js');
+const { RECOMMENDED } = backend('./whatsapp/src/settings.js');
 let database, backendServer, websiteServer, websiteBase, qa, admin, websiteOnlyAdmin;
 const qaDir = path.join(root, '.next', 'whatsapp-qa');
 const session = (user, websiteRole) => ({
@@ -24,11 +25,12 @@ const session = (user, websiteRole) => ({
   portalRoles: user.roles, portalActiveRole: user.roles[0],
 });
 const context = (user = admin, role = 'admin') => ({ session: user ? session(user, role) : null, token: user ? jwt.sign({ _id: String(user._id), role: user.roles[0] }, process.env.TOKEN_SECRET_KEY) : undefined });
-async function request(pathname, method = 'GET', user = admin, role = 'admin') {
+async function request(pathname, method = 'GET', user = admin, role = 'admin', body) {
   const url = new URL(pathname, 'http://website.test');
   const handler = qa.whatsappRoutes[method];
   if (!handler) return { status: 405 };
-  const response = await qa.context.run(context(user, role), () => handler(new Request(url, { method }), { params: Promise.resolve({ path: url.pathname.split('/').slice(3).filter(Boolean) }) }));
+  const init = body === undefined ? { method } : { method, body, headers: { 'Content-Type': 'application/json' } };
+  const response = await qa.context.run(context(user, role), () => handler(new Request(url, init), { params: Promise.resolve({ path: url.pathname.split('/').slice(3).filter(Boolean) }) }));
   return { status: response.status, ...await response.json() };
 }
 const minutesAgo = minutes => new Date(Date.now() - minutes * 60_000);
@@ -64,7 +66,9 @@ before(async () => {
     try {
       if (req.url === '/panel.js' || req.url === '/panel.css') { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css'); return res.end(readFileSync(path.join(qaDir, req.url.slice(1)))); }
       if (req.url.startsWith('/api/whatsapp')) {
-        const result = await request(req.url, req.method);
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const result = await request(req.url, req.method, admin, 'admin', body || undefined);
         res.statusCode = result.status; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(result));
       }
       res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><link rel="stylesheet" href="/panel.css"></head><body><div id="root"></div><script src="/panel.js"></script></body></html>');
@@ -88,7 +92,7 @@ test('only an admin of both the website and the portal gets in', async () => {
 });
 
 test('only the listed actions pass the proxy', async () => {
-  for (const [pathname, method] of [['/api/whatsapp', 'GET'], ['/api/whatsapp/queue/abc/retry', 'POST'], ['/api/whatsapp/status', 'POST'], ['/api/whatsapp/../email-control', 'GET'], ['/api/whatsapp/unlink', 'GET']]) {
+  for (const [pathname, method] of [['/api/whatsapp', 'GET'], ['/api/whatsapp/queue/abc/retry', 'POST'], ['/api/whatsapp/status', 'POST'], ['/api/whatsapp/../email-control', 'GET'], ['/api/whatsapp/unlink', 'GET'], ['/api/whatsapp/settings/reset', 'GET'], ['/api/whatsapp/settings/other', 'POST']]) {
     assert.equal((await request(pathname, method)).status, 404, `${method} ${pathname}`);
   }
   await request('/api/whatsapp/pause', 'POST');
@@ -120,7 +124,7 @@ test('browser: QR to scan, totals, pause and resume, filters, and Send again for
 
     assert.ok(await page.getByText('No phone number is saved for this email address.').isVisible());
     assert.ok(await page.getByText('+91 98765 43210').isVisible());
-    await page.getByLabel('Show').selectOption('failed');
+    await page.getByRole('combobox', { name: /^Show/ }).selectOption('failed');
     await page.getByText('neha@example.test').waitFor();
     assert.equal(await page.getByText('ravi@example.test').count(), 0);
 
@@ -149,4 +153,59 @@ test('browser: says plainly when WhatsApp is off on the server or the service is
     await page.reload();
     await page.getByText('WhatsApp sending is turned off on the server.').waitFor();
   } finally { process.env.ENABLE_WHATSAPP = 'true'; await browser.close(); }
+});
+
+test('sending rules pass the proxy with their values; a bad value comes back as the backend\'s plain message', async () => {
+  const saved = await request('/api/whatsapp/settings', 'POST', admin, 'admin', JSON.stringify({ ...RECOMMENDED, dailyLimit: 70 }));
+  assert.equal(saved.status, 200);
+  assert.equal((await State.findById('main').lean()).settings.dailyLimit, 70);
+  const refused = await request('/api/whatsapp/settings', 'POST', admin, 'admin', JSON.stringify({ ...RECOMMENDED, dailyLimit: 999 }));
+  assert.equal(refused.status, 400);
+  assert.match(refused.error, /Messages per day must be a whole number from 1 to 300/);
+  assert.equal((await request('/api/whatsapp/settings', 'POST', admin, 'admin', 'not json')).status, 400);
+  assert.equal((await request('/api/whatsapp/settings', 'POST', websiteOnlyAdmin, 'admin', JSON.stringify(RECOMMENDED))).status, 403);
+});
+
+test('browser: change the sending rules, see a warning, refuse a bad value, reset to recommended', async () => {
+  await State.create({ _id: 'main', connection: 'connected', phone: '919876543210', heartbeatAt: new Date() });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(websiteBase);
+    await page.getByRole('heading', { name: 'Sending rules' }).waitFor();
+    const daily = page.getByLabel('Messages per day');
+    assert.equal(await daily.inputValue(), String(RECOMMENDED.dailyLimit));
+    assert.ok(await page.getByText(`Recommended: ${RECOMMENDED.dailyLimit} messages (allowed 1–300)`).isVisible());
+
+    await daily.fill('90');
+    await page.getByLabel('Gap between messages').fill('60');
+    await page.getByLabel('Stop at').selectOption('20');
+    await page.getByLabel('Start again at').selectOption('12');
+    await page.getByLabel('Drop a message after').fill('12');
+    await page.getByRole('button', { name: 'Save rules' }).click();
+    await page.getByText('Sending rules saved.').waitFor();
+    assert.ok(await page.getByText(/messages made at night will expire/).isVisible());
+    const stored = (await State.findById('main').lean()).settings;
+    assert.deepEqual([stored.dailyLimit, stored.minGapSec, stored.quietFrom, stored.quietTo, stored.maxAgeHours], [90, 60, 20, 12, 12]);
+    await page.getByText('at least 60 seconds apart, up to 90 a day').waitFor({ timeout: 8000 });
+
+    await page.getByLabel('Show \u201ctyping\u2026\u201d before each message').uncheck();
+    assert.equal(await page.getByLabel('Longest typing time').isDisabled(), true);
+    await page.getByRole('button', { name: 'Save rules' }).click();
+    await page.getByText('Sending rules saved.').waitFor();
+    assert.equal((await State.findById('main').lean()).settings.typing, false);
+
+    await page.getByLabel('Shortest typing time').evaluate(input => { input.closest('fieldset').querySelector('input[type=checkbox]').click(); });
+    await page.getByLabel('Shortest typing time').fill('9');
+    await page.getByRole('button', { name: 'Save rules' }).click();
+    await page.getByText('Shortest typing time cannot be more than the longest typing time.').waitFor();
+    assert.equal((await State.findById('main').lean()).settings.typing, false, 'a refused save changes nothing');
+
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Reset to recommended' }).click();
+    await page.getByText('Recommended rules restored.').waitFor();
+    assert.equal(await daily.inputValue(), String(RECOMMENDED.dailyLimit));
+    assert.deepEqual((await State.findById('main').lean()).settings, RECOMMENDED);
+    assert.equal(await page.getByText(/will expire/).count(), 0);
+  } finally { await browser.close(); }
 });

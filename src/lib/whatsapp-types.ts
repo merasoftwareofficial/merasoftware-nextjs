@@ -12,6 +12,10 @@ export type WhatsappStatus = {
   unlinkRequested: boolean;
   sentToday: number;
   dailyLimit: number;
+  minGapSec: number;
+  maxAgeHours: number;
+  quietNow: boolean;
+  quietTo: number;
   nextSendAt: string | null;
   lastSentAt: string | null;
   lastError: string | null;
@@ -35,3 +39,18 @@ export type WhatsappMessage = {
 };
 
 export type WhatsappQueuePage = { rows: WhatsappMessage[]; total: number; page: number; pages: number };
+
+// Sending rules (ban safety), backend whatsapp/src/settings.js.
+export type WhatsappSettings = {
+  minGapSec: number; jitterSec: number; dailyLimit: number;
+  typing: boolean; typingMinSec: number; typingMaxSec: number;
+  quietHours: boolean; quietFrom: number; quietTo: number;
+  retryDelayMin: number; maxAttempts: number; maxAgeHours: number;
+};
+export type WhatsappNumberSetting = { [K in keyof WhatsappSettings]: WhatsappSettings[K] extends number ? K : never }[keyof WhatsappSettings];
+export type WhatsappSettingsReply = {
+  settings: WhatsappSettings;
+  recommended: WhatsappSettings;
+  limits: Record<WhatsappNumberSetting, [number, number]>;
+  warnings: string[];
+};

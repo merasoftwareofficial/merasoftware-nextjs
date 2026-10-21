@@ -4,14 +4,18 @@ import { formatIndiaDateTime } from "@/lib/date-time";
 import type { WhatsappMessage, WhatsappQueuePage, WhatsappQueueStatus, WhatsappStatus } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
 import own from "./whatsapp.module.css";
+import { WhatsappSettingsSection } from "./whatsapp-settings";
 
-async function whatsappApi<T>(path: string, method = "GET", signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/api/whatsapp/${path}`, { method, signal, cache: "no-store" });
+export async function whatsappApi<T>(path: string, method = "GET", signal?: AbortSignal, body?: unknown): Promise<T> {
+  const response = await fetch(`/api/whatsapp/${path}`, {
+    method, signal, cache: "no-store",
+    ...(body !== undefined ? { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } } : {}),
+  });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Could not complete the WhatsApp request.");
   return result.data as T;
 }
-const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+export const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 
 const STATUS_LABEL: Record<WhatsappQueueStatus, string> = {
   pending: "Waiting", sending: "Sending now", sent: "Sent", failed: "Not sent", skipped: "Skipped", expired: "Expired", cancelled: "Cancelled",
@@ -23,6 +27,10 @@ function connectionLabel(status: WhatsappStatus) {
   if (!status.enabled) return "Turned off";
   if (!status.workerRunning) return "Service not running";
   return { connected: "Connected", qr: "Waiting for QR scan", "logged-out": "Unlinked", connecting: "Connecting…", disconnected: "Not connected" }[status.connection];
+}
+/** 0 → 12 AM, 13 → 1 PM */
+export function hourLabel(hour: number) {
+  return `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
 }
 /** 919876543210 → +91 98765 43210 */
 function phoneLabel(phone?: string | null) {
@@ -83,7 +91,7 @@ export function WhatsappPanel() {
   }
   function sendAgain(row: WhatsappMessage) {
     if (MAYBE_ARRIVED.test(row.lastError || "") && !window.confirm("This message may already have reached the customer. Sending it again can deliver it twice. Send again?")) return;
-    void act(`queue/${row._id}/retry`, "Back in the queue. It goes out in its turn, at least 30 seconds after the previous message.");
+    void act(`queue/${row._id}/retry`, `Back in the queue. It goes out in its turn, at least ${status?.minGapSec ?? 30} seconds after the previous message.`);
   }
 
   return <div className={styles.panel}>
@@ -92,8 +100,9 @@ export function WhatsappPanel() {
     {status && <>
       {!status.enabled && <div className={styles.banner}><strong>WhatsApp sending is turned off on the server.</strong> No WhatsApp messages are made or sent until it is turned on (server setting ENABLE_WHATSAPP).</div>}
       {status.enabled && !status.workerRunning && <div className={styles.banner}><strong>The WhatsApp service is not running right now.</strong> It restarts on its own within a minute. If this message stays, check the server logs.</div>}
-      {status.paused && <div className={styles.banner}><strong>Sending is paused.</strong> New messages wait in the queue; a message waiting more than 24 hours expires and is not sent.</div>}
-      <div className={styles.banner}>Every email that is really sent also goes out on WhatsApp with the same text. Messages leave one at a time, at least 30 seconds apart, up to {status.dailyLimit} a day.</div>
+      {status.paused && <div className={styles.banner}><strong>Sending is paused.</strong> New messages wait in the queue; a message waiting more than {status.maxAgeHours} hours expires and is not sent.</div>}
+      {status.quietNow && <div className={styles.banner}><strong>Quiet hours now.</strong> Messages wait and go out from {hourLabel(status.quietTo)} (IST).</div>}
+      <div className={styles.banner}>Every email that is really sent also goes out on WhatsApp with the same text. Messages leave one at a time, at least {status.minGapSec} seconds apart, up to {status.dailyLimit} a day.</div>
 
       <dl className={styles.summary}>
         {([["Connection", connectionLabel(status)], ["Linked number", phoneLabel(status.phone)], ["Sent today", `${status.sentToday} / ${status.dailyLimit}`],
@@ -124,6 +133,8 @@ export function WhatsappPanel() {
       </div>
       {notice && <p className={styles.notice} role="status">{notice}</p>}
       {actionError && <p className={styles.error} role="alert">{actionError}</p>}
+
+      <WhatsappSettingsSection onSaved={() => void loadStatus()} />
     </>}
 
     <section className={styles.section} aria-labelledby="messages-title">
