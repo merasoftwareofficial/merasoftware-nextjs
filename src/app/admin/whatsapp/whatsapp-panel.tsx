@@ -5,6 +5,7 @@ import type { WhatsappMessage, WhatsappQueuePage, WhatsappQueueStatus, WhatsappS
 import styles from "../email-control/email-control.module.css";
 import own from "./whatsapp.module.css";
 import { WhatsappSettingsSection } from "./whatsapp-settings";
+import { WhatsappText } from "./whatsapp-text";
 
 export async function whatsappApi<T>(path: string, method = "GET", signal?: AbortSignal, body?: unknown): Promise<T> {
   const response = await fetch(`/api/whatsapp/${path}`, {
@@ -39,7 +40,9 @@ function phoneLabel(phone?: string | null) {
   return `+${phone.slice(0, -10)} ${local.slice(0, 5)} ${local.slice(5)}`;
 }
 
-export function WhatsappPanel() {
+/** Communication shows each part on its own page: the linked number, the message list, or the sending rules. */
+export type WhatsappView = "all" | "connection" | "messages" | "rules";
+export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
@@ -56,23 +59,25 @@ export function WhatsappPanel() {
     .catch(error => { if (!signal?.aborted) setStatusError(message(error, "Could not load WhatsApp status.")); }), []);
   // The QR changes about every 20 seconds, so the status refreshes every 5 while this tab is visible.
   useEffect(() => {
+    if (view === "rules") return; // the rules form loads and saves on its own
     const controller = new AbortController();
     const refresh = () => { if (document.visibilityState === "visible") void loadStatus(controller.signal); };
     const first = setTimeout(refresh, 0);
     const timer = setInterval(refresh, 5000);
     return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
-  }, [loadStatus]);
+  }, [loadStatus, view]);
 
   // The list reloads when the totals change (a message was sent, skipped, …), the filter or page changes, or after an action.
   const countsKey = JSON.stringify(status?.counts ?? null);
   useEffect(() => {
+    if (view !== "all" && view !== "messages") return;
     const controller = new AbortController();
     const query = new URLSearchParams({ status: filter, page: String(page) });
     whatsappApi<WhatsappQueuePage>(`queue?${query}`, "GET", controller.signal)
       .then(data => { if (!controller.signal.aborted) { setQueue(data); setQueueError(null); } })
       .catch(error => { if (!controller.signal.aborted) setQueueError(message(error, "Could not load messages.")); });
     return () => controller.abort();
-  }, [filter, page, countsKey, revision]);
+  }, [filter, page, countsKey, revision, view]);
 
   async function act(path: string, done: string) {
     setBusy(true); setNotice(null); setActionError(null);
@@ -94,10 +99,12 @@ export function WhatsappPanel() {
     void act(`queue/${row._id}/retry`, `Back in the queue. It goes out in its turn, at least ${status?.minGapSec ?? 30} seconds after the previous message.`);
   }
 
+  if (view === "rules") return <div className={styles.panel}><WhatsappSettingsSection onSaved={() => undefined} /></div>;
+  const connection = view !== "messages";
   return <div className={styles.panel}>
     {!status && !statusError && <p role="status">Loading WhatsApp…</p>}
     {statusError && <p className={styles.error} role="alert">{statusError} <button onClick={() => void loadStatus()}>Retry</button></p>}
-    {status && <>
+    {status && connection && <>
       {!status.enabled && <div className={styles.banner}><strong>WhatsApp sending is turned off on the server.</strong> No WhatsApp messages are made or sent until it is turned on (server setting ENABLE_WHATSAPP).</div>}
       {status.enabled && !status.workerRunning && <div className={styles.banner}><strong>The WhatsApp service is not running right now.</strong> It restarts on its own within a minute. If this message stays, check the server logs.</div>}
       {status.paused && <div className={styles.banner}><strong>Sending is paused.</strong> New messages wait in the queue; a message waiting more than {status.maxAgeHours} hours expires and is not sent.</div>}
@@ -134,10 +141,11 @@ export function WhatsappPanel() {
       {notice && <p className={styles.notice} role="status">{notice}</p>}
       {actionError && <p className={styles.error} role="alert">{actionError}</p>}
 
-      <WhatsappSettingsSection onSaved={() => void loadStatus()} />
+      {view === "all" && <WhatsappSettingsSection onSaved={() => void loadStatus()} />}
     </>}
 
-    <section className={styles.section} aria-labelledby="messages-title">
+    {!connection && status?.paused && <div className={styles.banner}><strong>Sending is paused.</strong> Resume it under WhatsApp number.</div>}
+    {view !== "connection" && <section className={styles.section} aria-labelledby="messages-title">
       <div className={styles.toolbar}>
         <h2 id="messages-title">Messages</h2>
         <label className={styles.muted}>Show <select value={filter} onChange={event => { setFilter(event.target.value as (typeof FILTERS)[number]); setPage(1); }}>
@@ -151,7 +159,7 @@ export function WhatsappPanel() {
         <thead><tr><th>To</th><th>Message</th><th>Status</th><th>Time (IST)</th><th>Action</th></tr></thead>
         <tbody>{queue.rows.map(row => <tr key={row._id}>
           <td><strong>{phoneLabel(row.to)}</strong><small>{row.email || "—"}</small></td>
-          <td><details><summary>{row.text.split("\n")[0].replace(/\*/g, "") || "Message"}</summary><p className={own.message}>{row.text}</p></details></td>
+          <td><details><summary>{row.text.split("\n")[0].replace(/\*/g, "") || "Message"}</summary><WhatsappText text={row.text} /></details></td>
           <td><strong>{STATUS_LABEL[row.status]}</strong>{row.lastError && <small>{row.lastError}</small>}</td>
           <td>{row.sentAt ? <>Sent {formatIndiaDateTime(row.sentAt)}</> : <>Queued {formatIndiaDateTime(row.createdAt)}</>}</td>
           <td>{row.canRetry ? <button className="admin-action" disabled={busy} onClick={() => sendAgain(row)}>Send again</button> : "—"}</td>
@@ -162,6 +170,6 @@ export function WhatsappPanel() {
         <span>Page {queue.page} of {queue.pages}</span>
         <button className="admin-action" disabled={page >= queue.pages} onClick={() => setPage(page + 1)}>Next</button>
       </div>}
-    </section>
+    </section>}
   </div>;
 }

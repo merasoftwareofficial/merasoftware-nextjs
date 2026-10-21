@@ -59,7 +59,7 @@ before(async () => {
     plugins: [{ name: 'request-context-fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}', loader: 'js' })); } }],
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
-    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true}/>);`, loader: 'tsx', resolveDir: root } });
+    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true} view={(q.get('view') as any)||undefined} showTabs={q.get('tabs')!=='off'}/>);`, loader: 'tsx', resolveDir: root } });
   database = await MongoMemoryServer.create({ instance: { launchTimeout: Number(process.env.EMAIL_TEST_MONGO_TIMEOUT || 60000) } });
   await mongoose.connect(database.getUri(), { dbName: 'website-email-isolated' });
   [admin, websiteAdmin] = await userModel.create([{ name: 'Portal Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Website Admin', email: 'website-admin@example.test', roles: ['member'] }]);
@@ -373,6 +373,34 @@ test('browser: panel still renders when the backend predates the template catalo
     assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
     await row.getByRole('button', { name: 'Add template', exact: true }).click();
     await page.getByRole('heading', { name: 'New email template' }).waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('browser: Communication shows rules and history on separate pages, and the sample shows the WhatsApp message', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`${websiteBase}/?view=actions&tabs=off`); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    assert.equal(await page.getByRole('tab').count(), 0, 'the left menu picks Website or Portal, not tabs');
+    assert.equal(await page.getByRole('heading', { name: 'Pending email review' }).count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'Outbox', exact: true }).count(), 0);
+    const row = page.getByRole('row').filter({ hasText: 'Subscription confirmation' });
+    await row.getByRole('button', { name: 'Add template' }).click();
+    await page.getByLabel('Subject', { exact: true }).fill('Shared subject');
+    await page.getByLabel('Message', { exact: true }).fill('Shared message');
+    await page.getByRole('button', { name: 'Preview sample' }).click();
+    const whatsapp = page.getByRole('region', { name: 'Sample WhatsApp message' });
+    await whatsapp.waitFor();
+    assert.equal(await whatsapp.locator('p strong').textContent(), 'Shared subject');
+    assert.match(await whatsapp.textContent(), /Shared message/);
+    assert.doesNotMatch(await whatsapp.textContent(), /\*/);
+
+    await page.goto(`${websiteBase}/?view=activity&tabs=off`); await page.getByRole('heading', { name: 'Website email review and history' }).waitFor();
+    await page.getByRole('heading', { name: 'Pending email review' }).waitFor();
+    await page.getByRole('region', { name: 'Outbox', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Add template' }).count(), 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

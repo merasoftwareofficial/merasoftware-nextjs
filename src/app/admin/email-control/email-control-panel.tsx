@@ -10,13 +10,16 @@ import type { JSONContent } from "@tiptap/core";
 import { chipDoc, docHasContent, EmailEditor, EmailPreview, plainDoc } from "./email-editor";
 import type { Application, EmailControlData, EmailDraft, EmailPolicyMode, EmailTemplate, TemplateOption } from "@/lib/email-control-types";
 import styles from "./email-control.module.css";
+import { WhatsappText } from "../whatsapp/whatsapp-text";
 
 type TemplateEditor = { _id?: string; event: string; name: string; system?: boolean; doc: JSONContent; subjectDoc: JSONContent };
 const toEditor = (row: EmailTemplate): TemplateEditor => ({ _id: row._id, event: row.event, name: row.name, system: row.system, doc: row.doc ?? plainDoc(row.text), subjectDoc: row.subjectDoc ?? plainDoc(row.subject) });
 const templateBody = (value: TemplateEditor) => ({ event: value.event, name: value.name, doc: value.doc, subjectDoc: value.subjectDoc });
 const reason = (error: unknown) => error instanceof Error ? error.message : "Email request failed.";
 const optionLabel = (option: { name: string; system?: boolean; id?: string; _id?: string }) => option.system && (option.id || option._id) ? `${option.name} (built-in)` : option.name;
-export function EmailControlPanel({ initialApplication, canManagePortal }: { initialApplication: Application; canManagePortal: boolean }) {
+/** Communication shows each half on its own page: "actions" = rules and templates, "activity" = review, Outbox and history. */
+export type EmailView = "all" | "actions" | "activity";
+export function EmailControlPanel({ initialApplication, canManagePortal, view = "all", showTabs = true }: { initialApplication: Application; canManagePortal: boolean; view?: EmailView; showTabs?: boolean }) {
   const [application, setApplication] = useState(initialApplication);
   const { track } = useTask();
   const request = useCallback(<T,>(path = "", method = "GET", body?: unknown, signal?: AbortSignal) => track(() => api<T>(application, path, method, body, signal)), [application, track]);
@@ -26,7 +29,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editor, setEditor] = useState<TemplateEditor | null>(null);
-  const [sample, setSample] = useState<{ subject: string; html: string } | null>(null);
+  const [sample, setSample] = useState<{ subject: string; html: string; whatsapp?: string } | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
   const [draft, setDraft] = useState<EmailDraft | null>(null);
   const [subject, setSubject] = useState("");
@@ -165,18 +168,20 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
   const customerEvents = data?.events.filter(event => event.trigger === "customer") || [];
   const adminEvents = data?.events.filter(event => event.trigger !== "customer") || [];
   const editorCatalog = editor ? data?.catalog?.[editor.event] : undefined;
+  const actions = view !== "activity", activity = view !== "actions";
+  const appName = application === "website" ? "Website" : "Portal";
   return <div className={styles.panel}>
-    <div className={styles.tabs} role="tablist" aria-label="Email application">
+    {showTabs && <div className={styles.tabs} role="tablist" aria-label="Email application">
       <button role="tab" aria-selected={application === "website"} disabled={busy} onClick={() => changeTab("website")}>Website</button>
       <button role="tab" aria-selected={application === "portal"} disabled={busy || !canManagePortal} onClick={() => changeTab("portal")}>Portal</button>
-    </div>
-    {!canManagePortal && <p className={styles.muted}>Portal email management requires portal admin access.</p>}
-    <div className={styles.banner}><strong>Admin actions ask before sending.</strong> Mail a customer&apos;s own action starts follows its On/Off setting and never shows the customer a popup. Public website requests arrive here for review. Email schedules and reminders remain disabled.</div>
-    <div className={styles.toolbar}><h2>{application === "website" ? "Website" : "Portal"} email rules</h2><button className="admin-action" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}>Refresh</button></div>
+    </div>}
+    {showTabs && !canManagePortal && <p className={styles.muted}>Portal email management requires portal admin access.</p>}
+    {actions && <div className={styles.banner}><strong>Admin actions ask before sending.</strong> Mail a customer&apos;s own action starts follows its On/Off setting and never shows the customer a popup. Public website requests arrive here for review. Email schedules and reminders remain disabled. Every email that is really sent also goes out on WhatsApp with the same text.</div>}
+    <div className={styles.toolbar}><h2>{appName} {view === "activity" ? "email review and history" : "email rules"}</h2><button className="admin-action" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}>Refresh</button></div>
     {notice && <p className={styles.notice} role="status">{notice}</p>}
     {error && <p className={styles.error} role="alert">{error} <button onClick={() => void load()} disabled={busy}>Retry</button></p>}
     {loading && !data && <p role="status">Loading email settings…</p>}
-    {data && <>
+    {data && actions && <>
       {customerEvents.length > 0 && <p className={styles.muted}>Admin actions: after each action the admin sees a Send / Don&apos;t Send popup.</p>}
       {rulesTable(adminEvents, false)}
       {customerEvents.length > 0 && <section className={styles.section} aria-labelledby="customer-actions-title"><h2 id="customer-actions-title">Customer actions (automatic)</h2>
@@ -184,6 +189,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
         {rulesTable(customerEvents, true)}
       </section>}
       {application === "website" && <p className={styles.muted}>Subscription confirmation and manage-link requests are connected. Contact and callback templates are reserved for their future submission integrations.</p>}
+    </>}
+    {data && activity && <>
       <section className={styles.section}><h2>Pending email review</h2><p className={styles.muted}>Drafts expire after 23 hours. Delivery failures can be retried without repeating the original action.</p>
         {!drafts.length && <p>No emails awaiting review.</p>}
         {drafts.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{data.events.find(event => event.key === row.event)?.label} · {row.status}</small>{row.failure && <p className={styles.error}>{row.failure}</p>}</div><button className="admin-action" disabled={busy || row.status === "sending"} onClick={() => void review(row._id)}>{row.status === "failed" ? "Review / retry" : row.status === "sending" ? "Sending…" : "Review email"}</button></article>)}
@@ -202,6 +209,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal }: { ini
         <EmailEditor id="template-subject" label="Subject" singleLine disabled={busy} value={editor.subjectDoc} onChange={value => setEditor(current => current && { ...current, subjectDoc: value })} variables={editorCatalog?.variables} />
         <EmailEditor id="template-message" label="Message" disabled={busy} value={editor.doc} onChange={value => setEditor(current => current && { ...current, doc: value })} variables={editorCatalog?.variables} blocks={editorCatalog?.blocks} />
         {sample && <div className={styles.sample} role="region" aria-label="Sample email"><strong>{sample.subject}</strong><EmailPreview html={sample.html} /></div>}
+        {sample?.whatsapp && <div className={styles.sample} role="region" aria-label="Sample WhatsApp message"><strong>WhatsApp message</strong><p className={styles.muted}>Sent after the email, with this same text.</p><WhatsappText text={sample.whatsapp} /></div>}
         {dialogError && <p className={styles.error} role="alert">{dialogError}</p>}
         <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewTemplate()}>Preview sample</button>{editor.system && editor._id && <button type="button" disabled={busy} onClick={() => void resetTemplate()}>Reset to original</button>}<button type="button" disabled={busy} onClick={() => setEditor(null)}>Cancel</button><button className="admin-button" disabled={busy} type="submit">{busy ? "Working…" : "Save template"}</button></div>
       </form>}

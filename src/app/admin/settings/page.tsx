@@ -34,7 +34,7 @@ export default async function Settings() {
 
       <p><Link className="admin-action" href="/admin/blog-management/settings">Comments, views and sharing settings → Blog Management</Link></p>
 
-      <p><Link className="admin-action" href="/admin/email-control">Email Control — website and portal templates, rules and approvals →</Link></p>
+      <p><Link className="admin-action" href="/admin/communication">Communication — email and WhatsApp templates, rules, approvals and history →</Link></p>
 
       <form className="admin-form">
         <div className="form-columns">

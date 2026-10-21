@@ -1,15 +1,7 @@
-import { AdminHeader } from "@/components/admin-layout";
-import { getSession, requireStaffPage } from "@/lib/auth";
-import { EmailControlPanel } from "./email-control-panel";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Email Control" };
+// Email Control now lives in Communication. The portal's admin link still opens ?tab=portal here.
 export default async function EmailControlPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  await requireStaffPage("/admin/email-control", "admin");
-  const session = await getSession();
-  const canManagePortal = !!session?.portalRoles.includes("admin");
   const { tab } = await searchParams;
-  return <main className="admin-main">
-    <AdminHeader eyebrow="COMMUNICATION" title="Email Control" description="Website and portal templates, sending rules and email decisions." />
-    <EmailControlPanel initialApplication={tab === "portal" && canManagePortal ? "portal" : "website"} canManagePortal={canManagePortal} />
-  </main>;
+  redirect(`/admin/communication?view=${tab === "portal" ? "portal-actions" : "website-actions"}`);
 }

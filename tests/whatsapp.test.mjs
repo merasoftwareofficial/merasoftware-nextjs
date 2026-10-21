@@ -49,7 +49,7 @@ before(async () => {
     plugins: [{ name: 'request-context-fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}', loader: 'js' })); } }],
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
-    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WhatsappPanel} from './src/app/admin/whatsapp/whatsapp-panel';createRoot(document.getElementById('root')!).render(<WhatsappPanel/>);`, loader: 'tsx', resolveDir: root } });
+    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WhatsappPanel} from './src/app/admin/whatsapp/whatsapp-panel';createRoot(document.getElementById('root')!).render(<WhatsappPanel view={(new URLSearchParams(location.search).get('view') as any) || undefined}/>);`, loader: 'tsx', resolveDir: root } });
   database = await MongoMemoryServer.create();
   process.env.MONGODB_URI = database.getUri(); // the worker config requires it
   await mongoose.connect(database.getUri(), { dbName: 'website-whatsapp-isolated' });
@@ -139,6 +139,34 @@ test('browser: QR to scan, totals, pause and resume, filters, and Send again for
     await page.getByRole('button', { name: 'Unlink number' }).click();
     await page.getByText('Unlink requested.').waitFor();
     assert.equal((await State.findById('main').lean()).logoutRequested, true);
+  } finally { await browser.close(); }
+});
+
+test('browser: Communication shows each WhatsApp part on its own page, with bold text instead of asterisks', async () => {
+  await State.create({ _id: 'main', connection: 'connected', phone: '919876543210', paused: true, heartbeatAt: new Date() });
+  await Queue.create({ to: '919876543210', email: 'ravi@example.test', text: '*Your Project Has Started*\n\nHello Ravi', status: 'sent', sentAt: minutesAgo(5), createdAt: minutesAgo(6) });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(`${websiteBase}/?view=messages`);
+    await page.getByText('ravi@example.test').waitFor();
+    assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0, 'no connection controls on the message list');
+    assert.equal(await page.getByRole('heading', { name: 'Sending rules' }).count(), 0);
+    assert.ok(await page.getByText('Resume it under WhatsApp number.').isVisible(), 'a paused queue is still explained');
+    await page.getByText('Your Project Has Started').first().click();
+    const body = page.locator('details p');
+    assert.equal(await body.locator('strong').textContent(), 'Your Project Has Started');
+    assert.doesNotMatch(await body.textContent(), /\*/);
+
+    await page.goto(`${websiteBase}/?view=connection`);
+    await page.getByRole('button', { name: 'Resume sending' }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Messages' }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: 'Sending rules' }).count(), 0);
+
+    await page.goto(`${websiteBase}/?view=rules`);
+    await page.getByRole('heading', { name: 'Sending rules' }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Messages' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0);
   } finally { await browser.close(); }
 });
 
