@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireSalesAdmin } from "@/lib/sales-catalogue-server";
 import { errorResponse } from "@/lib/api";
 import { settingsRepo } from "@/lib/repo";
 import { offerSchema, listingSchema, resolvedOffers } from "@/lib/offers";
@@ -11,11 +11,12 @@ const requestSchema = z.discriminatedUnion("kind", [
 ]);
 export async function PATCH(request: Request) {
   try {
-    await requireRole("editor");
+    await requireSalesAdmin();
     const origin = request.headers.get("origin");
     if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Invalid save origin." }, { status: 403 });
     const data = requestSchema.parse(await request.json());
     if (data.kind === "offer") {
+      if (data.offer.status === "published" && (!data.offer.applicableCategories?.length || !data.offer.pricingRule)) return NextResponse.json({ error: "Select applicable project categories and a pricing rule before publishing." }, { status: 400 });
       const settings = await settingsRepo.get();
       const exists = resolvedOffers(settings.offers).some(offer => offer.slug === data.offer.slug);
       if (data.creating && exists) return NextResponse.json({ error: "An offer already uses this URL slug." }, { status: 409 });

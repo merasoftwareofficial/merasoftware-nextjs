@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { requirePortfolioIntegration } from "@/lib/portfolio/integration-auth";
 import { settingsRepo } from "@/lib/repo";
-import { publishedOffers } from "@/lib/offers";
+import { resolvedOffers, resolvedTerms, DEFAULT_UNIVERSAL_TERMS } from "@/lib/offers";
+import { createHash } from "node:crypto";
 export const runtime = "nodejs";
 
 // Live offers for the client portal's "Create Project" form, which lets an admin attach a
@@ -14,9 +15,11 @@ export async function GET(request: Request) {
     requirePortfolioIntegration(request);
     const settings = await settingsRepo.get();
     const now = Date.now();
-    const offers = publishedOffers(settings.offers)
-      .filter(offer => Date.parse(offer.endsAt) > now)
-      .map(offer => ({ slug: offer.slug, title: offer.title, endsAt: offer.endsAt }));
-    return NextResponse.json({ offers });
+    const catalogueOffers = resolvedOffers(settings.offers).map(offer => {
+      const value = { ...offer, resolvedTerms: resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS) };
+      return { ...value, quoteKey: createHash("sha256").update(JSON.stringify(value)).digest("hex") };
+    });
+    const offers = catalogueOffers.filter(offer => offer.status === "published" && Date.parse(offer.endsAt) > now);
+    return NextResponse.json({ offers, catalogueOffers }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return errorResponse(error); }
 }

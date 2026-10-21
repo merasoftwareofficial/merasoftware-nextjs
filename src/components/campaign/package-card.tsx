@@ -1,12 +1,16 @@
-"use client";
-import { useState } from "react";
-import { money, type Package } from "@/lib/campaign-packages";
+import type { QuotedPackage } from "@/lib/sales-packages";
+import { formatIndiaDateTime } from "@/lib/date-time";
 import s from "./campaign.module.css";
-export function PackageCard({ plan, staff = false, onSelect }: { plan: Package; staff?: boolean; onSelect?: (plan: Package) => void }) {
-  const [status, setStatus] = useState("");
-  async function copy() {
-    try { await navigator.clipboard.writeText(`${plan.name} — ${money(plan.price)} ${plan.cadence}\n${plan.features.map(f => `• ${f}`).join("\n")}\n${plan.notes.join("\n")}`); setStatus("Summary copied."); }
-    catch { setStatus("Copy unavailable. Select and copy the details manually."); }
-  }
-  return <article className={s.card}><h3>{plan.name}</h3><p>{plan.bestFor}</p><div className={s.price}>{money(plan.price)} <small>{plan.cadence}</small></div>{plan.reels && <div className={s.pills}><span>{plan.reels} reels</span><span>{plan.photos} photo posts</span><span>{plan.shoots === "Not included" ? "Your raw content" : `${plan.shoots} shoots`}</span></div>}<details open={staff}><summary>What&apos;s included</summary><ul className={s.list}>{plan.features.map(f => <li key={f}>{f}</li>)}</ul></details>{staff ? <><details><summary>Confirm before quotation</summary><ul className={s.list}>{plan.notes.map(n => <li key={n}>{n}</li>)}</ul></details><div className={s.actions}><button className={s.button} onClick={copy}>Copy summary</button></div><p role="status" className={s.status}>{status}</p></> : <>{plan.shoots === "Not included" && <p className={s.fine}>You provide raw photos, videos & business information.</p>}{onSelect && <button className={`${s.button} ${s.secondary}`} onClick={() => onSelect(plan)}>Discuss this package ↗</button>}</>}</article>;
+const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
+export function PackageCard({ item, categoryLabel, now }: { item: QuotedPackage; categoryLabel: string; now: number | null }) {
+  const offer = item.quote.offer;
+  const active = now !== null && !!offer && now < Date.parse(offer.endsAt);
+  const amount = active ? item.quote.finalPrice : item.regularPrice;
+  const href = `mailto:contact@merasoftware.com?subject=${encodeURIComponent(`${item.name} package enquiry`)}&body=${encodeURIComponent(`Hello, I am interested in ${item.name} (${item.id}). Please confirm included work, pricing and terms.`)}`;
+  return <article className={s.card}><p className={s.fine}>{categoryLabel} · One-time</p><h2>{item.name}</h2><p>{item.description}</p>
+    {now === null ? <p>Checking current pricing…</p> : <><div className={s.price}>{money(amount)} <small>one-time</small></div>{active && <p><del>{money(item.regularPrice)}</del> · Save {money(item.quote.discountAmount)} with {offer.title}<br/>Valid until {formatIndiaDateTime(offer.endsAt)}</p>}</>}
+    <h3>What&apos;s included</h3><ul className={s.list}>{item.inclusions.map((line, i) => <li key={i}>{line}</li>)}</ul>
+    <details><summary>Terms & exclusions</summary><ul className={s.list}>{(active ? item.quote.terms : item.terms).map((line, i) => <li key={i}>{line}</li>)}</ul></details>
+    <a className={s.button} href={href}>Discuss this package →</a>
+  </article>;
 }

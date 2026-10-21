@@ -17,9 +17,9 @@ export const offerSchema = z.object({
   subheading: short(160),
   tagline: short(100),
   badge: short(60),
-  mainPrice: z.number().finite().min(0).max(10000000),
-  discountPrice: z.number().finite().min(0).max(10000000),
-  offerPrice: z.number().finite().min(0).max(10000000),
+  mainPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
+  discountPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
+  offerPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
   priceDescription: short(200),
   endsAt: z.string().datetime({ offset: true }),
   inclusions: z.array(short(300)).min(1).max(30),
@@ -32,9 +32,19 @@ export const offerSchema = z.object({
     try { return new URL(value).protocol === "https:"; } catch { return false; }
   }, "Use an HTTPS, email (mailto:) or telephone (tel:) link."),
   order: z.number().int().min(0).max(9999),
+  applicableCategories: z.array(z.enum(["standard_websites", "dynamic_websites", "cloud_software_development", "app_development"])).min(1).max(4).optional(),
+  packageIds: z.array(offerSlugSchema).max(100).optional(),
+  pricingRule: z.enum(["fixed_price", "fixed_discount", "percentage"]).optional(),
+  benefitValue: z.number().finite().min(0).max(10000000).optional(),
 }).strict().refine(value => value.mainPrice >= value.discountPrice && value.discountPrice >= value.offerPrice, {
   message: "Prices must follow main price ≥ normal discount price ≥ offer price.", path: ["offerPrice"],
-});
+}).refine(value => value.pricingRule !== "percentage" || (value.benefitValue !== undefined && value.benefitValue <= 100), { message: "Percentage benefit must be between 0 and 100.", path: ["benefitValue"] })
+  .refine(value => value.pricingRule !== "fixed_discount" || value.benefitValue !== undefined, { message: "Enter the fixed discount amount.", path: ["benefitValue"] })
+  .refine(value => {
+    if (!value.pricingRule || value.pricingRule === "fixed_price") return true;
+    const calculated = value.pricingRule === "percentage" ? value.mainPrice * (1 - Number(value.benefitValue) / 100) : value.mainPrice - Number(value.benefitValue);
+    return Math.round(calculated * 100) === Math.round(value.offerPrice * 100);
+  }, { message: "Offer display price must match the configured discount rule.", path: ["offerPrice"] });
 export type Offer = z.infer<typeof offerSchema>;
 export const DEFAULT_OFFER: Offer = {
   slug: "page", status: "published", ...starterOffer,
@@ -42,6 +52,7 @@ export const DEFAULT_OFFER: Offer = {
   supportingLine: "One team to help you take the next step.", badge: "Starter offer",
   termsMode: "combined", terms: starterOffer.terms.offer.filter(term => !term.startsWith("Offer valid until")),
   ctaLabel: "Enquire about this offer", contactHref: "mailto:contact@merasoftware.com", order: 0,
+  applicableCategories: ["standard_websites"], packageIds: [], pricingRule: "fixed_price",
 };
 export const DEFAULT_UNIVERSAL_TERMS = starterOffer.terms.universal;
 export const listingSchema = z.object({ title: short(120), emptyMessage: short(300) }).strict();

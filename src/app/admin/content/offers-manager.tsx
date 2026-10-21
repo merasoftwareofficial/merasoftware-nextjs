@@ -6,6 +6,7 @@ import { PublicInteraction } from "@/components/campaign/public-interaction/page
 import { OfferPreview } from "@/components/campaign/offer-preview";
 import { DEFAULT_OFFER, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
 import s from "./offers-manager.module.css";
+import { PROJECT_CATEGORIES, type QuotedPackage } from "@/lib/sales-packages";
 
 function Lines({ label, value, change }: { label: string; value: string[]; change: (value: string[]) => void }) {
   return <label className="admin-field"><span>{label}</span><textarea aria-label={label} rows={6} value={value.join("\n")} onChange={event => change(event.target.value.split("\n"))} /><small>One item per line.</small></label>;
@@ -16,6 +17,13 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   initialOffers: Offer[]; initialTerms: string[]; initialListing: OfferListing; section: string;
 }) {
   const [offers, setOffers] = useState(initialOffers);
+  const [packages, setPackages] = useState<QuotedPackage[]>([]);
+  useEffect(() => {
+    if (section !== "details") return;
+    const controller = new AbortController();
+    fetch("/api/packages", { cache: "no-store", signal: controller.signal }).then(response => response.ok ? response.json() : null).then(data => { if (data) setPackages(data.packages || []); }).catch(() => {});
+    return () => controller.abort();
+  }, [section]);
   const [selected, setSelected] = useState<Offer | null>(null);
   const [creating, setCreating] = useState(false);
   const [baseline, setBaseline] = useState("");
@@ -75,7 +83,16 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       <div className={s.actions}><button type="button" className="admin-action" onClick={() => choose(offer)}>Edit →</button>{offer.status === "published" && <Link className="admin-action" href={`/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
     </article>)}</div>{notices}
   </div>;
-  function update<K extends keyof Offer>(key: K, value: Offer[K]) { setSelected(current => current ? { ...current, [key]: value } : current); }
+  function update<K extends keyof Offer>(key: K, value: Offer[K]) {
+    setSelected(current => {
+      if (!current) return current;
+      const next = { ...current, [key]: value };
+      if (["pricingRule", "benefitValue", "mainPrice"].includes(key) && next.pricingRule && next.pricingRule !== "fixed_price" && next.benefitValue !== undefined) {
+        next.offerPrice = Math.round((next.pricingRule === "percentage" ? next.mainPrice * (1 - next.benefitValue / 100) : next.mainPrice - next.benefitValue) * 100) / 100;
+      }
+      return next;
+    });
+  }
   const field = (label: string, key: keyof Pick<Offer, "title" | "slug" | "eyebrow" | "heading" | "headingHighlight" | "description" | "supportingLine" | "subheading" | "tagline" | "badge" | "priceDescription" | "ctaLabel" | "contactHref">, required = true) => <label className="admin-field"><span>{label}</span><input required={required} maxLength={key === "contactHref" ? 500 : key === "slug" ? 80 : 300} disabled={key === "slug" && !creating} value={selected[key]} onChange={e => update(key, e.target.value)} /></label>;
   const previewOffer = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms), endsAt: selected.endsAt || DEFAULT_OFFER.endsAt };
   return <>
@@ -85,6 +102,12 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         <h3>Offer identity</h3><div className="form-columns">{field("Offer name", "title")}{field("URL slug", "slug")}</div>
         <small>URL: /offer/{selected.slug || "your-offer"}. The URL stays fixed after creation.</small>
         <div className="form-columns"><label className="admin-field"><span>Status</span><select aria-label="Status" value={selected.status} onChange={e => update("status", e.target.value as Offer["status"])}><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label><label className="admin-field"><span>Card order</span><input type="number" min={0} max={9999} required value={selected.order} onChange={e => update("order", Number(e.target.value))} /></label></div>
+        <h3>Where this offer applies</h3>
+        <p>Select the project categories eligible for this offer.</p>
+        <div className="form-columns">{Object.entries(PROJECT_CATEGORIES).map(([id, label]) => <label key={id}><input type="checkbox" checked={selected.applicableCategories?.includes(id as NonNullable<Offer["applicableCategories"]>[number]) ?? false} onChange={e => update("applicableCategories", e.target.checked ? [...(selected.applicableCategories || []), id as NonNullable<Offer["applicableCategories"]>[number]] : selected.applicableCategories?.filter(value => value !== id))} /> {label}</label>)}</div>
+        <label className="admin-field"><span>Limit to specific packages (optional)</span><select multiple size={4} value={selected.packageIds || []} onChange={e => update("packageIds", Array.from(e.target.selectedOptions, option => option.value))}>{packages.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>No selection means all matching packages and custom projects in the selected categories.</small></label>
+        <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label>
+        {selected.pricingRule && selected.pricingRule !== "fixed_price" && <label className="admin-field"><span>{selected.pricingRule === "percentage" ? "Discount percentage" : "Discount amount (₹)"}</span><input type="number" required min={0} max={selected.pricingRule === "percentage" ? 100 : 10000000} step="0.01" value={selected.benefitValue ?? ""} onChange={e => update("benefitValue", Number(e.target.value))} /></label>}
         <h3>Heading & content</h3>{field("Eyebrow text", "eyebrow")}<div className="form-columns">{field("Main heading", "heading")}{field("Highlighted heading text", "headingHighlight", false)}</div>
         {field("Short description", "description")}{field("Supporting line", "supportingLine", false)}{field("Benefits subheading", "subheading")}
         <Lines label="What's included" value={selected.inclusions} change={v => update("inclusions", v)} />

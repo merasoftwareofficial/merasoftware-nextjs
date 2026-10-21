@@ -29,6 +29,8 @@ export async function state(){const s=await settingsRepo.get();return {offers:re
 await build({ stdin: { contents: serverEntry, resolveDir: root, sourcefile: 'offer-api-fixture.ts' }, outfile: path.join(folder, 'server.cjs'), platform: 'node', format: 'cjs', bundle: true, packages: 'external', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'test-identity-and-storage', setup(builder) {
   builder.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: 'auth', namespace: 'test' }));
   builder.onLoad({ filter: /^auth$/, namespace: 'test' }, () => ({ contents: authSource, loader: 'ts', resolveDir: root }));
+  builder.onResolve({ filter: /^@\/lib\/sales-catalogue-server$/ }, () => ({ path: 'sales-admin', namespace: 'test' }));
+  builder.onLoad({ filter: /^sales-admin$/, namespace: 'test' }, () => ({ contents: `import {requireRole} from '@/lib/auth';export const requireSalesAdmin=()=>requireRole('admin');`, loader: 'ts', resolveDir: root }));
   builder.onResolve({ filter: /^@\/lib\/repo$/ }, () => ({ path: 'repo', namespace: 'test' }));
   builder.onLoad({ filter: /^repo$/, namespace: 'test' }, () => ({ contents: `import {jsonDriver} from '${path.join(root, 'src/lib/repo/json-driver.ts').replaceAll('\\', '/')}';export const settingsRepo=jsonDriver.settings;`, loader: 'ts', resolveDir: root }));
 } }] });
@@ -71,7 +73,7 @@ try {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ timezoneId: 'America/New_York', extraHTTPHeaders: { 'x-test-role': 'editor' } });
+  const context = await browser.newContext({ timezoneId: 'America/New_York', extraHTTPHeaders: { 'x-test-role': 'admin' } });
   const page = await context.newPage();
   const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:', error.message); });
   await page.goto(origin + '/admin');
@@ -104,6 +106,7 @@ try {
   const published = await save('Save & publish');
   const duplicate = await context.request.patch(origin + '/api/offers', { data: { kind: 'offer', offer: published, creating: true } }); assert.equal(duplicate.status(), 409);
   const denied = await context.request.patch(origin + '/api/offers', { headers: { 'x-test-role': 'moderator' }, data: { kind: 'offer', offer: published, creating: false } }); assert.equal(denied.status(), 403);
+  const editorDenied = await context.request.patch(origin + '/api/offers', { headers: { 'x-test-role': 'editor' }, data: { kind: 'offer', offer: published, creating: false } }); assert.equal(editorDenied.status(), 403);
   const invalid = await context.request.patch(origin + '/api/offers', { data: { kind: 'offer', offer: { ...published, contactHref: 'javascript:alert(1)' }, creating: false } }); assert.equal(invalid.status(), 400);
   const publicPage = await context.newPage();
   await publicPage.goto(origin + '/offer/diwali');

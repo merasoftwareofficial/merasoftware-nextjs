@@ -38,3 +38,10 @@
 - Use shared surface, border, radius and shadow tokens in `src/app/brand-colors.css`; avoid homepage-only portfolio card overrides.
 - Home: white hero and services, navy statement, white portfolio, soft blue-grey insights, pale cyan contact and navy footer.
 - Home and `/work` use the same portfolio card styling and bottom-aligned project links. Services/blog cards share the public card border, corner and elevation rules.
+
+
+## Owner-approved offer/package scope — 21 October 2026
+
+- Packages are a website showcase, not a new checkout. Admin selects a package when preparing a project. Existing service-plan purchases remain the only service purchase flow; related plan references never purchase or activate a plan.
+- Replace the old showcase with editable starter examples, extend the existing starter offer through 2 November 2026 IST, and show the frozen price/scope/offer agreement in the client portal and final invoice.
+- Preserve unrelated working. Retain pre-change backups and a manifest; do not delete rollback evidence during cleanup/review.

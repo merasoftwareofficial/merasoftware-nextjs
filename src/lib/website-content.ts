@@ -52,8 +52,8 @@ export const CONTENT_PAGES: ContentPage[] = [
     { id: "terms", label: "Common & offer T&C", description: "Universal, offer-specific and combined terms." },
   ] },
   { id: "packages", label: "Packages", href: "/campaign/packages", sections: [
-    { id: "intro", label: "Introduction", description: "Heading, description and offers link." },
-    { id: "plans", label: "Package details", description: "Categories, inclusions, pricing and quotation notes.", reference: { href: "/admin/packages", label: "Open package reference" } },
+    { id: "intro", label: "Package management", description: "Create and publish showcase packages linked to project categories and offers.", editor: { href: "/admin/packages", label: "Manage packages" } },
+    { id: "plans", label: "Package details", description: "Included scope, prices, offers and related portal services.", editor: { href: "/admin/packages", label: "Manage packages" } },
   ] },
   { id: "shared", label: "Shared content", href: "/", sections: [
     { id: "header", label: "Header navigation", description: "Website navigation labels and contact CTA." },

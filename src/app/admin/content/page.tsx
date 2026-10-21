@@ -18,6 +18,7 @@ export default async function WebsiteContent({ searchParams }: { searchParams: P
   await requireStaffPage("/admin/content", "editor");
   const query = await searchParams;
   const page = CONTENT_PAGES.find(item => item.id === query.page) ?? CONTENT_PAGES[0];
+  if (page.id === "offers") await requireStaffPage("/admin/content?page=offers", "admin");
   const section = page.sections.find(item => item.id === query.section) ?? page.sections[0];
   const home = section.homeSection ? await Promise.all([settingsRepo.get(), mediaRepo.list(), linkGroups()]) : null;
   const managedPage: ManagedPage | undefined = page.id === "about" || page.id === "services" ? page.id : undefined;

@@ -7,7 +7,7 @@ import { DEFAULT_OFFER, DEFAULT_UNIVERSAL_TERMS, offerSchema, publishedOffers, r
 
 test("existing offer survives migration and can be hidden without resurfacing", () => {
   assert.equal(publishedOffers()[0].slug, "page");
-  assert.equal(offerSchema.parse(DEFAULT_OFFER).endsAt, "2026-10-20T23:59:59+05:30");
+  assert.equal(offerSchema.parse(DEFAULT_OFFER).endsAt, "2026-11-02T23:59:59+05:30");
   assert.equal(publishedOffers({ page: { ...DEFAULT_OFFER, status: "draft" } }).length, 0);
   assert.equal(publishedOffers({ page: { ...DEFAULT_OFFER, status: "archived" } }).length, 0);
   const saved = { page: { ...DEFAULT_OFFER, title: "Updated offer" }, second: { ...DEFAULT_OFFER, slug: "second", order: 1 } };
@@ -59,4 +59,13 @@ test("JSON saves preserve other offers and existing website settings", async () 
     ]);
     assert((await jsonDriver.settings.get()).offers?.parallel);
   } finally { process.chdir(previous); }
+});
+
+
+test("commercial offer rules validate categories, percentages and displayed prices", () => {
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, applicableCategories: ["social"] }).success, false);
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, pricingRule: "percentage", benefitValue: 101 }).success, false);
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, offerPrice: 699.123 }).success, false);
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, pricingRule: "percentage", benefitValue: 10, discountPrice: 10000, offerPrice: 9000 }).success, true);
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, pricingRule: "percentage", benefitValue: 10 }).success, false);
 });
