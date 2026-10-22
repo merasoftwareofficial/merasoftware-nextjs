@@ -2,6 +2,8 @@
 
 The Offers manager lives at `/admin/offers`, outside Website Content. Its sections are All Offers, Offer Settings, Content & Preview, and Terms & Conditions. Package management remains `/admin/packages` and is linked from the hub.
 
+Eligibility fields follow their parent target: project categories and package selection are disabled and faded unless Projects / showcase packages is checked; the visible service-plan selector is disabled and faded unless Service-plan purchases is checked. Native fieldsets enforce keyboard and mouse disabling. Toggling retains previous selections, and offers without explicit targets keep the existing projects default. No API, billing or eligibility rule changes accompany this UI correction. Isolated Next.js browser checks cover the independent toggles, disabled click/focus behaviour, preserved values, save/reload and mobile layout; scoped TypeScript and lint pass.
+
 The sidebar requires an active portal-admin session. The page also calls `requireStaffPage` and `requireSalesAdmin`; the existing save endpoint independently enforces `requireSalesAdmin`. Website editor access or an admin account switched to customer role does not grant offer-management access.
 
 Old `/admin/content?page=offers&section=details|listing|terms` bookmarks redirect before the generic content-page fallback. Other content pages retain their editors. Offers has no registered Section visuals slot; no visual registry change is needed.
