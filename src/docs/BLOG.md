@@ -14,7 +14,7 @@ A real blog and community that earns SEO traffic and brings useful members toget
 
 - **Understand → short review → owner's "yes" → code → owner review → docs.** Before any coding, say in short Hinglish what you understood and what you will change, and wait. "analyze / batao / explain" means read-only; "haan / yes / proceed / start working" means code. Update docs only after the owner is happy, and never reword an owner decision.
 - **Evidence first.** Verify by running, not by reading. Several code-reading theories were wrong; running found the real causes (see Traps).
-- **Backup** every file you change into the next numbered `workN/` folder (same relative path) and add that folder to `tsconfig.json` `exclude`. Last used: `work26`.
+- **Backup** every file you change into the next numbered `workN/` folder (same relative path) under `E:\Allprojects\backup\merasoftware\` — never inside the repo (owner decision, 22 Oct 2026), so Git, VS Code and `tsconfig.json` never see it. `.gitignore` blocks `/backup/` and `/work[0-9]*/` only as a safety net. All older backups were deleted on 22 Oct 2026; Git history is the rollback for committed work.
 - **One step at a time;** each step is reviewed by the owner before the next.
 - **Only what was asked.** Speed work is deferred by the owner ("abhi sirf working aur functionality") unless a feature needs it.
 - **Never touch the owner's running servers** (website `:3000`, portal frontend `:3001`, portal backend `:8080`).
@@ -99,7 +99,7 @@ The panel follows the website's light/dark Theme switch (one saved choice for bo
 
 ## Pending
 
-- **Owner review** of the changes in `work21`–`work24` (roll back from those folders if the owner rejects one).
+- **Owner review** of the changes once in `work21`–`work24` (those folders were deleted on 22 Oct 2026; roll back from Git history if the owner rejects one).
 - **Owner action:** add `VIEW_HASH_SECRET` (any long random string) on Vercel; until then no views are counted.
 
 ## Next work (planned with the owner)

@@ -7,7 +7,7 @@
 1. Read `BLOG.md` first: the owner's working style (understand → short Hinglish review → owner's "yes" → code → owner review → docs), the backup rule (`workN/`), the safe test recipe (never the local `.env.local` database — it is production) and the repo rules.
 2. Read this file to the end. "Status" says what is built; "Next work" says what to build and how.
 3. Check `git status`: steps 1 and A were **not committed** when this was written (owner review pending).
-4. Backups so far: `work56` (before step 1), `work57` (before step A). `work53`–`work55` belong to other work. Take the next free number.
+4. Backups go in `E:\Allprojects\backup\merasoftware\workN\` (rule in `BLOG.md`). The old `work56`/`work57` were deleted on 22 Oct 2026; use Git history.
 
 ## Goal (owner, 2 Oct 2026)
 

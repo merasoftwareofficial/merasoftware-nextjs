@@ -6,7 +6,7 @@
 - Storage uses `src/lib/repo/`. JSON in `.data/*.json` is the local default; MongoDB mode uses `DATA_DRIVER=mongo` and `MONGODB_URI` (database defaults to `merasoftware`). Never import a driver directly or add LocalStorage as a data store.
 - This repo's `origin` is `merasoftwareofficial/merasoftware-nextjs`; `main` is synced. Push permission belongs to each GitHub repo separately. Use the `merasoftwareofficial` account; for a `Vast-Academy` repo, invite it with Write access and accept the invite first.
 - The client portal lives in `E:\Allprojects\frontend` (`merasoftwareofficial/merasoftware-frontend-portal`) and `E:\Allprojects\backend` (`merasoftwareofficial/merasoftware-backend`) since 28 Sep 2026. `account-android-app/AccountApp` push dry-run passed on 26 Sep 2026; access to `account-android-app/backend` is not verified. These live in separate folders/repos; check `origin` before pushing.
-- Keep `.env.local` and numbered `workN` rollback folders out of commits.
+- Keep `.env.local` out of commits. Numbered `workN` rollback folders go in `E:\Allprojects\backup\<repo>\`, never inside the repo (22 Oct 2026).
 - Do not claim mock UI or unconfigured integrations are functional.
 - Public theme: navy, teal and cyan from the logo. White is the main page surface; soft blue-grey and pale cyan sections provide deliberate separation. Admin retains light/dark themes.
 - Keep text readable; do not use extra-small text.
@@ -31,7 +31,7 @@
   - Inner shapes (the pale triangle, the dark overlap) must stay inside their band's edges — corrected on owner's review (the triangle was 5.8px outside the left band).
 - Where used: `src/components/site-header.tsx` → `SiteHeader` renders `<img>` in `.brand.brand-logo`; `dark` (default `true`, set by owner) picks the dark file. Size in `src/app/globals.css` (end of file): 50px high, 38px below 700px.
 - Before: the header showed the text logo `mera software.` (`<span>mera</span>software<span className="brand-dot">.</span>`). The footer (`site-footer.tsx`) and admin sidebar (`admin-layout.tsx`) still use that text logo — not changed.
-- To change colours or shapes, edit both SVG files together; source script and preview were in the session scratchpad (not in the repo). Backups: `work73/` (header + CSS before the logo), `work74/` (SVGs before the shape fix).
+- To change colours or shapes, edit both SVG files together; source script and preview were in the session scratchpad (not in the repo). The old `work73/`/`work74/` backups were deleted on 22 Oct 2026; use Git history.
 
 ## Shared visual rules (owner approved, 6 Oct 2026)
 

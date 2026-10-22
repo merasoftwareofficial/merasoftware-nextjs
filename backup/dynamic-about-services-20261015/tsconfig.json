@@ -1,1 +1,0 @@
-{"extends": "../../tsconfig.json", "include": ["../../src/**/*.ts", "../../src/**/*.tsx", "../../next-env.d.ts", "../../.next/dev/types/**/*.ts"], "exclude": ["../../node_modules", "../../backup"], "compilerOptions": {"incremental": false}}

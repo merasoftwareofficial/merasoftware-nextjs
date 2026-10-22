@@ -49,7 +49,7 @@
 
 ## Working rules
 
-- Each change: `workN` backup first → verify by running on the throwaway database `merasoftware-fix-test` → owner review before the next.
+- Each change: `workN` backup first (in `E:\Allprojects\backup\<repo>\`, never inside a repo) → verify by running on the throwaway database `merasoftware-fix-test` → owner review before the next.
 - The local backend `.env` stays on `merasoftware-dev` with `ENABLE_CRONS=false`.
 - Production secrets are copied by the owner, never pasted into chat.
 
@@ -62,7 +62,6 @@
 3. **`portal.merasoftware.com` → new portal.** Add the Cloudflare TXT record `_vercel` shown in the portal project's Vercel Domains page, verify, then point the `portal` CNAME at the target Vercel gives. Until then `portal.*` serves the old portal frontend from another Vercel account, whose Add Customer/Admin buttons now create blog-only members against the new backend.
 4. **Decide the portal's own login page.** It holds "Forgot password?" (a dead `href="#"` link — no reset exists anywhere) and "Login as Guest" (demo). Redirecting it to the website login would remove both — owner's call.
 5. **Local testing** needs an account in `merasoftware-dev` (it has no users, so live accounts get "User not found" locally): create one at `localhost:3000/login`, then make it admin in that database.
-6. The rollback folders `E:\merasoftware-new\work7`–`work14` are from before the fixes, which are now committed and deployed — delete when the owner wants.
 
 ### Waits for the UI work
 

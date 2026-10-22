@@ -10,6 +10,7 @@ const navigation: [label: string, href: string, minimum: Role][] = [
   ["Communication", "/admin/communication", "admin"],
   ["Overview", "/admin", "moderator"], ["Blog Management", "/admin/blog-management", "moderator"],
   ["Website Content", "/admin/content", "editor"], ["Section visuals", "/admin/visuals", "editor"],
+  ["Offers", "/admin/offers", "admin"],
   ["Homepage variants", "/admin/homepage-variants", "editor"],
   ["Portfolio", "/admin/portfolio", "editor"], ["Leads", "/admin/leads", "editor"],
   ["Media library", "/admin/media", "editor"], ["SEO health", "/admin/seo", "editor"], ["Page SEO", "/admin/page-seo", "editor"], ["Site settings", "/admin/settings", "admin"],
@@ -24,8 +25,8 @@ const navigation: [label: string, href: string, minimum: Role][] = [
  * configured: then the admin-alert card asks this browser for permission
  * (owner decision, 3 Oct 2026: alerts go to admins only).
  */
-export function AdminLayout({ children, role = "visitor", pushKey = null }: { children: React.ReactNode; role?: Role; pushKey?: string | null }) {
-  const visible = navigation.filter(([, , minimum]) => atLeast(role, minimum));
+export function AdminLayout({ children, role = "visitor", pushKey = null, salesAdmin = false }: { children: React.ReactNode; role?: Role; pushKey?: string | null; salesAdmin?: boolean }) {
+  const visible = navigation.filter(([, href, minimum]) => atLeast(role, minimum) && (href !== "/admin/offers" || salesAdmin));
   return <div className="admin-shell"><aside className="admin-nav"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /><img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /></Link>{visible.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}<ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
 }
 
