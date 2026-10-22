@@ -152,7 +152,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     if (!data) return null;
     return <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Section / action</th><th>{customer ? "Mail" : "Sending rule"}</th><th>Default template</th><th>Templates</th></tr></thead><tbody>
       {events.map(event => {
-        const current = data.policies.find(row => row.event === event.key) || { mode: customer ? "off" as const : "review" as const, defaultTemplate: null };
+        const current = data.policies.find(row => row.event === event.key) || { mode: event.trigger === "system" ? "auto" as const : customer ? "off" as const : "review" as const, defaultTemplate: null };
         const templates = data.templates.filter(row => row.event === event.key);
         const system = templates.find(row => row.system);
         return <tr key={event.key}><td><small>{event.section}</small><strong>{event.label}</strong></td>
@@ -165,8 +165,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
       })}
     </tbody></table></div>;
   }
-  const customerEvents = data?.events.filter(event => event.trigger === "customer") || [];
-  const adminEvents = data?.events.filter(event => event.trigger !== "customer") || [];
+  const customerEvents = data?.events.filter(event => event.trigger === "customer" || event.trigger === "system") || [];
+  const adminEvents = data?.events.filter(event => event.trigger !== "customer" && event.trigger !== "system") || [];
   const editorCatalog = editor ? data?.catalog?.[editor.event] : undefined;
   const actions = view !== "activity", activity = view !== "actions";
   const appName = application === "website" ? "Website" : "Portal";
@@ -176,7 +176,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
       <button role="tab" aria-selected={application === "portal"} disabled={busy || !canManagePortal} onClick={() => changeTab("portal")}>Portal</button>
     </div>}
     {showTabs && !canManagePortal && <p className={styles.muted}>Portal email management requires portal admin access.</p>}
-    {actions && <div className={styles.banner}><strong>Admin actions ask before sending.</strong> Mail a customer&apos;s own action starts follows its On/Off setting and never shows the customer a popup. Public website requests arrive here for review. Email schedules and reminders remain disabled. Every email that is really sent also goes out on WhatsApp with the same text.</div>}
+    {actions && <div className={styles.banner}><strong>Admin actions ask before sending.</strong> Automatic actions follow their On/Off setting. Offer payment reminders run only for saved agreements with reminder days configured. Public website requests arrive here for review. Every email that is really sent also goes out on WhatsApp with the same text.</div>}
     <div className={styles.toolbar}><h2>{appName} {view === "activity" ? "email review and history" : "email rules"}</h2><button className="admin-action" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}>Refresh</button></div>
     {notice && <p className={styles.notice} role="status">{notice}</p>}
     {error && <p className={styles.error} role="alert">{error} <button onClick={() => void load()} disabled={busy}>Retry</button></p>}
@@ -184,8 +184,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     {data && actions && <>
       {customerEvents.length > 0 && <p className={styles.muted}>Admin actions: after each action the admin sees a Send / Don&apos;t Send popup.</p>}
       {rulesTable(adminEvents, false)}
-      {customerEvents.length > 0 && <section className={styles.section} aria-labelledby="customer-actions-title"><h2 id="customer-actions-title">Customer actions (automatic)</h2>
-        <p className={styles.muted}>Mail a customer&apos;s own action starts. The customer never sees a popup: On sends it at once, Off sends nothing. Each stays Off until you turn it on. A failed send waits in Pending email review for a retry.</p>
+      {customerEvents.length > 0 && <section className={styles.section} aria-labelledby="customer-actions-title"><h2 id="customer-actions-title">Automatic actions</h2>
+        <p className={styles.muted}>Customer actions stay Off until enabled. Scheduled offer reminders are enabled by the offer agreement; their On/Off switch can disable sending globally. A failed send remains available for review.</p>
         {rulesTable(customerEvents, true)}
       </section>}
       {application === "website" && <p className={styles.muted}>Subscription confirmation and manage-link requests are connected. Contact and callback templates are reserved for their future submission integrations.</p>}

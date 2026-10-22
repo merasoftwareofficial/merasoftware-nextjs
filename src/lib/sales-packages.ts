@@ -6,4 +6,4 @@ export type SalesPackage = {
 };
 export type SalesOffer = import("./offers").Offer & { resolvedTerms: string[]; quoteKey: string };
 export type QuotedPackage = SalesPackage & { quoteKey: string; quote: { regularPrice: number; discountAmount: number; finalPrice: number; offer: SalesOffer | null; terms: string[] } };
-export type SalesCatalogue = { packages: QuotedPackage[]; offers?: SalesOffer[]; plans?: { _id: string; serviceName: string; servicePlan?: { purchaseType?: string } }[] };
+export type SalesCatalogue = { packages: QuotedPackage[]; offers?: SalesOffer[]; plans?: { _id: string; serviceName: string; servicePlan?: { purchaseType?: string; capability?: string } }[] };

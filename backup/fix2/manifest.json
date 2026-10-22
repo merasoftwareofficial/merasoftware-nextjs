@@ -1,0 +1,38 @@
+{
+  "purpose": "Approved offer payment-policy implementation",
+  "createdAt": "2026-10-22T08:36:10.033Z",
+  "repo": "E:/Allprojects/merasoftware",
+  "initialStatus": "?? backup/fix2/\n",
+  "files": [
+    {
+      "file": "src/lib/offers.ts",
+      "sha256": "5a7beb49620e939e48e05c86a02daab43f05c64101ba8fc5e0a4849a6ff4bbf1"
+    },
+    {
+      "file": "src/lib/sales-packages.ts",
+      "sha256": "39406b67ddb395df0350c4c9b4fd02b719c473598980a0e79fa274919998fa63"
+    },
+    {
+      "file": "src/app/admin/content/offers-manager.tsx",
+      "sha256": "7b39969527e9d0b02f542cf35eda518842b8602eb7854cc65d590e81873a26d1"
+    },
+    {
+      "file": "src/app/api/offers/route.ts",
+      "sha256": "daf6df7ac1df0490969ec375dc5134edf48e1383b41b0332763c1e45cf3862ec"
+    },
+    {
+      "file": "tests/offers.test.ts",
+      "sha256": "0adc3b2680652ea37cf825572d8475314e7d1cd39517a8f0f7c9806be9d8d883"
+    },
+    {
+      "file": "src/lib/email-control-types.ts",
+      "sha256": "8b0edb095de208ba3f311e07981da94efbfd761981f89d39eba5bf83f04e0768"
+    },
+    {
+      "file": "src/app/admin/email-control/email-control-panel.tsx",
+      "sha256": "a9a0244c9308bae3509216b7d40aa4f85e1117154dade06559bc54d5fd6ce455"
+    }
+  ],
+  "newFiles": [],
+  "workingStatus": "Incomplete: stopped for pre-existing invoice index conflict found by explicit clean-database index initialization. No deployment or live data changes."
+}

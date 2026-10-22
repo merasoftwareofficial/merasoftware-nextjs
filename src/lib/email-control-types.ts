@@ -36,7 +36,7 @@ export type EmailOutboxData = {
 export type EmailControlData = {
   application: Application;
   // `trigger` is absent from a backend older than customer-action control; treat it as "admin".
-  events: { key: string; section: string; label: string; application: Application; trigger?: "admin" | "customer" }[];
+  events: { key: string; section: string; label: string; application: Application; trigger?: "admin" | "customer" | "system" }[];
   policies: { event: string; mode: EmailPolicyMode; defaultTemplate: string | null }[];
   // Absent from a backend older than the template system; the panel then shows legacy choices.
   catalog?: TemplateCatalog; templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false; serverNow: number;

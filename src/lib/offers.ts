@@ -3,6 +3,13 @@ import { z } from "zod";
 import { starterOffer } from "@/components/campaign/public-interaction/offer-content";
 
 const short = (max = 200) => z.string().trim().min(1).max(max);
+export const paymentPolicySchema = z.object({
+  mode: z.enum(["current", "advance", "limited_uploads", "pay_later"]),
+  uploadAllowance: z.number().int().min(0).max(10000),
+  dueDays: z.number().int().min(0).max(365),
+  cycleScope: z.enum(["first_purchase", "every_cycle"]),
+  reminderOffsets: z.array(z.number().int().min(-365).max(365)).max(10),
+}).strict().refine(value => value.mode !== "limited_uploads" || value.uploadAllowance > 0, { message: "Allow at least one upload before payment.", path: ["uploadAllowance"] });
 export const offerSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens.").max(80)
   .refine(value => !["new", "preview", "__proto__", "constructor", "prototype"].includes(value), "Choose another URL slug.");
 export const offerSchema = z.object({
@@ -36,6 +43,9 @@ export const offerSchema = z.object({
   packageIds: z.array(offerSlugSchema).max(100).optional(),
   pricingRule: z.enum(["fixed_price", "fixed_discount", "percentage"]).optional(),
   benefitValue: z.number().finite().min(0).max(10000000).optional(),
+  targets: z.array(z.enum(["projects", "service_plans"])).min(1).max(2).optional(),
+  planIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).max(100).optional(),
+  paymentPolicy: paymentPolicySchema.optional(),
 }).strict().refine(value => value.mainPrice >= value.discountPrice && value.discountPrice >= value.offerPrice, {
   message: "Prices must follow main price ≥ normal discount price ≥ offer price.", path: ["offerPrice"],
 }).refine(value => value.pricingRule !== "percentage" || (value.benefitValue !== undefined && value.benefitValue <= 100), { message: "Percentage benefit must be between 0 and 100.", path: ["benefitValue"] })
