@@ -63,7 +63,11 @@ test("JSON saves preserve other offers and existing website settings", async () 
 
 
 test("commercial offer rules validate categories, percentages and displayed prices", () => {
-  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, applicableCategories: ["social"] }).success, false);
+  // Categories are portal-owned: the schema checks the key format and duplicates; the publish
+  // route checks that each key exists and is active in the portal.
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, applicableCategories: ["Social Media"] }).success, false);
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, applicableCategories: ["seo_services", "seo_services"] }).success, false);
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, applicableCategories: ["seo_services"] }).success, true);
   assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, pricingRule: "percentage", benefitValue: 101 }).success, false);
   assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, offerPrice: 699.123 }).success, false);
   assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, pricingRule: "percentage", benefitValue: 10, discountPrice: 10000, offerPrice: 9000 }).success, true);

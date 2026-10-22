@@ -1,6 +1,7 @@
 import { formatIndiaDateTime } from "@/lib/date-time";
 import { z } from "zod";
 import { starterOffer } from "@/components/campaign/public-interaction/offer-content";
+import { PROJECT_CATEGORY_KEY } from "@/lib/sales-packages";
 
 const short = (max = 200) => z.string().trim().min(1).max(max);
 export const paymentPolicySchema = z.object({
@@ -39,7 +40,8 @@ export const offerSchema = z.object({
     try { return new URL(value).protocol === "https:"; } catch { return false; }
   }, "Use an HTTPS, email (mailto:) or telephone (tel:) link."),
   order: z.number().int().min(0).max(9999),
-  applicableCategories: z.array(z.enum(["standard_websites", "dynamic_websites", "cloud_software_development", "app_development"])).min(1).max(4).optional(),
+  // Portal-owned category keys (lib/sales-packages.ts); the publish route checks they exist and are active.
+  applicableCategories: z.array(z.string().regex(PROJECT_CATEGORY_KEY)).min(1).max(100).refine(keys => new Set(keys).size === keys.length, "Select each category once.").optional(),
   packageIds: z.array(offerSlugSchema).max(100).optional(),
   pricingRule: z.enum(["fixed_price", "fixed_discount", "percentage"]).optional(),
   benefitValue: z.number().finite().min(0).max(10000000).optional(),

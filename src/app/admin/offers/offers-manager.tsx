@@ -7,7 +7,7 @@ import { PublicInteraction } from "@/components/campaign/public-interaction/page
 import { OfferPreview } from "@/components/campaign/offer-preview";
 import { DEFAULT_OFFER, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
 import s from "./offers-manager.module.css";
-import { PROJECT_CATEGORIES, type QuotedPackage, type SalesCatalogue } from "@/lib/sales-packages";
+import { categoryChoices, type ProjectCategory, type QuotedPackage, type SalesCatalogue } from "@/lib/sales-packages";
 import { offerState, type OfferState } from "@/lib/admin-offers";
 import { useServerTime } from "@/components/use-server-time";
 
@@ -23,10 +23,13 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const router = useNavigate();
   const [packages, setPackages] = useState<QuotedPackage[]>([]);
   const [plans, setPlans] = useState<NonNullable<SalesCatalogue["plans"]>>([]);
+  // Project categories come from the portal with the sales catalogue; null = not loaded (yet).
+  const [categories, setCategories] = useState<ProjectCategory[] | null>(null);
+  const [catalogueFailed, setCatalogueFailed] = useState(false);
   useEffect(() => {
     if (section !== "settings") return;
     const controller = new AbortController();
-    fetch("/api/packages", { cache: "no-store", signal: controller.signal }).then(response => response.ok ? response.json() : null).then(data => { if (data) { setPackages(data.packages || []); setPlans(data.plans || []); } }).catch(() => {});
+    fetch("/api/packages", { cache: "no-store", signal: controller.signal }).then(response => response.ok ? response.json() : null).then(data => { if (data) { setPackages(data.packages || []); setPlans(data.plans || []); setCategories(data.categories || []); } else setCatalogueFailed(true); }).catch(error => { if (error?.name !== "AbortError") setCatalogueFailed(true); });
     return () => controller.abort();
   }, [section]);
   const initialSelected: Offer | null = section !== "settings" ? null : createNew ? { ...DEFAULT_OFFER, slug: "", title: "", status: "draft", heading: "", headingHighlight: "", description: "", supportingLine: "", mainPrice: 0, discountPrice: 0, offerPrice: 0, endsAt: "", inclusions: [], terms: [], order: initialOffers.length } : initialOffers.find(offer => offer.slug === initialOfferSlug) ?? null;
@@ -120,7 +123,8 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         <fieldset className={s.dependentFields} disabled={!projectsEnabled} aria-label="Project categories and packages">
         {!projectsEnabled && <small>Check Projects / showcase packages above to select categories and packages.</small>}
         <p>Select the project categories eligible for this offer.</p>
-        <div className="form-columns">{Object.entries(PROJECT_CATEGORIES).map(([id, label]) => <label key={id}><input type="checkbox" checked={selected.applicableCategories?.includes(id as NonNullable<Offer["applicableCategories"]>[number]) ?? false} onChange={e => update("applicableCategories", e.target.checked ? [...(selected.applicableCategories || []), id as NonNullable<Offer["applicableCategories"]>[number]] : selected.applicableCategories?.filter(value => value !== id))} /> {label}</label>)}</div>
+        {categories === null && <small role={catalogueFailed ? "alert" : undefined}>{catalogueFailed ? "Project categories could not be loaded from the portal. Already selected categories are kept; publishing checks them again." : "Loading project categories from the portal…"}</small>}
+        <div className="form-columns">{categoryChoices(categories ?? undefined, selected.applicableCategories || []).map(({ category: id, label, status }) => <label key={id}><input type="checkbox" checked={selected.applicableCategories?.includes(id) ?? false} onChange={e => update("applicableCategories", e.target.checked ? [...(selected.applicableCategories || []), id] : selected.applicableCategories?.filter(value => value !== id))} /> {label}{status === "archived" ? " (archived)" : ""}</label>)}</div>
         <label className="admin-field"><span>Limit to specific packages (optional)</span><select multiple size={4} value={selected.packageIds || []} onChange={e => update("packageIds", Array.from(e.target.selectedOptions, option => option.value))}>{packages.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>No selection means all matching packages and custom projects in the selected categories.</small></label>
         </fieldset>
         <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label>
