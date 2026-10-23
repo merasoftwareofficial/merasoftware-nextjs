@@ -51,3 +51,6 @@ next-env.d.ts
 .vercel
 .env*
 !.env.example
+
+# Isolated verification build output
+/.next-build/

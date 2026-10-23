@@ -14,7 +14,9 @@
     "lint": "eslint",
     "brand": "node scripts/brand/build.mjs",
     "test:content": "node --conditions=react-server --import tsx --test tests/page-content.test.ts",
-    "test:content:browser": "node tests/page-content-browser.mjs"
+    "test:content:browser": "node tests/page-content-browser.mjs",
+    "test:website-preview": "node --conditions=react-server --import tsx --test tests/website-preview.test.ts",
+    "test:website-preview:browser": "node --conditions=react-server --import tsx tests/website-preview-browser.mjs"
   },
   "dependencies": {
     "@tiptap/core": "^3.31.3",
@@ -24,6 +26,7 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "@tiptap/static-renderer": "^3.31.3",
+    "@vercel/blob": "^2.8.2",
     "cloudinary": "^2.11.0",
     "firebase": "^12.19.0",
     "firebase-admin": "^14.5.0",

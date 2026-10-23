@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Preview origins must preserve directory URLs. proxy.ts retains marketing canonical URLs.
+  skipTrailingSlashRedirect: true,
+  distDir: process.env.NEXT_BUILD_DIR || '.next',
   async redirects() {
     // Upload links issued while the portal ran on this domain still point here; the
     // browser carries their #token fragment across the redirect to the portal page.
@@ -9,6 +12,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/external-upload",
+        missing: [{ type: 'host', value: '.*-preview\\.merasoftware\\.com' }],
         destination: `${portalUrl.replace(/\/$/, "")}/external-upload`,
         permanent: false,
       },
