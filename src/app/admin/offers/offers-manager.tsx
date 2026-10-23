@@ -46,9 +46,16 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const preview = useRef<HTMLDialogElement>(null);
+  // Package ticks are stored on each package in the portal (offerSlug), so a package has one offer
+  // and the package editor shows the same link. null = unchanged from the saved links.
+  const [linked, setLinked] = useState<string[] | null>(null);
+  const linkable = packages.filter(item => item.status !== "archived" && (selected?.applicableCategories || []).includes(item.category));
+  const savedLinked = !selected || creating ? [] : linkable.filter(item => item.offerSlug === selected.slug).map(item => item.id);
+  const linkedNow = (linked ?? savedLinked).filter(id => linkable.some(item => item.id === id));
+  const linksDirty = JSON.stringify([...linkedNow].sort()) !== JSON.stringify([...savedLinked].sort());
   const dirty = section === "terms" ? JSON.stringify(terms) !== JSON.stringify(savedTerms)
     : section === "listing" ? JSON.stringify(listing) !== JSON.stringify(savedListing)
-    : selected !== null && JSON.stringify(selected) !== baseline;
+    : selected !== null && (JSON.stringify(selected) !== baseline || linksDirty);
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -61,13 +68,13 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     document.addEventListener("click", guard, true);
     return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guard, true); };
   }, [dirty]);
-  async function save(payload: object, done: (data: unknown) => void) {
+  async function save(payload: object, done: (data: unknown) => void | Promise<void>) {
     setBusy(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/offers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not save.");
-      done(result); setMessage("Saved.");
+      await done(result); setMessage("Saved.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save."); }
     finally { setBusy(false); }
   }
@@ -101,6 +108,15 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       return next;
     });
   }
+  // Runs after the offer itself is saved, so the portal can check the saved offer's categories and price.
+  async function saveLinks(offerSlug: string) {
+    const response = await fetch("/api/packages/offer-links", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerSlug, packageIds: linkedNow }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(`Offer saved, but packages were not linked: ${result.error || "please try again."}`);
+    const reload = await fetch("/api/packages", { cache: "no-store" });
+    if (reload.ok) setPackages((await reload.json()).packages || []);
+    setLinked(null);
+  }
   const policy = selected.paymentPolicy || { mode: "current" as const, uploadAllowance: 0, dueDays: 7, cycleScope: "first_purchase" as const, reminderOffsets: [-1, 0, 3] };
   const targets = selected.targets ?? ["projects"];
   const projectsEnabled = targets.includes("projects");
@@ -110,7 +126,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const previewOffer = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms), endsAt: selected.endsAt || DEFAULT_OFFER.endsAt };
   return <>
     <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link><button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
-    <form className="admin-form" onSubmit={event => { event.preventDefault(); const next = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }; void save({ kind: "offer", offer: next, creating }, data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setCreating(false); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); if (creating) router.replace(`/admin/offers?section=settings&offer=${encodeURIComponent(result.slug)}`); }); }}>
+    <form className="admin-form" onSubmit={event => { event.preventDefault(); const next = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }; void save({ kind: "offer", offer: next, creating }, async data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setCreating(false); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); if (linksDirty) await saveLinks(result.slug); if (creating) router.replace(`/admin/offers?section=settings&offer=${encodeURIComponent(result.slug)}`); }); }}>
       <fieldset disabled={busy} className={s.fields}>
         <h3>Offer identity</h3><div className="form-columns">{field("Offer name", "title")}{field("URL slug", "slug")}</div>
         <small>URL: /offer/{selected.slug || "your-offer"}. The URL stays fixed after creation.</small>
@@ -125,7 +141,9 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         <p>Select the project categories eligible for this offer.</p>
         {categories === null && <small role={catalogueFailed ? "alert" : undefined}>{catalogueFailed ? "Project categories could not be loaded from the portal. Already selected categories are kept; publishing checks them again." : "Loading project categories from the portal…"}</small>}
         <div className="form-columns">{categoryChoices(categories ?? undefined, selected.applicableCategories || []).map(({ category: id, label, status }) => <label key={id}><input type="checkbox" checked={selected.applicableCategories?.includes(id) ?? false} onChange={e => update("applicableCategories", e.target.checked ? [...(selected.applicableCategories || []), id] : selected.applicableCategories?.filter(value => value !== id))} /> {label}{status === "archived" ? " (archived)" : ""}</label>)}</div>
-        <label className="admin-field"><span>Limit to specific packages (optional)</span><select multiple size={4} value={selected.packageIds || []} onChange={e => update("packageIds", Array.from(e.target.selectedOptions, option => option.value))}>{packages.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>No selection means all matching packages and custom projects in the selected categories.</small></label>
+        <div className="admin-field"><span>Packages with this offer</span>
+          {linkable.length ? linkable.map(item => { const ticked = linkedNow.includes(item.id); const other = item.offerSlug && item.offerSlug !== selected.slug ? offers.find(row => row.slug === item.offerSlug)?.title || item.offerSlug : ""; return <label key={item.id}><input type="checkbox" checked={ticked} onChange={e => setLinked(e.target.checked ? [...linkedNow, item.id] : linkedNow.filter(id => id !== item.id))} /> {item.name}{other ? ticked ? ` (moves here from ${other} on save)` : ` (now on ${other})` : ""}</label>; }) : <small>No packages in the selected categories yet.</small>}
+          <small>A package has one offer. Ticking a package that is on another offer moves it here. The package editor shows the same link.</small></div>
         </fieldset>
         <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label>
         <h3>Payment timing</h3>
@@ -148,7 +166,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         <h3>Terms & conditions</h3><label className="admin-field"><span>Terms to show</span><select aria-label="Terms to show" value={selected.termsMode} onChange={e => update("termsMode", e.target.value as Offer["termsMode"])}><option value="universal">Universal only</option><option value="offer">Offer-specific only</option><option value="combined">Universal + offer-specific</option></select></label>
         <Lines label="Offer-specific terms" value={selected.terms} change={v => update("terms", v)} /><p>Validity is added automatically from the expiry date.</p>
       </fieldset>{notices}
-      <div className={s.actions}><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setError(""); }}>Discard changes</button></div>
+      <div className={s.actions}><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setLinked(null); setError(""); }}>Discard changes</button></div>
     </form>
     <h3>Card preview</h3><OfferPreview offer={previewOffer} />
     <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview /></dialog>

@@ -4,7 +4,7 @@ export const PROJECT_CATEGORY_KEY = /^[a-z][a-z0-9_]{2,39}$/;
 export type ProjectCategory = { category: string; label: string; status?: "active" | "archived"; sortOrder?: number };
 export type SalesPackage = {
   id: string; name: string; description: string; status: "draft" | "published" | "archived";
-  category: string; regularPrice: number; offerExtraPrice: number;
+  category: string; regularPrice: number; discountedPrice: number; offerExtraPrice: number;
   offerSlug: string; inclusions: string[]; terms: string[]; linkedPlanIds: string[]; order: number;
 };
 export type SalesOffer = import("./offers").Offer & { resolvedTerms: string[]; quoteKey: string };

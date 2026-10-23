@@ -71,8 +71,8 @@ export const listingSchema = z.object({ title: short(120), emptyMessage: short(3
 export type OfferListing = z.infer<typeof listingSchema>;
 export const DEFAULT_OFFER_LISTING: OfferListing = { title: "Offers", emptyMessage: "No offers available right now. Please check back soon." };
 export function resolvedOffers(saved?: Record<string, Offer>): Offer[] {
-  const merged = { page: DEFAULT_OFFER, ...saved };
-  return Object.values(merged).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+  // Only offers an admin saved exist; DEFAULT_OFFER is just the new-offer form template.
+  return Object.values(saved ?? {}).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
 }
 export function publishedOffers(saved?: Record<string, Offer>) {
   return resolvedOffers(saved).filter(offer => offer.status === "published");

@@ -8,7 +8,7 @@ export async function requireSalesAdmin() {
   if (!session) throw new AuthError("Sign in to continue.", 401);
   if (!session.portalRoles.includes("admin") || session.portalActiveRole !== "admin") throw new AuthError("Switch to your portal admin role to manage prices and packages.", 403);
 }
-export async function salesBackend(admin: boolean, body?: unknown): Promise<SalesCatalogue | unknown> {
+export async function salesBackend(admin: boolean, body?: unknown, path = "sales-packages"): Promise<SalesCatalogue | unknown> {
   const origin = process.env.PORTAL_API_URL;
   if (!origin) throw new AuthError("Portal API is not configured.", 503);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -20,7 +20,7 @@ export async function salesBackend(admin: boolean, body?: unknown): Promise<Sale
     if (secret.length < 32) throw new AuthError("Sales integration is not configured.", 503);
     headers.Authorization = `Bearer ${secret}`;
   }
-  const response = await fetch(`${origin.replace(/\/$/, "")}/api/${admin ? "admin" : "integration"}/sales-packages`, {
+  const response = await fetch(`${origin.replace(/\/$/, "")}/api/${admin ? "admin" : "integration"}/${path}`, {
     method: body ? "PATCH" : "GET", headers, cache: "no-store", redirect: "error",
     signal: AbortSignal.timeout(20000), ...(body ? { body: JSON.stringify(body) } : {}),
   });

@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DEFAULT_OFFER, DEFAULT_UNIVERSAL_TERMS, offerSchema, publishedOffers, resolvedOffers, resolvedTerms } from "../src/lib/offers";
 
-test("existing offer survives migration and can be hidden without resurfacing", () => {
-  assert.equal(publishedOffers()[0].slug, "page");
+test("no built-in offer: only saved offers exist and a hidden one never resurfaces", () => {
+  assert.deepEqual(resolvedOffers(), []);
+  assert.deepEqual(publishedOffers({}), []);
   assert.equal(offerSchema.parse(DEFAULT_OFFER).endsAt, "2026-11-02T23:59:59+05:30");
   assert.equal(publishedOffers({ page: { ...DEFAULT_OFFER, status: "draft" } }).length, 0);
   assert.equal(publishedOffers({ page: { ...DEFAULT_OFFER, status: "archived" } }).length, 0);

@@ -65,8 +65,8 @@ try {
     try { await fetch(`${origin}/offer`, { signal: AbortSignal.timeout(5000) }); break; } catch { await new Promise(resolve => setTimeout(resolve, 500)); }
   }
   await page.goto(`${origin}/offer`, { waitUntil: 'networkidle', timeout: 180000 });
-  assert.equal(await page.locator('main a[href="/offer/page"]').count(), 1);
-  console.log('Public listing and existing offer loaded');
+  assert.equal(await page.locator('main a[href="/offer/page"]').count(), 0, 'no built-in offer is listed');
+  console.log('Public listing loaded without a built-in offer');
   const denied = await publicContext.request.patch(`${origin}/api/offers`, { data: { kind: 'terms', terms: ['No access'] } });
   assert.equal(denied.status(), 401);
   const token = await new SignJWT({ _id: userId, role: 'admin' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode(tokenSecret));
