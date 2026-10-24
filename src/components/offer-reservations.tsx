@@ -4,6 +4,9 @@ import Link from "@/components/link";
 import { useNavigate } from "@/components/loading/navigation";
 import type { OfferReservation, ReservationList } from "@/lib/offer-reservations";
 import { useServerTime } from "@/components/use-server-time";
+import { PhoneField, type PhoneCountry, type PhoneValue } from "@/components/phone-field";
+
+const INDIA: PhoneCountry[] = [{ code: "+91", label: "India", digits: 10 }];
 
 const intentKey = "pending-offer-reservation";
 const deadline = (value: string) => new Date(value).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }) + " IST";
@@ -13,11 +16,16 @@ function remaining(expiresAt: string, now: number) {
   return `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m ${seconds % 60}s remaining`;
 }
 function ReservationCard({ row, now }: { row: OfferReservation; now: number }) {
-  const expired = row.status !== "confirmed" && Date.parse(row.expiresAt) <= now;
-  return <article style={{ padding: 24, marginBlock: 16, border: "1px solid #d1d5db", borderRadius: 16, ...(expired ? { background: "#f3f4f6", color: "#6b7280" } : {}) }}>
-    <h2>{row.title}</h2><p><strong>{expired ? "Expired" : row.status === "confirmed" ? "Price locked" : "Reserved"}</strong> · {price(row.reservedPrice)}</p>
-    {row.status === "reserved" && !expired && <p aria-live="off">{remaining(row.expiresAt, now)}</p>}
-    <p>Reserved: {deadline(row.reservedAt)}<br />Payment deadline: {deadline(row.expiresAt)}</p>
+  const review = row.status === "under_review";
+  // The deadline in force (an admin extension moves it); the original stays as history.
+  const due = row.deadline ?? row.expiresAt;
+  const expired = row.status !== "confirmed" && !review && Date.parse(due) <= now;
+  return <article className={`offer-reservation${expired ? " is-expired" : ""}`}>
+    <h2>{row.title}</h2>
+    <p className="offer-reservation-status"><b>{expired ? "Expired" : row.status === "confirmed" ? "Price locked" : review ? "Payment under review" : "Reserved"}</b> {price(row.reservedPrice)}</p>
+    {row.status === "reserved" && !expired && <p aria-live="off">{remaining(due, now)}</p>}
+    {review && <p>Your payment was submitted before the deadline and is being verified. Your reserved price is held.</p>}
+    <p className="offer-reservation-meta">Reserved: {deadline(row.reservedAt)}<br />Payment deadline: {deadline(due)}{row.extendedUntil ? " (extended by our team)" : ""}</p>
     {!row.projectId && !expired && <p>Our team will help you create your project and complete payment.</p>}
     <details><summary>Reserved terms</summary><ul>{row.terms.map((term, index) => <li key={index}>{term}</li>)}</ul></details>
   </article>;
@@ -40,27 +48,33 @@ export function MyOffers({ serverNow }: { serverNow: string }) {
     document.addEventListener("visibilitychange", visible);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
   }, [refresh]);
-  return <div>{error && <p role="alert">{error} <button onClick={() => void refresh()}>Retry</button></p>}
-    {!rows && !error && <p>Loading your offers…</p>}
-    {rows?.length === 0 && <p>You have no reserved offers yet.</p>}
+  return <div>{error && <p role="alert" className="admin-empty">{error} <button className="text-link" onClick={() => void refresh()}>Retry</button></p>}
+    {!rows && !error && <p className="admin-empty">Loading your offers…</p>}
+    {rows?.length === 0 && <div className="admin-empty"><b>You have no reserved offers yet.</b><br />When an offer is in its final 24 hours, use Reserve on the offer page and it will appear here.</div>}
     {rows?.map(row => <ReservationCard key={row.id} row={row} now={now} />)}</div>;
 }
-export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow }: { slug: string; quoteKey: string; endsAt: string; signedIn: boolean; serverNow: string }) {
+export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, countries = INDIA }: { slug: string; quoteKey: string; endsAt: string; signedIn: boolean; serverNow: string; countries?: PhoneCountry[] }) {
   const router = useNavigate();
   const [row, setRow] = useState<OfferReservation | null>(null);
   const [loaded, setLoaded] = useState(!signedIn);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  // Older accounts without a phone are asked once (HTTP 428); the number is sent with the reservation.
+  const [needsPhone, setNeedsPhone] = useState(false);
+  const [phone, setPhone] = useState<PhoneValue>({ countryCode: countries[0].code, phone: "" });
+  const phoneRef = useRef<PhoneValue | null>(null);
   const attempted = useRef(false);
   const now = useServerTime() ?? Date.parse(serverNow);
   const reserve = useCallback(async () => {
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/offer-reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerSlug: slug, quoteKey }) });
+      const contact = phoneRef.current ? { countryCode: phoneRef.current.countryCode, phone: phoneRef.current.phone.trim() } : {};
+      const response = await fetch("/api/offer-reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerSlug: slug, quoteKey, ...contact }) });
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 409) sessionStorage.removeItem(intentKey);
+        if (response.status === 428) setNeedsPhone(true);
         throw new Error(data.error || "Could not reserve this offer");
       }
       setRow(data.reservation); sessionStorage.removeItem(intentKey);
@@ -93,12 +107,13 @@ export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow }: { 
     return () => { active = false; };
   }, [signedIn, slug, quoteKey, reserve, retry]);
   const left = Date.parse(endsAt) - now;
-  if (row) return <div style={{ marginTop: 16 }}><ReservationCard row={row} now={now} /><Link href="/account/offers">My offers →</Link></div>;
+  if (row) return <div className="offer-reserve"><ReservationCard row={row} now={now} /><Link className="text-link" href="/account/offers">My offers <span>→</span></Link></div>;
   if (!(left > 0 && left <= 24 * 3600000) && !error) return null;
-  return <div style={{ marginTop: 16 }}>
+  return <div className="offer-reserve">
     <h2>Reserve this offer for 72 hours</h2><p>The 72 hours start when your reservation is saved. Complete the required first payment before your reservation deadline.</p>
     {error && <p role="alert">{error}</p>}
-    <button className="button button-primary" disabled={busy || !loaded || left <= 0} onClick={() => {
+    {needsPhone && <PhoneField className="auth-field" countries={countries} value={phone} onChange={value => { setPhone(value); phoneRef.current = value; }} />}
+    <button className="button button-dark" disabled={busy || !loaded || left <= 0 || (needsPhone && !phone.phone.trim())} onClick={() => {
       if (signedIn) { void reserve(); return; }
       try { sessionStorage.setItem(intentKey, JSON.stringify({ slug, quoteKey, createdAt: Date.now() })); }
       catch { setError("Allow browser session storage to return to this reservation after signing in."); return; }

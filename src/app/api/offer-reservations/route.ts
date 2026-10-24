@@ -13,7 +13,8 @@ async function handle(request: Request, method: "GET" | "POST") {
     await requireUser();
     const token = (await cookies()).get(PORTAL_COOKIE)?.value;
     const input = method === "POST" ? await request.json() : undefined;
-    const body = input ? { offerSlug: input.offerSlug, quoteKey: input.quoteKey } : undefined;
+    // Phone is forwarded only for older accounts the portal asked for one (HTTP 428).
+    const body = input ? { offerSlug: input.offerSlug, quoteKey: input.quoteKey, countryCode: input.countryCode, phone: input.phone } : undefined;
     const data = await portalApiRequest("Offer reservations", "/api/offer-reservations", method, { Cookie: `${PORTAL_COOKIE}=${token}` }, body);
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

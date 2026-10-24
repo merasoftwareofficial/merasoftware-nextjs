@@ -1,7 +1,10 @@
 "use client";
 
 import { useNavigate, useTask } from "@/components/loading/navigation";
+import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { useState } from "react";
+
+const INDIA: PhoneCountry[] = [{ code: "+91", label: "India", digits: 10 }];
 
 type Mode = "signin" | "signup";
 
@@ -11,10 +14,12 @@ type PortalReply = { success?: boolean; message?: string; data?: { mustResetPass
  * One account for the website and the client portal: both forms talk to the
  * portal, which sets the shared `token` cookie (src/docs/login.md).
  */
-export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; portalApiUrl: string; portalUrl: string }) {
+export function LoginForm({ next, portalApiUrl, portalUrl, countries = INDIA }: { next: string; portalApiUrl: string; portalUrl: string; countries?: PhoneCountry[] }) {
   const router = useNavigate();
   const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
+  // Owner rule: no account without a mobile number; the portal validates and stores it.
+  const [phone, setPhone] = useState({ countryCode: countries[0].code, phone: "" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -56,7 +61,7 @@ export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; por
 
       try {
         if (mode === "signup") {
-          const created = await callPortal("signup", { name: name.trim(), email: email.trim(), password });
+          const created = await callPortal("signup", { name: name.trim(), email: email.trim(), password, countryCode: phone.countryCode, phone: phone.phone.trim() });
           if (!created.success) throw new Error(created.message || "Could not create the account.");
         }
         const signedIn = await callPortal("signin", { email: email.trim(), password });
@@ -109,6 +114,8 @@ export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; por
           autoComplete="email"
         />
       </label>
+
+      {signup ? <PhoneField className="auth-field" countries={countries} value={phone} onChange={setPhone} /> : null}
 
       <label className="auth-field">
         <span>Password</span>

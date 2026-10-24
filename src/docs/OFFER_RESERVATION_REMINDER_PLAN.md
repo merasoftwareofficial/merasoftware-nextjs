@@ -1,6 +1,6 @@
 # Offer reservations, payment revisions and reminders
 
-Review date: 24 October 2026. Status: implementation started; baseline payment-state corrections completed locally (see implementation progress). No production-data changes or deployments. Unresolved commercial decisions below are not authorization to choose or implement them silently.
+Review date: 24 October 2026. Status: payment baseline committed ("reservation system part 1"); reservation part 2 (reserve API, lead link, My Offers, confirmation, admin auto-reserve, first-node provision) committed ("reservation system part 2 incomplete work"), not deployed, flag-gated off. Expiry repricing, reservation extension, force-apply and signup phone are not built. No production-data changes or deployments. Hand-over status and the verified remaining plan: see "Status and remaining plan — 24 Oct 2026 (Step 0)" at the end. Unresolved commercial decisions below are not authorization to choose or implement them silently.
 
 ## Confirmed owner requirements
 
@@ -204,6 +204,8 @@ Rollback disables new starts/repricing/dispatch and preserves already committed 
 
 ## Decisions still required (ask one at a time)
 
+Owner answers on 24 Oct 2026 (Step 0 session) resolve #1, #2, #5, #6, #7 and #8; they are recorded in "Owner decisions — 24 Oct 2026" at the end and override the open wording below.
+
 1. Required first payment: full invoice, first installment or booking amount? Price-lock behavior is now approved: the required first payment received locks the agreed scope price; later overdue installments do not reprice it. The qualifying amount still needs definition.
 2. Benefit deadline versus stage/manual invoice due date: is a separate qualification payment due within 72 hours, or does the first-stage rule extend benefit validity? Do not impose both contradictory promises.
 3. Lead path resolved: reservation creates/links the lead; the team approaches the user and admin converts to client. Do not auto-convert merely to expose payment. Admin project creation links/starts the reservation as specified. Any later self-service purchase/checkout needs a separate approved route; reservation confirmation must point to My Offers/team next steps rather than a nonexistent Pay Now target.
@@ -225,6 +227,8 @@ Final source cross-check on 24 October 2026 added onboarding-role continuity, a 
 The initial review copy is retained at `E:/Allprojects/backup/merasoftware/work5-offer-plan-final-review/OFFER_RESERVATION_REMINDER_PLAN.md`. The later baseline change set resolved the index setup blocker and passed 83 tests as recorded below. The latest verification changed this document only; its prior version is backed up at `E:/Allprojects/backup/merasoftware/work8-reserved-offer-plan-verification/`.
 
 ## Next concrete step
+
+Superseded on 24 Oct 2026: the current next step is in "Status and remaining plan — 24 Oct 2026 (Step 0)" at the end. Original text kept for history:
 
 Baseline corrections, routed project UPI/wallet transactions and admin creation/manual-approval transactions below are complete locally. Next work is reservation ownership/snapshots/lead linkage and integration; customer self-creation and revision orchestration must also be accounted for before repricing. Resolve qualifying-payment and pending-verification rules before dependent pricing behavior. Reservation/repricing/reminder provision has not yet been built or production-verified.
 
@@ -257,3 +261,92 @@ Baseline corrections, routed project UPI/wallet transactions and admin creation/
 - 107 tests passed across seven isolated backend suites; syntax/diff checks passed. Existing creation/category test harnesses use replica sets and preserve database-specific connection parameters.
 - Originals/log: `E:/Allprojects/backup/backend/work8-admin-project-transactions/`. No customer records, live databases, running owner servers or deployments were changed.
 - Remaining: reservation, login intent, lead linkage, My Offers, automatic project reservation, confirmation delivery, expiry/repricing, admin force-apply and node-event-only provision. Customer self-creation/other writers need revision/transaction review before repricing activation. New reminder sending remains deferred.
+
+## Implementation progress — reservation part 2 (committed, not deployed)
+
+Recorded on 24 Oct 2026 from a source review of the three working trees; the previous agent built this after the section above but did not document it. Everything is gated by `OFFER_RESERVATIONS_ENABLED` and `OFFER_RESERVATION_CONFIRMATIONS_ENABLED` (both default off).
+
+| What | Where (file / function) | Before |
+|---|---|---|
+| Reservation record: permanent history, one per user+offer (unique index), immutable price/snapshot/`reservedAt`/`expiresAt`, origin `customer` or `admin_project`, confirmation-delivery state | backend `models/offerReservationModel.js` (new) | No reservation model existed |
+| Reserve: only last 24h of a published project offer, `quoteKey` must match, replay returns the original record (72h clock never reset), transaction-serialised per user | backend `helpers/offerReservations.js` → `reserveOffer`; `routes/offerReservations.js` (`GET/POST /api/offer-reservations`, admin `GET /user/:userId`) mounted in `routes/index.js` | No reserve operation |
+| Member who reserves becomes a linked lead (`lead.reservationUserId`, unique partial index); existing customers do not create leads; no role grant | `reserveOffer`; `models/leadModel.js` | Lead had no pre-conversion account link |
+| Admin conversion of a reservation lead upgrades the same account in one transaction and refuses if the lead email was edited away from that account | `controller/lead/convertLead.js`; `helpers/clientAccount.js` → `upgradeMemberToClient` (session arg) | Conversion matched the account by editable email only, not transactional |
+| Converted member session refreshes to `customer` | `controller/user/userDetails.js` | Old `member` session stayed until re-login |
+| Confirmation email `offer.reserved` (exact IST deadline, My Offers link), durable dedupe, retry; WhatsApp through the existing email mirror | `helpers/emailDefinitions.js`, `emailCatalog.js`, `emailController.js` → `sendReservationConfirmation`; `helpers/offerReservationConfirmation.js` → `drainReservationConfirmations`; 1-minute cron in `index.js` | Background mail allowed only `offer.payment.reminder` |
+| Admin project with offer: reuse the customer's saved reservation (saved price/terms, original clock) or start one at successful creation inside the creation transaction | `helpers/adminProjectCreation.js` → `persistAdminProject`; `helpers/offerReservations.js` → `attachProjectReservation`; `helpers/projectPricing.js` → `resolveProjectPricing` (`offerReservationId`) | Offer projects had no reservation |
+| Admin form "Customer's reserved offer" dropdown | portal `src/pages/AdminClientWorkspace.js` | Not present |
+| First-payment lock (`confirmedAt`) on full invoice or installment 1 | `confirmReservationPayment`, called from `projectPaymentSettlement.js` → `applyReceived` and `persistAdminProject` | Not present |
+| First actual admin node update stored once as `order.offerFirstWorkUpdate` (event only, sends nothing) | `helpers/projectNodeService.js` → `appendProjectNode`; `controller/order/projectNodeController.js` → `saveResponse` | Not present |
+| Website: Reserve button, login/signup continuation, `/account/offers` with grey Expired cards | website `src/components/offer-reservations.tsx`, `src/app/account/offers/`, `src/app/api/offer-reservations/route.ts`, `src/app/offer/[slug]/page.tsx`, `src/app/login/login-form.tsx` | Not present |
+| Portal: My Offers page; password reset keeps the return target | portal `src/pages/MyOffers.js`, `SetNewPassword.js`, `Login.js`, `ProtectedRoute.js`, `postLogin.js` | Not present |
+
+Verification on 24 Oct 2026 (disposable in-memory replica set / fixture servers only): backend `tests/offerReservations.test.js` 23/23; paymentFoundation + adminProjectTransactions + offerPaymentPolicy + salesPricing + projectCreateForm + emailControl 99/99; website `tests/offer-reservations.browser.mjs` 1/1; portal `tests/offer-reservations-browser.cjs` PASS.
+
+Portal browser test fix: it failed with `process is not defined` because its esbuild bundle defined only `NODE_ENV`, while `src/helpers/brand.js` reads `PUBLIC_URL` and `REACT_APP_WEBSITE_URL` (react-scripts inlines these at build time). The test now defines both. Test-only change; app code untouched. Original at `E:/Allprojects/backup/frontend/work6-step0-browser-test/`. Previous agent backups: `backup/backend/work9-offer-reservations`, `backup/frontend/work5-offer-reservations`, `backup/merasoftware/work14-offer-reservations`. This doc's prior version: `backup/merasoftware/work15-step0-doc-sync/`.
+
+## Owner decisions — 24 Oct 2026
+
+1. Price lock (#1): the first installment or the full payment locks the offer price.
+2. Lock time (#2, #5): the time the payment is recorded/submitted counts, not approval. Submitted within the reservation deadline and approved later, even after 72h → price locked. While approval is pending, no repricing.
+3. The Reserve button exists only in the offer's final 24 hours and gives the user a fresh 72 hours from reservation.
+4. After the deadline with no qualifying payment: if the same offer was edited/extended (validity or price), its current terms apply automatically; otherwise the saved normal price applies.
+5. Offer extension (#7): while the reservation is still running or the user has paid, the reserved price stays. Price changes only when the reservation has expired without payment.
+6. Expiry access (#6): owner accepted the recommendation — the project's frozen payment policy continues unchanged and expiry changes price only (advance = uploads locked until paid, limited_uploads = remaining allowance, pay_later = continues). Counters are never reset.
+7. Reservation extension (new): admin-only "Extend reservation" in addition to force-apply; no maximum, the admin chooses the days. Reason and audit required; the original `expiresAt` stays in history; allowed only before repricing has happened (after repricing, force-apply is used).
+8. Phone (#8): no lead and no client without a phone number. Phone is mandatory at signup: country code + 10-digit number. WhatsApp OTP at signup is wanted later — keep a provision now (`phoneVerified`/`phoneVerifiedAt`, flag `SIGNUP_PHONE_OTP_ENABLED` off); do not build OTP now.
+9. Payment SSOT (owner, 24 Oct): no new payment or amount rule for reservations. The existing project payment system decides what counts — the full project invoice or the installment invoice, as already defined by `helpers/projectPaymentSettlement.js` → `dueInvoice`. A reservation locks when that existing system marks the first project invoice (full, or installment 1) `paid` — the same event that runs `markOrderApproved`. Only the time used for the 72-hour check changes (decision 2).
+
+Owner approved the following recommendations on 24 Oct 2026:
+
+10. Phone: country-code dropdown, default +91; India exactly 10 digits, other countries validated to their own length; stored in one format (`+919876543210`).
+11. Re-reservation: once per new offer period, only if the previous reservation expired without payment and is not attached to a project; old rows remain as history.
+12. Cron: do not switch on the global `ENABLE_CRONS` for this; reservation jobs get their own flag (`OFFER_RESERVATION_JOBS_ENABLED`), and expiry is also checked at payment, page load and admin action.
+13. Payment rejected after the deadline: lock lost and normal repricing applies; admin may use Extend reservation for a genuine mistake.
+14. Payment rejected before the deadline: reservation continues; the user may pay again.
+15. Existing phoneless users: no forced prompt at login; phone required at Reserve and at admin client creation.
+16. Duplicate phones: no restriction now; one verified phone per account is enforced in the later OTP phase.
+17. Force-apply is not allowed on a project whose price is already locked.
+18. One reservation applies to one project only.
+19. Force-apply only within the categories saved in the reservation's offer snapshot.
+20. If repricing makes the total lower than money already received, the surplus goes to wallet credit, shown to admin; no automatic refund.
+21. Extension message (email/WhatsApp) states the exact new IST deadline, not relative hours.
+22. Projects created before the reservation system: no backfill or repricing.
+23. Service plans: no repricing in this scope; projects only.
+24. WhatsApp keeps following the sent email (current email-first rule).
+
+## Status and remaining plan — 24 Oct 2026 (Step 0)
+
+Verified findings the plan must handle:
+
+- **Lock-time defect (proven).** `confirmReservationPayment` checks the approval/paid time (`invoice.paidDate`). Repro with the real `adminCreateProjectOrder` + `approveProjectPayment` in a disposable replica set: UPI submitted 1h before the deadline and approved 1h after it → `confirmedAt` stays null. The owner rule needs the submission time. Pending UPI transactions already carry `orderId` and `createdAt` (`models/transactionModel.js`, `controller/user/payInstallment.js`), so no new field is needed for the submit time.
+- **Signup has no phone.** Website `login-form.tsx` and backend `controller/user/userSignUp.js` take no phone. Portal `AddCustomerModal`, `AddAdminModal`, `AddDeveloperModal` and `AddPartnerModal` create accounts through the same `/api/signup` (`helpers/createAccountWithRole.js`) without phone; they break when phone becomes mandatory and need a phone field. AddCustomerModal currently creates clients without phone, which conflicts with decision 8.
+- **Phone format.** No normalisation exists; `helpers/guestIdentityMatch.js` compares raw strings (documented limitation). New phones should be stored in one format (`+91XXXXXXXXXX`). Fixing guest matching is side-work, not in scope. `user.phone` is not unique; live data was not inspected, so no unique index now (revisit with OTP).
+- **Crons are off in production** (`ENABLE_CRONS` absent). Confirmation retries and any expiry cron will not run there. Expiry/repricing must also run at payment, page/invoice load and admin action, not only on a cron.
+- `expiresAt` is immutable and read on 19 lines across the three repos (backend reservation helpers/route/pricing/email, portal AdminClientWorkspace/MyOffers, website offer-reservations); extension needs a separate current-deadline field and every reader moved to it.
+
+Final deep verification (24 Oct 2026, after the owner's commit), additional findings:
+
+- Every project payment path goes through `helpers/projectPaymentSettlement.js`: UPI/installment approval and rejection (`transactionApprovalController.js` → `approveProjectPayment`/`rejectProjectPayment`; `payInstallment.js` only creates the pending transaction), wallet (`walletPayInstant.js` → `payProjectWallet`) and admin recording (`approveProjectOrder.js` → `recordAdminProjectPayment`). The Step 1 lock fix therefore has one place to change.
+- Customers cannot self-create offer projects (`createOrder.js` has no offer/reservation input); only admin creation applies offers.
+- Website reserve button and backend catalogue sign quotes with the same `lib/offer-quote.ts` → `offerWithQuote` and the same universal terms, so `quoteKey` matches. The fallback offer `/offer/page` is served by `/offer/[slug]` and gets the button too.
+- **Re-reservation is blocked.** `reserveOffer` returns any previous row for user+offer (`Reservation.findOne({ userId, offerSlug })`, unique index). If an offer is extended and enters a new final 24 hours, a user whose earlier reservation expired gets the old expired record back and cannot reserve again. Needs an owner decision.
+- **Pending payment shows "Expired".** `reservationView` marks a row expired when the deadline passes without `confirmedAt`, even if a qualifying payment was submitted in time and awaits approval. Step 1 must add a "payment under review" state on website and portal.
+- Cron status in production cannot be verified from this machine (local `.env` defines `ENABLE_CRONS`; earlier notes say the production service lacks it). Owner to confirm on Render before rollout.
+- Normal-price fallback data exists on the order: `referenceTotal` (regular price + extras) and `salesAgreement` (admin adjustment).
+
+Remaining steps (backup before each, owner review after each, commit/deploy only with permission):
+
+| Step | Work | State |
+|---|---|---|
+| 0 | Doc sync, browser tests, commit | Done 24 Oct. Part 2 code committed by owner as "reservation system part 2 incomplete work" (backend b0a2a7b, portal 2b837a4, website 6db2dcb); this doc update and the portal browser-test fix are uncommitted |
+| 1 | Lock-time fix inside the existing payment system only: keep the existing "first project invoice paid" event in `confirmReservationPayment`; replace the approval time (`invoice.paidDate`) with the submission time of the completed transactions that settled that invoice (`transaction.createdAt`; for combined wallet+UPI the latest part, i.e. when the full amount had been submitted). Add a read-only "payment under review" view state from the existing pending transaction (`status: 'pending'`, `paymentStatus: 'pending-approval'`, same `orderId`). No change to `dueInvoice`, invoice status derivation, `markOrderApproved` or any payment entry point | Not started |
+| 2 | Phone mandatory: website signup, backend signup, 4 portal admin forms, Reserve form for old phoneless members; OTP provision only | Not started |
+| 3 | Pricing-revision foundation | Not started |
+| 4 | Expiry repricing + offer-extension rule, triggered by cron and by payment/page/admin actions | Not started |
+| 5 | Admin "Extend reservation" | Not started |
+| 6 | Admin force-apply | Not started |
+| 7 | Upload-policy proof tests; website My Offers styling (currently inline styles) | Not started |
+| 8 | Rollout: live indexes (`offerReservation`, `lead.reservationUserId`), deploy, flags one by one, cron decision | Not started |
+
+Reminders (daily/advance/stage) remain a later separate phase.

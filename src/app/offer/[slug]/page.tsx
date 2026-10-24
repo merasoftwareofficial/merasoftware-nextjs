@@ -7,6 +7,7 @@ import { publishedOffers, resolvedTerms, DEFAULT_UNIVERSAL_TERMS } from "@/lib/o
 import { getSessionUser } from "@/lib/auth";
 import { offerWithQuote } from "@/lib/offer-quote";
 import { ReserveOffer } from "@/components/offer-reservations";
+import { phoneCountries } from "@/lib/phone-countries";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -21,5 +22,8 @@ export default async function Page({ params }: Props) {
   if (!offer) notFound();
   const quote = offerWithQuote(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS);
   const user = await getSessionUser();
-  return <><SiteHeader /><PublicInteraction offer={offer} terms={resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS)} reservation={process.env.OFFER_RESERVATIONS_ENABLED === 'true' ? <ReserveOffer key={user?._id || 'anonymous'} slug={slug} quoteKey={quote.quoteKey} endsAt={offer.endsAt} signedIn={!!user} serverNow={new Date().toISOString()} /> : undefined} /></>;
+  const enabled = process.env.OFFER_RESERVATIONS_ENABLED === 'true';
+  // Only a signed-in owner can be asked for a missing phone, so only then load the country list.
+  const countries = enabled && user ? await phoneCountries() : undefined;
+  return <><SiteHeader /><PublicInteraction offer={offer} terms={resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS)} reservation={enabled ? <ReserveOffer key={user?._id || 'anonymous'} slug={slug} quoteKey={quote.quoteKey} endsAt={offer.endsAt} signedIn={!!user} serverNow={new Date().toISOString()} countries={countries} /> : undefined} /></>;
 }

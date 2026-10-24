@@ -550,3 +550,23 @@ button.admin-action.is-danger:hover:not(:disabled){background:var(--pn-err-bg);b
 /* Keep in-page jumps and the editor toolbar clear of the header. */
 html{scroll-padding-top:var(--header-height,0px)}
 .tiptap-bar{top:var(--header-offset,0px);transition:top .3s ease}
+/* Offer reservations: My offers cards, the reserve box and the phone field (theme tokens only). */
+.offer-reservation{background:var(--card);border:1px solid var(--line);padding:24px;margin-bottom:16px}
+.offer-reservation.is-expired{background:var(--surface);color:var(--muted)}
+.offer-reservation h2{font-size:26px;margin:0 0 10px}
+.offer-reservation-status{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;font-size:var(--fs-text)}
+.offer-reservation-status b{padding:5px 11px;border-radius:100px;font-size:var(--fs-ui);background:var(--surface);color:var(--brand-link)}
+.offer-reservation.is-expired .offer-reservation-status b{color:var(--muted)}
+.offer-reservation p{line-height:1.6;font-size:var(--fs-text)}
+.offer-reservation .offer-reservation-meta{color:var(--muted)}
+.offer-reservation details{border-top:1px solid var(--line);padding-top:12px}
+.offer-reservation summary{cursor:pointer;font-weight:700}
+.offer-reserve{margin-top:16px;padding:22px;background:var(--card);border:1px solid var(--line)}
+.offer-reserve h2{font-size:24px;margin-bottom:8px}
+.offer-reserve p{color:var(--muted);line-height:1.6}
+.offer-reserve [role="alert"]{color:var(--pn-err,#8b2a21);font-weight:700}
+.offer-reserve .auth-field,.offer-reserve>label{display:block;margin:14px 0}
+.offer-reserve button.button{border:0;cursor:pointer}
+.phone-field-row,.auth-field .phone-field-row{display:flex;gap:8px;margin:0;font-weight:400}
+.phone-field-row select{flex:0 0 auto;max-width:45%;padding:13px 10px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:3px;font:15px Arial}
+.phone-field-row input{flex:1 1 auto;min-width:0;padding:13px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:3px;font:15px Arial}

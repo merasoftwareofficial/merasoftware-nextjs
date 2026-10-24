@@ -18,7 +18,7 @@ test('reserve login continuation, stale quotes, retries, expired history and ser
     } }],
   });
   const now = Date.parse('2026-10-24T12:00:00Z');
-  let signedIn = false, quoteKey = 'version-1', rows = [], posts = 0, failNext = false;
+  let signedIn = false, quoteKey = 'version-1', rows = [], posts = 0, failNext = false, needPhone = false, sentPhone = null;
   const row = () => ({ id: 'reservation-1', offerSlug: 'test-offer', title: 'Reserved website', reservedPrice: 5000, regularPrice: 10000,
     terms: ['Agreed scope'], reservedAt: new Date(now).toISOString(), expiresAt: new Date(now + 72 * 3600000).toISOString(), status: 'reserved', projectId: null, confirmationStatus: 'pending' });
   const server = http.createServer(async (req, res) => {
@@ -32,7 +32,10 @@ test('reserve login continuation, stale quotes, retries, expired history and ser
       if (req.method === 'POST') {
         posts++; if (failNext) { failNext = false; res.statusCode = 503; return res.end(JSON.stringify({ error: 'Temporary outage' })); }
         let raw = ''; for await (const chunk of req) raw += chunk;
-        if (JSON.parse(raw).quoteKey !== quoteKey) { res.statusCode = 409; return res.end(JSON.stringify({ error: 'Offer changed' })); }
+        const sent = JSON.parse(raw);
+        if (sent.quoteKey !== quoteKey) { res.statusCode = 409; return res.end(JSON.stringify({ error: 'Offer changed' })); }
+        if (needPhone && !sent.phone) { res.statusCode = 428; return res.end(JSON.stringify({ error: 'Add your mobile number to reserve this offer' })); }
+        sentPhone = sent.phone ? { countryCode: sent.countryCode, phone: sent.phone } : null;
         if (!rows.length) rows = [row()];
         return res.end(JSON.stringify({ reservation: rows[0], serverNow: new Date(now).toISOString() }));
       }
@@ -61,8 +64,13 @@ test('reserve login continuation, stale quotes, retries, expired history and ser
     rows = [{ ...row(), expiresAt: new Date(now - 1000).toISOString(), status: 'expired' }];
     await page.addInitScript(() => { Date.now = () => 0; });
     await page.goto(origin + '/account/offers'); await page.getByText('Expired', { exact: true }).waitFor();
-    assert.equal(await page.locator('article').evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(243, 244, 246)');
+    assert.match(await page.locator('article').getAttribute('class'), /is-expired/);
     assert.match(await page.locator('article').innerText(), /IST/);
+    // A payment submitted in time and awaiting approval is not shown as expired after the deadline.
+    rows = [{ ...row(), projectId: 'project-1', expiresAt: new Date(now - 1000).toISOString(), status: 'under_review' }];
+    await page.goto(origin + '/account/offers'); await page.getByText('Payment under review', { exact: true }).waitFor();
+    assert.doesNotMatch(await page.locator('article').getAttribute('class'), /is-expired/);
+    assert.equal(await page.getByText('Expired', { exact: true }).count(), 0);
     await page.close();
     const stale = await browser.newPage(); stale.on('pageerror', error => errors.push(error.message));
     signedIn = false; rows = []; quoteKey = 'version-1';
@@ -74,6 +82,31 @@ test('reserve login continuation, stale quotes, retries, expired history and ser
     await stale.getByRole('alert').filter({ hasText: 'Temporary outage' }).waitFor();
     await stale.getByRole('button', { name: 'Reserve offer', exact: true }).click(); await stale.getByText('Reserved', { exact: true }).waitFor();
     assert.equal(posts, 3);
+    // Step 2: an older account without a phone is asked once, then the same click reserves.
+    const phoneless = await browser.newPage(); phoneless.on('pageerror', error => errors.push(error.message));
+    rows = []; needPhone = true; sentPhone = null;
+    await phoneless.goto(origin + '/offer/test-offer');
+    await phoneless.getByRole('button', { name: 'Reserve offer', exact: true }).click();
+    await phoneless.getByRole('alert').filter({ hasText: 'mobile number' }).waitFor();
+    assert.equal(await phoneless.getByRole('button', { name: 'Reserve offer', exact: true }).isDisabled(), true, 'Phone is required before retrying');
+    await phoneless.getByLabel('Mobile number', { exact: true }).fill('98765 43210');
+    await phoneless.getByRole('button', { name: 'Reserve offer', exact: true }).click();
+    await phoneless.getByText('Reserved', { exact: true }).waitFor();
+    assert.deepEqual(sentPhone, { countryCode: '+91', phone: '98765 43210' });
+    // Signup sends the phone with the account.
+    signedIn = false; let signupBody = null;
+    const signupPage = await browser.newPage(); signupPage.on('pageerror', error => errors.push(error.message));
+    await signupPage.route('**/api/signup', async route => { signupBody = JSON.parse(route.request().postData()); await route.fulfill({ json: { success: true } }); });
+    await signupPage.route('**/api/signin', route => route.fulfill({ json: { success: false, message: 'stop here' } }));
+    await signupPage.goto(origin + '/login');
+    await signupPage.getByRole('button', { name: 'Create an account', exact: true }).click();
+    await signupPage.getByLabel('Your name').fill('New member');
+    await signupPage.getByLabel('Email address').fill('new@example.test');
+    await signupPage.getByLabel('Mobile number', { exact: true }).fill('9876543210');
+    await signupPage.getByLabel('Password', { exact: true }).fill('secret1');
+    await signupPage.getByRole('button', { name: 'Create account →', exact: true }).click();
+    await signupPage.getByRole('alert').filter({ hasText: 'stop here' }).waitFor();
+    assert.deepEqual({ countryCode: signupBody.countryCode, phone: signupBody.phone }, { countryCode: '+91', phone: '9876543210' });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 });
