@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { useServerTime } from "@/components/use-server-time";
 import Link from "@/components/link";
 import type { Offer } from "@/lib/offers";
@@ -10,7 +10,7 @@ function Arrow() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>;
 }
 
-export function PublicInteraction({ offer, terms, preview = false }: { offer: Offer; terms: string[]; preview?: boolean }) {
+export function PublicInteraction({ offer, terms, preview = false, reservation }: { offer: Offer; terms: string[]; preview?: boolean; reservation?: ReactNode }) {
   const now = useServerTime();
   const dialog = useRef<HTMLDialogElement>(null);
   const end = Date.parse(offer.endsAt);
@@ -64,6 +64,7 @@ export function PublicInteraction({ offer, terms, preview = false }: { offer: Of
             </div>
           </>}
           <a className={s.claim} href={href}>{expired ? "Ask about current offers" : offer.ctaLabel}<Arrow /></a>
+          {reservation}
           <div className={s.cardFooter}><span>{channel}</span><button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
         </section>
       </section>

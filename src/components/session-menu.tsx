@@ -88,6 +88,7 @@ export function SessionMenu({
           <Link href="/account/posts" onClick={() => setOpen(false)}>
             My posts
           </Link>
+          <Link href="/account/offers" onClick={() => setOpen(false)}>My offers</Link>
           <Link href="/account/saved" onClick={() => setOpen(false)}>
             Saved posts
           </Link>

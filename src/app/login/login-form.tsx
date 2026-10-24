@@ -35,7 +35,10 @@ export function LoginForm({ next, portalApiUrl, portalUrl }: { next: string; por
   function goOn(reply: PortalReply) {
     // Accounts created from a lead share a starting password; the portal owns that reset page.
     if (reply.data?.mustResetPassword) {
-      router.assign(new URL("/set-new-password", portalUrl).toString());
+      const target = new URL("/set-new-password", portalUrl);
+      // The portal accepts only a same-website offer/account destination on return.
+      if (/^\/offer\/[a-z0-9-]+$/.test(next) || next === '/account/offers') target.searchParams.set('next', new URL(next, window.location.origin).toString());
+      router.assign(target.toString());
       return;
     }
     if (next.startsWith("/")) {
