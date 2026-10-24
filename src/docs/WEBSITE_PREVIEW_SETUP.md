@@ -1,5 +1,11 @@
 # Website Preview — implementation and release setup
 
+## Current workflow supersedes the Vercel instructions below
+
+As agreed on 23 October 2026, use **manual Cloudflare Pages ZIP upload + a public preview URL in the portal** for now. Read [WEBSITE_PREVIEW_HANDOFF.md](./WEBSITE_PREVIEW_HANDOFF.md) for the active procedure and next-agent requirements. No paid plan, Vercel Blob store, preview credentials or dedicated preview hostname is required for this temporary approach.
+
+The remaining sections preserve the earlier private Vercel implementation's setup reference. They do not describe a completed live deployment and must not be followed as prerequisites for the current manual approach. The portal's external-URL integration is still pending; this documentation update does not implement it.
+
 The existing React portal owns the controls and viewer. The existing Next.js Vercel project owns preview APIs and its private Blob store. The existing backend/MongoDB owns every project binding, version, visibility setting and permission decision. There is no new client account or second project database.
 
 ## UI location

@@ -1,6 +1,12 @@
 # Client website preview — implementation plan
 
-Status: implemented locally on 23 October 2026. Isolated backend/service/ZIP tests and the Chrome cross-repository pilot have passed. Real Vercel storage/account, DNS/TLS and production-browser verification remain release gates. See WEBSITE_PREVIEW_SETUP.md.
+## Current decision — 23 October 2026
+
+The user approved a temporary **manual ZIP upload to Cloudflare Pages**, followed by a public preview URL accessed from the existing portal. No paid hosting purchase is authorized. Read [WEBSITE_PREVIEW_HANDOFF.md](./WEBSITE_PREVIEW_HANDOFF.md) first: it is the single source of truth for the active workflow, next-agent work and acceptance criteria.
+
+The remainder of this document describes the **earlier private Vercel Blob architecture**, implemented/tested locally but not verified live. Its Blob setup, automatic ZIP uploads, dedicated hostnames and private-session delivery are deferred, not prerequisites for the temporary workflow. Do not treat the older outcome or release gates below as the current requested work.
+
+Earlier status: implemented locally on 23 October 2026. Isolated backend/service/ZIP tests and the Chrome cross-repository pilot passed. Real Vercel storage/account, DNS/TLS and production-browser verification remain incomplete. See WEBSITE_PREVIEW_SETUP.md for historical setup details.
 
 ## Outcome and scope
 
