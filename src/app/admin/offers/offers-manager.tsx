@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@/components/loading/navigation";
 import { indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import Link from "@/components/link";
-import { PublicInteraction } from "@/components/campaign/public-interaction/page-content";
+import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
+import { DEFAULT_RESERVE_WINDOW_HOURS } from "@/lib/offer-reservation-rules";
 import { OfferPreview } from "@/components/campaign/offer-preview";
 import { DEFAULT_OFFER, offerDiscountPercent, offerFinalPrice, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
 import { offerOutOfSync, offerRunning, packageOfferProblem, runningOfferForPackage, syncOfferWithPackage } from "@/lib/offer-packages";
@@ -47,6 +48,8 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const preview = useRef<HTMLDialogElement>(null);
+  // Which reservation state the unsaved preview shows (no request is made).
+  const [previewState, setPreviewState] = useState<ReservationPreview>("normal");
   // Package ticks are stored on each package in the portal (offerSlug), so a package has one offer
   // and the package editor shows the same link. null = unchanged from the saved links.
   const [linked, setLinked] = useState<string[] | null>(null);
@@ -209,6 +212,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         </div> : <div className={s.prices}>{([ ["Main price (₹)", "mainPrice"], ["Normal discount price (₹)", "discountPrice"], ["Offer price (₹)", "offerPrice"] ] as const).map(([label,key]) => <label className="admin-field" key={key}><span>{label}</span><input type="number" min={0} max={10000000} step="0.01" required value={selected[key]} onChange={e => update(key, Number(e.target.value))} /></label>)}</div>}
         {field("Short price description", "priceDescription")}
         <label className="admin-field"><span>Expires at (India time / IST)</span><input aria-label="Expires at (India time / IST)" type="datetime-local" required value={toIndiaInput(selected.endsAt)} onChange={e => update("endsAt", e.target.value ? indiaInputToUtc(e.target.value, true) : "")} /><small>One fixed deadline. The countdown never resets on refresh.</small></label>
+        {targets.includes("projects") && <label className="admin-field"><span>Reserve opens (hours before the offer ends)</span><input aria-label="Reserve opens (hours before the offer ends)" type="number" min={1} max={720} step={1} placeholder={String(DEFAULT_RESERVE_WINDOW_HOURS)} value={selected.reserveWindowHours ?? ""} onChange={e => update("reserveWindowHours", e.target.value ? Number(e.target.value) : undefined)} /><small>From 1 to 720 hours. Empty = {DEFAULT_RESERVE_WINDOW_HOURS} hours. The Reserve button appears on the offer page from then until the offer ends; a reservation always holds the price for 72 hours.</small></label>}
         <h3>Enquiry action</h3>{field("CTA label", "ctaLabel")}{field("Contact destination", "contactHref")}<small>Use mailto: for email, tel: for phone, or an HTTPS contact link.</small>
         <h3>Terms & conditions</h3>{packageOffer ? <div className={s.locked}><strong>Package terms (from the package)</strong>{selected.terms.length ? <ul>{selected.terms.map((line, index) => <li key={index}>{line}</li>)}</ul> : <small>This package has no terms of its own.</small>}<p>Shown with the validity date (added automatically) and the universal terms.</p></div> : <>
         <label className="admin-field"><span>Terms to show</span><select aria-label="Terms to show" value={selected.termsMode} onChange={e => update("termsMode", e.target.value as Offer["termsMode"])}><option value="universal">Universal only</option><option value="offer">Offer-specific only</option><option value="combined">Universal + offer-specific</option></select></label>
@@ -217,6 +221,6 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       <div className={s.actions}><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setLinked(null); setError(""); }}>Discard changes</button>{!creating && JSON.parse(baseline)?.status !== "archived" && <button type="button" className="admin-action" disabled={busy || dirty} onClick={remove}>Delete offer</button>}</div>
     </form>
     <h3>Card preview</h3><OfferPreview offer={previewOffer} />
-    <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview /></dialog>
+    <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><label>Show <select aria-label="Preview state" value={previewState} onChange={e => setPreviewState(e.target.value as ReservationPreview)}><option value="normal">Normal</option><option value="open">Reserve open</option><option value="reserved">Reserved</option></select></label><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview previewReservation={previewState} /></dialog>
   </>;
 }

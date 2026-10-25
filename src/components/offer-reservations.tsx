@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "@/components/link";
 import { useNavigate } from "@/components/loading/navigation";
 import type { OfferReservation, ReservationList } from "@/lib/offer-reservations";
 import { useServerTime } from "@/components/use-server-time";
-import { PhoneField, type PhoneCountry, type PhoneValue } from "@/components/phone-field";
+import { type PhoneCountry, type PhoneValue } from "@/components/phone-field";
+import type { Offer } from "@/lib/offers";
+import { reservationPhase, reserveCta } from "@/lib/offer-reservation-rules";
 
 const INDIA: PhoneCountry[] = [{ code: "+91", label: "India", digits: 10 }];
 
@@ -50,10 +51,22 @@ export function MyOffers({ serverNow }: { serverNow: string }) {
   }, [refresh]);
   return <div>{error && <p role="alert" className="admin-empty">{error} <button className="text-link" onClick={() => void refresh()}>Retry</button></p>}
     {!rows && !error && <p className="admin-empty">Loading your offers…</p>}
-    {rows?.length === 0 && <div className="admin-empty"><b>You have no reserved offers yet.</b><br />When an offer is in its final 24 hours, use Reserve on the offer page and it will appear here.</div>}
+    {rows?.length === 0 && <div className="admin-empty"><b>You have no reserved offers yet.</b><br />When an offer opens reservations, use Reserve on the offer page and it will appear here.</div>}
     {rows?.map(row => <ReservationCard key={row.id} row={row} now={now} />)}</div>;
 }
-export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, countries = INDIA }: { slug: string; quoteKey: string; endsAt: string; signedIn: boolean; serverNow: string; countries?: PhoneCountry[] }) {
+/** What the offer page passes to its card; the card renders the state (page-content.tsx). */
+export type ReservationConfig = { slug: string; quoteKey: string; signedIn: boolean; serverNow: string; countries?: PhoneCountry[] };
+export type ReservationControl = ReturnType<typeof useOfferReservation>;
+
+/**
+ * The customer's reservation for one offer: load, reserve, sign-in continuation, phone request and
+ * retry. It renders nothing itself; the offer card shows `cta` as its one main button and asks for
+ * confirmation in a dialog (lib/offer-reservation-rules.ts). `config` is undefined when public
+ * reservations are off or in previews; the hook then does nothing.
+ */
+export function useOfferReservation(config: ReservationConfig | undefined, offer: Pick<Offer, "status" | "endsAt" | "targets" | "reserveWindowHours">) {
+  const enabled = !!config, slug = config?.slug ?? "", quoteKey = config?.quoteKey ?? "", signedIn = !!config?.signedIn, endsAt = offer.endsAt;
+  const countries = config?.countries ?? INDIA;
   const router = useNavigate();
   const [row, setRow] = useState<OfferReservation | null>(null);
   const [loaded, setLoaded] = useState(!signedIn);
@@ -62,10 +75,10 @@ export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, coun
   const [retry, setRetry] = useState(0);
   // Older accounts without a phone are asked once (HTTP 428); the number is sent with the reservation.
   const [needsPhone, setNeedsPhone] = useState(false);
-  const [phone, setPhone] = useState<PhoneValue>({ countryCode: countries[0].code, phone: "" });
+  const [phone, setPhoneState] = useState<PhoneValue>({ countryCode: countries[0].code, phone: "" });
   const phoneRef = useRef<PhoneValue | null>(null);
   const attempted = useRef(false);
-  const now = useServerTime() ?? Date.parse(serverNow);
+  const now = useServerTime() ?? Date.parse(config?.serverNow ?? offer.endsAt);
   const reserve = useCallback(async () => {
     setBusy(true); setError("");
     try {
@@ -82,7 +95,7 @@ export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, coun
     finally { setBusy(false); }
   }, [slug, quoteKey]);
   useEffect(() => {
-    if (!signedIn) return;
+    if (!enabled || !signedIn) return;
     let active = true;
     async function load() {
       try {
@@ -106,22 +119,19 @@ export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, coun
     }
     void load();
     return () => { active = false; };
-  }, [signedIn, slug, quoteKey, endsAt, reserve, retry]);
-  const left = Date.parse(endsAt) - now;
-  const canRenew = row?.status === 'expired' && !row.projectId && row.periodEndsAt && Date.parse(row.periodEndsAt) < Date.parse(endsAt) && left > 0 && left <= 24 * 3600000;
-  if (row && !canRenew) return <div className="offer-reserve"><ReservationCard row={row} now={now} /><Link className="text-link" href="/account/offers">My offers <span>→</span></Link></div>;
-  if (!(left > 0 && left <= 24 * 3600000) && !error) return null;
-  return <div className="offer-reserve">
-    {row && <ReservationCard row={row} now={now} />}
-    <h2>Reserve this offer for 72 hours</h2><p>The 72 hours start when your reservation is saved. Complete the required first payment before your reservation deadline.</p>
-    {error && <p role="alert">{error}</p>}
-    {needsPhone && <PhoneField className="auth-field" countries={countries} value={phone} onChange={value => { setPhone(value); phoneRef.current = value; }} />}
-    <button className="button button-dark" disabled={busy || !loaded || left <= 0 || (needsPhone && !phone.phone.trim())} onClick={() => {
+  }, [enabled, signedIn, slug, quoteKey, endsAt, reserve, retry]);
+  const phase = enabled ? reservationPhase(offer, row, loaded, now) : "none";
+  return {
+    phase, row, now, error, busy, loaded, signedIn, needsPhone, phone, countries,
+    cta: reserveCta(phase, row, now),
+    setPhone(value: PhoneValue) { setPhoneState(value); phoneRef.current = value; },
+    /** The dialog's confirm: reserve now, or keep the intent and sign in first (it reserves on return). */
+    confirm() {
       if (signedIn) { void reserve(); return; }
       try { sessionStorage.setItem(intentKey, JSON.stringify({ slug, quoteKey, createdAt: Date.now() })); }
       catch { setError("Allow browser session storage to return to this reservation after signing in."); return; }
       router.push(`/login?next=${encodeURIComponent(`/offer/${slug}`)}`);
-    }}>{busy ? "Reserving…" : !loaded ? "Checking reservation…" : "Reserve offer"}</button>
-    {!loaded && error && <button onClick={() => setRetry(value => value + 1)}>Retry</button>}
-  </div>;
+    },
+    retry() { setError(""); setRetry(value => value + 1); },
+  };
 }

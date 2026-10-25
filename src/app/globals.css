@@ -561,12 +561,6 @@ html{scroll-padding-top:var(--header-height,0px)}
 .offer-reservation .offer-reservation-meta{color:var(--muted)}
 .offer-reservation details{border-top:1px solid var(--line);padding-top:12px}
 .offer-reservation summary{cursor:pointer;font-weight:700}
-.offer-reserve{margin-top:16px;padding:22px;background:var(--card);border:1px solid var(--line)}
-.offer-reserve h2{font-size:24px;margin-bottom:8px}
-.offer-reserve p{color:var(--muted);line-height:1.6}
-.offer-reserve [role="alert"]{color:var(--pn-err,#8b2a21);font-weight:700}
-.offer-reserve .auth-field,.offer-reserve>label{display:block;margin:14px 0}
-.offer-reserve button.button{border:0;cursor:pointer}
 .phone-field-row,.auth-field .phone-field-row{display:flex;gap:8px;margin:0;font-weight:400}
 .phone-field-row select{flex:0 0 auto;max-width:45%;padding:13px 10px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:3px;font:15px Arial}
 .phone-field-row input{flex:1 1 auto;min-width:0;padding:13px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:3px;font:15px Arial}

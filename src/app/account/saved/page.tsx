@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { getSessionUser } from "@/lib/auth";
 import { isReadable } from "@/lib/blog-rules";
 import { blogRepo, savedRepo, type Blog } from "@/lib/repo";
+import { AccountNavigation } from "@/components/account-navigation";
 
 export const metadata = { title: "Saved Posts", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function Saved() {
           text="Everything you saved with the Save button, newest first."
         />
         <section className="content-section section-soft"><div className="container">
+          <AccountNavigation username={user.username} active="/account/saved" />
           {posts.length === 0 ? (
             <div className="admin-empty">
               <b>Nothing saved yet.</b>

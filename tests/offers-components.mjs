@@ -156,8 +156,20 @@ try {
   await page.getByText('Shown as 82% OFF the main price.', { exact: true }).waitFor();
   await page.screenshot({ path: path.join(folder, 'admin-new-offer.png'), fullPage: true });
   await page.getByLabel('Expires at (India time / IST)', { exact: true }).fill('2030-10-20T23:59');
+  // Reserve window per offer, and a preview of each reservation state without any request.
+  await page.getByLabel('Reserve opens (hours before the offer ends)', { exact: true }).fill('48');
+  await page.getByRole('button', { name: 'Preview changes ↗', exact: true }).click();
+  const previewDialog = page.getByRole('dialog', { name: 'Offer preview' });
+  const previewMain = previewDialog.locator('section[aria-label] [class*="claim"]');
+  assert.equal(await previewMain.innerText(), 'Enquire about this offer');
+  await page.getByLabel('Preview state', { exact: true }).selectOption('open');
+  await previewMain.filter({ hasText: 'Reserve price for 72 hours' }).waitFor();
+  await page.getByLabel('Preview state', { exact: true }).selectOption('reserved');
+  await previewMain.filter({ hasText: /^Reserved · 71h/ }).waitFor();
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
   await save('Save offer'); await page.waitForURL(/offer=mega/);
   const draft = (await state()).offers.find(row => row.slug === 'mega');
+  assert.equal(draft.reserveWindowHours, 48);
   assert.equal(draft.packageId, 'starter'); assert.equal(draft.mainPrice, 4000); assert.equal(draft.discountPrice, 3500);
   assert.deepEqual(draft.inclusions, ['Business profile setup', 'Search and Maps listing']); assert.deepEqual(draft.terms, ['Package term: one revision.']);
   assert.equal(api.store.linkCalls.length, 0, 'a draft does not take the package');

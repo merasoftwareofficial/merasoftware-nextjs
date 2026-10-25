@@ -54,6 +54,9 @@ export const offerSchema = z.object({
   // A package offer (lib/offer-packages.ts): its two struck prices, included work and terms come from
   // this package. Set at creation and fixed after. Offers saved before this field keep working unchanged.
   packageId: packageIdSchema.optional(),
+  // Hours before the end that public Reserve opens (lib/offer-reservation-rules.ts); missing = 24.
+  // Timing only: left out of the quote key (lib/offer-quote.ts).
+  reserveWindowHours: z.number().int().min(1).max(720).optional(),
 }).strict().refine(value => value.mainPrice >= value.discountPrice && value.discountPrice >= value.offerPrice, {
   message: "Prices must follow main price ≥ normal discount price ≥ offer price.", path: ["offerPrice"],
 }).refine(value => value.pricingRule !== "percentage" || (value.benefitValue !== undefined && value.benefitValue <= 100), { message: "Percentage benefit must be between 0 and 100.", path: ["benefitValue"] })

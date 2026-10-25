@@ -38,7 +38,8 @@ Owner instructions in the conversation take priority over local skill guidelines
 
 ### Reservation
 
-- Public Reserve is available only during the **last 24 hours** of a live project offer. The backend rechecks availability and the accepted quote/terms version.
+- Public Reserve is available only during a live **project** offer's **reserve window**. Before 25 Oct 2026 this was a fixed **last 24 hours**. Now each offer sets it on the website: `reserveWindowHours`, 1–720, where missing or invalid means 24. The backend rechecks availability (`helpers/offerReservations.js` `reservationRefusal`, with a clear message per reason) and the accepted quote/terms version. The window is not part of the quote key. Details: [dynamic-offers.md](dynamic-offers.md) "Reserve on the offer card + reserve window".
+- The offer card shows Reserve as its one main button and confirms it in a dialog, so the card never grows (website `src/lib/offer-reservation-rules.ts`, `useOfferReservation` in `src/components/offer-reservations.tsx`).
 - Successful reservation starts **72 hours from its save time**. Public offer end, personal reservation deadline and invoice due date are different timestamps. Store UTC; display IST and use server time.
 - Logged-out Reserve saves a short-lived browser intent → existing login/signup → same offer → authenticated POST automatically. Changed quote/terms require review. GET/redirect alone must not create a reservation.
 - Website offer page, website `/account/offers` and portal `/my-offers` render the same backend record. Expired history stays grey; it is never deleted by a TTL.
@@ -83,7 +84,7 @@ Paths below are relative to the indicated repository.
 | Durable extension notices | backend `models/reservationNoticeModel.js`, `helpers/offerReservationConfirmation.js`, `helpers/emailController.js`, `helpers/emailDefinitions.js` |
 | Lead conversion / refreshed member session | backend `controller/lead/convertLead.js`, `helpers/clientAccount.js`, `controller/user/userDetails.js` |
 | Phone | backend `helpers/phoneNumber.js`, `controller/user/userSignUp.js`; website `src/components/phone-field.tsx`, `src/lib/phone-countries.ts`; portal `src/components/PhoneInput.js`, four Add* account modals |
-| Website reserve / My Offers / proxy | website `src/components/offer-reservations.tsx`, `src/lib/offer-reservations.ts`, `src/app/api/offer-reservations/route.ts`, `src/app/account/offers/page.tsx`, `src/app/offer/[slug]/page.tsx` |
+| Website reserve / My Offers / proxy | website `src/components/offer-reservations.tsx` (`useOfferReservation`, `MyOffers`), `src/lib/offer-reservation-rules.ts` (window, phase, main button), `src/components/campaign/public-interaction/page-content.tsx` (card, dialog, sticky bar), `src/lib/offer-reservations.ts`, `src/app/api/offer-reservations/route.ts`, `src/app/account/offers/page.tsx`, `src/app/offer/[slug]/page.tsx` |
 | Portal admin override UI | portal `src/components/admin/ReservedOffersPanel.js`, `src/pages/AdminClientWorkspace.js` |
 | Portal My Offers and continuation | portal `src/pages/MyOffers.js`, `src/routes/publicRoutes.js`, `src/components/ProtectedRoute.js`, `src/pages/Login.js`, `src/pages/SetNewPassword.js`, `src/helpers/postLogin.js` |
 | Preview-first migration | backend `scripts/migrateReservationIndexes.js` |

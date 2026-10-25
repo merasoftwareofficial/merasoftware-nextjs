@@ -10,6 +10,7 @@ import { emailState, NOTIFY_COOKIE, topicChoices } from "@/lib/notify-rules";
 import { pushPublicKey } from "@/lib/push";
 import { categoryRepo } from "@/lib/repo";
 import { ownSubscriber } from "@/lib/subscription-actions";
+import { AccountNavigation } from "@/components/account-navigation";
 
 // The address can carry a private token: never indexed.
 export const metadata = { title: "Your notifications", robots: { index: false, follow: false } };
@@ -65,7 +66,10 @@ export default async function ManageSubscription({ searchParams }: Props) {
       <SiteHeader />
       <main>
         <PageHero eyebrow="NOTIFICATIONS" title="Your notifications." text="Choose the topics you hear about, and where." />
-        <section className="content-section section-soft"><div className="container">{body}</div></section>
+        <section className="content-section section-soft"><div className="container">
+          {user ? <AccountNavigation username={user.username} active="/subscribe/manage" /> : null}
+          {body}
+        </div></section>
       </main>
       <SiteFooter />
     </>

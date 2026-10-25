@@ -1,8 +1,12 @@
 "use client";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { useServerTime } from "@/components/use-server-time";
 import Link from "@/components/link";
 import { offerDiscountPercent, type Offer } from "@/lib/offers";
+import { useOfferReservation, type ReservationConfig } from "@/components/offer-reservations";
+import { PhoneField } from "@/components/phone-field";
+import type { OfferReservation } from "@/lib/offer-reservations";
+import { reserveCta, RESERVE_HOLD_HOURS, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -10,9 +14,26 @@ function Arrow() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>;
 }
 
-export function PublicInteraction({ offer, terms, preview = false, reservation }: { offer: Offer; terms: string[]; preview?: boolean; reservation?: ReactNode }) {
+// Admin preview of the reservation states, without any request (admin/offers/offers-manager.tsx).
+export type ReservationPreview = "normal" | "open" | "reserved";
+function previewState(state: ReservationPreview, now: number): { phase: ReservationPhase; cta: ReserveCta } {
+  const phase: ReservationPhase = state === "open" ? "open" : state === "reserved" ? "reserved" : "none";
+  const due = new Date(now + (RESERVE_HOLD_HOURS * 60 - 40) * 60000).toISOString();
+  const row: OfferReservation | null = state === "reserved" ? { id: "preview", offerSlug: "preview", title: "", reservedPrice: 0, regularPrice: 0, terms: [], reservedAt: due, expiresAt: due, deadline: due, extendedUntil: null, status: "reserved", projectId: null, confirmationStatus: "sent" } : null;
+  return { phase, cta: reserveCta(phase, row, now) };
+}
+
+/**
+ * The offer page. The card has one main button that follows the customer's reservation state
+ * (lib/offer-reservation-rules.ts reserveCta): Enquire, Reserve, or the reservation status, the same
+ * in the sticky bar. Reserve is confirmed in a dialog, so the card never changes its size.
+ */
+export function PublicInteraction({ offer, terms, preview = false, reservation, previewReservation }: { offer: Offer; terms: string[]; preview?: boolean; reservation?: ReservationConfig; previewReservation?: ReservationPreview }) {
   const now = useServerTime();
   const dialog = useRef<HTMLDialogElement>(null);
+  const reserveDialog = useRef<HTMLDialogElement>(null);
+  const control = useOfferReservation(preview ? undefined : reservation, offer);
+  const shown = preview ? previewState(previewReservation ?? "normal", now ?? Date.parse(offer.endsAt)) : control;
   const end = Date.parse(offer.endsAt);
   const validEnd = Number.isFinite(end);
   const expired = !validEnd || (now !== null && now >= end);
@@ -36,7 +57,16 @@ export function PublicInteraction({ offer, terms, preview = false, reservation }
   // Package offers show the saving against the main price; older offers keep their card unchanged.
   const percent = offer.packageId ? offerDiscountPercent(offer) : 0;
   const channel = offer.contactHref.startsWith("mailto:") ? "Opens email" : offer.contactHref.startsWith("tel:") ? "Opens phone" : "Contact us";
-
+  // A saved reservation stays visible after the offer ends; Reserve itself never outlives the offer.
+  const cta: ReserveCta = expired && (shown.cta.kind === "reserve" || shown.phase === "expired") ? { kind: "enquire" } : shown.cta;
+  const { error, phase } = control;
+  // A refusal (e.g. after returning from sign-in) opens the dialog to explain it; success closes it.
+  useEffect(() => { if (error && reserveDialog.current && !reserveDialog.current.open) reserveDialog.current.showModal(); }, [error]);
+  useEffect(() => { if (phase !== "open" && phase !== "checking" && !error) reserveDialog.current?.close(); }, [phase, error]);
+  const action = (className: string | undefined, enquireLabel: string) => cta.kind === "reserve"
+    ? <button type="button" className={className} disabled={cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{cta.label}<Arrow /></button>
+    : cta.kind === "status" ? <Link className={className} href="/account/offers">{cta.label}<Arrow /></Link>
+    : <a className={className} href={href}>{enquireLabel}<Arrow /></a>;
 
   return <main className={`${s.page}${preview ? ` ${s.previewPage}` : ""}`} >
     <div className={s.shell}>
@@ -65,9 +95,8 @@ export function PublicInteraction({ offer, terms, preview = false, reservation }
               <div className={s.timer} role="timer" aria-label="Time remaining">{clock.map(([value, label]) => <div key={label}><b>{ready ? String(value).padStart(2, "0") : "—"}</b><span>{label}</span></div>)}</div>
             </div>
           </>}
-          <a className={s.claim} href={href}>{expired ? "Ask about current offers" : offer.ctaLabel}<Arrow /></a>
-          {reservation}
-          <div className={s.cardFooter}><span>{channel}</span><button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
+          {action(s.claim, expired ? "Ask about current offers" : offer.ctaLabel)}
+          <div className={s.cardFooter}>{cta.kind === "enquire" ? <span>{channel}</span> : <a className={s.footerLink} href={href}>Have a question? Enquire</a>}<button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
         </section>
       </section>
     </div>
@@ -78,6 +107,22 @@ export function PublicInteraction({ offer, terms, preview = false, reservation }
         <ul>{terms.map(term => <li key={term}>{term}</li>)}</ul>
       </div>
     </dialog>
-    {!preview && <div className={s.sticky}><div><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></div><a href={href}>{expired ? "Contact us" : offer.ctaLabel}<Arrow /></a></div>}
+    {reservation && !preview && <dialog className={s.termsDialog} ref={reserveDialog} aria-labelledby="reserve-title" onClick={event => { if (event.target === event.currentTarget) reserveDialog.current?.close(); }}>
+      <div className={s.dialogContent}>
+        <div className={s.dialogHeader}><h2 id="reserve-title">Reserve this price for {RESERVE_HOLD_HOURS} hours</h2><button type="button" aria-label="Close reservation" onClick={() => reserveDialog.current?.close()}>×</button></div>
+        <p>{offer.title} · {money(offer.offerPrice)}</p>
+        <ul>
+          <li>Your price is held for {RESERVE_HOLD_HOURS} hours from the moment you reserve.</li>
+          <li>No payment now. Pay the first bill before your reservation deadline to keep this price.</li>
+          {!control.signedIn && <li>Reserving needs an account. Sign in, or create one in a minute; you come back here and the reservation is saved.</li>}
+        </ul>
+        {control.error && <p role="alert" className={s.reserveError}>{control.error}</p>}
+        {control.needsPhone && <PhoneField className="auth-field" countries={control.countries} value={control.phone} onChange={control.setPhone} />}
+        {!control.loaded && control.error
+          ? <button type="button" className={s.claim} onClick={control.retry}>Try again<Arrow /></button>
+          : <button type="button" className={s.claim} disabled={control.busy || control.cta.kind !== "reserve" || control.cta.disabled || (control.needsPhone && !control.phone.phone.trim())} onClick={control.confirm}>{control.busy ? "Reserving…" : control.signedIn ? "Confirm reservation" : "Continue to sign in"}<Arrow /></button>}
+      </div>
+    </dialog>}
+    {!preview && <div className={s.sticky}><div><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></div>{action(undefined, expired ? "Contact us" : offer.ctaLabel)}</div>}
   </main>;
 }

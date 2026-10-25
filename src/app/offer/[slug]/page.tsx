@@ -6,7 +6,6 @@ import { settingsRepo } from "@/lib/repo";
 import { publishedOffers, resolvedTerms, DEFAULT_UNIVERSAL_TERMS } from "@/lib/offers";
 import { getSessionUser } from "@/lib/auth";
 import { offerWithQuote } from "@/lib/offer-quote";
-import { ReserveOffer } from "@/components/offer-reservations";
 import { phoneCountries } from "@/lib/phone-countries";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
@@ -25,5 +24,6 @@ export default async function Page({ params }: Props) {
   const enabled = process.env.OFFER_RESERVATIONS_ENABLED === 'true';
   // Only a signed-in owner can be asked for a missing phone, so only then load the country list.
   const countries = enabled && user ? await phoneCountries() : undefined;
-  return <><SiteHeader /><PublicInteraction offer={offer} terms={resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS)} reservation={enabled ? <ReserveOffer key={user?._id || 'anonymous'} slug={slug} quoteKey={quote.quoteKey} endsAt={offer.endsAt} signedIn={!!user} serverNow={new Date().toISOString()} countries={countries} /> : undefined} /></>;
+  // The card renders the reservation state itself (lib/offer-reservation-rules.ts); remounted per account.
+  return <><SiteHeader /><PublicInteraction key={user?._id || 'anonymous'} offer={offer} terms={resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS)} reservation={enabled ? { slug, quoteKey: quote.quoteKey, signedIn: !!user, serverNow: new Date().toISOString(), countries } : undefined} /></>;
 }

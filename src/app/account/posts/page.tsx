@@ -8,6 +8,8 @@ import { getSessionUser } from "@/lib/auth";
 import { canDelete, canEdit } from "@/lib/blog-rules";
 import { blogRepo, type BlogCard, type BlogStatus } from "@/lib/repo";
 import { DeleteDraft } from "./delete-draft";
+import { AccountNavigation } from "@/components/account-navigation";
+import accountStyles from "@/components/account-navigation.module.css";
 
 export const metadata = { title: "My Posts", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -51,14 +53,13 @@ export default async function MyPosts() {
           text="Everything you have written, with where each post stands in review."
         />
         <section className="content-section section-soft"><div className="container">
+          <AccountNavigation username={user.username} active="/account/posts" />
+          <div className={accountStyles.actions}><Link className="button button-dark" href="/community/write">Write a post <span aria-hidden="true">→</span></Link></div>
           {posts.length === 0 ? (
             <div className="admin-empty">
               <b>No posts yet.</b>
               <br />
-              Write for the community and your drafts and submissions will appear here.{" "}
-              <Link className="text-link" href="/community/write">
-                Write a post <span>→</span>
-              </Link>
+              Write for the community and your drafts and submissions will appear here.
             </div>
           ) : (
             <div className="my-posts">
