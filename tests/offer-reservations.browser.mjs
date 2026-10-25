@@ -37,6 +37,7 @@ test('reserve login continuation, stale quotes, retries, expired history and ser
         if (needPhone && !sent.phone) { res.statusCode = 428; return res.end(JSON.stringify({ error: 'Add your mobile number to reserve this offer' })); }
         sentPhone = sent.phone ? { countryCode: sent.countryCode, phone: sent.phone } : null;
         if (!rows.length) rows = [row()];
+        else if (rows[0].status === 'expired' && rows[0].periodEndsAt && Date.parse(rows[0].periodEndsAt) < now) rows = [row(), ...rows];
         return res.end(JSON.stringify({ reservation: rows[0], serverNow: new Date(now).toISOString() }));
       }
       return res.end(JSON.stringify({ reservations: rows, serverNow: new Date(now).toISOString() }));
@@ -107,6 +108,19 @@ test('reserve login continuation, stale quotes, retries, expired history and ser
     await signupPage.getByRole('button', { name: 'Create account →', exact: true }).click();
     await signupPage.getByRole('alert').filter({ hasText: 'stop here' }).waitFor();
     assert.deepEqual({ countryCode: signupBody.countryCode, phone: signupBody.phone }, { countryCode: '+91', phone: '9876543210' });
+    // A later eligible period offers a new reservation while retaining expired history.
+    signedIn = true; needPhone = false;
+    rows = [{ ...row(), id: 'old-period', periodEndsAt: new Date(now - 2 * 3600000).toISOString(), expiresAt: new Date(now - 1000).toISOString(), status: 'expired' }];
+    const renew = await browser.newPage(); renew.on('pageerror', error => errors.push(error.message));
+    await renew.goto(origin + '/offer/test-offer');
+    await renew.getByText('Expired', { exact: true }).waitFor();
+    await renew.getByRole('button', { name: 'Reserve offer', exact: true }).click();
+    await renew.getByText('Reserved', { exact: true }).waitFor();
+    assert.equal(rows.length, 2); assert.equal(rows[1].id, 'old-period');
+    // A project-attached historical reservation cannot be renewed by the UI.
+    rows = [{ ...rows[1], projectId: 'existing-project' }];
+    await renew.reload(); await renew.getByText('Expired', { exact: true }).waitFor();
+    assert.equal(await renew.getByRole('button', { name: 'Reserve offer', exact: true }).count(), 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 });

@@ -1,6 +1,15 @@
 # Offer reservations, payment revisions and reminders
 
-Review date: 24 October 2026. Status: payment baseline committed ("reservation system part 1"); reservation part 2 (reserve API, lead link, My Offers, confirmation, admin auto-reserve, first-node provision) committed ("reservation system part 2 incomplete work"), not deployed, flag-gated off. Expiry repricing, reservation extension, force-apply and signup phone are not built. No production-data changes or deployments. Hand-over status and the verified remaining plan: see "Status and remaining plan — 24 Oct 2026 (Step 0)" at the end. Unresolved commercial decisions below are not authorization to choose or implement them silently.
+Current review: 25 October 2026. Reservation part 3 is present in the three repositories. The final audited corrections below are implemented and verified locally; deployment, production flags/indexes and real message delivery remain unverified. No production-data change or deployment was performed. Owner decisions below govern behavior; the Step 0 table is a historical snapshot, superseded by the current status here.
+
+## Current verified status — 25 October 2026
+
+- Completed locally: transaction-boundary reservation price checks; actor/state-bound single-use force preview; fair expiry batches; current printable offer terms with frozen scope/base terms; website new-period re-reservation; transactional surplus wallet credit and installment receipt reallocation; durable extension-message recovery.
+- Payments retain their existing SSOT: full first payable invoice qualifies; submitted/recorded time decides the deadline, not later approval. Original receipts are retained. Internal allocation legs transfer received money between invoices without moving the wallet; only whole-project surplus is credited. Combined rejection cannot refund credited/carried money twice.
+- Same-offer extension remains detectable after normal-price fallback. Saved extras/adjustments and upload policy/counters are preserved. Zero/fractional totals, failures, concurrent revisions and stale previews have regression coverage.
+- Migration script and rollout sequence are ready: backend `scripts/migrateReservationIndexes.js`, `docs/RESERVATION_ROLLOUT.md`. Script is preview-first, validates legacy data and replaces the old reservation unique constraint only after the replacement is created. No legacy project price backfill.
+- Verification: 175 backend main-suite cases plus 2 durability/migration cases passed; 4 browser checks passed; website TypeScript and targeted lint passed. External calls were fixtures; databases were disposable replica sets. Logs/backups: `E:/Allprojects/backup/backend/work14-reservation-final/`, `backup/frontend/work10-reservation-final`, `backup/merasoftware/work20-reservation-final`.
+- Still pending: deploying this working and checking live indexes, feature flags, account compatibility and actual email/WhatsApp delivery. Central daily/manual/stage reminder functionality and signup WhatsApp OTP remain agreed future scope, not completed functionality.
 
 ## Confirmed owner requirements
 

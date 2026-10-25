@@ -1,4 +1,5 @@
 export type OfferReservation = {
+  periodEndsAt?: string;
   id: string; offerSlug: string; title: string; reservedPrice: number; regularPrice: number;
   // expiresAt: original 72 hours (history). deadline: the one in force, after any admin extension.
   terms: string[]; reservedAt: string; expiresAt: string; deadline: string; extendedUntil: string | null;

@@ -94,7 +94,8 @@ export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, coun
         setRow(found || null); setLoaded(true);
         let intent;
         try { intent = JSON.parse(sessionStorage.getItem(intentKey) || "null"); } catch { sessionStorage.removeItem(intentKey); }
-        if (found) { if (intent?.slug === slug) sessionStorage.removeItem(intentKey); return; }
+        const renewable = found?.status === 'expired' && !found.projectId && found.periodEndsAt && Date.parse(found.periodEndsAt) < Date.parse(endsAt);
+        if (found && !renewable) { if (intent?.slug === slug) sessionStorage.removeItem(intentKey); return; }
         if (intent?.slug !== slug || attempted.current) return;
         attempted.current = true;
         if (intent.quoteKey !== quoteKey || !Number.isFinite(intent.createdAt) || Date.now() - intent.createdAt > 15 * 60000 || Date.now() < intent.createdAt) {
@@ -105,11 +106,13 @@ export function ReserveOffer({ slug, quoteKey, endsAt, signedIn, serverNow, coun
     }
     void load();
     return () => { active = false; };
-  }, [signedIn, slug, quoteKey, reserve, retry]);
+  }, [signedIn, slug, quoteKey, endsAt, reserve, retry]);
   const left = Date.parse(endsAt) - now;
-  if (row) return <div className="offer-reserve"><ReservationCard row={row} now={now} /><Link className="text-link" href="/account/offers">My offers <span>→</span></Link></div>;
+  const canRenew = row?.status === 'expired' && !row.projectId && row.periodEndsAt && Date.parse(row.periodEndsAt) < Date.parse(endsAt) && left > 0 && left <= 24 * 3600000;
+  if (row && !canRenew) return <div className="offer-reserve"><ReservationCard row={row} now={now} /><Link className="text-link" href="/account/offers">My offers <span>→</span></Link></div>;
   if (!(left > 0 && left <= 24 * 3600000) && !error) return null;
   return <div className="offer-reserve">
+    {row && <ReservationCard row={row} now={now} />}
     <h2>Reserve this offer for 72 hours</h2><p>The 72 hours start when your reservation is saved. Complete the required first payment before your reservation deadline.</p>
     {error && <p role="alert">{error}</p>}
     {needsPhone && <PhoneField className="auth-field" countries={countries} value={phone} onChange={value => { setPhone(value); phoneRef.current = value; }} />}
