@@ -46,8 +46,8 @@ export const CONTENT_PAGES: ContentPage[] = [
   { id: "privacy", label: "Privacy", href: "/privacy", sections: [
     { id: "policy", label: "Privacy policy", description: "Privacy policy text and contact information." },
   ] },
-  { id: "packages", label: "Packages", href: "/campaign/packages", sections: [
-    { id: "intro", label: "Package management", description: "Create and publish showcase packages linked to project categories and offers.", editor: { href: "/admin/packages", label: "Manage packages" } },
+  { id: "packages", label: "Packages", href: "/packages/one-time-packages", sections: [
+    { id: "intro", label: "Package management", description: "Create and publish showcase packages linked to project categories, offers and the Pricing & Packages menu pages.", editor: { href: "/admin/packages", label: "Manage packages" } },
     { id: "plans", label: "Package details", description: "Included scope, prices, offers and related portal services.", editor: { href: "/admin/packages", label: "Manage packages" } },
   ] },
   { id: "shared", label: "Shared content", href: "/", sections: [

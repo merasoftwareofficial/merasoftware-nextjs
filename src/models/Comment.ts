@@ -45,6 +45,8 @@ const SettingsSchema = new Schema({
   offers: { type: Schema.Types.Mixed, default: {} },
   offerUniversalTerms: { type: [String], default: undefined },
   offerListing: { type: Schema.Types.Mixed },
+  // No default: absent means the default package pages (lib/package-pages.ts) apply.
+  packagePages: { type: Schema.Types.Mixed },
   pageSeo: { type: Schema.Types.Mixed, default: {} },
   organization: { type: Schema.Types.Mixed },
 }, { timestamps: true, _id: false });

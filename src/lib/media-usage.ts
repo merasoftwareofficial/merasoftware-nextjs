@@ -1,6 +1,6 @@
 import "server-only";
 
-import { pageSeoPage } from "@/lib/page-seo";
+import { allPageSeoPages } from "@/lib/page-seo";
 import { blogRepo, settingsRepo } from "@/lib/repo";
 import { portfolioRepo } from "@/lib/portfolio/repo";
 import type { Blog, MediaAsset } from "@/lib/repo/types";
@@ -65,9 +65,10 @@ export async function findMediaUsage(assets: MediaAsset[]): Promise<Map<string, 
   const logo = settings.organization?.logoUrl;
   if (logo) for (const asset of assets) if (pointsAt(logo, asset)) usage.get(asset._id)!.push({ label: "Page SEO → Business logo", href: "/admin/page-seo?page=organization" });
 
+  const seoPages = await allPageSeoPages();
   for (const [key, seo] of Object.entries(settings.pageSeo ?? {})) {
     if (!seo?.imageUrl) continue;
-    const label = `Page SEO → ${pageSeoPage(key)?.label ?? key} share image`;
+    const label = `Page SEO → ${seoPages.find(page => page.key === key)?.label ?? key} share image`;
     for (const asset of assets) if (pointsAt(seo.imageUrl, asset)) usage.get(asset._id)!.push({ label, href: `/admin/page-seo?page=${key}` });
   }
 

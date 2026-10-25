@@ -2,6 +2,7 @@
 
 import { Types, type PipelineStage } from "mongoose";
 import { DEFAULT_HOMEPAGE_CONTENT } from "@/lib/homepage-content";
+import { DEFAULT_PACKAGE_PAGES } from "@/lib/package-pages";
 import { connectMongo } from "@/lib/mongodb";
 import { Blog } from "@/models/Blog";
 import { CategoryModel } from "@/models/Category";
@@ -496,6 +497,13 @@ function withSettingsDefaults(row: unknown): SettingsRecord {
   } as SettingsRecord;
 }
 
+// The first page change saves the default list, so that change neither loses the default page
+// nor brings it back after every page was deleted (lib/package-pages.ts).
+async function savedPackagePages() {
+  await Settings.updateOne({ _id: "site" }, { $setOnInsert: SETTINGS_DEFAULTS }, { upsert: true });
+  await Settings.updateOne({ _id: "site", packagePages: { $exists: false } }, { $set: { packagePages: DEFAULT_PACKAGE_PAGES } });
+}
+
 const settings: DataDriver["settings"] = {
   async migrateVisuals(visuals) {
     await connectMongo();
@@ -525,6 +533,20 @@ const settings: DataDriver["settings"] = {
       { $set: { [path]: offer } },
       { returnDocument: "after", runValidators: true },
     ).lean();
+    return Boolean(row);
+  },
+  async savePackagePage(page) {
+    await connectMongo();
+    await savedPackagePages();
+    const path = `packagePages.${page.slug}`;
+    const row = await Settings.findOneAndUpdate({ _id: "site", [path]: { $exists: false } }, { $set: { [path]: page } }, { returnDocument: "after" }).lean();
+    return Boolean(row);
+  },
+  async deletePackagePage(slug) {
+    await connectMongo();
+    await savedPackagePages();
+    const path = `packagePages.${slug}`;
+    const row = await Settings.findOneAndUpdate({ _id: "site", [path]: { $exists: true } }, { $unset: { [path]: "" } }, { returnDocument: "after" }).lean();
     return Boolean(row);
   },
   async get() {

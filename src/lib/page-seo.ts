@@ -7,8 +7,9 @@
  * a field brings the built-in one back.
  *
  * Every page's generateMetadata calls pageMetadata(key), and the admin page,
- * the API and the SEO audit read PAGE_SEO_PAGES, so a page added here shows up
- * everywhere at once.
+ * the API and the SEO audit read allPageSeoPages(), so a page added here shows up
+ * everywhere at once. Package pages (lib/package-pages.ts) are created by admins,
+ * so they join the fixed list at request time.
  */
 
 import "server-only";
@@ -16,6 +17,8 @@ import "server-only";
 import type { Metadata } from "next";
 import { cache } from "react";
 import { settingsRepo } from "@/lib/repo";
+import { packagePagePath } from "@/lib/package-pages";
+import { readPackagePages } from "@/lib/package-pages-server";
 import { resolvePageSeo, type SeoPage } from "@/lib/seo-rules";
 import { services } from "@/lib/site-data";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/structured-data";
@@ -52,15 +55,21 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
   },
 ];
 
-export function pageSeoPage(key: string) {
-  return PAGE_SEO_PAGES.find(page => page.key === key);
+/** The fixed pages plus every package page, whose built-in title and description are its own. */
+export const allPageSeoPages = cache(async (): Promise<SeoPage[]> => [
+  ...PAGE_SEO_PAGES,
+  ...(await readPackagePages()).map(page => ({ key: `packages-${page.slug}`, label: `Packages: ${page.title}`, path: packagePagePath(page.slug), title: page.title, description: page.intro })),
+]);
+
+export async function pageSeoPage(key: string) {
+  return (await allPageSeoPages()).find(page => page.key === key);
 }
 
 const savedPageSeo = cache(async () => (await settingsRepo.get()).pageSeo ?? {});
 
 /** The page's metadata: title, description, canonical, and its share image (or the generated one). */
 export async function pageMetadata(key: string): Promise<Metadata> {
-  const page = pageSeoPage(key);
+  const page = await pageSeoPage(key);
   if (!page) return {};
   const seo = resolvePageSeo(page, (await savedPageSeo())[key]);
   const image = seo.imageUrl

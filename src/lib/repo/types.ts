@@ -1,4 +1,5 @@
 import type { Offer, OfferListing } from "@/lib/offers";
+import type { PackagePage } from "@/lib/package-pages";
 /**
  * Data layer contract.
  *
@@ -624,6 +625,8 @@ export interface Settings {
   offers?: Record<string, Offer>;
   offerUniversalTerms?: string[];
   offerListing?: OfferListing;
+  /** "Pricing & Packages" menu pages, keyed by slug. Absent = the default list (lib/package-pages.ts). */
+  packagePages?: Record<string, PackagePage>;
   /** Keyed by page (PAGE_SEO_PAGES in lib/page-seo.ts). */
   pageSeo?: Partial<Record<string, PageSeo>>;
   /** The business as search engines describe it (Organization data, structured-data.ts). */
@@ -669,6 +672,10 @@ export interface SettingsRepo {
   updatePageSection(page: "about" | "services", section: string, content: unknown, visuals: Record<string, SectionVisualConfig>): Promise<Settings>;
   updateVisual(slot: string, config: SectionVisualConfig): Promise<void>;
   saveOffer(offer: Offer, creating: boolean): Promise<boolean>;
+  /** Adds a package page; false when the slug is already taken. */
+  savePackagePage(page: PackagePage): Promise<boolean>;
+  /** Removes a package page; false when it does not exist. */
+  deletePackagePage(slug: string): Promise<boolean>;
   get(): Promise<Settings>;
   update(patch: Partial<Omit<Settings, "_id" | "updatedAt">>): Promise<Settings>;
   updateHomepageSection<K extends HomepageSection>(section: K, content: HomepageContent[K], images: Partial<Record<HomeImageSlot, HomepageImage | null>>, visuals?: Record<string, SectionVisualConfig>): Promise<Settings>;

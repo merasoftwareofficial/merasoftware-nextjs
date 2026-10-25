@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { services } from "@/lib/site-data";
 import { pageMetadata } from "@/lib/page-seo";
+import { packagesHref } from "@/lib/package-pages-server";
 import { loadPageVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import { sectionSlots } from "@/lib/visual-slots";
@@ -19,7 +20,7 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
   if (!service) notFound();
   const heroSlot = sectionSlots(slug, "hero")[0].id;
   const includedSlot = sectionSlots(slug, "included")[0].id;
-  const visuals = await loadPageVisuals(slug);
+  const [visuals, packagesLink] = await Promise.all([loadPageVisuals(slug), packagesHref()]);
   return <><SiteHeader /><main>
     <section className="page-hero"><div className="container visual-page-hero"><div>
       <p className="eyebrow"><i /> {service.eyebrow}</p><h1>{service.title}</h1><p>{service.description}</p>
@@ -36,7 +37,7 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
         <article><span>02</span><h2 style={{ fontSize: 26 }}>What we need from you</h2><p>{service.preparation}</p></article>
         <article><span>03</span><h2 style={{ fontSize: 26 }}>What we take care of</h2><p>{service.support}</p></article>
       </div>
-      <div className="hero-actions" style={{ flexWrap: "wrap" }}><Link className="button button-dark" href="/contact">Discuss your requirements <span aria-hidden="true">→</span></Link><Link className="text-link" href="/campaign/packages">Explore packages <span aria-hidden="true">↗</span></Link></div>
+      <div className="hero-actions" style={{ flexWrap: "wrap" }}><Link className="button button-dark" href="/contact">Discuss your requirements <span aria-hidden="true">→</span></Link><Link className="text-link" href={packagesLink}>Explore packages <span aria-hidden="true">↗</span></Link></div>
     </div></section>
   </main><SiteFooter /></>;
 }

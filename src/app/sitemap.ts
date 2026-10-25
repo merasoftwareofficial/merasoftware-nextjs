@@ -6,6 +6,8 @@ import { LISTING_PATH, MIN_POSTS, topicPathsOf } from "@/lib/indexability";
 import { indexablePosts } from "@/lib/indexable-posts";
 import { userRepo, type BlogCard } from "@/lib/repo";
 import { SITE_URL as SITE } from "@/lib/structured-data";
+import { packagePagePath } from "@/lib/package-pages";
+import { readPackagePages } from "@/lib/package-pages-server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Filtered in memory, not with a `noIndex: false` query: posts saved before
   // that field existed lack it, and the query would silently drop them.
-  const [posts, portfolio] = await Promise.all([indexablePosts(), portfolioRepo.list(true)]);
+  const [posts, portfolio, packagePages] = await Promise.all([indexablePosts(), portfolioRepo.list(true), readPackagePages()]);
 
   // lastmod is only worth sending when it is true: a crawler that sees every
   // page "changed today" on every fetch stops trusting the field, and then a
@@ -109,7 +111,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   const portfolioPages: MetadataRoute.Sitemap = portfolio.map(entry => ({ url: `${SITE}/work/${entry.slug}`, lastModified: new Date(entry.updatedAt), changeFrequency: "monthly", priority: 0.8 }));
-  return [...staticPages, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
+  // Pricing & Packages menu pages (lib/package-pages.ts); a deleted page leaves with its menu entry.
+  const packagePageEntries: MetadataRoute.Sitemap = packagePages.map(page => ({ url: `${SITE}${packagePagePath(page.slug)}`, changeFrequency: "weekly", priority: 0.8 }));
+
+  return [...staticPages, ...packagePageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
 }
 
 /** The most recent edit among these posts, or undefined when there are none. */

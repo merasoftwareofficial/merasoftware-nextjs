@@ -11,6 +11,8 @@
 import { FEATURES } from "@/lib/features";
 import { blogRepo } from "@/lib/repo";
 import { services } from "@/lib/site-data";
+import { packagePagePath } from "@/lib/package-pages";
+import { readPackagePages } from "@/lib/package-pages-server";
 
 export type LinkOption = { label: string; href: string };
 export type LinkGroup = { label: string; options: LinkOption[] };
@@ -33,9 +35,11 @@ const PAGES: LinkOption[] = [
  * not a page every visitor can open, so a public button must not point at it.
  */
 export async function linkGroups(): Promise<LinkGroup[]> {
-  const posts = (await blogRepo.listCards({ status: "published" })).filter(post => post.visibility === "public");
+  const [cards, packagePages] = await Promise.all([blogRepo.listCards({ status: "published" }), readPackagePages()]);
+  const posts = cards.filter(post => post.visibility === "public");
   return [
     { label: "Pages", options: PAGES },
+    { label: "Pricing & Packages", options: packagePages.map(page => ({ label: page.title, href: packagePagePath(page.slug) })) },
     { label: "Services", options: services.map(service => ({ label: service.title.split(" — ")[0], href: `/services/${service.slug}` })) },
     { label: "Blog posts", options: posts.map(post => ({ label: post.title, href: `/blog/${post.slug}` })) },
   ].filter(group => group.options.length > 0);

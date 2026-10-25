@@ -6,14 +6,18 @@
  * Services, Blog or About from the header at all.
  *
  * The links come from SiteHeader, so desktop and mobile always list the same
- * pages. The panel closes on navigation, Escape and a tap outside it.
+ * pages; a group (Pricing & Packages) lists its sub-pages under its name. The
+ * panel closes on navigation, Escape and a tap outside it.
  */
 
 import Link from "@/components/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-export function MobileMenu({ links }: { links: [label: string, href: string][] }) {
+export type MenuLink = [label: string, href: string];
+export type MenuEntry = MenuLink | { label: string; links: MenuLink[] };
+
+export function MobileMenu({ links }: { links: MenuEntry[] }) {
   const [open, setOpen] = useState(false);
   const [openedOn, setOpenedOn] = useState("");
   const pathname = usePathname();
@@ -53,11 +57,20 @@ export function MobileMenu({ links }: { links: [label: string, href: string][] }
       </button>
       {shown ? (
         <nav className="mobile-menu-panel" id="mobile-menu-panel" aria-label="Main">
-          {links.map(([label, href]) => (
-            <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined} onClick={() => setOpen(false)}>
-              {label}
+          {links.map(entry => Array.isArray(entry) ? (
+            <Link key={entry[1]} href={entry[1]} aria-current={pathname === entry[1] ? "page" : undefined} onClick={() => setOpen(false)}>
+              {entry[0]}
             </Link>
-          ))}
+          ) : entry.links.length ? (
+            <div className="mobile-menu-group" key={entry.label} role="group" aria-label={entry.label}>
+              <span>{entry.label}</span>
+              {entry.links.map(([label, href]) => (
+                <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined} onClick={() => setOpen(false)}>
+                  {label}
+                </Link>
+              ))}
+            </div>
+          ) : null)}
           <Link className="mobile-menu-cta" href="/contact" onClick={() => setOpen(false)}>
             Let&apos;s talk <span>↗</span>
           </Link>

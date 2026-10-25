@@ -6,6 +6,8 @@ export type SalesPackage = {
   id: string; name: string; description: string; status: "draft" | "published" | "archived";
   category: string; regularPrice: number; discountedPrice: number; offerExtraPrice: number;
   offerSlug: string; inclusions: string[]; terms: string[]; linkedPlanIds: string[]; order: number;
+  /** Website package pages (lib/package-pages.ts) this package is shown on. Missing on packages saved before pages existed. */
+  pages?: string[];
 };
 export type SalesOffer = import("./offers").Offer & { resolvedTerms: string[]; quoteKey: string };
 export type QuotedPackage = SalesPackage & { quoteKey: string; quote: { regularPrice: number; discountAmount: number; finalPrice: number; offer: SalesOffer | null; terms: string[] } };

@@ -1,3 +1,9 @@
+## Agent handover — read first
+
+For the offer reservation/payment work across website, backend and portal, start with [RESERVATION_AGENT_HANDOVER.md](src/docs/RESERVATION_AGENT_HANDOVER.md). It contains approved decisions, current implementation, test evidence, backup locations and pending live rollout. Local fixes are complete; production activation/delivery remain unverified. Read [docs/QUICK_INDEX.md](docs/QUICK_INDEX.md) for file ownership.
+
+The framework quickstart below is generic; do not use it to test against the existing production-connected env or restart the owner's servers.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

@@ -14,6 +14,7 @@
     "lint": "eslint",
     "brand": "node scripts/brand/build.mjs",
     "test:content": "node --conditions=react-server --import tsx --test tests/page-content.test.ts",
+    "test:package-pages": "node --import tsx --test tests/package-pages.test.ts",
     "test:content:browser": "node tests/page-content-browser.mjs",
     "test:website-preview": "node --conditions=react-server --import tsx --test tests/website-preview.test.ts",
     "test:website-preview:browser": "node --conditions=react-server --import tsx tests/website-preview-browser.mjs"

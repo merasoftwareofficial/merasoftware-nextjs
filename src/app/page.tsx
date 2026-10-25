@@ -13,6 +13,7 @@ import { PortfolioCard } from "@/components/portfolio";
 import { loadPageVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import { pageMetadata } from "@/lib/page-seo";
+import { packagesHref } from "@/lib/package-pages-server";
 import { jsonLd, organisationLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,11 @@ export function generateMetadata() {
 }
 
 export default async function Home() {
-  const [posts, settings, portfolio] = await Promise.all([
+  const [posts, settings, portfolio, packagesLink] = await Promise.all([
     blogRepo.listCards({ type: "official", status: "published", visibility: "public", limit: 3 }),
     settingsRepo.get(),
     portfolioRepo.list(true),
+    packagesHref(),
   ]);
   const content = resolveHomepageContent(settings.homepageContent ?? DEFAULT_HOMEPAGE_CONTENT);
   const visuals = await loadPageVisuals("home", settings);
@@ -73,7 +75,7 @@ export default async function Home() {
           <div><h3>{service.title}</h3><p>{service.description}</p></div>
           <span className="service-arrow">↗</span>
         </Link>)}</div><SectionVisual data={visuals["home.services"]} label="Services illustration" /></div>
-        <p className={cta.packages}>Find the right support for your online presence. <Link className="text-link" href="/campaign/packages">Compare packages &amp; pricing <span aria-hidden="true">→</span></Link></p>
+        <p className={cta.packages}>Find the right support for your online presence. <Link className="text-link" href={packagesLink}>Compare packages &amp; pricing <span aria-hidden="true">→</span></Link></p>
 
       </div></section>
 

@@ -3,7 +3,10 @@ import { BRAND_LOGO } from "@/lib/brand";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";
-import { MobileMenu } from "@/components/mobile-menu";
+import { MobileMenu, type MenuEntry, type MenuLink } from "@/components/mobile-menu";
+import { NavDropdown } from "@/components/nav-dropdown";
+import { packagePagePath } from "@/lib/package-pages";
+import { readPackagePages } from "@/lib/package-pages-server";
 import { FEATURES } from "@/lib/features";
 import { SessionMenu } from "@/components/session-menu";
 import { HeaderScroll } from "@/components/header-scroll";
@@ -28,13 +31,48 @@ async function SessionSlot() {
 }
 
 /** The main pages, shared by the inline nav and the phone menu. */
-const NAV_LINKS: [label: string, href: string][] = [
+const NAV_LINKS: MenuLink[] = [
   ["Services", "/services"],
-  ...(FEATURES.portfolio ? [["Work", "/work"] as [string, string]] : []),
+  ...(FEATURES.portfolio ? [["Work", "/work"] as MenuLink] : []),
   ["Blog", "/blog"],
   ["Community", "/community"],
   ["About", "/about"],
 ];
+
+/**
+ * The menu with "Pricing & Packages" after Services, listing the admin-made package pages
+ * (lib/package-pages.ts). null = still loading: the entry shows without sub-pages, so the
+ * header does not shift; with no pages at all it is left out.
+ */
+function navEntries(packageLinks: MenuLink[] | null): MenuEntry[] {
+  const [services, ...rest] = NAV_LINKS;
+  if (packageLinks && !packageLinks.length) return NAV_LINKS;
+  return [services, { label: "Pricing & Packages", links: packageLinks ?? [] }, ...rest];
+}
+
+async function packageLinks(): Promise<MenuLink[]> {
+  // The header is on every public page; a failed read hides the sub-pages, never the page.
+  try { return (await readPackagePages()).map(page => [page.title, packagePagePath(page.slug)]); }
+  catch { return []; }
+}
+
+function NavLinks({ entries }: { entries: MenuEntry[] }) {
+  return (
+    <nav>
+      {entries.map(entry => Array.isArray(entry)
+        ? <Link key={entry[1]} href={entry[1]}>{entry[0]}</Link>
+        : <NavDropdown key={entry.label} label={entry.label} links={entry.links} />)}
+    </nav>
+  );
+}
+
+async function NavSlot() {
+  return <NavLinks entries={navEntries(await packageLinks())} />;
+}
+
+async function MobileMenuSlot() {
+  return <MobileMenu links={navEntries(await packageLinks())} />;
+}
 
 export function SiteHeader({ dark = true }: { dark?: boolean }) {
   return (
@@ -48,13 +86,9 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           {/* eslint-disable-next-line @next/next/no-img-element -- as above. */}
           <img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} />
         </Link>
-        <nav>
-          {NAV_LINKS.map(([label, href]) => (
-            <Link key={href} href={href}>
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <Suspense fallback={<NavLinks entries={navEntries(null)} />}>
+          <NavSlot />
+        </Suspense>
         <div className="header-actions">
           <Suspense fallback={<span className="session-link session-loading" />}>
             <SessionSlot />
@@ -62,7 +96,9 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           <Link className="nav-cta" href="/contact">
             Let&apos;s talk <span>↗</span>
           </Link>
-          <MobileMenu links={NAV_LINKS} />
+          <Suspense fallback={<MobileMenu links={navEntries(null)} />}>
+            <MobileMenuSlot />
+          </Suspense>
         </div>
       </div>
     </header>

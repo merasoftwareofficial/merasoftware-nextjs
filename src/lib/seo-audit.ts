@@ -19,7 +19,7 @@ import { resolveVisualConfig } from "@/lib/visual-config";
 import { isIndexable } from "@/lib/indexability";
 import { blogRepo, mediaRepo, settingsRepo } from "@/lib/repo";
 import type { HomeImageSlot } from "@/lib/repo/types";
-import { PAGE_SEO_PAGES } from "@/lib/page-seo";
+import { allPageSeoPages } from "@/lib/page-seo";
 import { blogSeoChecks, homepageImageSeoChecks, mediaSeoChecks, organizationSeoChecks, pageSeoChecks, resolvePageSeo, seoInputOf, seoIssues, type SeoCheck } from "@/lib/seo-rules";
 
 export const SEO_AUDIT_GROUPS = ["Blog posts", "Site pages", "Homepage", "Media library"] as const;
@@ -63,7 +63,7 @@ export const seoAudit = cache(async (): Promise<SeoAuditRow[]> => {
     });
   }
 
-  for (const page of PAGE_SEO_PAGES) {
+  for (const page of await allPageSeoPages()) {
     rows.push({
       key: `page-${page.key}`,
       group: "Site pages",

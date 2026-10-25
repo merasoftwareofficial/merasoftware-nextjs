@@ -1,4 +1,14 @@
-# Offers admin ownership
+# Website audit index
+
+## Reservation/payment integration — 25 October 2026
+
+Read [RESERVATION_AGENT_HANDOVER.md](../src/docs/RESERVATION_AGENT_HANDOVER.md) for the full cross-app context. Backend owns money, eligibility, snapshots and revisions; website owns catalogue content, shared quote generation, authenticated proxy and presentation.
+
+Final local website fixes include new-period re-reservation without erasing expired history. Existing login/signup/reset continuation, phone completion and server-clock countdown remain covered. Website reservation/shared-clock browser tests 2/2 passed; TypeScript and targeted ESLint passed. Together with the portal's two browser checks and 177 distinct backend cases, this is local evidence with fixture transport/disposable databases, not live deployment/provider verification.
+
+Final source snapshot: external `backup/merasoftware/work20-reservation-final`; this docs-only update: `work21-reservation-handover-docs`. Current working changes were not committed/deployed by the agent. Remaining rollout/index/configuration checks are in backend [RESERVATION_ROLLOUT.md](../../backend/docs/RESERVATION_ROLLOUT.md).
+
+## Existing Offers admin ownership
 
 The Offers manager lives at `/admin/offers`, outside Website Content. Its sections are All Offers, Offer Settings, Content & Preview, and Terms & Conditions. Package management remains `/admin/packages` and is linked from the hub.
 

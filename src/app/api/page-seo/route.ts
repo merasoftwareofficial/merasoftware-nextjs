@@ -10,11 +10,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
-import { PAGE_SEO_PAGES } from "@/lib/page-seo";
+import { allPageSeoPages } from "@/lib/page-seo";
 import { settingsRepo, type PageSeo } from "@/lib/repo";
 
 const patchSchema = z.object({
-  key: z.string().refine(key => PAGE_SEO_PAGES.some(page => page.key === key), "Unknown page."),
+  key: z.string().refine(async key => (await allPageSeoPages()).some(page => page.key === key), "Unknown page."),
   title: z.string().trim().max(70).default(""),
   description: z.string().trim().max(180).default(""),
   imageUrl: z.string().trim().url().or(z.literal("")).default(""),
@@ -24,7 +24,7 @@ const patchSchema = z.object({
 export async function PATCH(request: Request) {
   try {
     await requireRole("editor");
-    const { key, ...input } = patchSchema.parse(await request.json());
+    const { key, ...input } = await patchSchema.parseAsync(await request.json());
     // Alt text belongs to an image; without one it is dropped.
     const value: PageSeo = { ...input, imageAlt: input.imageUrl ? input.imageAlt : "" };
     const next: Partial<Record<string, PageSeo>> = { ...((await settingsRepo.get()).pageSeo ?? {}) };

@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_HOMEPAGE_CONTENT } from "@/lib/homepage-content";
+import { DEFAULT_PACKAGE_PAGES } from "@/lib/package-pages";
 import type {
   Blog,
   BlogQuery,
@@ -549,6 +550,22 @@ const settings: SettingsRepo = {
     if (creating && current?.offers?.[offer.slug]) return false;
     const row: Settings = { ...SETTINGS_DEFAULTS, ...current, offers: { ...current?.offers, [offer.slug]: offer }, updatedAt: now() };
     write("settings", [row]);
+    return true;
+  },
+  async savePackagePage(page) {
+    // Absent = the default list; the first change saves it (lib/package-pages.ts).
+    const current = read<Settings>("settings").find(item => item._id === "site");
+    const pages = current?.packagePages ?? DEFAULT_PACKAGE_PAGES;
+    if (pages[page.slug]) return false;
+    write("settings", [{ ...SETTINGS_DEFAULTS, ...current, packagePages: { ...pages, [page.slug]: page }, updatedAt: now() }]);
+    return true;
+  },
+  async deletePackagePage(slug) {
+    const current = read<Settings>("settings").find(item => item._id === "site");
+    const pages = { ...(current?.packagePages ?? DEFAULT_PACKAGE_PAGES) };
+    if (!pages[slug]) return false;
+    delete pages[slug];
+    write("settings", [{ ...SETTINGS_DEFAULTS, ...current, packagePages: pages, updatedAt: now() }]);
     return true;
   },
   async get() {
