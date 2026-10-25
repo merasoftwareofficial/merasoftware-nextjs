@@ -5,7 +5,8 @@ import { indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import Link from "@/components/link";
 import { PublicInteraction } from "@/components/campaign/public-interaction/page-content";
 import { OfferPreview } from "@/components/campaign/offer-preview";
-import { DEFAULT_OFFER, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
+import { DEFAULT_OFFER, offerDiscountPercent, offerFinalPrice, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
+import { offerOutOfSync, offerRunning, packageOfferProblem, runningOfferForPackage, syncOfferWithPackage } from "@/lib/offer-packages";
 import s from "./offers-manager.module.css";
 import { categoryChoices, type ProjectCategory, type QuotedPackage, type SalesCatalogue } from "@/lib/sales-packages";
 import { offerState, type OfferState } from "@/lib/admin-offers";
@@ -74,11 +75,21 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       const response = await fetch("/api/offers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not save.");
+      const linkError = response.headers.get("X-Package-Link-Error");
       await done(result); setMessage("Saved.");
+      if (linkError) setError(decodeURIComponent(linkError));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save."); }
     finally { setBusy(false); }
   }
   const notices = <>{error && <p role="alert" className="form-error">{error}</p>}{message && <p role="status">{message}</p>}</>;
+  // A package offer whose copy or backend link no longer matches its package (lib/offer-packages.ts).
+  function packageNotice(offer: Offer) {
+    const source = offer.packageId ? packages.find(item => item.id === offer.packageId) : undefined;
+    if (!source) return "";
+    if (offerOutOfSync(offer, source)) return "Package changed since this offer was saved. Open and save the offer to update it.";
+    if (now !== null && offerRunning(offer, now) && source.offerSlug !== offer.slug) return "Not linked to its package yet. Open and save the offer to link it.";
+    return "";
+  }
   if (section === "terms") return <form className="admin-form" onSubmit={event => { event.preventDefault(); void save({ kind: "terms", terms: cleanLines(terms) }, data => { setTerms(data as string[]); setSavedTerms(data as string[]); }); }}>
     <p>Used by offers set to Universal or Combined. Changes apply to those offers immediately.</p>
     <Lines label="Universal terms" value={terms} change={setTerms} />{notices}
@@ -94,7 +105,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     {section === "settings" && <p>Select an offer below to open its settings.</p>}
     <div className={s.actions}><Link className="admin-button" href="/admin/offers?section=settings&new=1">New offer +</Link><label>Filter offers <select aria-label="Filter offers" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
     <div className={s.list}>{offers.filter(offer => filter === "all" || offerState(offer, now) === filter).map(offer => <article className={s.row} key={offer.slug}>
-      <div><h3>{offer.title}</h3><p>{offerState(offer, now)} · ₹{offer.offerPrice.toLocaleString("en-IN")} · /offer/{offer.slug}</p></div>
+      <div><h3>{offer.title}</h3><p>{offerState(offer, now)} · ₹{offer.offerPrice.toLocaleString("en-IN")} · /offer/{offer.slug}{offer.packageId && <> · Package: {packages.find(item => item.id === offer.packageId)?.name ?? offer.packageId}</>}</p>{packageNotice(offer) && <p className={s.warn}>{packageNotice(offer)}</p>}</div>
       <div className={s.actions}><Link className="admin-action" href={`/admin/offers?section=settings&offer=${encodeURIComponent(offer.slug)}`}>Edit →</Link>{offer.status === "published" && <Link className="admin-action" href={`/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
     </article>)}</div>{!offers.some(offer => filter === "all" || offerState(offer, now) === filter) && <p>No offers match this filter.</p>}{notices}
   </div>;
@@ -103,7 +114,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       if (!current) return current;
       const next = { ...current, [key]: value };
       if (["pricingRule", "benefitValue", "mainPrice"].includes(key) && next.pricingRule && next.pricingRule !== "fixed_price" && next.benefitValue !== undefined) {
-        next.offerPrice = Math.round((next.pricingRule === "percentage" ? next.mainPrice * (1 - next.benefitValue / 100) : next.mainPrice - next.benefitValue) * 100) / 100;
+        next.offerPrice = offerFinalPrice(next.mainPrice, next);
       }
       return next;
     });
@@ -124,14 +135,46 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const policyUpdate = (value: Partial<NonNullable<Offer["paymentPolicy"]>>) => update("paymentPolicy", { ...policy, ...value });
   const field = (label: string, key: keyof Pick<Offer, "title" | "slug" | "eyebrow" | "heading" | "headingHighlight" | "description" | "supportingLine" | "subheading" | "tagline" | "badge" | "priceDescription" | "ctaLabel" | "contactHref">, required = true) => <label className="admin-field"><span>{label}</span><input required={required} maxLength={key === "contactHref" ? 500 : key === "slug" ? 80 : 300} disabled={key === "slug" && !creating} value={selected[key]} onChange={e => update(key, e.target.value)} /></label>;
   const previewOffer = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms), endsAt: selected.endsAt || DEFAULT_OFFER.endsAt };
+  // Package offers (lib/offer-packages.ts): every new offer, and any offer saved with a package.
+  // Offers saved before package offers keep the full form below.
+  const packageOffer = creating || !!selected.packageId;
+  const source = selected.packageId ? packages.find(item => item.id === selected.packageId) : undefined;
+  const sourceProblem = source ? packageOfferProblem(selected, source) : null;
+  const runningOn = (item: QuotedPackage) => now === null ? undefined : runningOfferForPackage(item, offers, now, selected.slug);
+  const sourceBusy = source && runningOn(source);
+  const percent = offerDiscountPercent(selected);
+  function choosePackage(id: string) {
+    const item = packages.find(row => row.id === id);
+    if (item) setSelected(current => current && syncOfferWithPackage(current, item));
+  }
+  function submit(next: Offer) {
+    void save({ kind: "offer", offer: next, creating }, async data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setCreating(false); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); if (linksDirty && !result.packageId) await saveLinks(result.slug); if (creating) router.replace(`/admin/offers?section=settings&offer=${encodeURIComponent(result.slug)}`); });
+  }
+  // Delete = archive: the offer leaves the website and frees its package; reservations keep their saved price.
+  function remove() {
+    const saved = JSON.parse(baseline) as Offer;
+    if (window.confirm(`Delete "${saved.title}"? It disappears from the website${saved.packageId ? " and its package is free for a new offer" : ""}. People who already reserved keep their saved price. It stays under the Archived filter.`)) submit({ ...saved, status: "archived" });
+  }
   return <>
     <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link><button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
-    <form className="admin-form" onSubmit={event => { event.preventDefault(); const next = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }; void save({ kind: "offer", offer: next, creating }, async data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setCreating(false); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); if (linksDirty) await saveLinks(result.slug); if (creating) router.replace(`/admin/offers?section=settings&offer=${encodeURIComponent(result.slug)}`); }); }}>
+    <form className="admin-form" onSubmit={event => { event.preventDefault(); submit({ ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }); }}>
       <fieldset disabled={busy} className={s.fields}>
         <h3>Offer identity</h3><div className="form-columns">{field("Offer name", "title")}{field("URL slug", "slug")}</div>
         <small>URL: /offer/{selected.slug || "your-offer"}. The URL stays fixed after creation.</small>
         <div className="form-columns"><label className="admin-field"><span>Status</span><select aria-label="Status" value={selected.status} onChange={e => update("status", e.target.value as Offer["status"])}><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label><label className="admin-field"><span>Card order</span><input type="number" min={0} max={9999} required value={selected.order} onChange={e => update("order", Number(e.target.value))} /></label></div>
-        <h3>Where this offer applies</h3>
+        {packageOffer && <>
+          <h3>Package</h3>
+          <label className="admin-field"><span>Package</span><select aria-label="Package" required disabled={!creating} value={selected.packageId ?? ""} onChange={e => choosePackage(e.target.value)}>
+            <option value="" disabled>{packages.length ? "Select the package this offer is for" : catalogueFailed ? "Packages could not be loaded from the portal" : "Loading packages…"}</option>
+            {packages.filter(item => item.status !== "archived" || item.id === selected.packageId).map(item => { const running = runningOn(item); return <option key={item.id} value={item.id} disabled={!!item.offerExtraPrice}>{item.name} · ₹{item.regularPrice.toLocaleString("en-IN")} / ₹{item.discountedPrice.toLocaleString("en-IN")}{running ? ` — running offer: ${running.title}` : item.offerExtraPrice ? " — has an extra scope price" : ""}</option>; })}
+            {selected.packageId && !source && <option value={selected.packageId}>{selected.packageId} (unavailable)</option>}
+          </select><small>{creating ? "Its two struck prices, included work and terms come from the package and stay in sync with it. The package cannot be changed after the offer is created." : <>Its two struck prices, included work and terms come from this package. <Link href="/admin/packages">Edit them in Packages →</Link></>}</small></label>
+          {source && sourceBusy && selected.status === "published" && <p className={s.warn}>{`"${source.name}" already has a running offer: "${sourceBusy.title}". Save this one as a draft, or edit that offer, or let it expire or delete it first.`}</p>}
+          {source && sourceBusy && selected.status !== "published" && <p className={s.warn}>{`"${source.name}" has a running offer: "${sourceBusy.title}". This draft can be published after that offer expires or is deleted.`}</p>}
+          {source && !sourceProblem && offerOutOfSync(selected, source) && <p className={s.warn}>The package changed since this offer was saved. <button type="button" className="text-link" onClick={() => choosePackage(source.id)}>Use the package values</button> (saving also applies them).</p>}
+          {sourceProblem && <p role="alert" className="form-error">{sourceProblem}</p>}
+        </>}
+        {!packageOffer && <><h3>Where this offer applies</h3>
         <div className="form-columns">{(["projects", "service_plans"] as const).map(target => <label key={target}><input type="checkbox" checked={targets.includes(target)} onChange={e => update("targets", e.target.checked ? [...targets, target] : targets.filter(value => value !== target))} />{target === "projects" ? "Projects / showcase packages" : "Service-plan purchases (payment timing only)"}</label>)}</div>
         <fieldset className={s.dependentFields} disabled={!plansEnabled} aria-label="Service plan eligibility">
           <label className="admin-field"><span>Eligible service plans</span><select aria-label="Eligible service plans" multiple size={5} value={selected.planIds || []} onChange={e => update("planIds", Array.from(e.target.selectedOptions, option => option.value))}>{plans.map(plan => <option key={plan._id} value={plan._id}>{plan.serviceName}{plan.servicePlan?.capability !== "upload_data" ? " (no uploads)" : ""}</option>)}</select><small>{plansEnabled ? "Select specific plans. Their existing billing prices stay unchanged." : "Check Service-plan purchases above to select plans."}</small></label>
@@ -145,7 +188,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
           {linkable.length ? linkable.map(item => { const ticked = linkedNow.includes(item.id); const other = item.offerSlug && item.offerSlug !== selected.slug ? offers.find(row => row.slug === item.offerSlug)?.title || item.offerSlug : ""; return <label key={item.id}><input type="checkbox" checked={ticked} onChange={e => setLinked(e.target.checked ? [...linkedNow, item.id] : linkedNow.filter(id => id !== item.id))} /> {item.name}{other ? ticked ? ` (moves here from ${other} on save)` : ` (now on ${other})` : ""}</label>; }) : <small>No packages in the selected categories yet.</small>}
           <small>A package has one offer. Ticking a package that is on another offer moves it here. The package editor shows the same link.</small></div>
         </fieldset>
-        <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label>
+        <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label></>}
         <h3>Payment timing</h3>
         <label className="admin-field"><span>Payment policy</span><select aria-label="Payment policy" value={policy.mode} onChange={e => policyUpdate({ mode: e.target.value as typeof policy.mode })}><option value="current">Keep current system rules</option><option value="advance">Advance payment</option><option value="limited_uploads">Limited uploads before payment</option><option value="pay_later">Pay later (uploads stay available)</option></select></label>
         {policy.mode !== "current" && <>
@@ -157,16 +200,21 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         {selected.pricingRule && selected.pricingRule !== "fixed_price" && <label className="admin-field"><span>{selected.pricingRule === "percentage" ? "Discount percentage" : "Discount amount (₹)"}</span><input type="number" required min={0} max={selected.pricingRule === "percentage" ? 100 : 10000000} step="0.01" value={selected.benefitValue ?? ""} onChange={e => update("benefitValue", Number(e.target.value))} /></label>}
         <h3>Heading & content</h3>{field("Eyebrow text", "eyebrow")}<div className="form-columns">{field("Main heading", "heading")}{field("Highlighted heading text", "headingHighlight", false)}</div>
         {field("Short description", "description")}{field("Supporting line", "supportingLine", false)}{field("Benefits subheading", "subheading")}
-        <Lines label="What's included" value={selected.inclusions} change={v => update("inclusions", v)} />
+        {packageOffer ? <div className={s.locked}><strong>What&apos;s included (from the package)</strong>{selected.inclusions.length ? <ul>{selected.inclusions.map((line, index) => <li key={index}>{line}</li>)}</ul> : <small>Select a package.</small>}</div> : <Lines label="What's included" value={selected.inclusions} change={v => update("inclusions", v)} />}
         <div className="form-columns">{field("Price-card tagline", "tagline")}{field("Offer badge", "badge")}</div>
-        <h3>Prices & expiry</h3><div className={s.prices}>{([ ["Main price (₹)", "mainPrice"], ["Normal discount price (₹)", "discountPrice"], ["Offer price (₹)", "offerPrice"] ] as const).map(([label,key]) => <label className="admin-field" key={key}><span>{label}</span><input type="number" min={0} max={10000000} step="0.01" required value={selected[key]} onChange={e => update(key, Number(e.target.value))} /></label>)}</div>
+        <h3>Prices & expiry</h3>{packageOffer ? <div className={s.prices}>
+          <div className="admin-field"><span>Main price (from the package)</span><del>₹{selected.mainPrice.toLocaleString("en-IN")}</del></div>
+          <div className="admin-field"><span>Normal discount price (from the package)</span><del>₹{selected.discountPrice.toLocaleString("en-IN")}</del></div>
+          <label className="admin-field"><span>Offer price (₹)</span><input aria-label="Offer price (₹)" type="number" min={0} max={10000000} step="0.01" required value={selected.offerPrice} onChange={e => update("offerPrice", Number(e.target.value))} /><small>{percent ? `Shown as ${percent}% OFF the main price.` : "Enter a price below the main price."}</small></label>
+        </div> : <div className={s.prices}>{([ ["Main price (₹)", "mainPrice"], ["Normal discount price (₹)", "discountPrice"], ["Offer price (₹)", "offerPrice"] ] as const).map(([label,key]) => <label className="admin-field" key={key}><span>{label}</span><input type="number" min={0} max={10000000} step="0.01" required value={selected[key]} onChange={e => update(key, Number(e.target.value))} /></label>)}</div>}
         {field("Short price description", "priceDescription")}
         <label className="admin-field"><span>Expires at (India time / IST)</span><input aria-label="Expires at (India time / IST)" type="datetime-local" required value={toIndiaInput(selected.endsAt)} onChange={e => update("endsAt", e.target.value ? indiaInputToUtc(e.target.value, true) : "")} /><small>One fixed deadline. The countdown never resets on refresh.</small></label>
         <h3>Enquiry action</h3>{field("CTA label", "ctaLabel")}{field("Contact destination", "contactHref")}<small>Use mailto: for email, tel: for phone, or an HTTPS contact link.</small>
-        <h3>Terms & conditions</h3><label className="admin-field"><span>Terms to show</span><select aria-label="Terms to show" value={selected.termsMode} onChange={e => update("termsMode", e.target.value as Offer["termsMode"])}><option value="universal">Universal only</option><option value="offer">Offer-specific only</option><option value="combined">Universal + offer-specific</option></select></label>
-        <Lines label="Offer-specific terms" value={selected.terms} change={v => update("terms", v)} /><p>Validity is added automatically from the expiry date.</p>
+        <h3>Terms & conditions</h3>{packageOffer ? <div className={s.locked}><strong>Package terms (from the package)</strong>{selected.terms.length ? <ul>{selected.terms.map((line, index) => <li key={index}>{line}</li>)}</ul> : <small>This package has no terms of its own.</small>}<p>Shown with the validity date (added automatically) and the universal terms.</p></div> : <>
+        <label className="admin-field"><span>Terms to show</span><select aria-label="Terms to show" value={selected.termsMode} onChange={e => update("termsMode", e.target.value as Offer["termsMode"])}><option value="universal">Universal only</option><option value="offer">Offer-specific only</option><option value="combined">Universal + offer-specific</option></select></label>
+        <Lines label="Offer-specific terms" value={selected.terms} change={v => update("terms", v)} /><p>Validity is added automatically from the expiry date.</p></>}
       </fieldset>{notices}
-      <div className={s.actions}><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setLinked(null); setError(""); }}>Discard changes</button></div>
+      <div className={s.actions}><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setLinked(null); setError(""); }}>Discard changes</button>{!creating && JSON.parse(baseline)?.status !== "archived" && <button type="button" className="admin-action" disabled={busy || dirty} onClick={remove}>Delete offer</button>}</div>
     </form>
     <h3>Card preview</h3><OfferPreview offer={previewOffer} />
     <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview /></dialog>

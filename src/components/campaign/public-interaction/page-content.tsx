@@ -2,7 +2,7 @@
 import { useRef, type ReactNode } from "react";
 import { useServerTime } from "@/components/use-server-time";
 import Link from "@/components/link";
-import type { Offer } from "@/lib/offers";
+import { offerDiscountPercent, type Offer } from "@/lib/offers";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -33,6 +33,8 @@ export function PublicInteraction({ offer, terms, preview = false, reservation }
     url.searchParams.set("body", message);
     return url.toString();
   })() : offer.contactHref;
+  // Package offers show the saving against the main price; older offers keep their card unchanged.
+  const percent = offer.packageId ? offerDiscountPercent(offer) : 0;
   const channel = offer.contactHref.startsWith("mailto:") ? "Opens email" : offer.contactHref.startsWith("tel:") ? "Opens phone" : "Contact us";
 
 
@@ -56,7 +58,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation }
               <b aria-hidden="true">→</b>
               <div><span>Normal discount price</span><del>{money(offer.discountPrice)}</del></div>
             </div>
-            <div className={s.deal}><span className={s.dealLabel}>OFFER PRICE</span><strong><small>₹</small>{offer.offerPrice.toLocaleString("en-IN")}</strong></div>
+            <div className={s.deal}><span className={s.dealLabel}>OFFER PRICE{percent > 0 && <b className={s.dealPercent}>{percent}% OFF</b>}</span><strong><small>₹</small>{offer.offerPrice.toLocaleString("en-IN")}</strong></div>
             <p className={s.priceDescription}>{offer.priceDescription}</p>
             <div className={s.countdown}>
               <div className={s.timerLabel}><span className={s.clockDot} /><strong>Offer ends in</strong></div>

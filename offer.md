@@ -106,6 +106,7 @@ This is historical completed work, distinct from the later incomplete payment-po
 - Installment calculations preserve exact paise.
 - Added creation identifiers to protect against duplicate project submissions.
 - Real package management is at `/admin/packages`; public packages at `/campaign/packages`.
+  - **25 Oct 2026:** `/campaign/packages` was removed. Public packages are now on admin-made pages `/packages/[slug]` under the header menu "Pricing & Packages"; each package lists its pages (`package.pages`). See `src/docs/package-pages.md`.
 
 Relevant existing owners:
 

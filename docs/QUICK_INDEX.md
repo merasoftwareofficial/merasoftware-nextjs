@@ -9,6 +9,13 @@
 - Full owner decisions/history: [reservation plan](../src/docs/OFFER_RESERVATION_REMINDER_PLAN.md). Current status supersedes its historical Step 0 table.
 - Backend [audit](../../backend/docs/CODE_AUDIT.md) / [rollout guide](../../backend/docs/RESERVATION_ROLLOUT.md). Local fixes verified; no final production rollout/delivery verification. Reminder engine/OTP deferred.
 
+## Pricing & Packages menu — 25 October 2026
+
+- **Start here:** [package pages hand-over](../src/docs/package-pages.md) (decisions, before/after per file, verification, pending backfill).
+- Page list + rules: `src/lib/package-pages.ts`, `src/lib/package-pages-server.ts`; storage `settings.packagePages` (`src/models/Comment.ts`, repo drivers).
+- Admin: `src/app/admin/packages/packages-manager.tsx` ("Show on pages", create/delete page); API `src/app/api/package-pages/route.ts`.
+- Public: `src/app/packages/[slug]/page.tsx`; menu `src/components/site-header.tsx`, `nav-dropdown.tsx`, `mobile-menu.tsx`; SEO `allPageSeoPages()` in `src/lib/page-seo.ts`.
+
 ## Existing Offers admin routing
 
 - Offers admin: `src/app/admin/offers/page.tsx` owns the hub, four sections and page access. `offers-manager.tsx` owns create/edit, previews, listing and common terms.

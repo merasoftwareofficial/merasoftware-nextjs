@@ -13,6 +13,8 @@ export const paymentPolicySchema = z.object({
 }).strict().refine(value => value.mode !== "limited_uploads" || value.uploadAllowance > 0, { message: "Allow at least one upload before payment.", path: ["uploadAllowance"] });
 export const offerSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens.").max(80)
   .refine(value => !["new", "preview", "__proto__", "constructor", "prototype"].includes(value), "Choose another URL slug.");
+// The backend's package ID rule (helpers/salesPackages.js safeId), not the offer slug rule.
+export const packageIdSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80).refine(value => !["constructor", "prototype", "__proto__"].includes(value));
 export const offerSchema = z.object({
   slug: offerSlugSchema,
   status: z.enum(["draft", "published", "archived"]),
@@ -30,7 +32,8 @@ export const offerSchema = z.object({
   offerPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
   priceDescription: short(200),
   endsAt: z.string().datetime({ offset: true }),
-  inclusions: z.array(short(300)).min(1).max(30),
+  // Same limits as a package's included work (backend validatePackage), so a package always fits its offer.
+  inclusions: z.array(short(1500)).min(1).max(50),
   termsMode: z.enum(["universal", "offer", "combined"]),
   terms: z.array(short(1500)).max(50),
   ctaLabel: short(80),
@@ -48,16 +51,36 @@ export const offerSchema = z.object({
   targets: z.array(z.enum(["projects", "service_plans"])).min(1).max(2).optional(),
   planIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).max(100).optional(),
   paymentPolicy: paymentPolicySchema.optional(),
+  // A package offer (lib/offer-packages.ts): its two struck prices, included work and terms come from
+  // this package. Set at creation and fixed after. Offers saved before this field keep working unchanged.
+  packageId: packageIdSchema.optional(),
 }).strict().refine(value => value.mainPrice >= value.discountPrice && value.discountPrice >= value.offerPrice, {
   message: "Prices must follow main price ≥ normal discount price ≥ offer price.", path: ["offerPrice"],
 }).refine(value => value.pricingRule !== "percentage" || (value.benefitValue !== undefined && value.benefitValue <= 100), { message: "Percentage benefit must be between 0 and 100.", path: ["benefitValue"] })
   .refine(value => value.pricingRule !== "fixed_discount" || value.benefitValue !== undefined, { message: "Enter the fixed discount amount.", path: ["benefitValue"] })
   .refine(value => {
     if (!value.pricingRule || value.pricingRule === "fixed_price") return true;
-    const calculated = value.pricingRule === "percentage" ? value.mainPrice * (1 - Number(value.benefitValue) / 100) : value.mainPrice - Number(value.benefitValue);
-    return Math.round(calculated * 100) === Math.round(value.offerPrice * 100);
-  }, { message: "Offer display price must match the configured discount rule.", path: ["offerPrice"] });
+    return Math.round(offerFinalPrice(value.mainPrice, value) * 100) === Math.round(value.offerPrice * 100);
+  }, { message: "Offer display price must match the configured discount rule.", path: ["offerPrice"] })
+  .refine(value => !value.packageId || value.pricingRule === "fixed_price", { message: "A package offer uses a fixed offer price.", path: ["pricingRule"] });
 export type Offer = z.infer<typeof offerSchema>;
+const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+/**
+ * The price a customer pays under an offer: the website copy of the backend's calculateBenefit
+ * (backend helpers/salesPackages.js), which stays the authority for real quotes. `extra` is a
+ * package's extra scope, added only to a fixed offer price.
+ */
+export function offerFinalPrice(regularPrice: number, offer: { pricingRule?: "fixed_price" | "fixed_discount" | "percentage"; offerPrice: number; benefitValue?: number }, extra = 0): number {
+  if (offer.pricingRule === "fixed_price") return money(offer.offerPrice + extra);
+  if (offer.pricingRule === "fixed_discount") return money(regularPrice - Number(offer.benefitValue));
+  if (offer.pricingRule === "percentage") return money(regularPrice * (1 - Number(offer.benefitValue) / 100));
+  return money(offer.offerPrice);
+}
+/** Whole-percent saving against the main (first struck) price, rounded down so it never overstates. */
+export function offerDiscountPercent(offer: Pick<Offer, "mainPrice" | "offerPrice">) {
+  if (!(offer.mainPrice > 0) || offer.offerPrice >= offer.mainPrice) return 0;
+  return Math.floor((offer.mainPrice - offer.offerPrice) / offer.mainPrice * 100 + 1e-9);
+}
 export const DEFAULT_OFFER: Offer = {
   slug: "page", status: "published", ...starterOffer,
   eyebrow: "YOUR BUSINESS, ONLINE", heading: "Get your business", headingHighlight: "noticed online.",

@@ -123,7 +123,7 @@ Untouched on purpose: `orderStatusEngine.js`, `createOrder.js` (legacy catalogue
 | `src/app/api/offers/route.ts` | only plans checked against portal | when publishing to projects: each category must exist in the portal; a newly added archived one is refused, one already on the saved offer may stay; drafts unchecked |
 | `src/app/admin/offers/offers-manager.tsx` | static category checkboxes | portal list; "(archived)" suffix; loading / failure message |
 | `src/app/admin/packages/packages-manager.tsx` | static select/labels | portal list and labels |
-| `src/components/campaign/staff-packages.tsx`, `src/app/campaign/packages/page.tsx` | static labels | labels from public catalogue `categories` |
+| `src/components/campaign/staff-packages.tsx`, `src/app/campaign/packages/page.tsx` | static labels | labels from public catalogue `categories` (25 Oct 2026: `campaign/packages` deleted; the same component now serves `src/app/packages/[slug]/page.tsx`, see `src/docs/package-pages.md`) |
 | `tests/offers.test.ts` | expected `"social"` to fail (enum) | format/duplicate rules |
 | backend `controller/order/salesPackagesController.js` (integrationRead) | packages only | also active `categories` (key + label) for public cards |
 
