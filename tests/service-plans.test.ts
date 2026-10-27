@@ -2,7 +2,10 @@
 // The website never prices a plan; this only checks that the form sends the fields that apply.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { blankPlanForm, categoryKeyFrom, formFromPlan, planBody, rangeText, type StoredPlan } from "../src/lib/service-plans";
+import { blankPlanForm, categoryKeyFrom, formFromPlan, planBody as savePlanBody, rangeText, type StoredPlan } from "../src/lib/service-plans";
+
+// The body is { planId } | { creating } plus the plan fields; read it as one record so `next build` type-checks.
+const planBody = (form: Parameters<typeof savePlanBody>[0]) => savePlanBody(form) as Record<string, unknown>;
 
 const starter: StoredPlan = {
   _id: "p1", serviceName: "Starter Update Plan", description: "One update a month", isHidden: false, retired: false, canBeOnSale: true, price: 1490,
