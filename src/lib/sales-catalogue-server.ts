@@ -25,7 +25,7 @@ export async function salesBackend(admin: boolean, body?: unknown, path = "sales
     signal: AbortSignal.timeout(20000), ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const result = await response.json();
-  if (!response.ok || !result.success) throw new AuthError(result.message || "Packages are unavailable. Please try again.", response.status >= 400 ? response.status : 503);
+  if (!response.ok || !result.success) throw new AuthError(result.message || "The portal is unavailable. Please try again.", response.status >= 400 ? response.status : 503);
   return result.data;
 }
 export async function readSalesCatalogue(admin = false) { return await salesBackend(admin) as SalesCatalogue; }

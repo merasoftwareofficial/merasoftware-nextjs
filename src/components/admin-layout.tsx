@@ -16,6 +16,7 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   { title: "Business", items: [
     { label: "Leads", href: "/admin/leads", minimum: "editor" },
     { label: "Offers", href: "/admin/offers", minimum: "admin", also: ["/admin/packages"] },
+    { label: "Plans", href: "/admin/plans", minimum: "admin" },
     { label: "Communication", href: "/admin/communication", minimum: "admin", also: ["/admin/email-control", "/admin/whatsapp"] },
   ] },
   { title: "Website", items: [
@@ -32,6 +33,8 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   ] },
   { title: "Settings", items: [{ label: "Site settings", href: "/admin/settings", minimum: "admin" }] },
 ];
+/** Pages that talk to the portal as its admin; shown only while the portal admin role is active. */
+const SALES_PAGES = ["/admin/offers", "/admin/plans"];
 
 /**
  * `role` comes from the signed-in user. The panel is staff-only; hiding what a
@@ -45,7 +48,7 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
 export function AdminLayout({ children, role = "visitor", pushKey = null, salesAdmin = false }: { children: React.ReactNode; role?: Role; pushKey?: string | null; salesAdmin?: boolean }) {
   // A group whose entries this role cannot open is dropped, heading and all.
   const visible: AdminNavGroup[] = navigation
-    .map(({ title, items }) => ({ title, items: items.filter(({ href, minimum }) => atLeast(role, minimum) && (href !== "/admin/offers" || salesAdmin)).map(({ label, href, also }) => ({ label, href, also })) }))
+    .map(({ title, items }) => ({ title, items: items.filter(({ href, minimum }) => atLeast(role, minimum) && (!SALES_PAGES.includes(href) || salesAdmin)).map(({ label, href, also }) => ({ label, href, also })) }))
     .filter(group => group.items.length);
   return <div className="admin-shell"><aside className="admin-nav"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /><img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /></Link><AdminNavLinks groups={visible} /><ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
 }
