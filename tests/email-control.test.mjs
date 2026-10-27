@@ -85,6 +85,8 @@ before(async () => {
   websiteServer = http.createServer(async (req, res) => {
     try {
       if (['/panel.js', '/panel.css', '/hub.js', '/hub.css'].includes(req.url)) { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css'); return res.end(readFileSync(path.join(qaDir, req.url.slice(1)))); }
+      // No WhatsApp backend in this suite: it answers as the proxy does when the portal is unreachable.
+      if (req.url.startsWith('/api/whatsapp/')) { res.statusCode = 503; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ error: 'WhatsApp unavailable in this test.' })); }
       if (req.url.startsWith('/admin/communication')) { res.setHeader('Content-Type', 'text/html'); return res.end('<!doctype html><html><head><link rel="stylesheet" href="/hub.css"></head><body><div id="root"></div><script src="/hub.js"></script></body></html>'); }
       if (req.url === '/api/time') { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); return res.end(JSON.stringify({ now: Date.now() })); }
       if (req.url.startsWith('/api/email-control')) {
@@ -511,6 +513,38 @@ test('browser: Communication boxes open their panel at once, follow the URL, and
     await review.getByRole('heading', { name: 'Email history' }).waitFor();
     await review.getByRole('button', { name: 'Close' }).click();
     await review.waitFor({ state: 'hidden' });
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('browser: Communication shows what needs attention and the recent emails, each opening its panel', async () => {
+  const draft = await pending('activity@example.test');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`${websiteBase}/admin/communication`);
+    const attention = page.getByRole('region', { name: 'Needs attention' });
+    const line = attention.getByRole('listitem').filter({ hasText: /website emails? waiting for review/ });
+    await line.waitFor();
+    const activity = page.getByRole('region', { name: 'Recent activity' });
+    const row = activity.getByRole('button').filter({ hasText: '→ activity@example.test' });
+    await row.waitFor();
+    assert.match(await row.innerText(), /Waiting for review/);
+    assert.match(await row.innerText(), new RegExp(draft.subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+    await row.click();
+    const review = page.getByRole('dialog', { name: 'Email Review' });
+    await review.getByRole('tab', { name: 'Review', selected: true }).waitFor();
+    await review.locator('article').filter({ hasText: 'activity@example.test' }).waitFor();
+    await review.getByRole('button', { name: 'Close' }).click();
+
+    await line.getByRole('button', { name: 'Review →' }).click();
+    await review.getByRole('tab', { name: 'Review', selected: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await activity.getByRole('button', { name: 'Email history →' }).click();
+    await review.getByRole('tab', { name: 'History', selected: true }).waitFor();
+    await review.getByRole('heading', { name: 'Email history' }).waitFor();
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

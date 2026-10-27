@@ -33,8 +33,9 @@ export type EmailOutboxData = {
   summary: { sent: number; todaySent: number; sentRecipients: number; failed: number; sending: number };
   serverNow: number;
 };
-/** GET summary: counts only (Communication's boxes); absent from an older backend. */
-export type EmailSummary = { application: Application; review: number; actions: number };
+/** GET summary: counts and the last few history rows (Communication's page); absent from an older backend. */
+export type EmailRecent = { _id: string; application: Application; event: string; label: string; to: string[]; subject: string; status: string; at: string };
+export type EmailSummary = { application: Application; review: number; actions: number; recent?: EmailRecent[] };
 export type EmailControlData = {
   application: Application;
   // `trigger` is absent from a backend older than customer-action control; treat it as "admin".

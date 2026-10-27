@@ -49,7 +49,7 @@ before(async () => {
     plugins: [{ name: 'request-context-fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}', loader: 'js' })); } }],
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
-    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WhatsappPanel} from './src/app/admin/whatsapp/whatsapp-panel';createRoot(document.getElementById('root')!).render(<WhatsappPanel view={(new URLSearchParams(location.search).get('view') as any) || undefined}/>);`, loader: 'tsx', resolveDir: root } });
+    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WhatsappPanel} from './src/app/admin/whatsapp/whatsapp-panel';createRoot(document.getElementById('root')!).render(<WhatsappPanel view={(new URLSearchParams(location.search).get('view') as any) || undefined} show={(new URLSearchParams(location.search).get('show') as any) || undefined}/>);`, loader: 'tsx', resolveDir: root } });
   database = await MongoMemoryServer.create();
   process.env.MONGODB_URI = database.getUri(); // the worker config requires it
   await mongoose.connect(database.getUri(), { dbName: 'website-whatsapp-isolated' });
@@ -173,6 +173,25 @@ test('browser: Communication shows each WhatsApp part on its own page, with bold
     await page.getByRole('heading', { name: 'Sending rules' }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'History' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0);
+  } finally { await browser.close(); }
+});
+
+test('browser: History can open on Not sent (the "not sent" link) instead of Sent', async () => {
+  await State.create({ _id: 'main', connection: 'connected', phone: '919876543210', heartbeatAt: new Date() });
+  await Queue.create([
+    { to: '919876543210', email: 'ok@example.test', text: '*Delivered one*', status: 'sent', sentAt: minutesAgo(3), createdAt: minutesAgo(4) },
+    { to: '919876543210', email: 'bad@example.test', text: '*Failed one*', status: 'failed', lastError: 'Number not on WhatsApp', createdAt: minutesAgo(2) },
+  ]);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(`${websiteBase}/?view=messages&show=not-sent`);
+    await page.getByText('bad@example.test').waitFor();
+    assert.equal(await page.getByRole('button', { name: /^Not sent/ }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.getByText('ok@example.test').count(), 0);
+    await page.goto(`${websiteBase}/?view=messages`);
+    await page.getByText('ok@example.test').waitFor();
+    assert.equal(await page.getByRole('button', { name: /^Sent/ }).getAttribute('aria-pressed'), 'true');
   } finally { await browser.close(); }
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The admin sidebar's links, grouped under small headings, with the open page
+ * The admin sidebar's links, in their configured order, with the open page
  * marked. The shell (admin-layout.tsx) stays a server component and passes only
  * the groups this role may see; this part exists because the /admin layout
  * persists through navigation, so only the client knows the current path.
@@ -20,13 +20,10 @@ function under(pathname: string, path: string) {
 
 export function AdminNavLinks({ groups }: { groups: AdminNavGroup[] }) {
   const pathname = usePathname();
-  return groups.map(({ title, items }) => (
-    <div className="admin-nav-group" key={title ?? items[0].href}>
-      {title ? <p className="admin-nav-heading">{title}</p> : null}
-      {items.map(({ label, href, also = [] }) => {
-        const active = [href, ...also].some(path => under(pathname, path));
-        return <Link key={href} href={href} className={active ? "active" : undefined} aria-current={active ? "page" : undefined}>{label}</Link>;
-      })}
-    </div>
-  ));
+  return groups.flatMap(({ items }) =>
+    items.map(({ label, href, also = [] }) => {
+      const active = [href, ...also].some(path => under(pathname, path));
+      return <Link key={href} href={href} className={active ? "active" : undefined} aria-current={active ? "page" : undefined}>{label}</Link>;
+    })
+  );
 }

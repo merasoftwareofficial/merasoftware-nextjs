@@ -25,7 +25,7 @@ const STATUS_LABEL: Record<WhatsappQueueStatus, string> = {
 };
 // History holds finished messages only (waiting ones are on the Queue page), in two groups.
 // "not-sent" asks the backend for failed, skipped and expired together.
-type HistoryGroup = "sent" | "not-sent";
+export type HistoryGroup = "sent" | "not-sent";
 const NOT_SENT_FILTERS = [["not-sent", "All not sent"], ["failed", "Not sent (failed)"], ["skipped", "Skipped"], ["expired", "Expired"]] as const;
 type NotSentFilter = (typeof NOT_SENT_FILTERS)[number][0];
 const MAYBE_ARRIVED = /may or may not have arrived/i;
@@ -53,13 +53,18 @@ const SUMMARY: [string, (status: WhatsappStatus) => string | number][] = [
   ["Connection", connectionLabel], ["Linked number", status => phoneLabel(status.phone)], ["Sent today", status => status.sentToday],
   ["Waiting", status => status.counts.pending], ["Not sent", status => status.counts.failed], ["Skipped", status => status.counts.skipped], ["Expired", status => status.counts.expired],
 ];
-/** `active` = this part is on screen; while hidden it stops refreshing (Communication keeps it ready). */
-export function WhatsappPanel({ view = "all", active = true }: { view?: WhatsappView; active?: boolean }) {
+/**
+ * `active` = this part is on screen; while hidden it stops refreshing (Communication keeps it ready).
+ * `show` = which History group to show; when it changes (a "not sent" link), the list follows it.
+ */
+export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { view?: WhatsappView; active?: boolean; show?: HistoryGroup }) {
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const [group, setGroup] = useState<HistoryGroup>("sent");
+  const [group, setGroup] = useState<HistoryGroup>(show);
   const [notSent, setNotSent] = useState<NotSentFilter>("not-sent");
   const [page, setPage] = useState(1);
+  const [shownFrom, setShownFrom] = useState(show);
+  if (show !== shownFrom) { setShownFrom(show); setGroup(show); setPage(1); }
   const [queue, setQueue] = useState<WhatsappQueuePage | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);

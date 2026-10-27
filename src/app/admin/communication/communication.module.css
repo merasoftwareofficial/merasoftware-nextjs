@@ -1,15 +1,44 @@
-/* Communication: four boxes that navigate, and the side panel each one opens. */
-.hub{display:grid;gap:26px;min-width:0}
-.group h2{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.boxes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.box{display:grid;gap:8px;justify-items:start;padding:22px 24px;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;background:var(--paper);color:inherit;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+/* Communication: four boxes that navigate, what needs attention, recent activity, and the side panel. */
+.hub{display:grid;gap:22px;min-width:0}
+.boxes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.box{display:grid;gap:6px;align-content:start;justify-items:start;padding:18px 20px;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;background:var(--paper);color:inherit;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+.boxGroup{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+.overview{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr);gap:14px;align-items:start}
+.card{display:grid;gap:12px;padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper);min-width:0}
+.cardHeader{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px}
+.cardHeader h2{margin:0;font-size:16px;font-weight:650}
+.cardLinks{display:flex;gap:14px;flex-wrap:wrap}
+.link{padding:0;border:0;background:none;color:var(--brand-link);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.link:hover{text-decoration:underline}
+.link:focus-visible{outline:2px solid var(--brand-link);outline-offset:2px;border-radius:3px}
+.allGood{margin:0;font-size:14px;color:var(--muted)}
+.attention{list-style:none;margin:0;padding:0;display:grid}
+.attention li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.attention li:first-child{border-top:0;padding-top:0}
+.attentionText::before{content:"⚠";margin-right:8px;color:#c9a227}
+.activity{list-style:none;margin:0;padding:0;display:grid}
+.activity li{border-top:1px solid var(--line)}
+.activity li:first-child{border-top:0}
+.activity button{display:grid;grid-template-columns:22px 128px minmax(0,1fr) minmax(0,.8fr) auto;align-items:center;gap:10px;width:100%;padding:9px 6px;border:0;border-radius:6px;background:none;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.activity button:hover{background:var(--surface)}
+.activity button:focus-visible{outline:2px solid var(--brand-link);outline-offset:1px}
+.channel{text-align:center}
+.status{justify-self:start;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--muted);white-space:nowrap}
+.status[data-tone=ok]{background:var(--pn-ok-bg,#e3efc6);color:var(--pn-ok,#2f4a09)}
+.status[data-tone=warn]{background:var(--pn-warn-bg,#f0e9cf);color:var(--pn-warn,#5f4f0e)}
+.status[data-tone=bad]{background:var(--pn-err-bg,#f8dfdb);color:var(--pn-err,#8b2a21)}
+.subject,.to{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subject{font-weight:600}
+.to,.when{color:var(--muted)}
+.when{white-space:nowrap;font-size:12px}
 .box:hover:not(:disabled){background:var(--surface);border-color:var(--brand-link)}
 .box:focus-visible{outline:2px solid var(--brand-link);outline-offset:2px}
 .box:disabled{cursor:default;opacity:.6}
 .box[data-tone=ok]{border-left-color:var(--pn-good,#2f6b3f)}
 .box[data-tone=warn]{border-left-color:#c9a227}
 .boxTitle{font-size:18px;font-weight:650;letter-spacing:-.2px}
-.boxLine{font-size:14px;color:var(--muted);min-height:20px}
+.boxLine{font-size:14px;line-height:1.5;color:var(--muted);min-height:20px}
 
 .drawerLayer{position:fixed;inset:0;z-index:60;display:flex;justify-content:flex-end}
 .drawerLayer[hidden]{display:none}
@@ -17,7 +46,7 @@
 .drawer{position:relative;display:flex;flex-direction:column;width:min(920px,100%);height:100%;background:var(--paper,#fff);color:var(--ink,inherit);border-left:1px solid var(--line);box-shadow:-12px 0 32px rgb(0 0 0 / .18);outline:none}
 .drawerHeader{display:flex;justify-content:space-between;align-items:start;gap:16px;padding:22px 28px 14px}
 .drawerHeader h2{margin:0 0 6px;font-size:22px;letter-spacing:-.4px}
-.drawerHeader p{margin:0;font-size:13px;color:var(--muted);line-height:1.6}
+.drawerHeader p{margin:0;font-size:14px;color:var(--muted);line-height:1.5}
 .tabBar{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:0 28px 14px;border-bottom:1px solid var(--line)}
 .tabs,.switch{display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .tabs button,.switch button{padding:7px 16px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:14px;cursor:pointer}
@@ -31,4 +60,6 @@
 .locked span{display:inline-block;background:var(--surface);color:var(--muted);padding:6px 10px;border-radius:5px;font-size:12px}
 .locked p{font-size:14px;color:var(--muted);line-height:1.6;margin:16px 0 0}
 
+@media(max-width:1100px){.boxes{grid-template-columns:repeat(2,minmax(0,1fr))}.overview{grid-template-columns:1fr}}
+@media(max-width:640px){.activity button{grid-template-columns:22px auto minmax(0,1fr);row-gap:2px}.activity .to{grid-column:3}.activity .when{grid-column:3}}
 @media(max-width:640px){.boxes{grid-template-columns:1fr}.drawerHeader,.tabBar,.drawerBody{padding-left:16px;padding-right:16px}.search{margin-left:0;max-width:none}}

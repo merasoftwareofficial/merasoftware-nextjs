@@ -8,12 +8,12 @@
 .toolbar h2,.section h2 { font-size:19px; font-weight:650; margin:0; }
 .notice { color:var(--link, #006b80); padding:10px 0; }
 .error { color:#b12a2a; line-height:1.5; }
-.muted { opacity:.75; font-size:13px; line-height:1.6; }
+.muted { color:var(--muted); font-size:14px; line-height:1.5; }
 .tableWrap { overflow:auto; border:1px solid var(--line, #cbd0d4); border-radius:10px; }
 .table { width:100%; border-collapse:collapse; text-align:left; font-size:14px; min-width:720px; }
 .table td,.table th { padding:15px; border-bottom:1px solid var(--line, #d8dbde); vertical-align:top; }
 .table td strong,.table td small { display:block; }
-.table td small { opacity:.65; margin-bottom:5px; }
+.table td small { color:var(--muted); font-size:14px; line-height:1.5; margin-bottom:5px; }
 .table select,.toolbar select { max-width:230px; padding:7px; border:1px solid var(--line, #cbd0d4); border-radius:6px; color:inherit; background:var(--surface, #fff); }
 .actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; }
 .actions button:not([class]) { border:1px solid var(--line, #cbd0d4); background:transparent; color:inherit; padding:9px 13px; border-radius:7px; cursor:pointer; }
@@ -27,8 +27,8 @@
 .filters input,.filters select { max-width:100%; padding:9px; border:1px solid var(--line, #cbd0d4); border-radius:6px; color:inherit; background:var(--surface, #fff); }
 .filters input:focus-visible,.filters select:focus-visible { outline:2px solid #377c63; outline-offset:3px; }
 .card { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:16px; border:1px solid var(--line, #cbd0d4); border-radius:9px; }
-.card p { margin:5px 0; overflow-wrap:anywhere; }
-.card small { opacity:.75; }
+.card p { font-size:14px; line-height:1.5; margin:5px 0; overflow-wrap:anywhere; }
+.card small { color:var(--muted); font-size:14px; line-height:1.5; }
 .dialog { width:min(740px, 94vw); max-height:90vh; overflow:auto; border:1px solid var(--line, #cbd0d4); border-radius:14px; padding:26px; background:var(--surface, #fff); color:var(--ink, #1d1d1b); }
 .dialog::backdrop { background:rgb(0 0 0 / .55); }
 .dialog h2 { font-size:22px; font-weight:650; margin-bottom:12px; }
@@ -39,7 +39,7 @@
 .dialog input:focus-visible,.dialog textarea:focus-visible,.dialog button:focus-visible,.tabs button:focus-visible { outline:2px solid #377c63; outline-offset:3px; }
 .sample { margin-top:16px; border:1px solid var(--line, #cbd0d4); border-radius:8px; padding:14px; }
 .sample pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; margin-top:8px; }
-.link { overflow-wrap:anywhere; font-size:13px; }
+.link { overflow-wrap:anywhere; font-size:14px; line-height:1.5; }
 .editorField { margin-top:16px; }
 .editorLabel { display:block; margin:0 0 6px; font-size:14px; font-weight:600; }
 .editorField .surface { min-height:220px; padding:16px; font-size:15px; line-height:1.6; }
@@ -53,7 +53,7 @@
 .details { margin-top:10px; padding:12px 14px; border:1px solid var(--line, #cbd0d4); border-radius:8px; }
 .details h3 { margin:0 0 4px; font-size:14px; }
 .details ul { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:6px; }
-.details li { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; font-size:13px; line-height:1.5; }
+.details li { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; font-size:14px; line-height:1.5; }
 .details li button { cursor:pointer; font:inherit; font-size:13px; }
 .details li button:disabled { cursor:default; opacity:.6; }
 .details .sectionChip { margin:0; padding:2px 10px; }
@@ -69,7 +69,7 @@
 .group[open] summary::before { content:"▾"; }
 .group summary strong { font-size:15px; font-weight:650; }
 .group summary:focus-visible { outline:2px solid var(--brand-link, #006b80); outline-offset:2px; border-radius:10px; }
-.groupMeta { font-size:13px; color:var(--muted, #5f6b70); }
+.groupMeta { font-size:14px; line-height:1.5; color:var(--muted, #5f6b70); }
 .channelOn,.channelOff { margin-left:auto; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }
 .channelOn { background:var(--pn-ok-bg, #e3efc6); color:var(--pn-ok, #2f4a09); }
 .channelOff { background:var(--surface, #eef0f1); color:var(--muted, #5f6b70); }
