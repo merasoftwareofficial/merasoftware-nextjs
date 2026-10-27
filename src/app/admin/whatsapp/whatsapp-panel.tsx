@@ -29,7 +29,7 @@ const NOT_SENT_FILTERS = [["not-sent", "All not sent"], ["failed", "Not sent (fa
 type NotSentFilter = (typeof NOT_SENT_FILTERS)[number][0];
 const MAYBE_ARRIVED = /may or may not have arrived/i;
 
-function connectionLabel(status: WhatsappStatus) {
+export function connectionLabel(status: WhatsappStatus) {
   if (!status.enabled) return "Turned off";
   if (!status.workerRunning) return "Service not running";
   return { connected: "Connected", qr: "Waiting for QR scan", "logged-out": "Unlinked", connecting: "Connecting…", disconnected: "Not connected" }[status.connection];
@@ -153,7 +153,7 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
       {view === "all" && <WhatsappSettingsSection onSaved={() => void loadStatus()} />}
     </>}
 
-    {!connection && status?.paused && <div className={styles.banner}><strong>Sending is paused.</strong> Resume it under WhatsApp number.</div>}
+    {!connection && status?.paused && <div className={styles.banner}><strong>Sending is paused.</strong> Resume it from the WhatsApp card on Communication.</div>}
     {view !== "connection" && <section className={styles.section} aria-labelledby="messages-title">
       <div className={styles.toolbar}>
         <h2 id="messages-title">History</h2>
@@ -167,7 +167,7 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
           {NOT_SENT_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select></label>}
       </div>
-      <p className={styles.muted}>Newest first. All times are IST. Finished messages are kept for 30 days. Messages still waiting are on the Queue page.</p>
+      <p className={styles.muted}>Newest first. All times are IST. Finished messages are kept for 30 days. Messages still waiting are under Waiting to send.</p>
       {!queue && !queueError && <p role="status">Loading messages…</p>}
       {queueError && <p className={styles.error} role="alert">{queueError} <button onClick={() => setRevision(value => value + 1)}>Retry</button></p>}
       {queue && (!queue.rows.length ? <p>No messages here yet.</p> : <div className={styles.tableWrap}><table className={styles.table}>

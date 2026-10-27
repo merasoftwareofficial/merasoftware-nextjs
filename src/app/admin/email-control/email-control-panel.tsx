@@ -17,9 +17,16 @@ const toEditor = (row: EmailTemplate): TemplateEditor => ({ _id: row._id, event:
 const templateBody = (value: TemplateEditor) => ({ event: value.event, name: value.name, doc: value.doc, subjectDoc: value.subjectDoc });
 const reason = (error: unknown) => error instanceof Error ? error.message : "Email request failed.";
 const optionLabel = (option: { name: string; system?: boolean; id?: string; _id?: string }) => option.system && (option.id || option._id) ? `${option.name} (built-in)` : option.name;
+const MODE_LABEL: Record<EmailPolicyMode, string> = { review: "Asks before sending", auto: "Sends automatically", off: "Off" };
+type CatalogEvent = EmailControlData["events"][number];
+// Customer-started and server-sent mail is On/Off; every other action asks the admin first.
+const isAutomatic = (event: CatalogEvent) => event.trigger === "customer" || event.trigger === "system";
+const groupOf = (event: CatalogEvent) => event.group || event.label;
+const matches = (event: CatalogEvent, query: string) => !query || [event.label, groupOf(event), event.section].some(text => text.toLowerCase().includes(query));
 /** Communication shows each half on its own page: "actions" = rules and templates, "activity" = review, Outbox and history. */
 export type EmailView = "all" | "actions" | "activity";
-export function EmailControlPanel({ initialApplication, canManagePortal, view = "all", showTabs = true }: { initialApplication: Application; canManagePortal: boolean; view?: EmailView; showTabs?: boolean }) {
+/** `query` filters the actions by name; `onReviewCount` reports how many mails wait for review (Communication's status bar). */
+export function EmailControlPanel({ initialApplication, canManagePortal, view = "all", showTabs = true, query = "", onReviewCount }: { initialApplication: Application; canManagePortal: boolean; view?: EmailView; showTabs?: boolean; query?: string; onReviewCount?: (count: number) => void }) {
   const [application, setApplication] = useState(initialApplication);
   const { track } = useTask();
   const request = useCallback(<T,>(path = "", method = "GET", body?: unknown, signal?: AbortSignal) => track(() => api<T>(application, path, method, body, signal)), [application, track]);
@@ -64,7 +71,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     else dialog.current?.close();
   }, [editor, draft]);
   function changeTab(next: Application) {
-    if (busy || (next === "portal" && !canManagePortal)) return;
+    // The open tab again: nothing to change (clearing the data here would never reload it).
+    if (busy || next === application || (next === "portal" && !canManagePortal)) return;
     generation.current++; setData(null); setLoading(true); setError(""); setApplication(next); setNotice(""); setHistoryFilter("all");
     const url = new URL(window.location.href); url.searchParams.set("tab", next); window.history.replaceState(null, "", url);
   }
@@ -147,15 +155,21 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
   const status = (row: { status: string; expiresAt: string }) => ["pending", "failed", "sending"].includes(row.status) && Date.parse(row.expiresAt) <= (serverNow ?? observedAt) ? "expired" : row.status;
   const history = data?.history.filter(row => historyFilter === "all" || status(row) === historyFilter) || [];
   const off = draft && data?.policies.find(row => row.event === draft.event)?.mode === "off";
-  // Customer-started mail is On (auto) or Off, and Off until an admin turns it on.
-  function rulesTable(events: EmailControlData["events"], customer: boolean) {
+  const reviewCount = data ? drafts.length : null;
+  useEffect(() => { if (reviewCount !== null) onReviewCount?.(reviewCount); }, [reviewCount, onReviewCount]);
+  // No saved rule: server-sent mail is On, customer-started mail Off until an admin turns it on, admin actions ask.
+  function policyFor(event: CatalogEvent) {
+    return data?.policies.find(row => row.event === event.key) || { mode: event.trigger === "system" ? "auto" as const : isAutomatic(event) ? "off" as const : "review" as const, defaultTemplate: null };
+  }
+  function rulesTable(events: CatalogEvent[]) {
     if (!data) return null;
-    return <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Section / action</th><th>{customer ? "Mail" : "Sending rule"}</th><th>Default template</th><th>Templates</th></tr></thead><tbody>
+    return <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Mail</th><th>Sending rule</th><th>Default template</th><th>Templates</th></tr></thead><tbody>
       {events.map(event => {
-        const current = data.policies.find(row => row.event === event.key) || { mode: event.trigger === "system" ? "auto" as const : customer ? "off" as const : "review" as const, defaultTemplate: null };
+        const customer = isAutomatic(event);
+        const current = policyFor(event);
         const templates = data.templates.filter(row => row.event === event.key);
         const system = templates.find(row => row.system);
-        return <tr key={event.key}><td><small>{event.section}</small><strong>{event.label}</strong></td>
+        return <tr key={event.key}><td><small>{customer ? "Automatic" : "After an admin action"}</small><strong>{event.label}</strong></td>
           <td>{customer
             ? <select aria-label={`${event.label} mail`} disabled={busy || loading} value={current.mode === "auto" ? "auto" : "off"} onChange={e => void policy(event.key, e.target.value as EmailPolicyMode, current.defaultTemplate)}><option value="auto">On — send automatically</option><option value="off">Off</option></select>
             : <select aria-label={`${event.label} sending rule`} disabled={busy || loading} value={current.mode} onChange={e => void policy(event.key, e.target.value as EmailPolicyMode, current.defaultTemplate)}><option value="review">Ask before sending</option><option value="off">Off</option></select>}</td>
@@ -165,8 +179,17 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
       })}
     </tbody></table></div>;
   }
-  const customerEvents = data?.events.filter(event => event.trigger === "customer" || event.trigger === "system") || [];
-  const adminEvents = data?.events.filter(event => event.trigger !== "customer" && event.trigger !== "system") || [];
+  // One box per job (its customer and admin mails together), under the job's section.
+  const search = query.trim().toLowerCase();
+  const sections = new Map<string, Map<string, CatalogEvent[]>>();
+  for (const event of data?.events.filter(row => matches(row, search)) || []) {
+    const groups = sections.get(event.section) ?? new Map<string, CatalogEvent[]>();
+    sections.set(event.section, groups.set(groupOf(event), [...(groups.get(groupOf(event)) ?? []), event]));
+  }
+  function groupSummary(events: CatalogEvent[]) {
+    const modes = [...new Set(events.map(event => policyFor(event).mode))];
+    return { rule: modes.length === 1 ? MODE_LABEL[modes[0]] : "Mixed rules", sends: modes.some(mode => mode !== "off") };
+  }
   const editorCatalog = editor ? data?.catalog?.[editor.event] : undefined;
   const actions = view !== "activity", activity = view !== "actions";
   const appName = application === "website" ? "Website" : "Portal";
@@ -176,19 +199,25 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
       <button role="tab" aria-selected={application === "portal"} disabled={busy || !canManagePortal} onClick={() => changeTab("portal")}>Portal</button>
     </div>}
     {showTabs && !canManagePortal && <p className={styles.muted}>Portal email management requires portal admin access.</p>}
-    {actions && <div className={styles.banner}><strong>Admin actions ask before sending.</strong> Automatic actions follow their On/Off setting. Offer payment reminders run only for saved agreements with reminder days configured. Public website requests arrive here for review. Every email that is really sent also goes out on WhatsApp with the same text.</div>}
     <div className={styles.toolbar}><h2>{appName} {view === "activity" ? "email review and history" : "email rules"}</h2><button className="admin-action" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}>Refresh</button></div>
     {notice && <p className={styles.notice} role="status">{notice}</p>}
     {error && <p className={styles.error} role="alert">{error} <button onClick={() => void load()} disabled={busy}>Retry</button></p>}
     {loading && !data && <p role="status">Loading email settings…</p>}
     {data && actions && <>
-      {customerEvents.length > 0 && <p className={styles.muted}>Admin actions: after each action the admin sees a Send / Don&apos;t Send popup.</p>}
-      {rulesTable(adminEvents, false)}
-      {customerEvents.length > 0 && <section className={styles.section} aria-labelledby="customer-actions-title"><h2 id="customer-actions-title">Automatic actions</h2>
-        <p className={styles.muted}>Customer actions stay Off until enabled. Scheduled offer reminders are enabled by the offer agreement; their On/Off switch can disable sending globally. A failed send remains available for review.</p>
-        {rulesTable(customerEvents, true)}
-      </section>}
-      {application === "website" && <p className={styles.muted}>Subscription confirmation and manage-link requests are connected. Contact and callback templates are reserved for their future submission integrations.</p>}
+      {!sections.size && <p className={styles.muted}>{search ? `No ${appName.toLowerCase()} mail matches “${query.trim()}”.` : "No actions."}</p>}
+      {[...sections].map(([section, groups]) => <section className={styles.mailSection} key={section} aria-label={`${appName} · ${section}`}>
+        {sections.size > 1 && <h3>{section}</h3>}
+        {[...groups].map(([group, events]) => {
+          const summary = groupSummary(events);
+          return <details className={styles.group} key={group} open={search ? true : undefined}>
+            <summary><strong>{group}</strong><span className={styles.groupMeta}>{events.length} {events.length === 1 ? "mail" : "mails"} · {summary.rule}</span>
+              <span className={summary.sends ? styles.channelOn : styles.channelOff}>{summary.sends ? "Email + WhatsApp" : "Nothing sent"}</span></summary>
+            {rulesTable(events)}
+          </details>;
+        })}
+      </section>)}
+      {application === "website" && !search && <p className={styles.muted}>Contact and callback mails are ready for when those forms start sending.</p>}
+      {application === "portal" && !search && <p className={styles.muted}>Offer payment reminders run only for saved agreements with reminder days set; their switch here can turn them off for everyone.</p>}
     </>}
     {data && activity && <>
       <section className={styles.section}><h2>Pending email review</h2><p className={styles.muted}>Drafts expire after 23 hours. Delivery failures can be retried without repeating the original action.</p>

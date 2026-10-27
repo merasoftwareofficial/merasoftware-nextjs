@@ -158,7 +158,7 @@ test('browser: Communication shows each WhatsApp part on its own page, with bold
     await page.getByText('ravi@example.test').waitFor();
     assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0, 'no connection controls on the message list');
     assert.equal(await page.getByRole('heading', { name: 'Sending rules' }).count(), 0);
-    assert.ok(await page.getByText('Resume it under WhatsApp number.').isVisible(), 'a paused queue is still explained');
+    assert.ok(await page.getByText('Resume it from the WhatsApp card on Communication.').isVisible(), 'a paused queue is still explained');
     await page.getByText('Your Project Has Started').first().click();
     const body = page.locator('details p');
     assert.equal(await body.locator('strong').textContent(), 'Your Project Has Started');

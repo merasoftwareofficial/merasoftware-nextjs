@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-// Email Control now lives in Communication. The portal's admin link still opens ?tab=portal here.
-export default async function EmailControlPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const { tab } = await searchParams;
-  redirect(`/admin/communication?view=${tab === "portal" ? "portal-actions" : "website-actions"}`);
+// Email Control now lives in Communication, whose one list holds Website and Portal actions.
+// The portal's admin link still opens ?tab=portal here; it lands on the same list.
+export default function EmailControlPage() {
+  redirect("/admin/communication");
 }

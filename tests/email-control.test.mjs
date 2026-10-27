@@ -39,6 +39,11 @@ async function subscribe(email) {
   const response = await qa.context.run(context(null), () => qa.subscriptionRoute.POST(new Request('http://website.test/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, categories: [], offers: true }) })));
   return { status: response.status, ...await response.json() };
 }
+// Communication shows each job as a closed box; open them all, as an admin would one by one.
+async function openJobs(page) {
+  await page.locator('summary').filter({ hasText: /\d+ mails? · / }).first().waitFor();
+  await page.locator('details').evaluateAll(nodes => nodes.forEach(node => { node.open = true; }));
+}
 async function pending(email) {
   assert.equal((await subscribe(email)).result, 'review');
   return EmailDraft.findOne({ to: email, status: 'pending' }).lean();
@@ -59,7 +64,7 @@ before(async () => {
     plugins: [{ name: 'request-context-fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}', loader: 'js' })); } }],
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
-    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true} view={(q.get('view') as any)||undefined} showTabs={q.get('tabs')!=='off'}/>);`, loader: 'tsx', resolveDir: root } });
+    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true} view={(q.get('view') as any)||undefined} showTabs={q.get('tabs')!=='off'} query={q.get('query')||undefined}/>);`, loader: 'tsx', resolveDir: root } });
   database = await MongoMemoryServer.create({ instance: { launchTimeout: Number(process.env.EMAIL_TEST_MONGO_TIMEOUT || 60000) } });
   await mongoose.connect(database.getUri(), { dbName: 'website-email-isolated' });
   [admin, websiteAdmin] = await userModel.create([{ name: 'Portal Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Website Admin', email: 'website-admin@example.test', roles: ['member'] }]);
@@ -190,7 +195,7 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     const page = await browser.newPage({ timezoneId: 'America/New_York' });
     await page.addInitScript(() => { const original = Date.now; Date.now = () => original() + 2 * 86400000; });
     const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('Email panel browser error:', error.message); });
-    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     const row = page.getByRole('row').filter({ hasText: 'Subscription confirmation' });
     await row.getByRole('button', { name: 'Add template' }).click();
     await page.getByLabel('Template name', { exact: true }).fill('Browser template');
@@ -238,7 +243,7 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     await page.locator('article').filter({ hasText: 'browser-skip@example.test' }).filter({ has: page.getByRole('button', { name: 'Review email', exact: true }) }).getByRole('button', { name: 'Review email', exact: true }).click();
     await page.getByRole('button', { name: 'Don’t Send Mail', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
     assert.equal((await EmailDraft.findById(skip._id)).status, 'skipped');
-    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
     await page.getByRole('row').filter({ hasText: 'New lead welcome' }).waitFor(); assert.equal(await page.getByRole('row').filter({ hasText: 'Subscription confirmation' }).count(), 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
@@ -250,8 +255,8 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     const page = await browser.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     page.on('dialog', dialog => dialog.accept());
-    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
-    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
     const row = page.getByRole('row').filter({ hasText: 'Project created' });
     const system = await EmailTemplate.findOne({ event: 'sendProjectCreatedEmail', system: true }).lean();
     assert.equal(await row.getByLabel('Project created default template').inputValue(), String(system._id));
@@ -316,10 +321,12 @@ test('browser: every action offers its Standard template, and the details guide 
   try {
     const page = await browser.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     for (const tab of ['Website', 'Portal']) {
-      await page.getByRole('tab', { name: tab, exact: true }).click(); await page.getByRole('heading', { name: `${tab} email rules` }).waitFor();
-      const rows = page.locator('tbody tr');
+      await page.getByRole('tab', { name: tab, exact: true }).click(); await page.getByRole('heading', { name: `${tab} email rules` }).waitFor(); await openJobs(page);
+      // Only the job boxes' rows (the Outbox below has its own table).
+      const rows = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /\d+ mails? · / }) }).locator('tbody tr');
+      assert.ok(await rows.count() > 0, `${tab} has actions`);
       for (let index = 0; index < await rows.count(); index += 1) {
         const label = await rows.nth(index).locator('strong').innerText();
         assert.equal(await rows.nth(index).getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).count(), 1, label);
@@ -364,10 +371,11 @@ test('browser: panel still renders when the backend predates the template catalo
     await page.route(/\/api\/email-control\?application=/, async route => {
       const response = await route.fetch(); const body = await response.json();
       delete body.data.catalog; body.data.templates = body.data.templates.filter(row => !row.system);
+      body.data.events.forEach(event => { delete event.group; }); // older backend: each action is its own box
       await route.fulfill({ response, json: body });
     });
-    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
-    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
     const row = page.getByRole('row').filter({ hasText: 'Project created' });
     await row.getByLabel('Project created default template').locator('option').first().waitFor({ state: 'attached' });
     assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
@@ -382,7 +390,7 @@ test('browser: Communication shows rules and history on separate pages, and the 
   try {
     const page = await browser.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.goto(`${websiteBase}/?view=actions&tabs=off`); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    await page.goto(`${websiteBase}/?view=actions&tabs=off`); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     assert.equal(await page.getByRole('tab').count(), 0, 'the left menu picks Website or Portal, not tabs');
     assert.equal(await page.getByRole('heading', { name: 'Pending email review' }).count(), 0);
     assert.equal(await page.getByRole('region', { name: 'Outbox', exact: true }).count(), 0);
@@ -405,25 +413,53 @@ test('browser: Communication shows rules and history on separate pages, and the 
   } finally { await browser.close(); }
 });
 
-test('browser: customer actions have their own On/Off section, Off by default', async () => {
+test('browser: one box per job holds its customer and admin mails; customer mail is On/Off, Off by default', async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Customer actions (automatic)' }).count(), 0);
+    await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
+    // Website: the customer copy and the admin copy of the contact form share one box.
+    const contact = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /^Contact form/ }) });
+    assert.deepEqual(await contact.locator('tbody strong').allTextContents(), ['Contact form received', 'Contact request (admin)']);
     await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
-    const section = page.getByRole('region', { name: 'Customer actions (automatic)' });
-    const row = section.getByRole('row').filter({ hasText: 'Update request received' });
+    const job = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /^Update request/ }) });
+    const summary = job.locator('summary');
+    await summary.waitFor();
+    assert.equal(await job.evaluate(node => node.open), false, 'boxes start closed');
+    assert.match(await summary.innerText(), /2 mails · Off/); assert.match(await summary.innerText(), /Nothing sent/);
+    await summary.click();
+    assert.deepEqual(await job.locator('tbody strong').allTextContents(), ['New update request (admin)', 'Update request received']);
+    const row = job.getByRole('row').filter({ hasText: 'Update request received' });
+    await row.getByText('Automatic', { exact: true }).waitFor();
     const mail = row.getByLabel('Update request received mail');
     assert.equal(await mail.inputValue(), 'off');
     assert.deepEqual(await mail.locator('option').allTextContents(), ['On — send automatically', 'Off']);
-    assert.equal(await section.getByRole('row').filter({ hasText: 'Project created' }).count(), 0);
+    await openJobs(page);
     assert.deepEqual(await page.getByLabel('Project created sending rule').locator('option').allTextContents(), ['Ask before sending', 'Off']);
     await mail.selectOption('auto');
     await page.getByText('Email rule saved.', { exact: true }).waitFor();
     assert.equal((await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean()).mode, 'auto');
     assert.equal(await mail.inputValue(), 'auto');
+    assert.match(await summary.innerText(), /2 mails · Mixed rules/); assert.match(await summary.innerText(), /Email \+ WhatsApp/);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('browser: search shows only the matching jobs, already open', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`${websiteBase}/?view=actions&tabs=off&query=Callback`); await page.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    const summaries = page.locator('summary').filter({ hasText: /\d+ mails? · / });
+    await summaries.first().waitFor();
+    assert.equal(await summaries.count(), 1);
+    assert.match(await summaries.first().innerText(), /^Callback request/);
+    await page.getByRole('row').filter({ hasText: 'Callback request (admin)' }).waitFor();
+    assert.equal(await page.getByRole('row').filter({ hasText: 'Subscription confirmation' }).count(), 0);
+    await page.goto(`${websiteBase}/?view=actions&tabs=off&query=nothing-like-this`);
+    await page.getByText('No website mail matches “nothing-like-this”.', { exact: true }).waitFor();
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
