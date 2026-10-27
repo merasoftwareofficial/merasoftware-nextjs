@@ -76,4 +76,15 @@
 .group .tableWrap { border:0; border-top:1px solid var(--line, #cbd0d4); border-radius:0 0 10px 10px; }
 .group .table td,.group .table th { padding:12px 15px; }
 
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chips button { padding:6px 12px; border:1px solid var(--line, #cbd0d4); border-radius:999px; background:transparent; color:inherit; font:inherit; font-size:13px; cursor:pointer; }
+.chips button[aria-pressed="true"] { background:var(--inverse, #1d1d1b); color:var(--inverse-text, #fff); border-color:var(--inverse, #1d1d1b); }
+.chips button:focus-visible { outline:2px solid var(--brand-link, #006b80); outline-offset:2px; }
+
+/* Live data still on its way: a small spinner in its place. */
+.loading { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--muted, #5f6b70); margin:0; }
+.spinner { width:14px; height:14px; border:2px solid var(--line, #cbd0d4); border-top-color:var(--brand-link, #006b80); border-radius:50%; animation:spin .8s linear infinite; flex:none; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration:2.4s; } }
+
 :global(.admin-shell[data-theme="dark"]) .error { color:#ff9d9d; }

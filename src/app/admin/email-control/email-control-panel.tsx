@@ -6,6 +6,7 @@ import { useTask } from "@/components/loading/navigation";
 import { useServerTime } from "@/components/use-server-time";
 import { emailControlApi as api } from "@/lib/email-control-client";
 import { EmailOutbox } from "./email-outbox";
+import { Loader } from "./loader";
 import type { JSONContent } from "@tiptap/core";
 import { chipDoc, docHasContent, EmailEditor, EmailPreview, plainDoc } from "./email-editor";
 import type { Application, EmailControlData, EmailDraft, EmailPolicyMode, EmailTemplate, TemplateOption } from "@/lib/email-control-types";
@@ -23,8 +24,11 @@ type CatalogEvent = EmailControlData["events"][number];
 const isAutomatic = (event: CatalogEvent) => event.trigger === "customer" || event.trigger === "system";
 const groupOf = (event: CatalogEvent) => event.group || event.label;
 const matches = (event: CatalogEvent, query: string) => !query || [event.label, groupOf(event), event.section].some(text => text.toLowerCase().includes(query));
-/** Communication shows each half on its own page: "actions" = rules and templates, "activity" = review, Outbox and history. */
-export type EmailView = "all" | "actions" | "activity";
+/**
+ * "actions" = rules and templates (Email Templates). "review" / "outbox" / "history" = the tabs of
+ * Email Review; switching them keeps this panel's data. "activity" = all three together, "all" = everything.
+ */
+export type EmailView = "all" | "actions" | "activity" | "review" | "outbox" | "history";
 /** `query` filters the actions by name; `onReviewCount` reports how many mails wait for review (Communication's status bar). */
 export function EmailControlPanel({ initialApplication, canManagePortal, view = "all", showTabs = true, query = "", onReviewCount }: { initialApplication: Application; canManagePortal: boolean; view?: EmailView; showTabs?: boolean; query?: string; onReviewCount?: (count: number) => void }) {
   const [application, setApplication] = useState(initialApplication);
@@ -44,6 +48,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
   const [templateId, setTemplateId] = useState("current");
   const [dialogError, setDialogError] = useState("");
   const [historyFilter, setHistoryFilter] = useState("all");
+  const [sectionFilter, setSectionFilter] = useState(""); // "" = every section
   const [observedAt, setObservedAt] = useState(0);
   const serverNow = useServerTime();
   const [revision, setRevision] = useState(0);
@@ -73,7 +78,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
   function changeTab(next: Application) {
     // The open tab again: nothing to change (clearing the data here would never reload it).
     if (busy || next === application || (next === "portal" && !canManagePortal)) return;
-    generation.current++; setData(null); setLoading(true); setError(""); setApplication(next); setNotice(""); setHistoryFilter("all");
+    generation.current++; setData(null); setLoading(true); setError(""); setApplication(next); setNotice(""); setHistoryFilter("all"); setSectionFilter("");
     const url = new URL(window.location.href); url.searchParams.set("tab", next); window.history.replaceState(null, "", url);
   }
   async function policy(event: string, mode: EmailPolicyMode, defaultTemplate: string | null) {
@@ -181,8 +186,9 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
   }
   // One box per job (its customer and admin mails together), under the job's section.
   const search = query.trim().toLowerCase();
+  const allSections = [...new Set(data?.events.map(event => event.section) ?? [])];
   const sections = new Map<string, Map<string, CatalogEvent[]>>();
-  for (const event of data?.events.filter(row => matches(row, search)) || []) {
+  for (const event of data?.events.filter(row => matches(row, search) && (!sectionFilter || row.section === sectionFilter)) || []) {
     const groups = sections.get(event.section) ?? new Map<string, CatalogEvent[]>();
     sections.set(event.section, groups.set(groupOf(event), [...(groups.get(groupOf(event)) ?? []), event]));
   }
@@ -191,7 +197,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     return { rule: modes.length === 1 ? MODE_LABEL[modes[0]] : "Mixed rules", sends: modes.some(mode => mode !== "off") };
   }
   const editorCatalog = editor ? data?.catalog?.[editor.event] : undefined;
-  const actions = view !== "activity", activity = view !== "actions";
+  const actions = view === "all" || view === "actions";
+  const showReview = ["all", "activity", "review"].includes(view), showOutbox = ["all", "activity", "outbox"].includes(view), showHistory = ["all", "activity", "history"].includes(view);
   const appName = application === "website" ? "Website" : "Portal";
   return <div className={styles.panel}>
     {showTabs && <div className={styles.tabs} role="tablist" aria-label="Email application">
@@ -199,11 +206,14 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
       <button role="tab" aria-selected={application === "portal"} disabled={busy || !canManagePortal} onClick={() => changeTab("portal")}>Portal</button>
     </div>}
     {showTabs && !canManagePortal && <p className={styles.muted}>Portal email management requires portal admin access.</p>}
-    <div className={styles.toolbar}><h2>{appName} {view === "activity" ? "email review and history" : "email rules"}</h2><button className="admin-action" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}>Refresh</button></div>
+    <div className={styles.toolbar}><h2>{appName} {actions ? "email rules" : "email review and history"}</h2><button className="admin-action" disabled={busy || loading} onClick={() => { setLoading(true); void load(); }}>Refresh</button></div>
     {notice && <p className={styles.notice} role="status">{notice}</p>}
     {error && <p className={styles.error} role="alert">{error} <button onClick={() => void load()} disabled={busy}>Retry</button></p>}
-    {loading && !data && <p role="status">Loading email settings…</p>}
+    {actions && !data && !error && <Loader label="Loading messages…" />}
     {data && actions && <>
+      {allSections.length > 1 && <div className={styles.chips} role="group" aria-label={`${appName} sections`}>
+        {["", ...allSections].map(value => <button key={value || "all"} type="button" aria-pressed={sectionFilter === value} onClick={() => setSectionFilter(value)}>{value || "All"}</button>)}
+      </div>}
       {!sections.size && <p className={styles.muted}>{search ? `No ${appName.toLowerCase()} mail matches “${query.trim()}”.` : "No actions."}</p>}
       {[...sections].map(([section, groups]) => <section className={styles.mailSection} key={section} aria-label={`${appName} · ${section}`}>
         {sections.size > 1 && <h3>{section}</h3>}
@@ -219,17 +229,19 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
       {application === "website" && !search && <p className={styles.muted}>Contact and callback mails are ready for when those forms start sending.</p>}
       {application === "portal" && !search && <p className={styles.muted}>Offer payment reminders run only for saved agreements with reminder days set; their switch here can turn them off for everyone.</p>}
     </>}
-    {data && activity && <>
-      <section className={styles.section}><h2>Pending email review</h2><p className={styles.muted}>Drafts expire after 23 hours. Delivery failures can be retried without repeating the original action.</p>
+    {showReview && <section className={styles.section}><h2>Pending email review</h2><p className={styles.muted}>Drafts expire after 23 hours. Delivery failures can be retried without repeating the original action.</p>
+      {!data ? !error && <Loader label="Loading mails to review…" /> : <>
         {!drafts.length && <p>No emails awaiting review.</p>}
         {drafts.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{data.events.find(event => event.key === row.event)?.label} · {row.status}</small>{row.failure && <p className={styles.error}>{row.failure}</p>}</div><button className="admin-action" disabled={busy || row.status === "sending"} onClick={() => void review(row._id)}>{row.status === "failed" ? "Review / retry" : row.status === "sending" ? "Sending…" : "Review email"}</button></article>)}
-      </section>
-      <EmailOutbox key={application} application={application} revision={revision} />
-      <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><label>Status <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>{["all", "pending", "sent", "skipped", "failed", "expired"].map(value => <option key={value}>{value}</option>)}</select></label></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
+      </>}
+    </section>}
+    {showOutbox && <EmailOutbox key={application} application={application} revision={revision} />}
+    {showHistory && <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><label>Status <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>{["all", "pending", "sent", "skipped", "failed", "expired"].map(value => <option key={value}>{value}</option>)}</select></label></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
+      {!data ? !error && <Loader label="Loading history…" /> : <>
         {!history.length && <p>No matching email records.</p>}
         {history.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{status(row)} · {row.status === "sent" ? `Sent: ${row.sentAt ? formatIndiaDateTime(row.sentAt) : "Time unavailable"}` : `Updated: ${formatIndiaDateTime(row.updatedAt)}`}</small></div></article>)}
-      </section>
-    </>}
+      </>}
+    </section>}
     <dialog ref={dialog} className={styles.dialog} aria-labelledby="email-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) { if (draft) void decide("skip"); else setEditor(null); } }}>
       {editor && <form onSubmit={saveTemplate}>
         <h2 id="email-dialog-title">{editor._id ? "Edit" : "New"} email template</h2><p>{data?.events.find(event => event.key === editor.event)?.label}{editor.system ? " · built-in template" : ""}</p>

@@ -158,7 +158,7 @@ test('browser: Communication shows each WhatsApp part on its own page, with bold
     await page.getByText('ravi@example.test').waitFor();
     assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0, 'no connection controls on the message list');
     assert.equal(await page.getByRole('heading', { name: 'Sending rules' }).count(), 0);
-    assert.ok(await page.getByText('Resume it from the WhatsApp card on Communication.').isVisible(), 'a paused queue is still explained');
+    assert.ok(await page.getByText('Resume it in WhatsApp Connection.').isVisible(), 'a paused queue is still explained');
     await page.getByText('Your Project Has Started').first().click();
     const body = page.locator('details p');
     assert.equal(await body.locator('strong').textContent(), 'Your Project Has Started');
@@ -173,6 +173,29 @@ test('browser: Communication shows each WhatsApp part on its own page, with bold
     await page.getByRole('heading', { name: 'Sending rules' }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'History' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0);
+  } finally { await browser.close(); }
+});
+
+test('browser: queue, sending rules and connection are drawn before their data arrives', async () => {
+  await State.create({ _id: 'main', connection: 'connected', phone: '919876543210', heartbeatAt: new Date() });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    let release; const held = new Promise(resolve => { release = resolve; });
+    await page.route(/\/api\/whatsapp\//, async route => { await held; await route.continue(); });
+    await page.goto(`${websiteBase}/?view=queue`);
+    await page.getByText('In the queue', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Waiting messages' }).waitFor();
+    await page.getByRole('status', { name: 'Loading the queue…' }).waitFor();
+    await page.goto(`${websiteBase}/?view=rules`);
+    await page.getByText('Gap between messages', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Save rules' }).isDisabled(), true);
+    await page.goto(`${websiteBase}/?view=connection`);
+    await page.getByText('Linked number', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Pause sending' }).isDisabled(), true);
+    release();
+    await page.getByText('+91 98765 43210').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Pause sending' }).isDisabled(), false);
   } finally { await browser.close(); }
 });
 

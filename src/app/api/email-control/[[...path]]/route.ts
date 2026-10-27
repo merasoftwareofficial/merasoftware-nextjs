@@ -8,7 +8,7 @@ import { subscriberRepo } from "@/lib/repo";
 
 type Context = { params: Promise<{ path?: string[] }> };
 const allowed = (method: string, path: string) => (
-  (method === "GET" && (path === "" || path === "outbox" || /^drafts\/[a-f\d]{24}$/i.test(path))) ||
+  (method === "GET" && (path === "" || path === "outbox" || path === "summary" || /^drafts\/[a-f\d]{24}$/i.test(path))) ||
   (method === "POST" && (path === "templates" || path === "templates/preview" || /^templates\/[a-f\d]{24}\/reset$/i.test(path) || /^drafts\/[a-f\d]{24}\/(decision|preview)$/i.test(path))) ||
   (method === "PUT" && (/^policies\/[\w.]+$/.test(path) || /^templates\/[a-f\d]{24}$/i.test(path)))
 );

@@ -65,6 +65,9 @@ before(async () => {
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
     stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true} view={(q.get('view') as any)||undefined} showTabs={q.get('tabs')!=='off'} query={q.get('query')||undefined}/>);`, loader: 'tsx', resolveDir: root } });
+  // Communication's hub, as the page renders it (no WhatsApp backend here: its boxes show Unavailable).
+  await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'hub.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
+    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {CommunicationHub} from './src/app/admin/communication/communication-hub';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<CommunicationHub portalAdmin={true} initial={{panel:q.get('panel'),tab:q.get('tab'),app:q.get('app')}}/>);`, loader: 'tsx', resolveDir: root } });
   database = await MongoMemoryServer.create({ instance: { launchTimeout: Number(process.env.EMAIL_TEST_MONGO_TIMEOUT || 60000) } });
   await mongoose.connect(database.getUri(), { dbName: 'website-email-isolated' });
   [admin, websiteAdmin] = await userModel.create([{ name: 'Portal Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Website Admin', email: 'website-admin@example.test', roles: ['member'] }]);
@@ -81,7 +84,8 @@ before(async () => {
   };
   websiteServer = http.createServer(async (req, res) => {
     try {
-      if (req.url === '/panel.js' || req.url === '/panel.css') { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css'); return res.end(readFileSync(path.join(qaDir, req.url.slice(1)))); }
+      if (['/panel.js', '/panel.css', '/hub.js', '/hub.css'].includes(req.url)) { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css'); return res.end(readFileSync(path.join(qaDir, req.url.slice(1)))); }
+      if (req.url.startsWith('/admin/communication')) { res.setHeader('Content-Type', 'text/html'); return res.end('<!doctype html><html><head><link rel="stylesheet" href="/hub.css"></head><body><div id="root"></div><script src="/hub.js"></script></body></html>'); }
       if (req.url === '/api/time') { res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); return res.end(JSON.stringify({ now: Date.now() })); }
       if (req.url.startsWith('/api/email-control')) {
         const chunks = []; for await (const chunk of req) chunks.push(chunk);
@@ -442,6 +446,71 @@ test('browser: one box per job holds its customer and admin mails; customer mail
     assert.equal((await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean()).mode, 'auto');
     assert.equal(await mail.inputValue(), 'auto');
     assert.match(await summary.innerText(), /2 mails · Mixed rules/); assert.match(await summary.innerText(), /Email \+ WhatsApp/);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('browser: Email Review tabs show review, Outbox and history one at a time, drawn before the data', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    // Hold the panel's data back: the headings are already drawn, with a loader where the data goes.
+    let release; const held = new Promise(resolve => { release = resolve; });
+    await page.route(/\/api\/email-control\?application=/, async route => { await held; await route.continue(); });
+    await page.goto(`${websiteBase}/?view=review&tabs=off`);
+    await page.getByRole('heading', { name: 'Pending email review' }).waitFor();
+    await page.getByRole('status', { name: 'Loading mails to review…' }).waitFor();
+    release();
+    await page.getByText(/No emails awaiting review\.|Review email/).first().waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Outbox', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: 'Email history' }).count(), 0);
+    await page.goto(`${websiteBase}/?view=outbox&tabs=off`); await page.getByRole('region', { name: 'Outbox', exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Pending email review' }).count(), 0);
+    await page.goto(`${websiteBase}/?view=history&tabs=off`); await page.getByRole('heading', { name: 'Email history' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Outbox', exact: true }).count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('browser: Communication boxes open their panel at once, follow the URL, and close with Esc and Back', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`${websiteBase}/admin/communication`);
+    for (const name of ['WhatsApp Connection', 'WhatsApp Queue', 'Email Templates', 'Email Review']) await page.getByRole('button', { name: new RegExp(`^${name}`) }).waitFor();
+    // Email counts come from /summary alone (the full lists are not loaded for the boxes).
+    const listings = []; page.on('request', request => { if (/\/api\/email-control\?application=/.test(request.url())) listings.push(request.url()); });
+    await page.getByRole('button', { name: /^Email Review/ }).getByText(/\d+ waiting/).waitFor();
+    await page.getByRole('button', { name: /^Email Templates/ }).getByText(/\d+ messages/).waitFor();
+    assert.deepEqual(listings, []);
+
+    await page.getByRole('button', { name: /^Email Templates/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Email Templates' });
+    await panel.getByRole('tab', { name: 'Website' }).waitFor();
+    assert.equal(new URL(page.url()).search, '?panel=email-templates');
+    await panel.getByRole('heading', { name: 'Website email rules' }).waitFor();
+    await panel.getByRole('tab', { name: 'Portal' }).click();
+    assert.equal(new URL(page.url()).search, '?panel=email-templates&tab=portal');
+    await panel.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await panel.getByLabel('Find a message').fill('Project created');
+    await panel.getByRole('row').filter({ hasText: 'Project created' }).waitFor();
+
+    await page.keyboard.press('Escape');
+    await panel.waitFor({ state: 'hidden' });
+    assert.equal(new URL(page.url()).search, '');
+    await page.goBack();
+    await panel.waitFor();
+    assert.equal(await panel.getByRole('tab', { name: 'Portal' }).getAttribute('aria-selected'), 'true');
+
+    await page.goto(`${websiteBase}/admin/communication?panel=email-review&tab=outbox`);
+    const review = page.getByRole('dialog', { name: 'Email Review' });
+    await review.getByRole('region', { name: 'Outbox', exact: true }).waitFor();
+    await review.getByRole('tab', { name: 'History' }).click();
+    await review.getByRole('heading', { name: 'Email history' }).waitFor();
+    await review.getByRole('button', { name: 'Close' }).click();
+    await review.waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

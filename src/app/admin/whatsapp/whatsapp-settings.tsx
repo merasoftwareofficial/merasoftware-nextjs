@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { WhatsappNumberSetting, WhatsappSettings, WhatsappSettingsReply } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
 import own from "./whatsapp.module.css";
+import { Loader } from "../email-control/loader";
 import { hourLabel, message, whatsappApi } from "./whatsapp-panel";
 
 // Sending rules (ban safety). Limits and recommended values come from the backend (whatsapp/src/settings.js),
@@ -68,8 +69,18 @@ export function WhatsappSettingsSection({ onSaved }: { onSaved: () => void }) {
   return <section className={styles.section} aria-labelledby="rules-title">
     <h2 id="rules-title">Sending rules</h2>
     <p className={styles.muted}>These rules keep the number looking like a person, not a robot, so WhatsApp is less likely to block it. A change applies from the next message.</p>
-    {!form && !loadError && <p role="status">Loading sending rules…</p>}
     {loadError && <p className={styles.error} role="alert">{loadError}</p>}
+    {/* Until the saved rules arrive, every group, label and hint is drawn with a loader where its value goes. */}
+    {(!form || !reply) && !loadError && <div aria-busy="true">
+      {GROUPS.map(group => <fieldset key={group.title} className={own.group} disabled>
+        <legend>{group.title}</legend>
+        {group.toggle && <span className={own.toggle}>{group.toggle.label} <Loader inline /></span>}
+        <div className={own.fields}>
+          {group.fields.map(field => <div key={field.key} className={own.field}><span>{field.label}</span><Loader inline /><small>{field.hint}</small></div>)}
+        </div>
+      </fieldset>)}
+      <div className={styles.actions}><button type="button" className="admin-action" disabled>Save rules</button><button type="button" className="admin-action" disabled>Reset to recommended</button></div>
+    </div>}
     {form && reply && <form onSubmit={event => { event.preventDefault(); void send("settings", fromForm(form), "Sending rules saved. They apply from the next message."); }}>
       {GROUPS.map(group => {
         const off = group.toggle ? !form[group.toggle.key] : false;

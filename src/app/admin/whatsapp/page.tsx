@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// WhatsApp now lives in Communication: the number and sending rules open in its side panel.
+// WhatsApp now lives in Communication → WhatsApp Connection.
 export default function WhatsappPage() {
-  redirect("/admin/communication?panel=whatsapp");
+  redirect("/admin/communication?panel=whatsapp-connection");
 }

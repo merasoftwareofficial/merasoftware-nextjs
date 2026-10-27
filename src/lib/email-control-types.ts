@@ -33,6 +33,8 @@ export type EmailOutboxData = {
   summary: { sent: number; todaySent: number; sentRecipients: number; failed: number; sending: number };
   serverNow: number;
 };
+/** GET summary: counts only (Communication's boxes); absent from an older backend. */
+export type EmailSummary = { application: Application; review: number; actions: number };
 export type EmailControlData = {
   application: Application;
   // `trigger` is absent from a backend older than customer-action control; treat it as "admin".
