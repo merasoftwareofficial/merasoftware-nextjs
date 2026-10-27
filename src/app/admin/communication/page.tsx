@@ -7,6 +7,7 @@ import s from "@/app/admin/content/content.module.css";
 
 // One place for every message the site sends. Email and WhatsApp share one template per action:
 // WhatsApp sends the email's own text once the email is sent (backend helpers/whatsappQueue.js).
+// No WhatsApp is sent directly: every one waits in the queue and leaves one at a time.
 // Old links (/admin/email-control, /admin/whatsapp) redirect here.
 type View = { id: string; label: string; description: string; portalAdmin?: boolean };
 const GROUPS: { label: string; views: View[] }[] = [
@@ -15,12 +16,15 @@ const GROUPS: { label: string; views: View[] }[] = [
     { id: "portal-actions", label: "Portal actions", portalAdmin: true, description: "Each portal action: whether its mail is sent, its default template and the template editor. The same text goes out on WhatsApp." },
   ] },
   { label: "Sending rules", views: [
-    { id: "whatsapp-rules", label: "WhatsApp sending rules", portalAdmin: true, description: "Speed, daily limit, typing and quiet hours for WhatsApp. Email rules are set per action under Messages." },
+    { id: "whatsapp-rules", label: "WhatsApp sending rules", portalAdmin: true, description: "Speed, typing and quiet hours for WhatsApp. There is no daily limit: every message waits its turn. Email rules are set per action under Messages." },
+  ] },
+  { label: "Queue", views: [
+    { id: "whatsapp-queue", label: "WhatsApp queue", portalAdmin: true, description: "Messages waiting to go, in the order they will leave, with the time left for each. One message at a time; a sent one moves to History." },
   ] },
   { label: "History", views: [
     { id: "website-history", label: "Website emails", description: "Emails waiting for review, the Outbox and the decision history." },
     { id: "portal-history", label: "Portal emails", portalAdmin: true, description: "Emails waiting for review, the Outbox and the decision history." },
-    { id: "whatsapp-history", label: "WhatsApp messages", portalAdmin: true, description: "Every WhatsApp message, newest first. A message that was not sent can be sent again within 24 hours." },
+    { id: "whatsapp-history", label: "WhatsApp messages", portalAdmin: true, description: "Finished WhatsApp messages, newest first: Sent, and Not sent (failed, skipped or expired). A failed one can be sent again within 24 hours." },
   ] },
   { label: "Connections", views: [
     { id: "whatsapp-number", label: "WhatsApp number", portalAdmin: true, description: "The linked WhatsApp number: connection, QR code, pause and unlink." },
@@ -50,7 +54,7 @@ export default async function CommunicationPage({ searchParams }: { searchParams
         {view.portalAdmin && !portalAdmin ? <div className={s.status}><span className={s.badge}>Portal admin only</span><p>This part can be managed only by an admin who is also a portal admin.</p></div>
           : view.id.endsWith("-actions") ? <EmailControlPanel key={view.id} initialApplication={application} canManagePortal={portalAdmin} view="actions" showTabs={false} />
           : view.id.endsWith("-history") && view.id !== "whatsapp-history" ? <EmailControlPanel key={view.id} initialApplication={application} canManagePortal={portalAdmin} view="activity" showTabs={false} />
-          : <WhatsappPanel key={view.id} view={view.id === "whatsapp-rules" ? "rules" : view.id === "whatsapp-history" ? "messages" : "connection"} />}
+          : <WhatsappPanel key={view.id} view={view.id === "whatsapp-rules" ? "rules" : view.id === "whatsapp-history" ? "messages" : view.id === "whatsapp-queue" ? "queue" : "connection"} />}
       </section>
     </div>
   </main>;

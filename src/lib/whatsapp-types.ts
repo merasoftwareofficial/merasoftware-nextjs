@@ -10,8 +10,7 @@ export type WhatsappStatus = {
   phone: string | null;
   paused: boolean;
   unlinkRequested: boolean;
-  sentToday: number;
-  dailyLimit: number;
+  sentToday: number; // shown only; there is no daily limit
   minGapSec: number;
   maxAgeHours: number;
   quietNow: boolean;
@@ -40,9 +39,26 @@ export type WhatsappMessage = {
 
 export type WhatsappQueuePage = { rows: WhatsappMessage[]; total: number; page: number; pages: number };
 
+// GET queue/upcoming (backend whatsapp/src/schedule.js): the waiting messages in the order they will go.
+export type WhatsappStopped = "off" | "not-running" | "paused" | "offline";
+export type WhatsappUpcomingRow = Omit<WhatsappMessage, "canRetry" | "sentAt"> & {
+  position: number;
+  nextAttemptAt: string;
+  eta: string | null; // when it should leave; null while sending is stopped or when it will expire
+  willExpire: boolean;
+};
+export type WhatsappUpcoming = {
+  rows: WhatsappUpcomingRow[];
+  total: number;
+  stopped: WhatsappStopped | null;
+  now: string; // the backend's clock, so the countdown does not depend on this computer's clock
+  quietUntil: string | null;
+  sentToday: number;
+};
+
 // Sending rules (ban safety), backend whatsapp/src/settings.js.
 export type WhatsappSettings = {
-  minGapSec: number; jitterSec: number; dailyLimit: number;
+  minGapSec: number; jitterSec: number;
   typing: boolean; typingMinSec: number; typingMaxSec: number;
   quietHours: boolean; quietFrom: number; quietTo: number;
   retryDelayMin: number; maxAttempts: number; maxAgeHours: number;

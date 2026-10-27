@@ -13,7 +13,6 @@ const GROUPS: Group[] = [
   { title: "Speed", fields: [
     { key: "minGapSec", label: "Gap between messages", unit: "seconds", hint: "The least time between two messages. Longer is safer." },
     { key: "jitterSec", label: "Random extra gap", unit: "seconds", hint: "Up to this much more, chosen at random each time, so the gap is never the same." },
-    { key: "dailyLimit", label: "Messages per day", unit: "messages", hint: "Counted in India time. Raise it slowly, only after a few weeks without trouble." },
   ] },
   { title: "Typing", toggle: { key: "typing", label: "Show “typing…” before each message" }, fields: [
     { key: "typingMinSec", label: "Shortest typing time", unit: "seconds", hint: "Longer messages type for longer: 1 second more per 100 letters." },

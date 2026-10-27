@@ -17,3 +17,7 @@
 .field select { width:130px; }
 .field input:disabled,.field select:disabled { opacity:.5; }
 .field input:focus-visible,.field select:focus-visible,.toggle input:focus-visible { outline:2px solid #377c63; outline-offset:3px; }
+
+/* History groups (Sent / Not sent) and the queue countdown */
+.tabs button[aria-pressed="true"] { background:var(--ink, #204638); color:var(--surface, #fff); }
+.left { white-space:nowrap; font-variant-numeric:tabular-nums; }

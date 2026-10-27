@@ -4,6 +4,7 @@ import { formatIndiaDateTime } from "@/lib/date-time";
 import type { WhatsappMessage, WhatsappQueuePage, WhatsappQueueStatus, WhatsappStatus } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
 import own from "./whatsapp.module.css";
+import { WhatsappQueueView } from "./whatsapp-queue";
 import { WhatsappSettingsSection } from "./whatsapp-settings";
 import { WhatsappText } from "./whatsapp-text";
 
@@ -21,7 +22,11 @@ export const message = (error: unknown, fallback: string) => error instanceof Er
 const STATUS_LABEL: Record<WhatsappQueueStatus, string> = {
   pending: "Waiting", sending: "Sending now", sent: "Sent", failed: "Not sent", skipped: "Skipped", expired: "Expired", cancelled: "Cancelled",
 };
-const FILTERS = ["all", "pending", "sent", "failed", "skipped", "expired"] as const;
+// History holds finished messages only (waiting ones are on the Queue page), in two groups.
+// "not-sent" asks the backend for failed, skipped and expired together.
+type HistoryGroup = "sent" | "not-sent";
+const NOT_SENT_FILTERS = [["not-sent", "All not sent"], ["failed", "Not sent (failed)"], ["skipped", "Skipped"], ["expired", "Expired"]] as const;
+type NotSentFilter = (typeof NOT_SENT_FILTERS)[number][0];
 const MAYBE_ARRIVED = /may or may not have arrived/i;
 
 function connectionLabel(status: WhatsappStatus) {
@@ -34,18 +39,20 @@ export function hourLabel(hour: number) {
   return `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
 }
 /** 919876543210 → +91 98765 43210 */
-function phoneLabel(phone?: string | null) {
+export function phoneLabel(phone?: string | null) {
   if (!phone) return "—";
   const local = phone.slice(-10);
   return `+${phone.slice(0, -10)} ${local.slice(0, 5)} ${local.slice(5)}`;
 }
 
 /** Communication shows each part on its own page: the linked number, the message list, or the sending rules. */
-export type WhatsappView = "all" | "connection" | "messages" | "rules";
+/** "messages" = the History page; "queue" = the waiting messages with their time left. */
+export type WhatsappView = "all" | "connection" | "messages" | "queue" | "rules";
 export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
+  const [group, setGroup] = useState<HistoryGroup>("sent");
+  const [notSent, setNotSent] = useState<NotSentFilter>("not-sent");
   const [page, setPage] = useState(1);
   const [queue, setQueue] = useState<WhatsappQueuePage | null>(null);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -59,7 +66,7 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
     .catch(error => { if (!signal?.aborted) setStatusError(message(error, "Could not load WhatsApp status.")); }), []);
   // The QR changes about every 20 seconds, so the status refreshes every 5 while this tab is visible.
   useEffect(() => {
-    if (view === "rules") return; // the rules form loads and saves on its own
+    if (view === "rules" || view === "queue") return; // these pages load on their own
     const controller = new AbortController();
     const refresh = () => { if (document.visibilityState === "visible") void loadStatus(controller.signal); };
     const first = setTimeout(refresh, 0);
@@ -72,12 +79,12 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
   useEffect(() => {
     if (view !== "all" && view !== "messages") return;
     const controller = new AbortController();
-    const query = new URLSearchParams({ status: filter, page: String(page) });
+    const query = new URLSearchParams({ status: group === "sent" ? "sent" : notSent, page: String(page) });
     whatsappApi<WhatsappQueuePage>(`queue?${query}`, "GET", controller.signal)
       .then(data => { if (!controller.signal.aborted) { setQueue(data); setQueueError(null); } })
       .catch(error => { if (!controller.signal.aborted) setQueueError(message(error, "Could not load messages.")); });
     return () => controller.abort();
-  }, [filter, page, countsKey, revision, view]);
+  }, [group, notSent, page, countsKey, revision, view]);
 
   async function act(path: string, done: string) {
     setBusy(true); setNotice(null); setActionError(null);
@@ -100,6 +107,8 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
   }
 
   if (view === "rules") return <div className={styles.panel}><WhatsappSettingsSection onSaved={() => undefined} /></div>;
+  if (view === "queue") return <div className={styles.panel}><WhatsappQueueView /></div>;
+  const notSentCount = status ? status.counts.failed + status.counts.skipped + status.counts.expired + status.counts.cancelled : null;
   const connection = view !== "messages";
   return <div className={styles.panel}>
     {!status && !statusError && <p role="status">Loading WhatsApp…</p>}
@@ -109,10 +118,10 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
       {status.enabled && !status.workerRunning && <div className={styles.banner}><strong>The WhatsApp service is not running right now.</strong> It restarts on its own within a minute. If this message stays, check the server logs.</div>}
       {status.paused && <div className={styles.banner}><strong>Sending is paused.</strong> New messages wait in the queue; a message waiting more than {status.maxAgeHours} hours expires and is not sent.</div>}
       {status.quietNow && <div className={styles.banner}><strong>Quiet hours now.</strong> Messages wait and go out from {hourLabel(status.quietTo)} (IST).</div>}
-      <div className={styles.banner}>Every email that is really sent also goes out on WhatsApp with the same text. Messages leave one at a time, at least {status.minGapSec} seconds apart, up to {status.dailyLimit} a day.</div>
+      <div className={styles.banner}>Every email that is really sent also goes out on WhatsApp with the same text. Every WhatsApp waits in the queue and leaves one at a time, at least {status.minGapSec} seconds after the previous one. There is no daily limit.</div>
 
       <dl className={styles.summary}>
-        {([["Connection", connectionLabel(status)], ["Linked number", phoneLabel(status.phone)], ["Sent today", `${status.sentToday} / ${status.dailyLimit}`],
+        {([["Connection", connectionLabel(status)], ["Linked number", phoneLabel(status.phone)], ["Sent today", status.sentToday],
           ["Waiting", status.counts.pending], ["Not sent", status.counts.failed], ["Skipped", status.counts.skipped], ["Expired", status.counts.expired]] as const)
           .map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === "number" ? value.toLocaleString("en-IN") : value}</dd></div>)}
       </dl>
@@ -147,12 +156,18 @@ export function WhatsappPanel({ view = "all" }: { view?: WhatsappView }) {
     {!connection && status?.paused && <div className={styles.banner}><strong>Sending is paused.</strong> Resume it under WhatsApp number.</div>}
     {view !== "connection" && <section className={styles.section} aria-labelledby="messages-title">
       <div className={styles.toolbar}>
-        <h2 id="messages-title">Messages</h2>
-        <label className={styles.muted}>Show <select value={filter} onChange={event => { setFilter(event.target.value as (typeof FILTERS)[number]); setPage(1); }}>
-          {FILTERS.map(value => <option key={value} value={value}>{value === "all" ? "All messages" : STATUS_LABEL[value]}</option>)}
-        </select></label>
+        <h2 id="messages-title">History</h2>
+        <div role="group" aria-label="History group" className={`${styles.actions} ${own.tabs}`}>
+          {([["sent", "Sent", status?.counts.sent], ["not-sent", "Not sent", notSentCount]] as const).map(([value, label, count]) =>
+            <button key={value} type="button" className="admin-action" aria-pressed={group === value} onClick={() => { setGroup(value); setPage(1); }}>
+              {label}{count === null || count === undefined ? "" : ` (${count.toLocaleString("en-IN")})`}
+            </button>)}
+        </div>
+        {group === "not-sent" && <label className={styles.muted}>Show <select value={notSent} onChange={event => { setNotSent(event.target.value as NotSentFilter); setPage(1); }}>
+          {NOT_SENT_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>}
       </div>
-      <p className={styles.muted}>Newest first. All times are IST. Finished messages are kept for 30 days.</p>
+      <p className={styles.muted}>Newest first. All times are IST. Finished messages are kept for 30 days. Messages still waiting are on the Queue page.</p>
       {!queue && !queueError && <p role="status">Loading messages…</p>}
       {queueError && <p className={styles.error} role="alert">{queueError} <button onClick={() => setRevision(value => value + 1)}>Retry</button></p>}
       {queue && (!queue.rows.length ? <p>No messages here yet.</p> : <div className={styles.tableWrap}><table className={styles.table}>

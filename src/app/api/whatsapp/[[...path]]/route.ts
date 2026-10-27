@@ -7,7 +7,7 @@ import { PortalApiError, portalApiRequest } from "@/lib/portal-api";
 // Admins only, on both sides: the website admin role here, the portal admin role in the backend.
 type Context = { params: Promise<{ path?: string[] }> };
 const allowed = (method: string, path: string) => (
-  (method === "GET" && (path === "status" || path === "queue" || path === "settings")) ||
+  (method === "GET" && (path === "status" || path === "queue" || path === "queue/upcoming" || path === "settings")) ||
   (method === "POST" && (path === "pause" || path === "resume" || path === "unlink" || path === "settings" || path === "settings/reset" || /^queue\/[a-f\d]{24}\/retry$/i.test(path)))
 );
 async function handle(request: Request, context: Context) {

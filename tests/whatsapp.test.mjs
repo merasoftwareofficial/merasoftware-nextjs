@@ -92,15 +92,17 @@ test('only an admin of both the website and the portal gets in', async () => {
 });
 
 test('only the listed actions pass the proxy', async () => {
-  for (const [pathname, method] of [['/api/whatsapp', 'GET'], ['/api/whatsapp/queue/abc/retry', 'POST'], ['/api/whatsapp/status', 'POST'], ['/api/whatsapp/../email-control', 'GET'], ['/api/whatsapp/unlink', 'GET'], ['/api/whatsapp/settings/reset', 'GET'], ['/api/whatsapp/settings/other', 'POST']]) {
+  for (const [pathname, method] of [['/api/whatsapp', 'GET'], ['/api/whatsapp/queue/abc/retry', 'POST'], ['/api/whatsapp/status', 'POST'], ['/api/whatsapp/../email-control', 'GET'], ['/api/whatsapp/unlink', 'GET'], ['/api/whatsapp/settings/reset', 'GET'], ['/api/whatsapp/settings/other', 'POST'], ['/api/whatsapp/queue/upcoming', 'POST']]) {
     assert.equal((await request(pathname, method)).status, 404, `${method} ${pathname}`);
   }
   await request('/api/whatsapp/pause', 'POST');
   assert.equal((await State.findById('main').lean()).paused, true);
   assert.equal((await request('/api/whatsapp/queue?status=failed&page=1&evil=1')).status, 200);
+  assert.equal((await request('/api/whatsapp/queue?status=not-sent')).status, 200);
+  assert.equal((await request('/api/whatsapp/queue/upcoming')).status, 200);
 });
 
-test('browser: QR to scan, totals, pause and resume, filters, and Send again for a failed message', async () => {
+test('browser: QR to scan, totals, pause and resume, Sent / Not sent history, and Send again for a failed message', async () => {
   await State.create({ _id: 'main', connection: 'qr', qr: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', heartbeatAt: new Date() });
   await Queue.create([
     { to: '919876543210', email: 'ravi@example.test', text: '*Your Project Has Started*\n\nHello Ravi', status: 'sent', sentAt: minutesAgo(5), createdAt: minutesAgo(6) },
@@ -122,11 +124,15 @@ test('browser: QR to scan, totals, pause and resume, filters, and Send again for
     await page.getByRole('button', { name: 'Resume sending' }).click();
     await page.getByText('Sending resumed.').waitFor();
 
-    assert.ok(await page.getByText('No phone number is saved for this email address.').isVisible());
-    assert.ok(await page.getByText('+91 98765 43210').isVisible());
-    await page.getByRole('combobox', { name: /^Show/ }).selectOption('failed');
-    await page.getByText('neha@example.test').waitFor();
+    assert.ok(await page.getByText('+91 98765 43210').isVisible(), 'History opens on Sent');
+    assert.equal(await page.getByText('neha@example.test').count(), 0);
+    await page.getByRole('button', { name: 'Not sent (2)' }).click();
+    await page.getByText('No phone number is saved for this email address.').waitFor();
+    assert.ok(await page.getByText('neha@example.test').isVisible(), 'failed and skipped together');
     assert.equal(await page.getByText('ravi@example.test').count(), 0);
+    await page.getByRole('combobox', { name: /^Show/ }).selectOption('failed');
+    await page.getByText('subscriber@example.test').waitFor({ state: 'detached' });
+    assert.ok(await page.getByText('neha@example.test').isVisible());
 
     await page.getByRole('button', { name: 'Send again' }).click();
     await page.getByText('Back in the queue.').waitFor();
@@ -160,13 +166,44 @@ test('browser: Communication shows each WhatsApp part on its own page, with bold
 
     await page.goto(`${websiteBase}/?view=connection`);
     await page.getByRole('button', { name: 'Resume sending' }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Messages' }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: 'History' }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Sending rules' }).count(), 0);
 
     await page.goto(`${websiteBase}/?view=rules`);
     await page.getByRole('heading', { name: 'Sending rules' }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Messages' }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: 'History' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /Pause sending|Resume sending/ }).count(), 0);
+  } finally { await browser.close(); }
+});
+
+test('browser: the queue page lists waiting messages in sending order with a live countdown; a sent one is not there', async () => {
+  await State.create({ _id: 'main', connection: 'connected', phone: '919876543210', heartbeatAt: new Date(), settings: { ...RECOMMENDED, quietHours: false } });
+  await Queue.create([
+    { to: '919876543211', email: 'second@example.test', text: '*Second*\n\nHi', createdAt: minutesAgo(1) },
+    { to: '919876543210', email: 'first@example.test', text: '*First*\n\nHi', createdAt: minutesAgo(2) },
+    { to: '919876543212', email: 'done@example.test', text: '*Done*\n\nHi', status: 'sent', sentAt: minutesAgo(3), createdAt: minutesAgo(4) },
+  ]);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(`${websiteBase}/?view=queue`);
+    await page.getByRole('heading', { name: 'Waiting messages' }).waitFor();
+    assert.equal(await page.locator('dt:has-text("In the queue") + dd').textContent(), '2');
+    const rows = page.locator('tbody tr');
+    assert.deepEqual(await rows.locator('td:nth-child(3) summary').allTextContents(), ['First', 'Second'], 'oldest leaves first');
+    assert.equal(await page.getByText('done@example.test').count(), 0, 'a sent message is in History, not here');
+    assert.equal(await page.getByRole('heading', { name: 'History' }).count(), 0);
+    const second = rows.nth(1).locator('td:last-child');
+    const before = await second.textContent();
+    assert.match(before, /^~\d+ (min|s)/);
+    await page.waitForTimeout(2200);
+    assert.notEqual(await second.textContent(), before, 'the countdown moves');
+
+    await State.updateOne({ _id: 'main' }, { paused: true });
+    await page.getByText('Queue stopped.').waitFor({ timeout: 8000 });
+    assert.deepEqual(await rows.locator('td:last-child').allTextContents(), ['Waiting', 'Waiting'], 'no times while stopped');
+    await Queue.deleteMany({ status: 'pending' });
+    await page.getByText('The queue is empty.').waitFor({ timeout: 8000 });
   } finally { await browser.close(); }
 });
 
@@ -184,12 +221,12 @@ test('browser: says plainly when WhatsApp is off on the server or the service is
 });
 
 test('sending rules pass the proxy with their values; a bad value comes back as the backend\'s plain message', async () => {
-  const saved = await request('/api/whatsapp/settings', 'POST', admin, 'admin', JSON.stringify({ ...RECOMMENDED, dailyLimit: 70 }));
+  const saved = await request('/api/whatsapp/settings', 'POST', admin, 'admin', JSON.stringify({ ...RECOMMENDED, jitterSec: 20 }));
   assert.equal(saved.status, 200);
-  assert.equal((await State.findById('main').lean()).settings.dailyLimit, 70);
-  const refused = await request('/api/whatsapp/settings', 'POST', admin, 'admin', JSON.stringify({ ...RECOMMENDED, dailyLimit: 999 }));
+  assert.equal((await State.findById('main').lean()).settings.jitterSec, 20);
+  const refused = await request('/api/whatsapp/settings', 'POST', admin, 'admin', JSON.stringify({ ...RECOMMENDED, jitterSec: 999 }));
   assert.equal(refused.status, 400);
-  assert.match(refused.error, /Messages per day must be a whole number from 1 to 300/);
+  assert.match(refused.error, /Random extra gap must be a whole number from 0 to 120/);
   assert.equal((await request('/api/whatsapp/settings', 'POST', admin, 'admin', 'not json')).status, 400);
   assert.equal((await request('/api/whatsapp/settings', 'POST', websiteOnlyAdmin, 'admin', JSON.stringify(RECOMMENDED))).status, 403);
 });
@@ -201,11 +238,12 @@ test('browser: change the sending rules, see a warning, refuse a bad value, rese
     const page = await browser.newPage();
     await page.goto(websiteBase);
     await page.getByRole('heading', { name: 'Sending rules' }).waitFor();
-    const daily = page.getByLabel('Messages per day');
-    assert.equal(await daily.inputValue(), String(RECOMMENDED.dailyLimit));
-    assert.ok(await page.getByText(`Recommended: ${RECOMMENDED.dailyLimit} messages (allowed 1–300)`).isVisible());
+    assert.equal(await page.getByLabel('Messages per day').count(), 0, 'there is no daily limit');
+    const jitter = page.getByLabel('Random extra gap');
+    assert.equal(await jitter.inputValue(), String(RECOMMENDED.jitterSec));
+    assert.ok(await page.getByText(`Recommended: ${RECOMMENDED.jitterSec} seconds (allowed 0–120)`).isVisible());
 
-    await daily.fill('90');
+    await jitter.fill('20');
     await page.getByLabel('Gap between messages').fill('60');
     await page.getByLabel('Stop at').selectOption('20');
     await page.getByLabel('Start again at').selectOption('12');
@@ -214,8 +252,9 @@ test('browser: change the sending rules, see a warning, refuse a bad value, rese
     await page.getByText('Sending rules saved.').waitFor();
     assert.ok(await page.getByText(/messages made at night will expire/).isVisible());
     const stored = (await State.findById('main').lean()).settings;
-    assert.deepEqual([stored.dailyLimit, stored.minGapSec, stored.quietFrom, stored.quietTo, stored.maxAgeHours], [90, 60, 20, 12, 12]);
-    await page.getByText('at least 60 seconds apart, up to 90 a day').waitFor({ timeout: 8000 });
+    assert.deepEqual([stored.jitterSec, stored.minGapSec, stored.quietFrom, stored.quietTo, stored.maxAgeHours], [20, 60, 20, 12, 12]);
+    assert.equal('dailyLimit' in stored, false);
+    await page.getByText('at least 60 seconds after the previous one. There is no daily limit.').waitFor({ timeout: 8000 });
 
     await page.getByLabel('Show \u201ctyping\u2026\u201d before each message').uncheck();
     assert.equal(await page.getByLabel('Longest typing time').isDisabled(), true);
@@ -232,7 +271,7 @@ test('browser: change the sending rules, see a warning, refuse a bad value, rese
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Reset to recommended' }).click();
     await page.getByText('Recommended rules restored.').waitFor();
-    assert.equal(await daily.inputValue(), String(RECOMMENDED.dailyLimit));
+    assert.equal(await jitter.inputValue(), String(RECOMMENDED.jitterSec));
     assert.deepEqual((await State.findById('main').lean()).settings, RECOMMENDED);
     assert.equal(await page.getByText(/will expire/).count(), 0);
   } finally { await browser.close(); }
