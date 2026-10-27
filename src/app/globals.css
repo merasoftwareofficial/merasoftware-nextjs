@@ -82,6 +82,9 @@ body:has(.admin-shell[data-theme="dark"]){--pn-bg:var(--brand-dark-bg);--pn-card
 .admin-shell{--pn-bg:var(--brand-paper);--pn-card:var(--brand-white);--pn-field:#fff;--pn-line:var(--brand-line);--pn-text:var(--brand-navy);--pn-soft:var(--brand-navy);--pn-muted:var(--brand-muted);--pn-raised:var(--brand-surface);--pn-accent:var(--brand-link);--pn-ok-bg:#e3efc6;--pn-ok:#2f4a09;--pn-warn-bg:#f0e9cf;--pn-warn:#5f4f0e;--pn-err-bg:#f8dfdb;--pn-err:#8b2a21;--pn-bad:#b4453a;--pn-good:#2f6b3f;--pn-danger:#b4453a}
 .admin-nav .theme-toggle{margin-top:8px;padding:12px 10px;color:var(--pn-muted);font-size:var(--fs-ui)}
 .admin-nav .theme-toggle b{font-size:var(--fs-ui);font-weight:400}
+/* Sidebar groups (admin-nav-links.tsx). Phones keep the one scrolling row of links, so headings hide and groups add no box. */
+.admin-nav-heading{margin:22px 0 6px;padding:0 10px;color:var(--pn-muted);font-size:var(--fs-tag);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+@media(max-width:700px){.admin-nav-group{display:contents}.admin-nav-heading{display:none}}
 
 /* Tiptap editor. */
 .tiptap-wrap{background:var(--paper);border:1px solid var(--line);border-radius:4px;margin-top:8px}
