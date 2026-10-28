@@ -54,7 +54,8 @@ export const formatMoney = money;
 
 export function rangeLabel(range: PriceRange | null): string {
   if (!range || !(range.from > 0)) return "";
-  const amount = range.to > range.from ? `${money(range.from)} – ${money(range.to)}` : money(range.from);
+  // A range shows only its lowest price, never the top of the range.
+  const amount = range.to > range.from ? `From ${money(range.from)}` : money(range.from);
   return `${amount} ${range.unit === "update" ? "/ update" : range.unit === "month" ? "/ month" : "one-time"}`;
 }
 

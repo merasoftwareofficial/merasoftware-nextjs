@@ -34,7 +34,7 @@ test("a fixed one-time plan offers only one-time", () => {
 });
 
 test("card range text comes from the backend range only", () => {
-  assert.equal(rangeLabel({ unit: "update", from: 500, to: 4300 }), "₹500 – ₹4,300 / update");
+  assert.equal(rangeLabel({ unit: "update", from: 500, to: 4300 }), "From ₹500 / update");
   assert.equal(rangeLabel({ unit: "month", from: 1490, to: 1490 }), "₹1,490 / month");
   assert.equal(rangeLabel(null), "");
 });

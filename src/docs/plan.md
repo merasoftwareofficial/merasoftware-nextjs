@@ -6,7 +6,7 @@ Updated: 28 Oct 2026. Current SSOT; completed execution steps are replaced by ou
 
 **State:** admin management, customer discovery and project-category selection are implemented and locally verified. Approved legacy cleanup is applied. Latest category/cleanup changes are uncommitted; deployment and owner acceptance are unverified. The initiative is not fully closed.
 
-**Next action:** fix the reproduced inline category-draft warning gap (section 4.1), then owner review/deployment and UI acceptance before duplicate-editor removal. This closure updates documentation only.
+**Next action:** implement the owner-requested customer plan draft/checkpoint communication initiative in section 8. This update creates its working plan and proposed English templates only; no application behavior or sending is enabled. The inline category-draft warning, deployment/acceptance and duplicate-editor cutover remain open in section 4.
 
 | Repository | Root | Last completed stage commit |
 |---|---|---|
@@ -100,3 +100,87 @@ Absolute base: `E:\Allprojects\backup`; paths below are relative. Rollback copie
 Next numbered backup candidates: backend work30, frontend work19, merasoftware work44; verify availability. Back up affected files before first change. Completed deletion approvals do not authorize other candidates. Preserve customer history and unrelated changes.
 
 After meaningful work, replace affected status, next action, owners, checks/evidence and gates here; update code maps when facts change. Distinguish implemented, locally verified, committed, deployed and owner accepted. Keep one current explanation; do not append completed checklists, chat history or a parallel plan. Next agent resumes at section 4, item 1.
+
+## 8. Working plan: saved customer plans and checkpoint communication
+
+Status: requested by owner on 28 Oct 2026; planned, not implemented or deployed. This section is the current entry point for this initiative; section 4 remains the backlog for the earlier catalogue initiative. Scope is documentation now; implementation follows this plan. Backup before this update: `E:\Allprojects\backup\merasoftware\work44-plan-communication\plan.md`.
+
+### 8.1 Required customer behavior
+
+- Browsing a card or merely opening a builder creates no unfinished job and sends no reminder. An explicit Continue/Choose action after a valid customization saves an authenticated customer's draft on the backend, including plan ID, purchase type, tenure, files, updates, release mode and linked project/offer context where relevant.
+- Save before opening payment. Subsequent meaningful edits update that draft. An authenticated customer has one open customer-plan draft across standalone and project Add-a-Service surfaces; unrelated project/service orders are not blocked. Enforce this server-side, including concurrent tabs, and allow idempotent retries.
+- On return, show the saved pending plan with its configuration and current checkpoint. On attempting a new customization, require Resume, Close or Delete for the old draft. Resume restores inputs; Close archives the draft and stops reminders; Delete removes the resumable draft and stops reminders without deleting any order, invoice or payment history. Deletion after financial submission is not a draft action.
+- Guests may retain local choices through login; create the account-owned server draft only after authentication. No anonymous WhatsApp reminder or identity inferred from browsing. Never trust a URL or browser storage to identify another customer's draft.
+- Requote on resume and before purchase through existing backend pricing. A saved estimate is not a frozen purchase price. If the catalogue, offer, eligibility or price changed, show the difference and require acceptance before payment. Unavailable plans remain understandable and closable, with no payment CTA.
+- Once an order/payment submission exists, return the customer to that record rather than creating another purchase. Draft resolution must not force deletion of an order or conceal a pending verification.
+
+### 8.2 State and checkpoint ownership
+
+Backend owns durable draft/checkpoint state; React owns presentation. Proposed draft lifecycle: `configured -> payment_pending -> converted`; `closed` and `deleted` are terminal alternatives before conversion. Payment-submitted/approved/rejected and plan activation/use come from existing transactions, invoices, orders and upload history, not duplicate payment fields in a draft.
+
+| Checkpoint | Durable trigger | Message/action |
+|---|---|---|
+| Configured, not continued | Explicit choice saved; inactivity threshold elapsed | Unfinished-plan reminder; resume draft |
+| Payment opened, not submitted | Checkout successfully opened; no submitted/paid payment; inactivity threshold elapsed | Payment-pending reminder; return to checkout |
+| UPI reference submitted | Payment verification request persisted successfully | Details received, verification pending; stop checkout reminders |
+| Payment rejected | Existing admin rejection committed | Reason and correction/retry action; no false activation |
+| Payment approved / wallet paid | Financial settlement committed | Activation only if plan is actually active; otherwise accurate waiting status |
+| Plan active | Existing activation transition | Plan-started confirmation once; do not duplicate approval confirmation |
+| Upload submitted / in progress / done / rejected | Existing upload and status-history transitions | Reuse current event path; shorten templates and expose actual work status |
+| No-upload work update | Existing work-update record | Short client-facing note and plan link |
+| Next cycle due / paused | Renewal invoice and lifecycle transition | Amount, due date and payment link; no automatic-debit claim |
+| Renewal paid and settled | Invoice paid plus service cycle settlement | Payment received, actual cycle dates and plan link |
+
+Payment submission is not proof of received money. Never send an active-plan message while verification, project completion or cycle settlement is pending. Wallet purchase should skip verification-pending messaging. For project-dependent plans, say payment approved and activation awaits project completion. Preserve existing offer payment/access policies.
+
+### 8.3 Communication tab and delivery
+
+Reuse backend `helpers/emailCatalog.js`, `emailDefinitions.js`, `emailTemplates.js`, `emailController.js`, `servicePlanNotifications.js` and `models/emailControlModel.js`; reuse portal Communication UI after tracing its actual route/components. Existing system events use `sendSystemMail()` and WhatsApp mirroring. Inspect channel behavior before implementation: a WhatsApp send must have observable delivery/failure, not be assumed successful because email succeeded. Do not introduce a second template/policy/history system.
+
+Each event must appear in Communication with its checkpoint/trigger notes, editable short English template, variable descriptions, realistic dynamic preview, On/Off setting and delivery history. New event policies start Off; admin reviews and enables them. Existing policies remain unchanged. Off must be checked at dispatch, including queued retries. The owner requested per-event template verification and On/Off, not manual approval of every automatic message. Record verified template revision; editing an enabled template requires a new review before its changed copy sends.
+
+Use customer-specific authenticated portal links from configured portal origin; links never grant access by themselves. WhatsApp is required for these checkpoints through the existing channel integration. Surface missing recipient/channel setup and delivery failure in admin history. Do not change provider settings or send real messages during implementation checks.
+
+### 8.4 Proposed concise English template copy
+
+These are reviewable starting templates, not installed templates. Subject/label is the event label below. Omit inapplicable lines and unresolved variables; do not show blank labels or invented data.
+
+| Event / proposed key | Proposed message body |
+|---|---|
+| Saved plan reminder / `plan.draft.reminder` | Hi {{name}}, your {{plan}} setup is saved. {{selectionSummary}}. {{remainingSteps}} to finish. Continue: {{resumeLink}} |
+| Payment pending / `plan.checkout.reminder` | Hi {{name}}, complete your {{plan}} purchase. {{selectionSummary}}. Due now: {{amount}}. Pay: {{paymentLink}} |
+| Verification pending / `plan.payment.submitted` | Hi {{name}}, payment details submitted for {{plan}}. {{selectionSummary}}. Amount: {{amount}}. Reference: {{reference}}. Admin verification is pending. Status: {{planLink}} |
+| Active / existing `plan.started` | Hi {{name}}, {{plan}} is active. {{selectionSummary}}. Paid: {{amount}}. Current cycle: {{cyclePeriod}}. Open plan: {{planLink}} |
+| Approved, waiting activation / proposed `plan.activation.pending` | Hi {{name}}, payment approved for {{plan}}: {{amount}}. {{selectionSummary}}. Your plan starts after project completion. Status: {{planLink}} |
+| Payment rejected / map existing event first | Hi {{name}}, payment verification for {{plan}} was unsuccessful. {{reason}}. Review and retry: {{paymentLink}} |
+| Upload received / map existing event first | Hi {{name}}, update {{updateReference}} received for {{plan}}. Track: {{planLink}} |
+| In progress / existing `plan.upload.in_progress` | Hi {{name}}, update {{updateReference}} for {{plan}} is in progress. Track: {{planLink}} |
+| Done / existing `plan.upload.completed` | Hi {{name}}, update {{updateReference}} for {{plan}} is complete. {{note}} View: {{planLink}} |
+| Rejected / existing `plan.upload.rejected` | Hi {{name}}, update {{updateReference}} for {{plan}} needs changes. {{reason}} Review: {{planLink}} |
+| Work update / existing `plan.work_update` | Hi {{name}}, an update on {{plan}}: {{note}} View: {{planLink}} |
+| Cycle payment due / proposed `plan.cycle.payment_due` | Hi {{name}}, {{amount}} is due for {{plan}} on {{dueDate}}. {{cyclePeriod}}. Pay: {{paymentLink}} |
+| Paused / proposed `plan.cycle.paused` | Hi {{name}}, {{plan}} is paused pending payment of {{amount}}. Unused updates from the previous cycle have expired. Pay: {{paymentLink}} |
+| Renewal paid / existing `plan.payment.received` | Hi {{name}}, payment received for {{plan}}: {{amount}}. {{selectionSummary}}. Current cycle: {{cyclePeriod}}. Open plan: {{planLink}} |
+
+`selectionSummary` is a compact human-readable summary of actual chosen benefits, file/update limits, release mode, billing interval and total tenure; e.g. "6 updates per quarter, 20 files per update; quarterly billing for 12 months". Monthly-release plans must state monthly release rather than imply all quarterly updates are available immediately. One-time/non-upload/unlimited plans need appropriate wording. Draft messages use saved choices plus current quote; purchase/payment messages use bought snapshots and matching invoice/transaction values. All relevant specifications must be represented without dumping internal fields. `amount` is the amount for that checkpoint, not the full contract total. `remainingSteps` is derived from the real resumable flow, including verification where applicable; never hard-code a misleading step count. Customer-facing dates use IST and unambiguous formatting. Rejected-upload copy must not promise restored allowance unless restoration actually occurred in the same eligible cycle.
+
+### 8.5 Scheduling and duplicate prevention
+
+- Draft and checkout reminders require configurable inactivity delay, repeat spacing, maximum sends and retention. Exact defaults remain an owner policy decision; no invented timetable or enabled sending in this documentation change. Billing reminder offsets likewise require configuration and review.
+- Keep one eligible current checkpoint. Progress, submit, payment, conversion, close or delete immediately invalidates earlier scheduled reminders. Recheck state immediately before dispatch, not only when a job is enqueued.
+- Use a durable outbox/checkpoint schedule integrated with existing delivery history, with unique event/entity/revision/milestone keys, atomic claim, bounded retries and failure reconciliation. Existing comments claim once-only sending; explicitly verify concurrent behavior. A page refresh, parallel tabs, cron overlap, request retry or wallet/UPI alternative must not create duplicate drafts, payments or notifications.
+- Never replay an old backlog when a policy is enabled or a worker restarts. For outstanding reminders send at most the latest eligible milestone, subject to configured age/cap. Transactional events retain an audit trail; pending deliveries must be revalidated so stale activation or status messages do not send after cancellation.
+- Existing offer reminders already have invoice/offset dedupe and `cycleScope`. Establish one reminder owner per invoice; prevent offer and ordinary-plan jobs from sending overlapping payment reminders. Successful payment reminders stop even if cycle activation fails; flag the settlement failure separately.
+
+### 8.6 Implementation order and acceptance
+
+1. **Trace and design:** inspect backend/frontend AGENTS and current trees; map checkout/purchase/verification/rejection/activation/upload paths and Communication controls. Confirm exact draft-save CTA, existing event reuse, WhatsApp provider behavior and proposed reminder timing settings. Preserve unrelated edits; back up changed files outside repositories.
+2. **Draft backend:** add minimal durable draft schema/API and one-open-draft constraint, revision checks, authenticated ownership, archive/delete semantics and conversion linkage. Reuse catalogue quote/purchase logic. Verify concurrent creation, refresh recovery, stale quote, cancelled/deleted draft, guest login and cross-user access.
+3. **Portal resume UX:** wire PlanBuilder, standalone purchase and project Add-a-Service to save/restore. Add pending-plan card and Resume/Close/Delete choice before new customization. Preserve authentication/offer return flows and distinguish drafts from purchased plans. Verify on mobile and desktop.
+4. **Transactional templates and admin controls:** reuse existing events; add only missing ones, dynamic value resolvers, trigger notes, preview/verification and Off defaults. Connect committed business transitions through reliable delivery scheduling. Verify initial/renewal wallet and UPI, rejected payment, delayed activation and each upload/work transition without duplicate confirmations.
+5. **Reminder scheduler:** implement configured draft/checkout/billing milestones, cancellation/revalidation and retries. Wire to existing cron switch and Communication policies. Test time boundaries, payment racing a reminder, overlapping jobs, Off during retry, channel failure and no backlog burst.
+6. **Billing correctness dependency:** fix renewal wallet payment so a paid invoice also settles the service cycle; verify due-date enforcement independently of scheduler timing. Current `walletPayInstant.js` invoice branch lacks `settleServiceCycle()`, and ordinary upload eligibility currently relies on active status rather than a direct current-cycle end check. Ensure expired quota cannot be consumed with cron disabled/delayed. Preserve original contracted cycle dates, lapse unused allowance, and leave historical uploads intact. Do not extend tenure from a late payment date or alter financial policy silently.
+7. **Local acceptance and handoff:** focused backend lifecycle/draft/communication/concurrency tests, portal helper/build checks and browser proofs with mocked providers. Demonstrate quarterly 12-month flow: 4 of 6 consumed -> 2 lapse -> uploads blocked -> payment 7 days late -> correct next-cycle 6 updates on original dates -> fourth cycle ends without fifth invoice. Verify wallet settlement and no stale reminders. Update this document with implemented/tested/deployed distinctions.
+8. **Deployment gate:** review concrete templates/settings and owner-selected timing; deploy compatible backend then portal, verify `ENABLE_CRONS` and configured portal origin. Enable messages only after admin template verification and owner-authorized live recipient/provider checks. No production writes, messages, commit/push or deployment are authorized merely by this planning request.
+
+Completion means saved draft/resume works end to end, checkpoints render accurate customer-specific copy, admin On/Off is respected at actual send, WhatsApp delivery is observable, stale/duplicate messages are prevented, and paid renewals correctly restore dated access. Existing category/editor acceptance work remains open and must not be described as completed by this initiative.
