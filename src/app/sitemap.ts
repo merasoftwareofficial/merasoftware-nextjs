@@ -7,6 +7,7 @@ import { indexablePosts } from "@/lib/indexable-posts";
 import { userRepo, type BlogCard } from "@/lib/repo";
 import { SITE_URL as SITE } from "@/lib/structured-data";
 import { packagePagePath } from "@/lib/package-pages";
+import { PLANS_PAGE_PATH } from "@/lib/public-plans";
 import { readPackagePages } from "@/lib/package-pages-server";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: SITE, lastModified: newest, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/services`, changeFrequency: "monthly", priority: 0.9 },
+    // The public plans page (lib/public-plans.ts), in the Pricing & Packages menu.
+    { url: `${SITE}${PLANS_PAGE_PATH}`, changeFrequency: "weekly", priority: 0.8 },
     ...(FEATURES.portfolio && portfolio.length ? [{ url: `${SITE}/work`, changeFrequency: "monthly" as const, priority: 0.8 }] : []),
     { url: `${SITE}/about`, changeFrequency: "yearly", priority: 0.6 },
     { url: `${SITE}/contact`, changeFrequency: "yearly", priority: 0.6 },

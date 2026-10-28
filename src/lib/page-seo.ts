@@ -18,6 +18,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { settingsRepo } from "@/lib/repo";
 import { packagePagePath } from "@/lib/package-pages";
+import { PLANS_PAGE_INTRO, PLANS_PAGE_PATH, PLANS_PAGE_TITLE } from "@/lib/public-plans";
 import { readPackagePages } from "@/lib/package-pages-server";
 import { resolvePageSeo, type SeoPage } from "@/lib/seo-rules";
 import { services } from "@/lib/site-data";
@@ -39,6 +40,13 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     title: service.title,
     description: service.description,
   })),
+  {
+    key: "plans",
+    label: "Plans",
+    path: PLANS_PAGE_PATH,
+    title: PLANS_PAGE_TITLE,
+    description: PLANS_PAGE_INTRO,
+  },
   {
     key: "about",
     label: "About",

@@ -1,0 +1,32 @@
+/* Public plans page (/plans). Same brand tokens and card look as the package pages
+   (components/campaign/campaign.module.css). */
+.card{background:var(--brand-white);border:1px solid var(--brand-line);border-radius:var(--card-radius);box-shadow:0 8px 28px rgb(0 36 61 / .05);padding:28px;color:var(--brand-navy);min-width:0;display:flex;flex-direction:column;gap:12px}
+.card h3{font-size:24px;line-height:1.2;margin:0;font-weight:650}
+.fine{font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:var(--brand-teal);margin:0}
+.description{line-height:1.65;color:var(--brand-muted);margin:0}
+.range{font-size:28px;font-weight:750;color:var(--brand-teal);letter-spacing:-.5px}
+.estimator{display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--brand-line);padding-top:16px}
+.field{display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--brand-muted)}
+.field b{color:var(--brand-navy)}
+.field input[type=range]{width:100%;accent-color:var(--brand-teal);height:28px}
+.options{display:flex;flex-wrap:wrap;gap:8px}
+.option{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-navy);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:36px}
+.option[aria-pressed=true]{border-color:var(--brand-teal);background:var(--brand-ice);box-shadow:inset 0 0 0 1px var(--brand-teal)}
+.option:focus-visible,.button:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
+.quote{background:var(--brand-ice);border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:var(--brand-muted);transition:opacity .2s}
+.quote[data-loading]{opacity:.6}
+.quote p{margin:4px 0 0}
+.amount{font-size:30px;font-weight:750;color:var(--brand-navy);letter-spacing:-.5px}
+.amount small{font-size:14px;font-weight:400;color:var(--brand-muted);letter-spacing:0}
+.good{color:var(--brand-teal);font-weight:600}
+.error{color:#b42318}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--brand-navy);color:var(--brand-white);border:1px solid var(--brand-navy);border-radius:8px;padding:14px 20px;font-weight:650;font-size:15px;min-height:48px;text-decoration:none;margin-top:auto}
+.button:hover{background:var(--brand-blue)}
+.secondary{background:var(--brand-white);color:var(--brand-navy);border-color:var(--brand-line)}.secondary:hover{background:var(--brand-ice)}
+.actions{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.category{margin-top:48px}
+.category>h2{font-size:28px;font-weight:650;margin:0 0 6px}
+.category>p{color:var(--brand-muted);margin:0 0 20px;max-width:680px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.grid{grid-template-columns:1fr}.card{padding:22px}.range{font-size:24px}}
