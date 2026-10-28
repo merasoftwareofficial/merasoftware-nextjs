@@ -7,12 +7,12 @@ Last verified locally: 28 Oct 2026. This file is the working SSOT for remaining 
 | Item | Current state |
 |---|---|
 | Completed | Earlier Phases 1, 2a and 2b built; deployment previously confirmed 28 Oct (not rechecked in this verification) |
-| Remaining | Stage 1 deploy/owner acceptance -> Stage 2 customer selection -> Stage 3 accepted cutover/cleanup (§2) |
-| Approval | Stage 1 implementation approved 28 Oct; Stages 2/3 not started |
-| In progress | Stage 1 implemented and locally verified; not committed, pushed or deployed |
-| Next action | Owner reviews Stage 1, commits/pushes; deploy backend -> website -> portal, then click-check portal admin Plans. Stage 2 still needs approval |
-| Local changes | Stage 1 files listed below; no legacy files deleted, no production writes |
-| Validation | Backend 329/329; website 42/42 (plans 9/9 rerun after revision assertion); portal form/backend 3/3; portal build passes; isolated browser checks pass. Website tracked-code types pass; normal tsc blocked by pre-existing generated validator |
+| Remaining | Stages 1/2 deployment and owner acceptance -> Stage 3 accepted cutover/cleanup (§2) |
+| Approval | Stages 1 and 2 implementation approved; Stage 3 not started |
+| In progress | Stage 2 implemented and locally verified; uncommitted/undeployed. Stage 1 deployment/owner acceptance remains unconfirmed |
+| Next action | Owner reviews Stage 2, commits/pushes, deploys backend before portal, then checks customer Explore Services/detail/login/purchase UI. Confirm Stage 1 acceptance before Stage 3 |
+| Local changes | Backend/portal Stage 2 files listed below; website documentation only. Stage 1 commits: backend `3e12ff6`, portal `985b14f`, website `114dda4` |
+| Validation | Stage 2: backend 332/332, website 42/42, portal helper contracts 7/7, portal build passes with existing unrelated warnings, isolated customer browser proof passes. No production checks/writes |
 | Pending production | Live settings script, environment checks, real click/purchase checks; details in §5 |
 
 **Keep this handoff current:** after each meaningful completed step and before yielding, replace the affected facts here and in the relevant stage. Record stage/task status (not started / in progress / implemented / locally verified / deployed / owner accepted), changed files, actual checks/results, backup path, approval/blocker and exact next action. For partial work state the last completed substep and remaining files. Keep only the latest useful evidence; do not append chat history, abandoned plans, repeated status or secrets. Update relevant code maps after implementation changes their facts. Any next agent starts here, then reads only the active stage and its owners.
@@ -24,7 +24,7 @@ Last verified locally: 28 Oct 2026. This file is the working SSOT for remaining 
 - Repos: backend (Express/Render) `E:\Allprojects\backend`; portal (CRA) `E:\Allprojects\frontend`; website (Next.js) `E:\Allprojects\merasoftware`. Verify target path, git status and applicable AGENTS instructions before edits; preserve unrelated work.
 - Read only relevant references: backend `docs/QUICK_INDEX.md`; portal `src/DOCS/CODEBASE_MAP.md` §5/5a plans, §7/7a classification/uploads, §11 design, §14a protected dormant systems. Read installed Next guides in `node_modules/next/dist/docs/` before website code.
 - Owner writes Hindi/Hinglish; replies/doc content in simple English. Explain -> approval -> code -> review; once a stage is approved, complete it and report once, stopping only for real decisions/gates. Safe proofs/tests/docs need no separate approval. Update this doc continuously, without waiting for 'perfect'.
-- Back up each affected file before first change outside repos under `E:\Allprojects\backup\<repo>\workNN-<name>`. Last recorded next numbers: backend work26, frontend work15, merasoftware work36; verify availability before use. Previous phase backups: backend work25, frontend work14, website work35 (`plans-phase2b`).
+- Back up each affected file before first change outside repos under `E:\Allprojects\backup\<repo>\workNN-<name>`. Stage 1 used backend work26, frontend work15, merasoftware work36; document verification used merasoftware work37. Stage 2 used backend work27, frontend work16, website work38; next candidates: backend work28, frontend work17, website work39; verify availability before use. Previous phase backups: backend work25, frontend work14, website work35 (`plans-phase2b`).
 - Exact deletion list -> owner approval -> backup -> deletion -> checks. Never commit/push/deploy without owner authorization. Production reads/writes need owner approval; no live test purchase or email without an approved action and owner-named client.
 - Report actual results, what owner can click after deploy, limitations, backups and exact short `git add` / `git commit -m "Flexible Plans — Part N: ..."` lines. Owner cannot test locally. No claim of live verification from local builds.
 - Plans are ongoing services; projects are separate jobs; packages remain marketing-only. No package automation or new checkout in this work.
@@ -33,16 +33,16 @@ Stage 1 backups: `backup/backend/work26-plans-stage1`, `backup/frontend/work15-p
 
 ## 2. Remaining plan — three stages
 
-Verified gaps, 28 Oct (code evidence):
-- Portal `StartNewProject.js` is a flat service list with a wrong 'No projects found' empty message; website `/plans` uses category sections and `components/plans/plan-card.tsx`. Existing `PlanBuilder.js` runs in `ServicePlanDetail.js` and compact `AddServiceModal.js`; reuse it.
-- `getProduct.js` returns on-sale products and `priceRange`, but no category label/description/order collection. Integration catalogue already supplies public category metadata behind a server-only bearer; do not expose that secret to portal browser code.
-- Website plan links already target `/service-plan-detail/:planId`, but `ProtectedRoute.js` drops the destination except `/my-offers`; `Login.js` and `postLogin.js` likewise only honor that destination. Plan login return requires a scoped fix in Stage 2, not just testing.
+Current implementation facts, 28 Oct (code and local-check evidence):
+- Portal `StartNewProject.js` now shows category sections/cards via `CustomerPlanCards.js`, with service-specific empty/loading/error states. Existing `PlanBuilder.js` remains the full/compact choice owner; no second estimator was added.
+- Customer browser uses authenticated `/customer/service-plan-catalogue` for plans and public category metadata; website integration and customer discovery share `servicePlanPublicCatalogue.js`. Generic `/get-product` remains unchanged for other callers. Integration bearer is server-only.
+- Website links still carry `/service-plan-detail/:planId`; validated plan IDs now survive normal/guest login and soft password-reset save/skip through `planAuthReturn.js`. Existing My Offers/website offer returns and role homes are preserved; no new profile gate.
 - Stage 1 fixed edit concurrency: `catalogueRevision.js` filters writes/deletes by the read timestamp and produces strictly newer timestamps; plan save retains Mongoose hooks. Plan/category/lifecycle endpoints accept `expectedUpdatedAt`, sent by both active editors. A stale draft/action returns 409 with explicit reload controls. Legacy no-token callers stay compatible; already-open pre-deploy editors require refresh for full protection.
 - Stage 1 admin catalogue now includes full project-link choices directly from `listProjectCategories()` and category usage; portal does not call customer-filtered categories or unrelated website sales packages.
 
 ### Stage 1 — Portal admin plan management
 
-**Status:** implemented and locally verified 28 Oct; deployment and owner acceptance pending.
+**Status:** implemented, locally verified and committed 28 Oct (backend `3e12ff6`, portal `985b14f`, website `114dda4`); deployment and owner acceptance unconfirmed.
 
 Goal: admin can manage the complete catalogue in the portal without switching to the website.
 1. Inventory website manager fields/actions and map them to existing APIs; verify a portal-authorized full project-category read for optional linking (`/customer/project-categories` is filtered and is not equivalent to the website admin catalogue). Add only missing API capability proven necessary; no unrelated sales payload or new public access to admin data.
@@ -55,16 +55,43 @@ Goal: admin can manage the complete catalogue in the portal without switching to
 
 ### Stage 2 — Customer plan discovery and selection
 
-**Status:** not started; requires approval.
+**Status:** implemented and locally verified 28 Oct; not committed/pushed/deployed. Backups: backend work27, frontend work16, website work38 (`plans-stage2`, under external backup root).
 
-Goal: customer can understand, compare, choose and buy services inside the portal with the clarity of the website catalogue.
-1. Replace the flat Explore Services presentation with category sections/cards based on website `/plans`: category heading/description, plan name and useful description, capability, server price range with its unit, relevant allowance/validity, and a clear choose/customize action. Use portal layout, typography, immersive/dark/light tokens and customer accent; do not paste the website shell or CSS. Keep the existing approved builder's layout/flow where it already works.
-2. Reuse `StartNewProject.js` route/navigation unless inspection proves a separate route necessary. Preserve dashboard entry, direct links and Back behavior. Detail screen uses real category labels and consistent information; correct misleading text such as 'No projects found'. Verify admin category names/order reach portal customers. `/get-product` lacks category metadata: extend an appropriate customer/public catalogue response minimally; do not fetch admin catalogue or place an integration secret in browser code.
-3. Reuse `PlanBuilder.js` for selection (purchase period, tenure, files, updates, allowed release mode) and the existing compact mode in project add-service. Cards may open the builder/detail; do not add a second independent estimator. Fixed plans show only applicable choices; no-upload plans show work-update benefits without upload quotas. Project-required plans are bought only through an eligible project context; preserve existing dependency/timing checks.
-4. Preserve wallet/UPI/payment-offer flow, quote refresh/409 handling and existing purchase API. Never allow payment while quote is loading/invalid. Fix the confirmed login-return gap in `ProtectedRoute.js`, `Login.js`, `postLogin.js` and the required password/profile continuation paths. Allow only validated internal customer destinations, preserve `/my-offers` behavior and reject external redirect targets. Selected plan survives authentication; if carrying customized choices across screens is implemented, treat them as untrusted input and re-quote, never as a guaranteed saved price. No new checkout or renewal-policy change.
-5. Website stays showcase: public cards/estimator, SEO/menu/sitemap and accurate portal links remain. Verify comparable inputs produce matching backend quotes across website, portal builder and admin preview. Hidden/retired/unavailable plans cannot be newly bought through direct URLs.
-6. Verify mobile/desktop, keyboard controls, three portal themes, empty/loading/failure states, fixed/flexible and upload/no-upload plans, category fallback, login return and unavailable-plan handling. Complete customer journey: discover -> choose -> quote -> authorized purchase -> My Plan -> existing work/history. Keep an in-project add-service regression check.
-**Done when:** customer can select and buy through the portal without needing the website, presentation matches the website's catalogue structure, and existing order/work behavior remains correct. Use local fixtures/mocked payments for automatic checks; real production purchases/mail only with an owner-named client and approval.
+Goal: customer sees category-based plan cards inside the portal, opens the existing builder, gets the backend quote and completes the existing purchase flow. Website remains showcase. This phase changes discovery/presentation and scoped navigation gaps, not financial policy.
+
+1. **Customer catalogue contract (backend + portal):** add authenticated `GET /api/customer/service-plan-catalogue` (or prove an existing equivalent before adding). Return on-sale service plans in the shape existing portal choice/dependency helpers need, plus public category `{ key, label, description, sortOrder }` metadata. Reuse a backend catalogue reader/on-sale filter with the website integration catalogue instead of maintaining two eligibility rules. Do not expose admin categories/usage or integration credentials. Keep existing `/get-product` array contract for feature/product callers. The integration `publicPlan()` response is flattened and omits some portal fields: do not feed it directly to `PlanBuilder`, which reads `servicePlan.*`.
+2. **Explore Services presentation:** retain the existing `StartNewProject.js` entry URL and navigation; replace flat rows with category sections/cards following website `/plans` information hierarchy. Show category label/description/order, plan name/description, backend range AND unit, upload vs no-upload benefit, and one clear Choose/Customize action into detail. Use portal mobile/desktop layout and light/dark/immersive tokens. Missing/archived categories go to 'More plans' without hiding an otherwise on-sale plan. Empty result says services/plans, not projects. Do not run a quote request for every card on initial load; only the selected builder quotes. No second card-specific pricing engine or new estimator.
+3. **Detail and eligibility:** use the customer catalogue contract to resolve category names and available service IDs; reset loading/selection state when the plan ID changes. Generic `/product-details` currently returns withdrawn products too and must not determine whether a service can be bought. For hidden/retired/archived/missing IDs show an unavailable state with no payment action. Show upload information from `capability`; no-upload plans get work-update information and no upload limits, including old rows with missing `serviceBehavior`. Keep existing `PlanBuilder` and `serviceTenure.js` for all applicable choices. Standalone catalogue excludes project-required plans; a direct website link to one explains that it needs a project and directs to eligible project selection rather than offering a failing standalone purchase. Existing in-project `AddServiceModal` remains the purchase path for these plans, with standalone-only redirect and timing notes preserved.
+4. **Scoped authentication return:** one validated return-destination helper consumed by `ProtectedRoute.js`, `Login.js` (normal and guest success), `postLogin.js`, and `SetNewPassword.js` save/skip. Permit only intended internal customer routes/validated plan IDs for this flow; never replace the existing whitelist with arbitrary `next` URLs. Preserve `/my-offers`, role-specific homes and the existing narrowly allowed website offer-return URLs in `SetNewPassword.js`. Test customer vs wrong-role sessions. `CompleteProfile.js` is currently callback-driven, not a demonstrated global login gate: trace the actual parent before touching it and preserve a plan destination only if a real continuation path requires it. No new forced KYC/profile requirement. Required outcome is preserving the selected plan ID; transferring website estimator files/updates is not included (website currently links ID only).
+5. **Existing quote/payment flow:** preserve wallet/UPI, offers, order creation, renewal policy and My Plan history. Verify quote-to-choice identity, not just the existence of an old quote: after rapid changes no earlier quote may enable payment, including while a confirmation modal is open. Re-quote on catalogue/price conflict (409); unavailable plans cannot proceed. Extend the existing builder's request tracking only where a runnable regression demonstrates a gap. Equivalent choices must produce identical backend amounts across website, portal and admin preview. Keep website public pages, estimator, SEO and links; no new checkout, price formula or catalogue DB.
+6. **Required checks / acceptance:** automated contracts for catalogue filtering/category fallback and portal response shape; auth return on password/guest/reset-save/reset-skip, preserved offer paths, wrong role, malformed/external destinations; unavailable/project-only deep links; rapid delayed quote responses; full/compact builder regression. Run backend suite, portal helper checks/build and website public-plan checks if shared catalogue code changes. Browser-check catalogue -> details -> builder -> local authorized/mocked purchase -> My Plan, plus project add-service, keyboard/Back behavior, 390px/desktop and all three themes. Live purchases/mail require owner-named client and approved action; do not claim UPI manual approval works from a mocked purchase alone.
+
+**Done when:** the owner can browse by category, choose/customize and buy a permitted service entirely in the portal; website plan links retain the chosen ID after login; unavailable/project-only links are handled correctly; backend remains SSOT; local checks pass and deployed UI is accepted. Stage 1 UI acceptance should happen before Stage 2 deployment so regressions can be attributed. No Stage 1 screen deletion or legacy cleanup here.
+
+
+### Stage 2 implementation handoff
+
+- **Backend:** new `helpers/servicePlanPublicCatalogue.js` supplies the shared on-sale predicate/reader and public category metadata. `controller/order/servicePlanQuote.js` uses it for website integration and the new customer catalogue; `routes/index.js` registers authenticated `GET /api/customer/service-plan-catalogue` (customer role only). Payload keeps nested `servicePlan` for existing portal helpers. `/get-product`, purchase rules, order snapshots and DB schema unchanged.
+- **Portal:** `components/CustomerPlanCards.js`, `helpers/customerPlanCatalogue.js`, `pages/StartNewProject.js` implement category cards/ranges, fallback grouping, loading/error/retry and zero per-card quote calls. `ServicePlanDetail.js` reads available catalogue IDs/category labels, handles unavailable/project-only/no-upload states, resets on ID changes and invalidates stale confirmation/QR. `PlanBuilder.js` binds each response to the exact current request for both full/compact views.
+- **Auth:** new pure `helpers/planAuthReturn.js` shared by `ProtectedRoute.js`, `Login.js`, `postLogin.js`, `SetNewPassword.js`; normal/guest sign-in and reset save/skip preserve the selected plan. Existing offer-return paths and role homes retained. No profile/KYC gate added. Website estimator choices are not transferred (existing link carries plan ID only).
+- **Actual checks:** backend entire suite 332/332; website baseline/public/admin plan tests 42/42; portal `node --test tests/admin-plan-form.test.mjs tests/customer-plan-flow.test.mjs` 7/7; portal production build passed with no new-file lint warnings. Backend test `customerPlanCatalogue.test.js` covers auth/roles, shared portal/website filtering/shape/categories, archived-category retention and withdrawn quotes.
+- **Browser proof:** `backup/frontend/work16-plans-stage2/browser-check.cjs` uses actual customer pages, normal/guest Login and SetNewPassword, full/compact builders and real catalogue/quote APIs against in-memory MongoDB. Dashboard shell is isolated; authentication responses and purchases are mocked (real auth middleware/cookie for catalogue). Covers mobile light/dark/immersive, no eager card quotes, unavailable/project-only/no-upload, wallet/UPI payloads, project modal linked purchase, confirmation invalidation, normal/guest/reset-save/reset-skip return. Screenshots: `catalogue-light.png`, `catalogue-dark.png`, `catalogue-immersive.png`. Does not prove live UPI approval, live session cookies or whole deployed portal shell.
+- **Exact cause proven:** harness also loads the backed-up pre-change PlanBuilder. After files change from 5 to 10, it emits ready with the previous quote; current builder emits no mismatched ready event. Cleanup invalidates late replies; payment confirmation closes on changed/invalid selection.
+- **Deploy/review:** backend first, then portal; website has only this doc to commit. Owner checks Explore Services cards/categories -> detail/builder -> authorized test purchase/My Plan; website plan link -> normal/guest login -> same plan; required password save/skip -> same plan; project Add a Service; mobile and all themes. Production test purchase/mail only with approved action and owner-named client. P2e/category settings and Stage 1 acceptance remain separate pending checks. No deletes, schema migration or production writes performed.
+
+Owner commit commands (from the respective repo roots; do not run automatically):
+
+```powershell
+# E:\Allprojects\backend
+git add helpers/servicePlanPublicCatalogue.js controller/order/servicePlanQuote.js routes/index.js tests/customerPlanCatalogue.test.js
+git commit -m "Flexible Plans — Part 3.2: shared customer catalogue"
+# E:\Allprojects\frontend
+git add src/common/index.js src/components/CustomerPlanCards.js src/components/PlanBuilder.js src/components/ProtectedRoute.js src/helpers/customerPlanCatalogue.js src/helpers/planAuthReturn.js src/helpers/postLogin.js src/pages/Login.js src/pages/ServicePlanDetail.js src/pages/SetNewPassword.js src/pages/StartNewProject.js src/DOCS/CODEBASE_MAP.md tests/customer-plan-flow.test.mjs
+git commit -m "Flexible Plans — Part 3.2: customer plan selection"
+# E:\Allprojects\merasoftware
+git add src/docs/plan.md
+git commit -m "Flexible Plans — Part 3.2: handoff"
+```
 
 ### Stage 3 — Acceptance, single-editor cutover and legacy cleanup
 
@@ -96,19 +123,7 @@ Goal: prove the completed service workflow, then simplify code without losing cu
 - Website standard `tsc` still hits ignored `.next-build/types/validator.ts` missing old campaign page. Tracked source/tests type-check passes using external `backup/merasoftware/work36-plans-stage1/tsconfig.tracked.json` (existing generated route declarations included, stale validator excluded). No source/tsconfig workaround committed.
 - After deployment owner can open portal admin -> Services -> Plans, manage categories, create/edit/duplicate a hidden test plan, check prices and lifecycle. Production creation/removal/purchases/mail need approved actions. Confirm website editor still works; existing clients/payments/uploads remain unchanged. No production checks or financial writes performed here.
 
-Commit commands for owner, each from its repo root (do not run automatically):
-
-```powershell
-# E:\Allprojects\backend
-git add controller/admin/planCatalogue.js helpers/catalogueRevision.js helpers/planCategories.js helpers/servicePlanCatalogue.js helpers/servicePlanLifecycle.js tests/planCatalogue.test.js
-git commit -m "Flexible Plans — Part 3.1: portal plan management"
-# E:\Allprojects\merasoftware
-git add src/app/admin/plans/plans-manager.tsx src/lib/service-plans.ts tests/service-plans.test.ts src/docs/plan.md
-git commit -m "Flexible Plans — Part 3.1: safe catalogue editing"
-# E:\Allprojects\frontend
-git add src/components/admin/AdminPlansManager.js src/components/admin/AdminPlansManager.module.css src/helpers/adminPlanApi.js src/helpers/adminPlanForm.js src/pages/AdminPlansPage.js src/common/index.js src/routes/adminRoutes.js src/DOCS/CODEBASE_MAP.md tests/admin-plan-form.test.mjs
-git commit -m "Flexible Plans — Part 3.1: portal plan manager"
-```
+Stage 1 is already committed; commit IDs are in §0. Do not repeat its commits. Deployment and owner acceptance remain to be confirmed.
 
 ## 3. SSOT and code entry points
 
@@ -148,7 +163,7 @@ All backend paths are under `E:\Allprojects\backend`.
 
 ## 5. Production facts and pending owner decisions
 
-These are previous audit/deployment results, not freshly checked production facts. Latest recorded phase commits: backend `9623561`, website `5491aa8`, portal `147e401`. Portal URL is `https://portal.merasoftware.com`; backend `https://api.merasoftware.com`; website `https://www.merasoftware.com`.
+These are previous audit/deployment results, not freshly checked production facts. Earlier live Phase 2b commits: backend `9623561`, website `5491aa8`, portal `147e401`. Stage 1 local commits now: backend `3e12ff6`, website `114dda4`, portal `985b14f`; this verification did not check their deployment. Portal URL is `https://portal.merasoftware.com`; backend `https://api.merasoftware.com`; website `https://www.merasoftware.com`.
 
 - **P2e pending:** `backend/scripts/applyLivePlanSettings.js`: owner-authorized dry run, JSON backup, `--apply`, then idempotency check. Expected categories Website Updates/Website Features; Starter fixed 1490/4336/8493/16450 and monthly allowance x cycle months; Single Page Adition fixed one-time/90 days; Live Chat fixed. Until applied use uncategorized fallback. No implicit production write during UI migration.
 - **Environment:** verify Render `ADMIN_DASHBOARD_URL=https://portal.merasoftware.com`. `ENABLE_CRONS` was absent in the 27 Oct check despite a contrary code comment; recheck before any current claim. Enabling crons is a separate decision.
@@ -161,11 +176,11 @@ These are previous audit/deployment results, not freshly checked production fact
 
 ## 6. Verification commands and known traps
 
-Commands run from their respective repo roots. Stage 1 results are recorded above; retain these commands for the next stage.
+Commands run from their respective repo roots. Current stage results are recorded above; retain these commands for the next stage.
 
 | Repo | Required checks / previous result |
 |---|---|
-| Backend | `node --test tests/*.test.js` — Stage 1 329/329 |
+| Backend | `node --test tests/*.test.js` — Stage 2 332/332 |
 | Website baseline | `node --conditions=react-server --import tsx --test tests/package-pages.test.ts tests/offer-packages.test.ts tests/offers.test.ts tests/offer-quote.test.ts tests/session.test.ts tests/page-content.test.ts` — previous 33/33 |
 | Website plans | `node --import tsx --test tests/public-plans.test.ts tests/service-plans.test.ts` — previous 9/9; preserve/port mapping coverage before deleting admin tests |
 | Website types | `npx tsc --noEmit -p .` — tests are included in Next type checking |
