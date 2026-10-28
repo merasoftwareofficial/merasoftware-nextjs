@@ -26,10 +26,10 @@ export const TIMINGS = [
   ["after", "Only after the website is finished"],
 ] as const;
 
-export type PlanCategory = { key: string; label: string; description?: string; linkedProjectCategory?: string | null; status: "active" | "archived"; sortOrder: number; usage?: { plans: number } };
+export type PlanCategory = { updatedAt?: string | null; key: string; label: string; description?: string; linkedProjectCategory?: string | null; status: "active" | "archived"; sortOrder: number; usage?: { plans: number } };
 export type PriceRange = { unit: "update" | "one_time" | "month"; from: number; to: number } | null;
 export type StoredPlan = {
-  _id: string; serviceName: string; description: string; isHidden: boolean; retired: boolean; canBeOnSale: boolean;
+  _id: string; updatedAt?: string | null; serviceName: string; description: string; isHidden: boolean; retired: boolean; canBeOnSale: boolean;
   price: number; priceRange: PriceRange; servicePlan: Record<string, unknown> & {
     categoryKey?: string; pricingMode?: string; capability?: string; dependency?: string; timing?: string; purchaseType?: string;
     monthlyReferencePrice?: number; billingOptions?: { billingCycle: string; discountPercent?: number }[];
@@ -42,7 +42,7 @@ export type StoredPlan = {
 export type PlanCatalogue = { plans: StoredPlan[]; categories: PlanCategory[]; projectCategories: { category: string; label: string; status?: string }[] };
 
 export type PlanForm = {
-  planId: string; serviceName: string; description: string; categoryKey: string;
+  planId: string; expectedUpdatedAt?: string | null; serviceName: string; description: string; categoryKey: string;
   capability: "upload_data" | "send_reminders"; dependency: string; timing: string;
   pricingMode: "fixed" | "flexible"; purchaseType: "one_time" | "recurring";
   oneTimePrice: number; monthlyReferencePrice: number;
@@ -71,7 +71,7 @@ export function formFromPlan(plan: StoredPlan): PlanForm {
   const billing = emptyBilling();
   (sp.billingOptions || []).forEach(option => { if (option.billingCycle in billing) billing[option.billingCycle as BillingCycle] = { on: true, discountPercent: Number(option.discountPercent || 0) }; });
   return {
-    ...base, planId: plan._id, serviceName: plan.serviceName, description: plan.description || "", isHidden: plan.isHidden,
+    ...base, planId: plan._id, expectedUpdatedAt: plan.updatedAt ?? null, serviceName: plan.serviceName, description: plan.description || "", isHidden: plan.isHidden,
     capability: sp.capability === "send_reminders" ? "send_reminders" : "upload_data",
     dependency: sp.dependency || base.dependency, timing: sp.timing || base.timing,
     pricingMode: sp.pricingMode === "flexible" ? "flexible" : "fixed",
@@ -110,7 +110,7 @@ export function planBody(form: PlanForm) {
     else Object.assign(body, { monthlyReferencePrice: form.monthlyReferencePrice, billingOptions });
     if (isUpload) Object.assign(body, { limitScope: form.limitScope, portalAccessCount: form.limitScope === "unlimited" ? undefined : form.portalAccessCount, filesLimit: form.filesLimit });
   }
-  return form.planId ? { ...body, planId: form.planId } : { ...body, creating: true };
+  return form.planId ? { ...body, planId: form.planId, expectedUpdatedAt: form.expectedUpdatedAt } : { ...body, creating: true };
 }
 
 export const rupees = (amount: number) => `₹${Math.round(amount).toLocaleString("en-IN")}`;

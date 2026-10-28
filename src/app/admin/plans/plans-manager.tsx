@@ -35,7 +35,8 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
 
   async function reload() {
     const response = await fetch("/api/plans", { cache: "no-store" });
-    if (response.ok) setCatalogue(await response.json());
+    if (!response.ok) throw new Error("Could not reload plans.");
+    setCatalogue(await response.json());
   }
   function open(next: PlanForm | null) {
     if (dirty && !window.confirm("Discard unsaved plan changes?")) return;
@@ -45,7 +46,7 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
     if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      await send({ target: "plan", action, planId: plan._id });
+      await send({ target: "plan", action, planId: plan._id, expectedUpdatedAt: plan.updatedAt ?? null });
       setNotice({ hide: "Plan hidden from customers.", unhide: "Plan is on sale.", retire: "Plan removed.", restore: "Plan restored.", purge: "Plan deleted." }[action]);
       await reload();
     } catch (cause) { setError(message(cause, "Could not change the plan.")); }
@@ -64,7 +65,7 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
   ].filter(group => group.plans.length);
   return <div className={s.stack}>
     <p>A plan is repeat or ongoing work a client buys in the portal. Clients pay the price the portal works out from these settings; old purchases always keep what they bought.</p>
-    <div className="form-actions"><button className="admin-button" onClick={() => open(blankPlanForm(catalogue.categories.find(c => c.status === "active")?.key || ""))}>New plan +</button></div>
+    <div className="form-actions"><button type="button" className="admin-action" disabled={busy} onClick={() => reload().catch(cause => setError(message(cause, "Could not reload plans.")))}>Refresh plans</button><button className="admin-button" onClick={() => open(blankPlanForm(catalogue.categories.find(c => c.status === "active")?.key || ""))}>New plan +</button></div>
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {!catalogue.plans.length && <p className={s.muted}>No plans yet.</p>}
     {groups.map(group => <section key={group.key || "none"} className={s.group}>
@@ -72,7 +73,7 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
       {group.plans.map(plan => <article className={`admin-form ${s.card}`} key={plan._id}>
         <div className={s.cardHead}><h3>{plan.serviceName}</h3><span className={s[planState(plan).replace(" ", "").toLowerCase()]}>{planState(plan)}</span></div>
         <p className={s.muted}>{plan.servicePlan?.pricingMode === "flexible" ? "Client chooses files and updates" : "Fixed price"} · {rangeText(plan.priceRange)}{plan.servicePlan?.capability === "send_reminders" ? " · no uploads" : ""}</p>
-        {!plan.canBeOnSale && !plan.retired && <p className={s.warn}>Flexible plans stay hidden until the new client plan builder is live.</p>}
+        {!plan.canBeOnSale && !plan.retired && <p className={s.warn}>This plan cannot currently be shown. Review its settings.</p>}
         <div className="form-actions">
           {!plan.retired && <button className="admin-action" disabled={busy} onClick={() => open(formFromPlan(plan))}>Edit plan →</button>}
           {!plan.retired && <button className="admin-action" disabled={busy} onClick={() => open({ ...formFromPlan(plan), planId: "", serviceName: `${plan.serviceName} copy`, isHidden: true })}>Duplicate</button>}
@@ -97,8 +98,8 @@ function CategoriesPanel({ catalogue, onChange }: { catalogue: PlanCatalogue; on
     e.preventDefault(); if (!draft) return;
     setBusy(true); setError("");
     try {
-      const { creating, key, label, description, linkedProjectCategory, status, sortOrder } = draft;
-      await send({ target: "category", ...(creating ? { creating: true } : {}), key, label, description: description || "", linkedProjectCategory: linkedProjectCategory || null, status, sortOrder: Number(sortOrder) });
+      const { creating, key, label, description, linkedProjectCategory, status, sortOrder, updatedAt } = draft;
+      await send({ target: "category", ...(creating ? { creating: true } : {}), key, label, expectedUpdatedAt: creating ? undefined : updatedAt ?? null, description: description || "", linkedProjectCategory: linkedProjectCategory || null, status, sortOrder: Number(sortOrder) });
       const response = await fetch("/api/plans", { cache: "no-store" });
       if (response.ok) onChange(await response.json());
       setDraft(null);
@@ -114,7 +115,7 @@ function CategoriesPanel({ catalogue, onChange }: { catalogue: PlanCatalogue; on
     </li>)}</ul>
     {draft ? <form className={s.stack} onSubmit={saveCategory}><fieldset disabled={busy} className={s.plain}>
       <div className="form-columns">
-        <label className="admin-field"><span>Category name</span><input required maxLength={80} value={draft.label} onChange={e => setDraft({ ...draft, label: e.target.value, key: draft.creating ? categoryKeyFrom(e.target.value) : draft.key })} /></label>
+        <label className="admin-field"><span>Category name</span><input required maxLength={60} value={draft.label} onChange={e => setDraft({ ...draft, label: e.target.value, key: draft.creating ? categoryKeyFrom(e.target.value) : draft.key })} /></label>
         <label className="admin-field"><span>Permanent key</span><input required disabled={!draft.creating} pattern="[a-z][a-z0-9_]{2,39}" value={draft.key} onChange={e => setDraft({ ...draft, key: e.target.value })} /><small>Made from the name. Cannot be changed later.</small></label>
       </div>
       <label className="admin-field"><span>Description (optional)</span><textarea maxLength={500} rows={2} value={draft.description || ""} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
@@ -123,7 +124,16 @@ function CategoriesPanel({ catalogue, onChange }: { catalogue: PlanCatalogue; on
         <label className="admin-field"><span>Status</span><select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value as PlanCategory["status"] })}><option value="active">Active</option><option value="archived">Archived</option></select></label>
         <label className="admin-field"><span>Display order</span><input type="number" min={0} max={9999} required value={draft.sortOrder} onChange={e => setDraft({ ...draft, sortOrder: Number(e.target.value) })} /></label>
       </div>
-      <div className="form-actions"><button className="admin-button">{busy ? "Saving…" : draft.creating ? "Create category" : "Save category"}</button><button type="button" className="admin-action" onClick={() => { setDraft(null); setError(""); }}>Cancel</button></div>
+      <div className="form-actions"><button className="admin-button">{busy ? "Saving…" : draft.creating ? "Create category" : "Save category"}</button><button type="button" className="admin-action" onClick={() => { setDraft(null); setError(""); }}>Cancel</button>{!draft.creating && <button type="button" className="admin-action" onClick={async () => {
+        if (!window.confirm("Discard category changes and reload?")) return;
+        try {
+          const response = await fetch("/api/plans", { cache: "no-store" });
+          if (!response.ok) throw new Error("Could not reload categories.");
+          const current: PlanCatalogue = await response.json(); onChange(current);
+          const category = current.categories.find(row => row.key === draft.key);
+          setDraft(category ? { ...category, creating: false } : null); setError("");
+        } catch (cause) { setError(message(cause, "Could not reload categories.")); }
+      }}>Reload category</button>}</div>
     </fieldset></form> : <div><button type="button" className="admin-action" onClick={() => setDraft({ creating: true, key: "", label: "", description: "", linkedProjectCategory: null, status: "active", sortOrder: catalogue.categories.length })}>+ New category</button></div>}
     {error && <p className="form-error" role="alert">{error}</p>}
   </section>;
@@ -167,7 +177,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     e.preventDefault(); setBusy(true); setError(""); setNotice("");
     try {
       const saved = await send<StoredPlan & { formattedDescriptions?: { content: string }[] }>({ target: "plan", ...body });
-      const next = { ...form, planId: String(saved._id), isHidden: Boolean(saved.isHidden) };
+      const next = { ...form, planId: String(saved._id), expectedUpdatedAt: saved.updatedAt ?? null, isHidden: Boolean(saved.isHidden) };
       setForm(next); await onSaved(next);
       setNotice("Plan saved. Clients who already bought it keep what they bought.");
     } catch (cause) { setError(message(cause, "Could not save the plan.")); }
@@ -185,18 +195,31 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     } catch (cause) { setError(message(cause, "Could not create the category.")); }
     finally { setBusy(false); }
   }
+  async function reloadSaved() {
+    if (!form.planId || !window.confirm("Discard unsaved changes and reload the saved plan?")) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/plans", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not reload plans.");
+      const current: PlanCatalogue = await response.json();
+      const plan = current.plans.find(row => row._id === form.planId);
+      if (!plan || plan.retired) throw new Error("This plan is no longer editable. Return to All plans.");
+      const next = formFromPlan(plan); setForm(next); onCategories(current); await onSaved(next);
+    } catch (cause) { setError(message(cause, "Could not reload the plan.")); }
+    finally { setBusy(false); }
+  }
   const categories = catalogue.categories.filter(c => c.status === "active" || c.key === form.categoryKey);
   const num = (key: keyof PlanForm) => (e: React.ChangeEvent<HTMLInputElement>) => update(key, Number(e.target.value) as never);
 
   return <>
-    <button className="admin-action" disabled={busy} onClick={onBack}>← All plans</button>
+    <div className="form-actions"><button className="admin-action" disabled={busy} onClick={onBack}>← All plans</button>{form.planId && <button type="button" className="admin-action" disabled={busy} onClick={reloadSaved}>Reload saved plan</button>}</div>
     <form className="admin-form" onSubmit={save}><fieldset disabled={busy} className={s.plain}>
       <h2>{form.planId ? "Edit plan" : "New plan"}</h2>
       <div className="form-columns">
         <label className="admin-field"><span>Plan name</span><input required maxLength={120} value={form.serviceName} onChange={e => update("serviceName", e.target.value)} /></label>
         <label className="admin-field"><span>Plan category</span><select required value={form.categoryKey} onChange={e => update("categoryKey", e.target.value)}><option value="">Choose a category</option>{categories.map(c => <option key={c.key} value={c.key}>{c.label}{c.status === "archived" ? " (archived)" : ""}</option>)}</select>
           {newCategory === null ? <small><button type="button" className={s.link} onClick={() => setNewCategory("")}>+ New category</button></small>
-            : <span className={s.inline}><input aria-label="New category name" placeholder="e.g. Online Promotions" maxLength={80} value={newCategory} onChange={e => setNewCategory(e.target.value)} /><button type="button" className="admin-action" disabled={newCategory.trim().length < 3} onClick={createCategory}>Create</button><button type="button" className="admin-action" onClick={() => setNewCategory(null)}>Cancel</button></span>}
+            : <span className={s.inline}><input aria-label="New category name" placeholder="e.g. Online Promotions" maxLength={60} value={newCategory} onChange={e => setNewCategory(e.target.value)} /><button type="button" className="admin-action" disabled={newCategory.trim().length < 3} onClick={createCategory}>Create</button><button type="button" className="admin-action" onClick={() => setNewCategory(null)}>Cancel</button></span>}
         </label>
       </div>
       <label className="admin-field"><span>Description</span><textarea maxLength={2000} rows={3} value={form.description} onChange={e => update("description", e.target.value)} /><small>What the client gets. Shown on the plan card.</small></label>
@@ -214,7 +237,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
       <fieldset className={s.box}><legend>Price</legend>
         {isUpload && <div className={s.row}>
           <label className={s.radio}><input type="radio" checked={!flexible} onChange={() => update("pricingMode", "fixed")} /> Fixed price</label>
-          <label className={s.radio}><input type="radio" checked={flexible} onChange={() => setForm({ ...form, pricingMode: "flexible", isHidden: true })} /> Client chooses files and updates (price per file)</label>
+          <label className={s.radio}><input type="radio" checked={flexible} onChange={() => setForm({ ...form, pricingMode: "flexible" })} /> Client chooses files and updates (price per file)</label>
         </div>}
         {!flexible && <>
           <div className={s.row}>
@@ -273,8 +296,8 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
         </>}
       </fieldset>
 
-      <label className={s.radio}><input type="checkbox" disabled={flexible} checked={!form.isHidden} onChange={e => update("isHidden", !e.target.checked)} /> Show this plan to clients</label>
-      {flexible && <p className={s.warn}>Flexible plans stay hidden until the new client plan builder is live.</p>}
+      <label className={s.radio}><input type="checkbox" checked={!form.isHidden} onChange={e => update("isHidden", !e.target.checked)} /> Show this plan to clients</label>
+
 
       {purchases.length > 0 && <div className={`${s.box} ${s.preview}`} aria-live="polite">
         <span className={s.label}>Price check (worked out by the portal)</span>

@@ -8,7 +8,7 @@ import { blankPlanForm, categoryKeyFrom, formFromPlan, planBody as savePlanBody,
 const planBody = (form: Parameters<typeof savePlanBody>[0]) => savePlanBody(form) as Record<string, unknown>;
 
 const starter: StoredPlan = {
-  _id: "p1", serviceName: "Starter Update Plan", description: "One update a month", isHidden: false, retired: false, canBeOnSale: true, price: 1490,
+  _id: "p1", updatedAt: "2026-10-28T00:00:00.000Z", serviceName: "Starter Update Plan", description: "One update a month", isHidden: false, retired: false, canBeOnSale: true, price: 1490,
   priceRange: { unit: "month", from: 1490, to: 1490 },
   servicePlan: {
     categoryKey: "website_updates", capability: "upload_data", dependency: "standalone_or_project", timing: "during_and_after", purchaseType: "recurring",
@@ -20,6 +20,7 @@ const starter: StoredPlan = {
 test("a saved fixed plan round-trips into the same save body", () => {
   const body = planBody(formFromPlan(starter));
   assert.equal(body.planId, "p1");
+  assert.equal(body.expectedUpdatedAt, starter.updatedAt);
   assert.equal(body.creating, undefined);
   assert.deepEqual(body.billingOptions, starter.servicePlan.billingOptions);
   assert.deepEqual([body.pricingMode, body.purchaseType, body.monthlyReferencePrice, body.limitScope, body.portalAccessCount, body.filesLimit], ["fixed", "recurring", 1490, "per_month", 1, 20]);
