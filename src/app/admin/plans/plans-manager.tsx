@@ -5,6 +5,7 @@ import {
   type PlanCatalogue, type PlanCategory, type PlanForm, type StoredPlan,
 } from "@/lib/service-plans";
 import s from "./plans-manager.module.css";
+import { PlanCategoryPicker } from "./plan-category-picker";
 
 type Quote = { firstPayment: number; totalPrice: number; cyclePrice: number; subtotal: number; discount: number; discountPercent: number; totalCycles: number; allowancePerCycle: number | null; updatePrice: number | null; validityDays: number | null };
 type Choice = { purchase: string; tenureMonths: number; files: number; updates: number };
@@ -146,7 +147,6 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [newCategory, setNewCategory] = useState<string | null>(null);
   const update = <K extends keyof PlanForm>(key: K, value: PlanForm[K]) => setForm({ ...form, [key]: value });
   const isUpload = form.capability === "upload_data";
   const flexible = isUpload && form.pricingMode === "flexible";
@@ -183,18 +183,6 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     } catch (cause) { setError(message(cause, "Could not save the plan.")); }
     finally { setBusy(false); }
   }
-  async function createCategory() {
-    if (!newCategory?.trim()) return;
-    setBusy(true); setError("");
-    try {
-      const key = categoryKeyFrom(newCategory);
-      await send({ target: "category", creating: true, key, label: newCategory.trim(), status: "active", sortOrder: catalogue.categories.length });
-      const response = await fetch("/api/plans", { cache: "no-store" });
-      if (response.ok) onCategories(await response.json());
-      update("categoryKey", key); setNewCategory(null);
-    } catch (cause) { setError(message(cause, "Could not create the category.")); }
-    finally { setBusy(false); }
-  }
   async function reloadSaved() {
     if (!form.planId || !window.confirm("Discard unsaved changes and reload the saved plan?")) return;
     setBusy(true); setError("");
@@ -208,7 +196,6 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     } catch (cause) { setError(message(cause, "Could not reload the plan.")); }
     finally { setBusy(false); }
   }
-  const categories = catalogue.categories.filter(c => c.status === "active" || c.key === form.categoryKey);
   const num = (key: keyof PlanForm) => (e: React.ChangeEvent<HTMLInputElement>) => update(key, Number(e.target.value) as never);
 
   return <>
@@ -217,10 +204,13 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
       <h2>{form.planId ? "Edit plan" : "New plan"}</h2>
       <div className="form-columns">
         <label className="admin-field"><span>Plan name</span><input required maxLength={120} value={form.serviceName} onChange={e => update("serviceName", e.target.value)} /></label>
-        <label className="admin-field"><span>Plan category</span><select required value={form.categoryKey} onChange={e => update("categoryKey", e.target.value)}><option value="">Choose a category</option>{categories.map(c => <option key={c.key} value={c.key}>{c.label}{c.status === "archived" ? " (archived)" : ""}</option>)}</select>
-          {newCategory === null ? <small><button type="button" className={s.link} onClick={() => setNewCategory("")}>+ New category</button></small>
-            : <span className={s.inline}><input aria-label="New category name" placeholder="e.g. Online Promotions" maxLength={60} value={newCategory} onChange={e => setNewCategory(e.target.value)} /><button type="button" className="admin-action" disabled={newCategory.trim().length < 3} onClick={createCategory}>Create</button><button type="button" className="admin-action" onClick={() => setNewCategory(null)}>Cancel</button></span>}
-        </label>
+        <PlanCategoryPicker catalogue={catalogue} categoryKey={form.categoryKey} busy={busy} onBusy={setBusy}
+          onSelect={key => update("categoryKey", key)} onCatalogue={onCategories} send={send}
+          reload={async () => {
+            const response = await fetch("/api/plans", { cache: "no-store" });
+            if (!response.ok) throw new Error("Could not reload categories.");
+            return await response.json() as PlanCatalogue;
+          }} />
       </div>
       <label className="admin-field"><span>Description</span><textarea maxLength={2000} rows={3} value={form.description} onChange={e => update("description", e.target.value)} /><small>What the client gets. Shown on the plan card.</small></label>
 
