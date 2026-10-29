@@ -4,11 +4,14 @@
  * One plan's own page (/plans/<name>-<id>): the visitor customizes the plan and sees its price,
  * without signing in. Same steps, order and wording as the portal builder
  * (frontend/src/components/PlanBuilder.js); every price is the portal backend's quote through
- * /api/plan-quote. Nothing is bought here: "Get this plan" leads to the portal (clients),
- * sign-in (visitors, the choice kept in the address) or the team (signed-in non-clients).
+ * /api/plan-quote. Nothing is bought here. "Get this plan":
+ *   client  → the portal's plan page with this same choice (frontend ServicePlanDetail.js reads it), to pay there;
+ *   member  → one click sends the choice to the team (/api/plan-request), who call back;
+ *   visitor → a short form (name, email, mobile) does the same, or "Already a client? Sign in" keeps the choice.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { PhoneField, type PhoneCountry, type PhoneValue } from "@/components/phone-field";
 import {
   BUY_WORDS, canChooseRelease, choiceQuery, choiceSummary, CYCLE_MONTHS, fileChoices, filePresets, formatMoney, lengthChoices,
   PERIOD_WORDS, planPagePath, purchaseChoices, PURCHASE_LABELS, quoteRequest, slabRows, tenureLabel, updateChoices,
@@ -93,8 +96,8 @@ function QuoteBill({ plan, quote, loading, error }: { plan: PublicPlan; quote: P
   );
 }
 
-export function PlanBuilder({ plan, initial, viewer, portalUrl, intro }: {
-  plan: PublicPlan; initial: PlanChoice; viewer: PlanViewer; portalUrl: string; intro: ReactNode;
+export function PlanBuilder({ plan, initial, viewer, portalUrl, otherRole = false, countries }: {
+  plan: PublicPlan; initial: PlanChoice; viewer: PlanViewer; portalUrl: string; otherRole?: boolean; countries: PhoneCountry[];
 }) {
   const flexible = plan.pricingMode === "flexible";
   const purchases = useMemo(() => purchaseChoices(plan), [plan]);
@@ -136,19 +139,74 @@ export function PlanBuilder({ plan, initial, viewer, portalUrl, intro }: {
 
   const choosePurchase = (value: PlanChoice["purchase"]) => set({ purchase: value, tenureMonths: purchases.find(option => option.value === value)?.months ?? null });
 
-  // "Get this plan": clients buy in their portal; visitors sign in first and come back to this
-  // same choice; signed-in non-clients reach the team (until the website request form exists).
   const summary = choiceSummary(plan, choice);
-  const here = `${planPagePath(plan)}?${choiceQuery(plan, choice)}`;
-  const cta = viewer === "client" && portalUrl
-    ? { href: `${portalUrl}/service-plan-detail/${plan._id}`, note: "Opens this plan in your client portal." }
-    : viewer === "visitor"
-      ? { href: `/login?next=${encodeURIComponent(here)}`, note: "Sign in to continue. Your choices stay as they are." }
-      : {
-          href: `mailto:contact@merasoftware.com?subject=${encodeURIComponent(`${plan.serviceName} plan`)}&body=${encodeURIComponent(`Hello, I would like the ${plan.serviceName} plan: ${summary}${quote && !loading ? ` (${formatMoney(quote.firstPayment)} ${oneTime ? "one-time" : `every ${PERIOD_WORDS[choice.purchase as BillingCycle]}`})` : ""}. Please contact me.`)}`,
-          note: "Our team will contact you to start this plan.",
-        };
+  const query = choiceQuery(plan, choice);
   const price = quote && !loading ? `${formatMoney(quote.firstPayment)} ${oneTime ? "one-time" : `/ ${PERIOD_WORDS[choice.purchase as BillingCycle]}`}` : "…";
+
+  // A non-client's request to the team. It is for this exact choice: changing the choice starts over.
+  const [ask, setAsk] = useState<{ for: string; open: boolean; busy: boolean; sent: boolean; error: string; needsPhone: boolean }>(
+    { for: request, open: false, busy: false, sent: false, error: "", needsPhone: false });
+  const current = ask.for === request ? ask : { for: request, open: ask.open, busy: false, sent: false, error: "", needsPhone: ask.needsPhone };
+  const [contact, setContact] = useState({ name: "", email: "", website: "" });
+  const [phone, setPhone] = useState<PhoneValue>({ countryCode: countries[0]?.code ?? "+91", phone: "" });
+  const sideRef = useRef<HTMLElement>(null);
+  const ready = Boolean(quote) && !loading && !error;
+
+  async function sendRequest() {
+    if (!ready || current.busy) return;
+    setAsk({ ...current, busy: true, error: "" });
+    const visitor = viewer === "visitor";
+    const body = {
+      ...JSON.parse(request),
+      ...(visitor ? { name: contact.name.trim(), email: contact.email.trim(), website: contact.website || undefined } : {}),
+      ...(visitor || current.needsPhone ? { countryCode: phone.countryCode, phone: phone.phone.trim() } : {}),
+    };
+    try {
+      const response = await fetch("/api/plan-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json().catch(() => ({}));
+      // An older account without a mobile number is asked for one once (same as offer reservations).
+      if (response.status === 428) return setAsk({ ...current, busy: false, open: true, needsPhone: true, error: result.error || "Add your mobile number so our team can call you." });
+      if (!response.ok) throw new Error(result.error || "Your request could not be sent. Please try again.");
+      setAsk({ ...current, busy: false, sent: true, error: "" });
+    } catch (failure) {
+      setAsk({ ...current, busy: false, error: failure instanceof Error ? failure.message : "Your request could not be sent. Please try again." });
+    }
+  }
+  function submit(event: FormEvent) { event.preventDefault(); void sendRequest(); }
+  // The main button: a member asks at once; a visitor first sees the form (on a phone, scrolled to it).
+  function start() {
+    if (viewer === "member" && !current.needsPhone) { void sendRequest(); return; }
+    setAsk({ ...current, open: true });
+    if (window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const clientHref = `${portalUrl}/service-plan-detail/${plan._id}${query ? `?${query}` : ""}`;
+  const mainButton = viewer === "client"
+    ? <a className={s.button} href={clientHref}>Get this plan →</a>
+    : <button type="button" className={s.button} onClick={start} disabled={!ready || current.busy || current.sent}>{current.busy ? "Sending…" : "Get this plan →"}</button>;
+  const showForm = viewer !== "client" && current.open && !current.sent && (viewer === "visitor" || current.needsPhone);
+  const action = current.sent ? (
+    <div className={s.sent} role="status">
+      <b>✓ Request received</b>
+      <span>Our team will contact you soon about this plan. Nothing has been charged.</span>
+    </div>
+  ) : showForm ? (
+    <form className={s.ask} onSubmit={submit}>
+      {/* Hidden from people; a bot that fills it is ignored (as the subscribe form's trap). */}
+      <input className="subscribe-trap" tabIndex={-1} autoComplete="off" aria-hidden="true" name="website" value={contact.website} onChange={event => setContact({ ...contact, website: event.target.value })} />
+      {viewer === "visitor" && (
+        <>
+          <label className="auth-field"><span>Your name</span><input required minLength={2} maxLength={80} autoComplete="name" value={contact.name} onChange={event => setContact({ ...contact, name: event.target.value })} /></label>
+          <label className="auth-field"><span>Email</span><input required type="email" maxLength={120} autoComplete="email" value={contact.email} onChange={event => setContact({ ...contact, email: event.target.value })} /></label>
+        </>
+      )}
+      <PhoneField className="auth-field" countries={countries.length ? countries : [{ code: "+91", label: "India", digits: 10 }]} value={phone} onChange={setPhone} />
+      <button type="submit" className={s.button} disabled={!ready || current.busy}>{current.busy ? "Sending…" : "Send request →"}</button>
+    </form>
+  ) : mainButton;
+  const note = viewer === "client"
+    ? otherRole ? "Opens in your client portal. Switch to your client role there, then pay." : "Opens in your client portal with these choices. You pay there."
+    : current.sent ? "" : "Our team will call you to start this plan. Nothing is charged now.";
 
   const steps: ReactNode[] = [];
   if (flexible && files.length) {
@@ -212,20 +270,21 @@ export function PlanBuilder({ plan, initial, viewer, portalUrl, intro }: {
 
   return (
     <div className={s.builder}>
-      <div className={s.left}>
-        {intro}
-        <div className={s.steps}>{steps.length ? steps : <Step title="One-time purchase"><p className={s.hint}>Nothing to choose: this plan is bought once.</p></Step>}</div>
-      </div>
-      <aside className={s.side} aria-label="Your plan">
+      <div className={s.steps}>{steps.length ? steps : <Step title="One-time purchase"><p className={s.hint}>Nothing to choose: this plan is bought once.</p></Step>}</div>
+      <aside ref={sideRef} className={s.side} aria-label="Your plan">
         <div><p className={s.fine}>Your plan</p><h2 className={s.choiceTitle}>{flexible ? summary : `${plan.serviceName}, ${BUY_WORDS[choice.purchase]}`}</h2></div>
         <QuoteBill plan={plan} quote={quote} loading={loading} error={error} />
-        <a className={s.button} href={cta.href}>Get this plan →</a>
-        <p className={s.note}>{cta.note}</p>
+        {action}
+        {current.error && <p className={s.error} role="alert">{current.error}</p>}
+        {note && <p className={s.note}>{note}</p>}
+        {viewer === "visitor" && !current.sent && (
+          <p className={s.note}>Already a client? <a className="text-link" href={`/login?next=${encodeURIComponent(`${planPagePath(plan)}?${query}`)}`}>Sign in</a> to buy it in your portal.</p>
+        )}
       </aside>
       {/* Phones: the price and the button stay in reach while the steps scroll. */}
       <div className={s.mobileBar}>
         <div><span>Your plan</span><strong>{error ? "—" : price}</strong></div>
-        <a className={s.button} href={cta.href}>Get this plan →</a>
+        {current.sent ? <strong className={s.good}>✓ Sent</strong> : mainButton}
       </div>
     </div>
   );

@@ -108,6 +108,21 @@ export const planQuoteSchema = z.object({
 }).strict();
 export type PlanQuoteRequest = z.infer<typeof planQuoteSchema>;
 
+/**
+ * "Get this plan" by a non-client (/api/plan-request): the same choice plus how to reach the person.
+ * A signed-in member sends only the choice (and a phone if the account has none); a visitor sends
+ * name, email and phone. `website` is the hidden trap field (as the subscribe form's): a bot fills it.
+ * The portal backend checks everything again (controller/lead/planRequest.js).
+ */
+export const planRequestSchema = planQuoteSchema.extend({
+  name: z.string().trim().min(2).max(80).optional(),
+  email: z.string().trim().email().max(120).optional(),
+  countryCode: z.string().regex(/^\+\d{1,4}$/).optional(),
+  phone: z.string().trim().min(1).max(20).optional(),
+  website: z.string().max(200).optional(),
+}).strict();
+export type PlanRequest = z.infer<typeof planRequestSchema>;
+
 // --- One plan's own page (/plans/<name>-<id>): the builder's choices, same order and wording as the
 // portal builder (frontend/src/components/PlanBuilder.js). Prices still come only from the backend quote.
 

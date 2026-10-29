@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { salesBackend } from "@/lib/sales-catalogue-server";
-import type { PlanQuote, PlanQuoteRequest, PublicPlanCatalogue } from "@/lib/public-plans";
+import { portalApiRequest } from "@/lib/portal-api";
+import { PORTAL_COOKIE } from "@/lib/portal";
+import type { PlanQuote, PlanQuoteRequest, PlanRequest, PublicPlanCatalogue } from "@/lib/public-plans";
 
 // The public plans pages read the portal backend with the website's integration key
 // (salesBackend public mode → /api/integration/...). Plans on sale + active plan categories.
@@ -17,4 +19,14 @@ export async function readPublicPlansOrNone(): Promise<PublicPlanCatalogue["plan
 
 export async function quotePublicPlan(body: PlanQuoteRequest): Promise<{ planId: string; quote: PlanQuote }> {
   return await salesBackend(false, body, "plan-catalogue/quote") as { planId: string; quote: PlanQuote };
+}
+
+/** A visitor's plan request (no account): sent with the website's integration key. */
+export async function requestPlanAsVisitor(body: Omit<PlanRequest, "website">): Promise<{ repeated: boolean }> {
+  return await salesBackend(false, body, "plan-request") as { repeated: boolean };
+}
+
+/** A signed-in member's plan request: their own portal session decides who is asking. */
+export async function requestPlanAsMember(token: string, body: Omit<PlanRequest, "website" | "name" | "email">): Promise<{ repeated: boolean }> {
+  return await portalApiRequest<{ repeated: boolean }>("Plan request", "/api/plan-request", "POST", { Cookie: `${PORTAL_COOKIE}=${token}` }, body);
 }

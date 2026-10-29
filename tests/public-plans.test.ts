@@ -85,6 +85,20 @@ test("file quick picks, per-file rates and the card benefit come from the plan's
   assert.equal(planBenefit({ ...base, capability: "send_reminders" }), "We do the work and post updates for you. No file uploads needed.");
 });
 
+test("a plan request is the quoted choice plus contact details only; the trap field is accepted, anything else refused", async () => {
+  const { planRequestSchema } = await import("../src/lib/public-plans");
+  const choice = quoteRequest(releasable, initialChoice(releasable, { purchase: "quarterly", months: "6", files: "15", updates: "2", release: "monthly" })!);
+  assert.equal(planRequestSchema.safeParse(choice).success, true); // a member: the choice alone
+  const visitor = { ...choice, name: "Ravi Kumar", email: "ravi@example.com", countryCode: "+91", phone: "98765 43210" };
+  assert.equal(planRequestSchema.safeParse(visitor).success, true);
+  assert.equal(planRequestSchema.safeParse({ ...visitor, website: "http://spam.test" }).success, true);
+  for (const bad of [{ ...visitor, email: "nope" }, { ...visitor, name: "R" }, { ...visitor, countryCode: "91" }, { ...visitor, quoteKey: "x" }, { ...visitor, planId: "abc" }]) {
+    assert.equal(planRequestSchema.safeParse(bad).success, false, JSON.stringify(bad));
+  }
+  // The portal reads the same address keys (frontend/src/helpers/planAuthReturn.js + serviceTenure.js initialPlanChoice).
+  assert.equal(choiceQuery(releasable, initialChoice(releasable, { purchase: "quarterly", months: "6", files: "15", updates: "2", release: "monthly" })!), "purchase=quarterly&months=6&files=15&updates=2&release=monthly");
+});
+
 test("a plan page's built-in search description is plain text within 160 characters", () => {
   assert.equal(planSeoDescription({ ...starter, description: "<p>Monthly <b>website</b> updates.</p>" }), "Monthly website updates.");
   const long = planSeoDescription({ ...starter, description: "word ".repeat(60) });

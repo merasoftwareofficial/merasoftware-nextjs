@@ -19,10 +19,15 @@
 
 /* --- /plans/<plan>: the builder ------------------------------------------------------------ */
 .builder{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;align-items:start;color:var(--brand-navy)}
-.left{display:flex;flex-direction:column;gap:24px;min-width:0}
-.intro h1{font-size:clamp(32px,4.4vw,48px);font-weight:650;line-height:1.1;letter-spacing:-1.5px;margin:12px 0}
-.intro p{color:var(--brand-muted);line-height:1.65;margin:0;max-width:680px}
-.steps{background:var(--brand-white);border:1px solid var(--brand-line);border-radius:16px}
+/* Heading above both columns (portal CustomerPageHeader): centred title, Back at the left of its row. */
+.head{padding:32px 0 28px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.titleRow{position:relative;width:100%;display:flex;align-items:center;justify-content:center}
+.titleRow h1{font-size:clamp(30px,4vw,44px);font-weight:650;line-height:1.1;letter-spacing:-1.5px;margin:0;padding:0 170px;color:var(--brand-navy)}
+.back{position:absolute;left:0;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:6px;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-navy);border-radius:12px;padding:10px 16px;font-weight:650;font-size:15px;text-decoration:none;white-space:nowrap}
+.back:hover{background:var(--brand-ice)}
+.back:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
+.lead{color:var(--brand-muted);line-height:1.65;margin:0;max-width:720px}
+.steps{min-width:0;background:var(--brand-white);border:1px solid var(--brand-line);border-radius:16px}
 .step{display:flex;flex-direction:column;gap:12px;padding:20px;border-top:1px solid var(--brand-line)}
 .step:first-child{border-top:0}
 .stepHead{display:flex;align-items:center;gap:10px}
@@ -70,9 +75,23 @@
 .gives b{color:var(--brand-navy)}
 .gives:empty{display:none}
 .note{font-size:13px;color:var(--brand-muted);margin:-4px 0 0;text-align:center}
+/* "Get this plan" for a non-client: the button is a <button>, the request form and its answer sit in the bill. */
+button.button{font-family:inherit;cursor:pointer;width:100%}
+button.button:disabled{opacity:.6;cursor:default}
+.ask{display:flex;flex-direction:column}
+.ask :global(.auth-field){margin-bottom:12px}
+.ask :global(.auth-field input),.ask :global(.phone-field-row select){border-radius:8px}
+.sent{display:flex;flex-direction:column;gap:4px;background:var(--brand-ice);border:1px solid var(--brand-teal);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.5;color:var(--brand-muted)}
+.sent b{color:var(--brand-teal);font-size:15px}
 .error{color:#b42318;margin:0}
 .mobileBar{display:none}
 
+@media(max-width:700px){
+  /* Phone: Back gets its own line above the title, so a long title never runs under it. */
+  .titleRow{flex-direction:column;align-items:flex-start;gap:16px}
+  .back{position:static;transform:none}
+  .titleRow h1{padding:0;align-self:center}
+}
 @media(max-width:900px){
   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .builder{grid-template-columns:1fr}
@@ -82,7 +101,7 @@
   .mobileBar div{display:flex;flex-direction:column;min-width:0}
   .mobileBar span{font-size:12px;color:var(--brand-muted)}
   .mobileBar strong{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .mobileBar .button{margin:0;min-height:44px;padding:10px 16px;white-space:nowrap}
+  .mobileBar .button{margin:0;min-height:44px;padding:10px 16px;white-space:nowrap;width:auto}
 }
 @media(max-width:540px){
   .grid{grid-template-columns:1fr}
