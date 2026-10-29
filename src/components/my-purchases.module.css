@@ -1,0 +1,18 @@
+.intro{margin:0 0 20px;color:var(--muted);line-height:1.6;font-size:var(--fs-text)}
+.card{background:var(--card);border:1px solid var(--line);padding:24px;margin-bottom:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-bottom:8px}
+.head h2{margin:0;font-size:24px;overflow-wrap:anywhere}
+.status{padding:5px 11px;border-radius:100px;font-size:var(--fs-ui);font-weight:700;background:var(--surface);color:var(--ink);white-space:nowrap}
+.status::before{content:"";display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:var(--muted);vertical-align:1px}
+.status[data-tone="positive"]::before,.status[data-tone="active"]::before{background:#3f9d2f}
+.status[data-tone="warning"]::before{background:#c08a00}
+.status[data-tone="danger"]::before{background:#c0392b}
+.meta{margin:0 0 12px;color:var(--muted);font-size:var(--fs-ui)}
+.card p{line-height:1.6;font-size:var(--fs-text)}
+.open{display:inline-block;margin-top:4px;font-weight:700;color:var(--brand-link);text-decoration:none}
+.open:hover{text-decoration:underline}
+.open:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
+/* Doubled class: wins over the Overview card's own ".card p" rule whatever the stylesheet order. */
+.live.live{margin:12px 0 0;font-weight:700;color:var(--ink);font-size:var(--fs-input);min-height:1.5em}
+.loading{color:var(--muted);font-weight:400}
+@media(max-width:600px){.card{padding:20px}.head h2{font-size:20px}}

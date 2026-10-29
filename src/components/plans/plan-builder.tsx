@@ -205,7 +205,7 @@ export function PlanBuilder({ plan, initial, viewer, portalUrl, otherRole = fals
     </form>
   ) : mainButton;
   const note = viewer === "client"
-    ? otherRole ? "Opens in your client portal. Switch to your client role there, then pay." : "Opens in your client portal with these choices. You pay there."
+    ? otherRole ? "Opens in your client portal. Switch to your client role there, then pay." : "You pay in your client portal, where your plan lives: send files, follow the work, see bills."
     : current.sent ? "" : "Our team will call you to start this plan. Nothing is charged now.";
 
   const steps: ReactNode[] = [];

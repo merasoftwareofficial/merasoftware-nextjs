@@ -38,14 +38,30 @@ try {
     email: 'member@account.test', userId: ids.member, token: 'account-test-token',
     emailStatus: 'active', categories: [], offers: true, createdAt: new Date(), updatedAt: new Date(),
   });
+  // The client's bought plans and one reserved offer, as the portal backend answers them
+  // (GET /api/get-order with orderState from orderStatusEngine.js; GET /api/offer-reservations).
+  const clientOrders = [
+    { _id: 'a'.repeat(24), isServicePlan: true, orderVisibility: 'approved', createdAt: '2026-10-01T10:00:00Z', servicePlanSnapshot: { serviceName: 'Website Care Plan' }, orderState: { code: 'plan_active', label: 'Active', tone: 'positive' } },
+    { _id: 'b'.repeat(24), isServicePlan: true, orderVisibility: 'pending-approval', createdAt: '2026-10-29T10:00:00Z', servicePlanSnapshot: { serviceName: 'Single Page Addition with a long name that must wrap on a phone' }, orderState: { code: 'pending_approval', label: 'Approval Pending', tone: 'warning' } },
+    { _id: 'c'.repeat(24), isServicePlan: false, createdAt: '2026-10-20T10:00:00Z', orderState: { code: 'in_progress', label: 'In Progress · 40%', tone: 'active' } },
+  ];
+  const reservedOffer = { id: 'r1', offerSlug: 'diwali', title: 'Diwali offer', reservedPrice: 5000, regularPrice: 7000, terms: [], reservedAt: '2026-10-29T00:00:00Z', expiresAt: '2099-11-05T04:30:00Z', deadline: '2099-11-05T04:30:00Z', extendedUntil: null, status: 'reserved', projectId: null, confirmationStatus: 'sent' };
+  const roleOf = async (req) => {
+    const token = /(?:^|;\s*)token=([^;]+)/.exec(req.headers.cookie || '')?.[1];
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    return identities.find(role => ids[role] === payload._id);
+  };
   portal = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     if (req.url === '/api/user-details') {
-      const token = /(?:^|;\s*)token=([^;]+)/.exec(req.headers.cookie || '')?.[1];
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-      const role = identities.find(role => ids[role] === payload._id);
+      const role = await roleOf(req);
       res.end(JSON.stringify({ success: true, data: { _id: ids[role], name: `Test ${role}`, email: `${role}@account.test`, roles: [role], activeRole: role, role, isGuest: false } }));
-    } else if (req.url === '/api/offer-reservations') res.end(JSON.stringify({ reservations: [] }));
+    } else if (req.url === '/api/get-order') {
+      res.end(JSON.stringify({ success: true, data: await roleOf(req) === 'customer' ? clientOrders : [] }));
+    } else if (req.url === '/api/offer-reservations') {
+      const mine = await roleOf(req) === 'customer' ? [reservedOffer] : [];
+      res.end(JSON.stringify({ success: true, data: { reservations: mine, serverNow: new Date().toISOString() } }));
+    }
     else if (req.url === '/api/userLogout') {
       res.setHeader('Set-Cookie', 'token=; Path=/; Max-Age=0');
       res.end(JSON.stringify({ success: true }));
@@ -108,6 +124,34 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await menu.count(), 0);
     assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
+    // My purchases is a client tab (docs/plan.md decision 11); its Overview box and the My offers box carry a live line.
+    const accountNav = page.getByRole('navigation', { name: 'My Account', exact: true });
+    assert.equal(await accountNav.locator('a[href="/account/purchases"]').count(), role === 'customer' ? 1 : 0);
+    const offersBox = page.locator('main a[href="/account/offers"]', { has: page.locator('h2') });
+    await offersBox.getByText(role === 'customer' ? '1 reserved · pay by 5 Nov' : 'No reserved offers', { exact: true }).waitFor();
+    if (role === 'customer') {
+      const purchasesBox = page.locator('main a[href="/account/purchases"]', { has: page.locator('h2') });
+      await purchasesBox.getByText('1 approval pending · 1 active', { exact: true }).waitFor();
+      await page.screenshot({ path: path.join(folder, 'account-client-overview.png'), fullPage: true });
+      await page.goto(`${origin}/account/purchases`, { timeout: 120_000 });
+      assert.equal(await accountNav.locator('a[aria-current="page"]').getAttribute('href'), '/account/purchases');
+      const cards = page.locator('main article');
+      await cards.first().waitFor();
+      assert.equal(await cards.count(), 2, 'plans only, not the project');
+      assert.match(await cards.nth(0).innerText(), /Single Page Addition[\s\S]*Approval Pending[\s\S]*We are checking your payment/);
+      assert.match(await cards.nth(1).innerText(), /Website Care Plan[\s\S]*Active/);
+      assert.equal(await cards.nth(0).getByRole('link', { name: 'Open in portal →' }).getAttribute('href'), `${portalUrl}/plan-details/${'b'.repeat(24)}`);
+      await page.screenshot({ path: path.join(folder, 'purchases-desktop.png'), fullPage: true });
+      await page.setViewportSize({ width: 375, height: 812 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: path.join(folder, 'purchases-mobile.png'), fullPage: true });
+      await page.setViewportSize({ width: 1366, height: 900 });
+      await page.goto(`${origin}/account`, { timeout: 120_000 });
+      console.log('PASS client: My purchases tab, Overview live lines, purchase cards and portal links, phone width');
+    } else {
+      await page.goto(`${origin}/account/purchases`, { timeout: 120_000 });
+      assert.equal(new URL(page.url()).pathname, '/account');
+    }
     if (role === 'admin') {
       await page.screenshot({ path: path.join(folder, 'account-desktop.png'), fullPage: true });
       await trigger.focus(); await page.keyboard.press('Enter');
