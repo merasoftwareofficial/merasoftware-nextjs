@@ -12,6 +12,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { PhoneField, type PhoneCountry, type PhoneValue } from "@/components/phone-field";
+import { onLeaveClick } from "@/components/loading/navigation";
 import {
   BUY_WORDS, canChooseRelease, choiceQuery, choiceSummary, CYCLE_MONTHS, fileChoices, filePresets, formatMoney, lengthChoices,
   PERIOD_WORDS, planPagePath, purchaseChoices, PURCHASE_LABELS, quoteRequest, slabRows, tenureLabel, updateChoices,
@@ -184,7 +185,7 @@ export function PlanBuilder({ plan, initial, viewer, portalUrl, otherRole = fals
   // here, so the portal does not show the builder again. from=website brings them back here afterwards.
   const clientHref = `${portalUrl}/checkout/${plan._id}?${query ? `${query}&` : ""}from=website`;
   const mainButton = viewer === "client"
-    ? <a className={s.button} href={clientHref}>Get this plan →</a>
+    ? <a className={s.button} href={clientHref} onClick={onLeaveClick}>Get this plan →</a>
     : <button type="button" className={s.button} onClick={start} disabled={!ready || current.busy || current.sent}>{current.busy ? "Sending…" : "Get this plan →"}</button>;
   const showForm = viewer !== "client" && current.open && !current.sent && (viewer === "visitor" || current.needsPhone);
   const action = current.sent ? (

@@ -25,7 +25,7 @@ const secret = randomBytes(32).toString('hex');
 const identities = ['member', 'moderator', 'editor', 'admin', 'customer'];
 const ids = Object.fromEntries(identities.map((role, index) => [role, String(index + 1).repeat(24)]));
 const db = new MongoMemoryServer();
-let app, portal, browser, logs = '';
+let app, portal, browser, logs = '', slowOrders = 0;
 try {
   await db.start();
   await mongoose.connect(db.getUri(), { dbName: 'account_navigation' });
@@ -57,6 +57,8 @@ try {
       const role = await roleOf(req);
       res.end(JSON.stringify({ success: true, data: { _id: ids[role], name: `Test ${role}`, email: `${role}@account.test`, roles: [role], activeRole: role, role, isGuest: false } }));
     } else if (req.url === '/api/get-order') {
+      // A slow answer, when asked for, so the in-place loader can be seen and seen to go.
+      if (slowOrders > 0) { slowOrders--; await new Promise(resolve => setTimeout(resolve, 1500)); }
       res.end(JSON.stringify({ success: true, data: await roleOf(req) === 'customer' ? clientOrders : [] }));
     } else if (req.url === '/api/offer-reservations') {
       const mine = await roleOf(req) === 'customer' ? [reservedOffer] : [];
@@ -151,8 +153,27 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(folder, 'purchases-mobile.png'), fullPage: true });
       await page.setViewportSize({ width: 1366, height: 900 });
+      // Loaders (docs/plan.md): while the list is coming, the small balls show in its place, and go
+      // when it is in. No skeleton anywhere. Open in portal starts the top line at the click.
+      slowOrders = 1;
+      await page.goto(`${origin}/account/purchases`, { timeout: 120_000 });
+      const waiting = page.getByRole('status').filter({ hasText: 'Loading your purchases…' });
+      await waiting.locator('.inline-loader').waitFor();
+      await cards.first().waitFor();
+      assert.equal(await page.locator('main .inline-loader').count(), 0, 'the loader goes once the list is in');
+      assert.equal(await page.locator('main [class*="skeleton"], main .animate-pulse').count(), 0);
+      await page.route(`${portalUrl}/plan-details/**`, route => setTimeout(() => route.fulfill({ body: 'portal' }), 1500));
+      // Read inside the page: it is still this page while the portal takes 1.5s to answer.
+      const lineShown = await page.evaluate(async () => {
+        [...document.querySelectorAll('main article a')].find(a => a.textContent === 'Open in portal →').click();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const line = document.querySelector('.nav-progress.is-busy');
+        return Boolean(line) && Number(getComputedStyle(line).opacity) > 0;
+      });
+      assert.equal(lineShown, true, 'Open in portal shows the top line until the portal opens');
+      await page.waitForURL(`${portalUrl}/plan-details/**`);
       await page.goto(`${origin}/account`, { timeout: 120_000 });
-      console.log('PASS client: My purchases tab, Overview live lines, purchase cards and portal links, phone width');
+      console.log('PASS client: My purchases tab, Overview live lines, purchase cards and portal links, phone width, loaders');
     } else {
       await page.goto(`${origin}/account/purchases`, { timeout: 120_000 });
       assert.equal(new URL(page.url()).pathname, '/account');

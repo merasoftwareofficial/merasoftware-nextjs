@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
+import { InlineLoader, onLeaveClick } from "@/components/loading/navigation";
 import { offersLine, purchasesLine, type Purchase } from "@/lib/my-purchases";
 import type { ReservationList } from "@/lib/offer-reservations";
 import styles from "./my-purchases.module.css";
@@ -34,7 +35,7 @@ export function MyPurchases({ newOrderId }: { newOrderId?: string }) {
   return <div>
     <p className={styles.intro}>You use every plan in your client portal: send files, follow the work and see bills there.</p>
     {error && <p role="alert" className="admin-empty">{error} <button className="text-link" onClick={() => void refresh()}>Retry</button></p>}
-    {!rows && !error && <p className="admin-empty">Loading your purchases…</p>}
+    {!rows && !error && <p className="admin-empty" role="status"><InlineLoader />Loading your purchases…</p>}
     {rows?.length === 0 && <div className="admin-empty"><b>You have not bought anything yet.</b><br /><Link className="text-link" href="/plans">See plans →</Link></div>}
     {rows?.map(row => <article key={row.id} ref={row.id === newOrderId ? freshRef : undefined} className={`${styles.card}${row.id === newOrderId ? ` ${styles.fresh}` : ""}`}>
       {row.id === newOrderId && <p className={styles.freshLabel}>✓ Your new plan</p>}
@@ -45,7 +46,7 @@ export function MyPurchases({ newOrderId }: { newOrderId?: string }) {
       <p className={styles.meta}>Plan{row.boughtAt ? ` · bought ${boughtOn(row.boughtAt)}` : ""}</p>
       {row.code === "pending_approval" && <p>We are checking your payment. You can send your data once it is approved.</p>}
       {row.code === "rejected" && <p>Your payment was not approved. See the reason in your client portal.</p>}
-      <a className={styles.open} href={row.href}>Open in portal →</a>
+      <a className={styles.open} href={row.href} onClick={onLeaveClick}>Open in portal →</a>
     </article>)}
   </div>;
 }
@@ -70,5 +71,5 @@ export function AccountLiveLine({ kind }: { kind: "purchases" | "offers" }) {
     return () => { live = false; };
   }, [kind]);
   if (line === "") return null;
-  return <p className={styles.live} aria-live="polite">{line ?? <span className={styles.loading}>Checking…</span>}</p>;
+  return <p className={styles.live} aria-live="polite">{line ?? <span className={styles.loading}><InlineLoader />Checking…</span>}</p>;
 }

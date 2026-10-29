@@ -26,7 +26,8 @@ export const TIMINGS = [
   ["after", "Only after the website is finished"],
 ] as const;
 
-export type PlanCategory = { updatedAt?: string | null; key: string; label: string; description?: string; linkedProjectCategory?: string | null; status: "active" | "archived"; sortOrder: number; usage?: { plans: number } };
+export type ProjectCategory = { category: string; label: string; status?: string; sortOrder?: number; basePrice?: number | null; description?: string; startingNodeTitle?: string; customerSelectable?: boolean };
+export type PlanCategory = { legacy?: boolean; updatedAt?: string | null; key: string; label: string; description?: string; linkedProjectCategory?: string | null; status: "active" | "archived"; sortOrder: number; usage?: { plans: number } };
 export type PriceRange = { unit: "update" | "one_time" | "month"; from: number; to: number } | null;
 export type StoredPlan = {
   _id: string; updatedAt?: string | null; serviceName: string; description: string; isHidden: boolean; retired: boolean; canBeOnSale: boolean;
@@ -39,7 +40,7 @@ export type StoredPlan = {
     maxTenureMonths?: number; releaseMode?: string; customerCanChooseRelease?: boolean;
   };
 };
-export type PlanCatalogue = { plans: StoredPlan[]; categories: PlanCategory[]; projectCategories: { category: string; label: string; status?: string }[] };
+export type PlanCatalogue = { plans: StoredPlan[]; categories: PlanCategory[]; projectCategories: ProjectCategory[]; legacyCategories?: PlanCategory[] };
 
 export type PlanForm = {
   planId: string; expectedUpdatedAt?: string | null; serviceName: string; description: string; categoryKey: string;

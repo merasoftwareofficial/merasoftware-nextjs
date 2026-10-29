@@ -41,14 +41,14 @@ const NAV_LINKS: MenuLink[] = [
 ];
 
 /**
- * The menu with "Pricing & Packages" after Services, listing the admin-made package pages
+ * The menu with "Packages" after Services, listing the admin-made package pages
  * (lib/package-pages.ts). null = still loading: the entry shows without sub-pages, so the
  * header does not shift; with no pages at all it is left out.
  */
 function navEntries(packageLinks: MenuLink[] | null): MenuEntry[] {
   const [services, ...rest] = NAV_LINKS;
   if (packageLinks && !packageLinks.length) return NAV_LINKS;
-  return [services, { label: "Pricing & Packages", links: packageLinks ?? [] }, ...rest];
+  return [services, { label: "Packages", links: packageLinks ?? [] }, ...rest];
 }
 
 async function packageLinks(): Promise<MenuLink[]> {

@@ -16,6 +16,10 @@
  *
  * Only one shows at a time: while a page is changing, the line alone says so.
  *
+ * A third, <InlineLoader /> below, is the same balls small and in place, for a
+ * part of a page whose data is still coming (a list, a live line). The site
+ * uses no skeleton loaders.
+ *
  * Nothing here touches the server: it only reflects work already happening.
  */
 
@@ -219,6 +223,21 @@ export function useTask() {
   }, []);
 
   return { busy, track };
+}
+
+/**
+ * The balls, small and in the flow of the page: a part of it whose data is
+ * still coming. The words next to it say what; it fades in after the same
+ * 120ms as the other loaders (CSS `.inline-loader` in globals.css).
+ */
+export function InlineLoader() {
+  return (
+    <span className="inline-loader" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  );
 }
 
 /** Ends detached navigations whenever the route actually changes. */
