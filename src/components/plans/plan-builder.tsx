@@ -5,7 +5,7 @@
  * without signing in. Same steps, order and wording as the portal builder
  * (frontend/src/components/PlanBuilder.js); every price is the portal backend's quote through
  * /api/plan-quote. Nothing is bought here. "Get this plan":
- *   client  → the portal's plan page with this same choice (frontend ServicePlanDetail.js reads it), to pay there;
+ *   client  → the portal's checkout with this same choice (frontend PlanCheckout.js reads it), to pay there;
  *   member  → one click sends the choice to the team (/api/plan-request), who call back;
  *   visitor → a short form (name, email, mobile) does the same, or "Already a client? Sign in" keeps the choice.
  */
@@ -180,7 +180,9 @@ export function PlanBuilder({ plan, initial, viewer, portalUrl, otherRole = fals
     if (window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const clientHref = `${portalUrl}/service-plan-detail/${plan._id}${query ? `?${query}` : ""}`;
+  // Straight to the portal's checkout with this choice (frontend pages/PlanCheckout.js): the client chose
+  // here, so the portal does not show the builder again. from=website brings them back here afterwards.
+  const clientHref = `${portalUrl}/checkout/${plan._id}?${query ? `${query}&` : ""}from=website`;
   const mainButton = viewer === "client"
     ? <a className={s.button} href={clientHref}>Get this plan →</a>
     : <button type="button" className={s.button} onClick={start} disabled={!ready || current.busy || current.sent}>{current.busy ? "Sending…" : "Get this plan →"}</button>;

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
 import { offersLine, purchasesLine, type Purchase } from "@/lib/my-purchases";
 import type { ReservationList } from "@/lib/offer-reservations";
@@ -16,22 +16,28 @@ async function readPurchases(): Promise<Purchase[]> {
   return data.purchases ?? [];
 }
 
-/** My Account → My purchases: every bought plan with its live status, each opening in the client portal. */
-export function MyPurchases() {
+/**
+ * My Account → My purchases: every bought plan with its live status, each opening in the client portal.
+ * `newOrderId` (from the portal checkout's return) marks the plan just bought and brings it into view.
+ */
+export function MyPurchases({ newOrderId }: { newOrderId?: string }) {
   const [rows, setRows] = useState<Purchase[] | null>(null);
   const [error, setError] = useState("");
+  const freshRef = useRef<HTMLElement>(null);
   const refresh = useCallback(async () => {
     try { setRows(await readPurchases()); setError(""); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not load your purchases"); }
   }, []);
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+  useEffect(() => { if (rows) freshRef.current?.scrollIntoView({ block: "center" }); }, [rows]);
 
   return <div>
     <p className={styles.intro}>You use every plan in your client portal: send files, follow the work and see bills there.</p>
     {error && <p role="alert" className="admin-empty">{error} <button className="text-link" onClick={() => void refresh()}>Retry</button></p>}
     {!rows && !error && <p className="admin-empty">Loading your purchases…</p>}
     {rows?.length === 0 && <div className="admin-empty"><b>You have not bought anything yet.</b><br /><Link className="text-link" href="/plans">See plans →</Link></div>}
-    {rows?.map(row => <article key={row.id} className={styles.card}>
+    {rows?.map(row => <article key={row.id} ref={row.id === newOrderId ? freshRef : undefined} className={`${styles.card}${row.id === newOrderId ? ` ${styles.fresh}` : ""}`}>
+      {row.id === newOrderId && <p className={styles.freshLabel}>✓ Your new plan</p>}
       <div className={styles.head}>
         <h2>{row.name}</h2>
         <span className={styles.status} data-tone={row.tone}>{row.status}</span>

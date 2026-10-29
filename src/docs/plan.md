@@ -1,10 +1,10 @@
 # Plans: website shop + portal - working doc
 
-Updated: 29 Oct 2026. This file covers only the work ahead. Earlier work is in git; older versions of this file are in `E:\Allprojects\backup\merasoftware\work48-plan-doc\` and `work49-plan-checkout-portal\`.
+Updated: 30 Oct 2026. This file covers only the work ahead. Earlier work is in git; older versions of this file are in `E:\Allprojects\backup\merasoftware\work48-plan-doc\`, `work49-plan-checkout-portal\` and `work50-checkout-page\`.
 
 ## 1. Next action
 
-**Client buys in the portal; website shows the purchases** (section 4): **built 30 Oct 2026, all checks pass, uncommitted, awaiting owner review.** After review: commit, deploy (section 5), turn the three new mail events On in Communication.
+**Checkout page** (section 4): the portal pay pop-up is replaced by its own checkout page, and the website sends a client straight to it. **Built 30 Oct 2026, all checks pass, uncommitted, awaiting owner review.** The portal-buy, upload-after-approval and My purchases work before it is committed. After review: commit, deploy (section 5), turn the new mail events On in Communication.
 
 Also open (section 5): deployment, and the work46 header decision.
 
@@ -39,14 +39,14 @@ Working rule: look, analyse and verify first; code only after the owner explicit
 
 | Viewer | Now |
 |---|---|
-| Client | Link to `<portal>/service-plan-detail/<id>?purchase=&months=&files=&updates=&release=`. The portal builder starts on that choice; the client pays there. |
+| Client | Link to `<portal>/checkout/<id>?purchase=&months=&files=&updates=&release=&from=website`: the portal checkout with that choice. |
 | Member | One click sends the choice. Result: "✓ Request received". |
 | Visitor | Form, plus a sign-in link that keeps the choice. Result: "✓ Request received". |
 
 Where it lives:
 
 - **Website:** plan page `app/plans/[plan]/page.tsx`; builder and CTA `components/plans/plan-builder.tsx`; helpers `lib/public-plans.ts`; request route `app/api/plan-request/route.ts`; account tabs `components/account-navigation.tsx` (`accountLinks` also builds the Overview boxes).
-- **Portal:** buy page `pages/ServicePlanDetail.js` (wallet/UPI/QR, offers, "needs a project", success popup); plan page `pages/PlanDetails.js`; upload popup `components/UpdateRequestModal.js`.
+- **Portal:** builder page `pages/ServicePlanDetail.js`; checkout + result `pages/PlanCheckout.js`; plan page `pages/PlanDetails.js`; upload popup `components/UpdateRequestModal.js`.
 - **Backend:** purchase `controller/order/customerCreateServicePlanOrder.js`; order shape `helpers/servicePlanPurchase.js` (customer orders start `orderVisibility: "pending-approval"`); upload rule `helpers/uploadOrderPolicy.js`; status labels `helpers/orderStatusEngine.js`; approval `controller/user/transactionApprovalController.js` → `helpers/serviceCycleSettlement.js` (approves, mails `plan.started`); plan mails `helpers/servicePlanNotifications.js`.
 
 Facts (verified 29 Oct 2026):
@@ -58,40 +58,72 @@ Facts (verified 29 Oct 2026):
 - `GET /api/get-order` (authToken) returns the user's orders with `orderState.label` from the status engine; the portal uses it.
 - Admin mail goes to `ADMIN_EMAILS` (hard-coded in `emailDefinitions.js`); WhatsApp goes to the phone saved on those accounts. Probably not registered yet.
 
-## 4. Client buys in the portal; website shows purchases (built, awaiting review)
+## 4. Client buys on the portal checkout page; website shows purchases
 
 ### 4.1 What the client sees
 
-1. Website plan page: customize → **Get this plan** → note "You pay in your client portal, where your plan lives: send files, follow the work, see bills." → portal pay page, choice filled, already signed in.
-2. Portal: wallet / UPI / both → submit → popup:
-   - wallet only: "✓ Your plan is active"
-   - UPI part: "✓ Payment submitted. We will tell you on WhatsApp when it is approved."
-   - main button **View my plan →** (`/plan-details/<orderId>`), second button **Back to website** (website home).
-3. Plan page: "Approval Pending" badge and uploads closed until approved; "Payment Rejected" after rejection.
-4. Messages (mail + WhatsApp copy, all new ones Off until turned On): UPI submitted (new), approved (exists, `plan.started`), rejected (new). Admin: "plan bought / UPI to approve" (new, Off; provision until admin settings exist).
-5. Website **My Account → My purchases** (clients only): one card per bought plan: name, status (same label as portal), date, **Open in portal →**. **Overview** shows a live line on My purchases ("1 active · 1 approval pending") and My offers ("1 reserved · pay by …").
+1. **Website plan page:** customize → **Get this plan** → straight to the portal **checkout page** `<portal>/checkout/<planId>?<choice>&from=website`. The builder is not shown a second time. Login is shared.
+2. **Portal plan page** (`/service-plan-detail/<id>`, Explore Services): builder → **Continue to checkout →** → the same checkout page with `from=portal`.
+3. **Checkout page:**
+   - "Your plan" (name, backend price, what you get, **Change** back to where the choice was made, with the same choice)
+   - "Payment" (payment offer, amount due, wallet part, UPI part)
+   - **Pay** from wallet, or **Continue to UPI**: QR for the remainder and a 12-digit reference on the same page
+   - an agreed offer (pay later / limited uploads) activates without payment
+4. **Result page** `/checkout/done/<orderId>?from=…`:
+   - the order's real status from the backend on every visit: "Your plan is active" / "Payment submitted" / "Payment not approved" with the reason
+   - buttons **View my plan →** and **Back to website** (website origin) or **Back to services** (portal origin)
+   - straight after paying, a 10-second automatic return to where the client came from. A website client goes to the website's **My purchases** with the new plan marked (`/account/purchases?new=<orderId>`); a portal client goes to `/plan-details/<orderId>`.
+   - **Stay here**, any click or any key stops the countdown. A rejected payment never redirects.
+5. **Plan page:** "Approval Pending" badge, "Opens after payment approval" on the updates and uploads closed until approved; "Payment Rejected" with the reason after a rejection.
+6. **Messages** (mail + WhatsApp copy; new ones Off until turned On):
+   - UPI submitted: `plan.payment.submitted`
+   - approved: `plan.started`, already existed
+   - rejected: `plan.payment.rejected`
+   - admin: `plan.purchase.admin`. This is a provision: it goes to the hard-coded `ADMIN_EMAILS` until admin settings exist.
+7. **Website My Account:**
+   - **My purchases** tab, clients only: status (same label as the portal), **Open in portal →**
+   - **Overview** live lines on My purchases and My offers
 
-### 4.2 Build steps
+### 4.2 Where it lives
 
-Backups: website `work49-plan-checkout-portal`, portal `work28-plan-checkout-portal`, backend `work33-plan-checkout-portal`.
+Committed (portal-buy, upload after approval, My purchases):
 
-1. **Backend**
-   - `uploadOrderPolicy.js`: refuse `pending-approval` for every service upload, not only offers.
-   - Purchase controller: 403 "Switch to your customer role to buy a plan." when `req.userRole !== 'customer'`; `purchaseKey` guard shared by the normal and deferred paths (same key + same choice → earlier order, no new charge; different choice → refused; no bill → "needs review"); a parallel duplicate hitting the unique index answers 409.
-   - Mail events (Plans section, customer-type so they start Off): `plan.payment.submitted`, `plan.payment.rejected`, `plan.purchase.admin`.
-   - Tests for all of the above; existing suites pass.
-2. **Portal:** success popup with two buttons; plan page "Approval Pending" / "Payment Rejected" badge with uploads closed; upload popup lists only approved plans.
-3. **Website:** client note; `app/api/my-purchases` pass-through to `GET /api/get-order` (trimmed to name, kind, status, date, link); `/account/purchases` page; tab + Overview live lines.
-4. **Proof:** backend tests on in-memory MongoDB; website unit tests; browser check of popup, plan page and My purchases including phone width.
+- **Backend:**
+  - `helpers/uploadOrderPolicy.js`: no upload while `pending-approval`
+  - `controller/order/customerCreateServicePlanOrder.js`: customer role (403), shared `purchaseKey` block, 11000 → 409, purchase mails
+  - `transactionApprovalController.js rejectTransaction`: rejection mail
+  - `helpers/servicePlanNotifications.js`
+  - `emailDefinitions.js` and `emailCatalog.js`: 3 events, customer-type = Off until On
+  - test: `tests/planCheckoutPortal.test.js`
+- **Portal:**
+  - `pages/PlanDetails.js`: badge, `paymentNote`
+  - `components/PlanUpdateCards.js`
+  - `components/UpdateRequestModal.js`: only approved plans
+- **Website:**
+  - `lib/my-purchases.ts`, `app/api/my-purchases/route.ts`
+  - `app/account/purchases/page.tsx`, `components/my-purchases.tsx`
+  - `components/account-navigation.tsx`: async; tab and live lines
 
-Built where (30 Oct 2026):
+Checkout page (30 Oct 2026, uncommitted; backups website `work50-checkout-page`, portal `work29-checkout-page`; no backend change):
 
-- Backend: `helpers/uploadOrderPolicy.js` (pending-approval refused for every service upload); `controller/order/customerCreateServicePlanOrder.js` (role 403, shared `purchaseKey` block, 11000 → 409, purchase mails); `controller/user/transactionApprovalController.js rejectTransaction` (rejection mail); `helpers/servicePlanNotifications.js preparePurchaseMails / preparePaymentRejected`; `helpers/emailDefinitions.js` + `emailCatalog.js` (3 events, customer-type = Off until On; admin copy to `ADMIN_EMAILS`); `scripts/verifyNonBatchPaymentRegression.js` sends `userRole: "customer"`. Test: `tests/planCheckoutPortal.test.js`.
-- Portal: `pages/ServicePlanDetail.js` (popup from the backend answer, `purchased` state, two buttons); `pages/PlanDetails.js` ("Approval Pending" / "Payment Rejected" badge, uploads closed, `paymentNote` in desktop and phone layout); `components/PlanUpdateCards.js` ("Opens after payment approval"); `components/UpdateRequestModal.js` (only approved plans). Test: `tests/plan-checkout-browser.cjs` (real backend controllers + in-memory MongoDB + real session cookie).
-- Website: `lib/my-purchases.ts`, `app/api/my-purchases/route.ts`, `app/account/purchases/page.tsx`, `components/my-purchases.tsx` (+ `.module.css`), `components/account-navigation.tsx` (async, reads the session; My purchases tab for clients; live lines), `components/plans/plan-builder.tsx` (client note). Tests: `tests/my-purchases.test.ts`, `tests/account-navigation.browser.mjs` (client tab, live lines, cards, phone width).
-- Seen, not changed: on a phone the portal plan page's Back button overlaps the plan title (existing header layout).
+- **Portal:**
+  - `pages/PlanCheckout.js`: `PlanCheckout` and `PlanCheckoutDone`; routes `checkout/:planId` and `checkout/done/:orderId` in `routes/customerRoutes.js`
+  - `helpers/planCheckout.js`: origin, addresses, next steps, split, purchase key per choice+offer in sessionStorage, result words
+  - `hooks/usePlanQuote.js`: the quote request, shared with `components/PlanBuilder.js`
+  - `helpers/serviceTenure.js planChoiceBody / planChoiceQuery`: one rule for builder and checkout
+  - `helpers/planAuthReturn.js`: login keeps `/checkout/...` with the choice and `from`
+  - `pages/ServicePlanDetail.js`: pay pop-up and success pop-up removed; button "Continue to checkout →"
+  - tests: `tests/customer-plan-flow.test.mjs`, `tests/plan-checkout-browser.cjs`
+- **Website:**
+  - `components/plans/plan-builder.tsx`: client link → checkout with `from=website`
+  - `app/account/purchases/page.tsx` and `components/my-purchases.tsx`: `?new=` marks and scrolls to the new plan
+  - test: `tests/account-navigation.browser.mjs`
 
-**Done means:** a client buys in the portal with wallet, UPI or both; one order and one charge per attempt; no uploads before UPI approval; the client is told at submit, approval and rejection; the website shows the purchase with the same status.
+Kept as it was: `components/AddServiceModal.js` (buying a service inside a project keeps its own pop-up).
+
+Seen, not changed: on a phone the portal plan page's Back button overlaps the plan title (existing header layout).
+
+**Done means:** a website client chooses once and pays on the portal checkout. A portal client goes builder → checkout. There is one order and one charge per attempt, even on a reload or a double click. The result page tells the truth and returns the client to where they came from. There are no uploads before UPI approval. The website shows the purchase with the same status.
 
 ### 4.3 Later (separate tasks)
 
@@ -137,4 +169,4 @@ Known: website `npx tsc --noEmit` fails only on the stale ignored `.next-build/t
 - Live sites: `https://www.merasoftware.com` (website), `https://portal.merasoftware.com` (portal), `https://api.merasoftware.com` (backend).
 - Live data, real mails/WhatsApp, commit, push and deploy only with the owner's permission. Never print secrets or overwrite env files.
 - Payment rules: the wallet is the customer's own money and is debited at once; UPI waits for admin approval; an order is created only together with its payment; no uploads before payment is confirmed.
-- Backups go only in `E:\Allprojects\backup\<repo>\workNN`. Next free: website `work50`, portal `work29`, backend `work34`. Verify they are free first.
+- Backups go only in `E:\Allprojects\backup\<repo>\workNN`. Next free: website `work51`, portal `work30`, backend `work34`. Verify they are free first.

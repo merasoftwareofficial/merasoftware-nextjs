@@ -141,6 +141,11 @@ try {
       assert.match(await cards.nth(0).innerText(), /Single Page Addition[\s\S]*Approval Pending[\s\S]*We are checking your payment/);
       assert.match(await cards.nth(1).innerText(), /Website Care Plan[\s\S]*Active/);
       assert.equal(await cards.nth(0).getByRole('link', { name: 'Open in portal →' }).getAttribute('href'), `${portalUrl}/plan-details/${'b'.repeat(24)}`);
+      // Back from the portal checkout (?new=<orderId>): the plan just bought is marked; nothing else is.
+      await page.goto(`${origin}/account/purchases?new=${'b'.repeat(24)}`, { timeout: 120_000 });
+      await cards.first().waitFor();
+      assert.equal(await page.getByText('✓ Your new plan', { exact: true }).count(), 1);
+      assert.match(await cards.nth(0).innerText(), /✓ Your new plan[\s\S]*Single Page Addition/);
       await page.screenshot({ path: path.join(folder, 'purchases-desktop.png'), fullPage: true });
       await page.setViewportSize({ width: 375, height: 812 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
