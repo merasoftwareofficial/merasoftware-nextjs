@@ -1,32 +1,93 @@
-/* Public plans page (/plans). Same brand tokens and card look as the package pages
-   (components/campaign/campaign.module.css). */
-.card{background:var(--brand-white);border:1px solid var(--brand-line);border-radius:var(--card-radius);box-shadow:0 8px 28px rgb(0 36 61 / .05);padding:28px;color:var(--brand-navy);min-width:0;display:flex;flex-direction:column;gap:12px}
-.card h3{font-size:24px;line-height:1.2;margin:0;font-weight:650}
+/* Public plans pages (/plans and /plans/<name>-<id>). Same brand tokens and card look as the package
+   pages (components/campaign/campaign.module.css); the builder's layout follows the portal's
+   (frontend/src/components/PlanBuilder.js): steps on the left, a sticky "Your plan" bill on the right. */
+
+/* --- /plans: short cards ------------------------------------------------------------------- */
+.card{background:var(--brand-white);border:1px solid var(--brand-line);border-radius:var(--card-radius);box-shadow:0 8px 28px rgb(0 36 61 / .05);padding:24px;color:var(--brand-navy);min-width:0;display:flex;flex-direction:column;gap:10px}
+.card h3{font-size:22px;line-height:1.2;margin:0;font-weight:650}
 .fine{font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:var(--brand-teal);margin:0}
-.description{line-height:1.65;color:var(--brand-muted);margin:0}
-.range{font-size:28px;font-weight:750;color:var(--brand-teal);letter-spacing:-.5px}
-.estimator{display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--brand-line);padding-top:16px}
-.field{display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--brand-muted)}
-.field b{color:var(--brand-navy)}
-.field input[type=range]{width:100%;accent-color:var(--brand-teal);height:28px}
-.options{display:flex;flex-wrap:wrap;gap:8px}
-.option{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-navy);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:36px}
-.option[aria-pressed=true]{border-color:var(--brand-teal);background:var(--brand-ice);box-shadow:inset 0 0 0 1px var(--brand-teal)}
-.option:focus-visible,.button:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
-.quote{background:var(--brand-ice);border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.55;color:var(--brand-muted);transition:opacity .2s}
-.quote[data-loading]{opacity:.6}
-.quote p{margin:4px 0 0}
-.amount{font-size:30px;font-weight:750;color:var(--brand-navy);letter-spacing:-.5px}
-.amount small{font-size:14px;font-weight:400;color:var(--brand-muted);letter-spacing:0}
-.good{color:var(--brand-teal);font-weight:600}
-.error{color:#b42318}
-.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--brand-navy);color:var(--brand-white);border:1px solid var(--brand-navy);border-radius:8px;padding:14px 20px;font-weight:650;font-size:15px;min-height:48px;text-decoration:none;margin-top:auto}
+.description{line-height:1.6;color:var(--brand-muted);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.range{font-size:24px;font-weight:750;color:var(--brand-teal);letter-spacing:-.5px;margin-top:4px}
+.benefit{font-size:14px;line-height:1.5;color:var(--brand-muted);margin:0 0 6px}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--brand-navy);color:var(--brand-white);border:1px solid var(--brand-navy);border-radius:8px;padding:13px 20px;font-weight:650;font-size:15px;min-height:48px;text-decoration:none;margin-top:auto;text-align:center}
 .button:hover{background:var(--brand-blue)}
-.secondary{background:var(--brand-white);color:var(--brand-navy);border-color:var(--brand-line)}.secondary:hover{background:var(--brand-ice)}
-.actions{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.button:focus-visible,.pill:focus-visible,.seg:focus-visible,.select:focus-visible,.slider:focus-visible,.info button:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
 .category{margin-top:48px}
 .category>h2{font-size:28px;font-weight:650;margin:0 0 6px}
 .category>p{color:var(--brand-muted);margin:0 0 20px;max-width:680px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
-@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:540px){.grid{grid-template-columns:1fr}.card{padding:22px}.range{font-size:24px}}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:stretch}
+
+/* --- /plans/<plan>: the builder ------------------------------------------------------------ */
+.builder{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;align-items:start;color:var(--brand-navy)}
+.left{display:flex;flex-direction:column;gap:24px;min-width:0}
+.intro h1{font-size:clamp(32px,4.4vw,48px);font-weight:650;line-height:1.1;letter-spacing:-1.5px;margin:12px 0}
+.intro p{color:var(--brand-muted);line-height:1.65;margin:0;max-width:680px}
+.steps{background:var(--brand-white);border:1px solid var(--brand-line);border-radius:16px}
+.step{display:flex;flex-direction:column;gap:12px;padding:20px;border-top:1px solid var(--brand-line)}
+.step:first-child{border-top:0}
+.stepHead{display:flex;align-items:center;gap:10px}
+.stepHead h3{font-size:16px;font-weight:650;margin:0;letter-spacing:0}
+.bigNumber{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.bigNumber strong{font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.bigNumber span,.ends,.hint,.muted{font-size:13px;color:var(--brand-muted)}
+.slider{width:100%;height:28px;accent-color:var(--brand-teal)}
+.ends{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
+.hint{margin:0}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-navy);border-radius:999px;padding:7px 14px;cursor:pointer;min-height:36px}
+.pill[aria-pressed=true],.seg[aria-pressed=true]{border-color:var(--brand-teal);background:var(--brand-ice);box-shadow:inset 0 0 0 1px var(--brand-teal)}
+.select{font:inherit;font-size:16px;font-weight:600;color:var(--brand-navy);background:var(--brand-white);border:1px solid var(--brand-line);border-radius:10px;padding:10px 12px;width:min(100%,260px)}
+.segs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.seg{font:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-navy);border-radius:12px;padding:10px 8px;text-align:center;cursor:pointer}
+.seg b{font-size:14px}
+.seg span{font-size:12px;color:var(--brand-muted)}
+.seg span.good{color:var(--brand-teal);font-weight:700}
+.info{position:relative;display:inline-flex}
+.info button{border:0;background:transparent;color:var(--brand-muted);font-size:16px;line-height:1;cursor:pointer;padding:2px}
+.bubble{position:absolute;left:0;top:26px;z-index:20;width:260px;background:var(--brand-white);border:1px solid var(--brand-line);border-radius:12px;padding:10px;box-shadow:0 18px 40px rgb(0 36 61 / .14)}
+.bubble table{width:100%;border-collapse:collapse;font-size:13px}
+.bubble td{padding:6px 8px;color:var(--brand-muted)}
+.bubble td:last-child{text-align:right;color:var(--brand-navy);font-variant-numeric:tabular-nums}
+.bubble tr[data-active]{background:var(--brand-ice)}
+
+/* The "Your plan" bill: sticky beside the steps on wide screens. */
+.side{display:flex;flex-direction:column;gap:14px;background:var(--brand-white);border:1px solid var(--brand-line);border-radius:16px;padding:20px;position:sticky;top:24px;box-shadow:0 8px 28px rgb(0 36 61 / .05)}
+.choiceTitle{font-size:16px;font-weight:650;margin:4px 0 0;letter-spacing:0;line-height:1.35}
+.bill{display:flex;flex-direction:column;gap:12px;transition:opacity .2s}
+.bill[data-loading]{opacity:.6}
+.rows{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--brand-muted)}
+.row span:last-child{font-variant-numeric:tabular-nums}
+.good{color:var(--brand-teal);font-weight:600}
+.total{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:4px 12px;border-top:1px dashed var(--brand-line);padding-top:12px}
+.total>span:first-child{font-size:14px;color:var(--brand-muted)}
+.total strong{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;text-align:right}
+.total strong small{font-size:15px;font-weight:600;color:var(--brand-muted);letter-spacing:0}
+.totalNote{font-size:14px;color:var(--brand-muted)}
+.totalNote.num{text-align:right;font-variant-numeric:tabular-nums}
+.gives{display:flex;flex-direction:column;gap:4px;background:var(--brand-ice);border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.5;color:var(--brand-muted)}
+.gives b{color:var(--brand-navy)}
+.gives:empty{display:none}
+.note{font-size:13px;color:var(--brand-muted);margin:-4px 0 0;text-align:center}
+.error{color:#b42318;margin:0}
+.mobileBar{display:none}
+
+@media(max-width:900px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .builder{grid-template-columns:1fr}
+  .side{position:static}
+  /* The bill sits after the steps; this bar keeps the price and button in reach meanwhile. */
+  .mobileBar{display:flex;align-items:center;justify-content:space-between;gap:12px;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--brand-white);border-top:1px solid var(--brand-line);box-shadow:0 -8px 24px rgb(0 36 61 / .1);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+  .mobileBar div{display:flex;flex-direction:column;min-width:0}
+  .mobileBar span{font-size:12px;color:var(--brand-muted)}
+  .mobileBar strong{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mobileBar .button{margin:0;min-height:44px;padding:10px 16px;white-space:nowrap}
+}
+@media(max-width:540px){
+  .grid{grid-template-columns:1fr}
+  .card{padding:20px}
+  .segs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .step{padding:16px}
+  .pills .pill{font-size:13px}
+}

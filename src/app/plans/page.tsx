@@ -4,15 +4,15 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { PlanCard } from "@/components/plans/plan-card";
 import { pageMetadata } from "@/lib/page-seo";
-import { portalAddresses } from "@/lib/portal";
 import { PLANS_PAGE_INTRO, PLANS_PAGE_TITLE, type PublicPlanCatalogue } from "@/lib/public-plans";
 import { readPublicPlans } from "@/lib/public-plans-server";
 import c from "@/components/campaign/campaign.module.css";
 import s from "@/components/plans/plans.module.css";
 export const dynamic = "force-dynamic";
 
-// The public plans page in the "Pricing & Packages" menu (docs/plan.md §0.2 P6). Marketing only:
-// plans on sale, grouped by plan category, each with an estimator priced by the portal backend.
+// The public plans page in the "Pricing & Packages" menu (docs/plan.md). Marketing only: plans on
+// sale, grouped by plan category, as short cards; each opens its own page (app/plans/[plan]) to
+// customize it and see the portal backend's price.
 export async function generateMetadata(): Promise<Metadata> {
   return pageMetadata("plans");
 }
@@ -20,9 +20,6 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page() {
   let catalogue: PublicPlanCatalogue | null = null;
   try { catalogue = await readPublicPlans(); } catch { /* No stale or made-up prices during an outage. */ }
-  // Plans are bought on the portal's own plan page (frontend route service-plan-detail/:planId).
-  let portalUrl = "";
-  try { portalUrl = portalAddresses().portalUrl; } catch { /* Without it the card offers the enquiry only. */ }
   const categories = catalogue ? [...catalogue.categories].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label)) : [];
   const groups = catalogue
     ? [
@@ -51,7 +48,7 @@ export default async function Page() {
             <section key={group.key} className={s.category}>
               <h2>{group.label}</h2>
               {group.description ? <p>{group.description}</p> : null}
-              <div className={s.grid}>{group.plans.map(plan => <PlanCard key={plan._id} plan={plan} categoryLabel={group.label} buyHref={portalUrl ? `${portalUrl}/service-plan-detail/${plan._id}` : ""} />)}</div>
+              <div className={s.grid}>{group.plans.map(plan => <PlanCard key={plan._id} plan={plan} categoryLabel={group.label} />)}</div>
             </section>
           ))}
         </div>
