@@ -4,7 +4,7 @@ export type Application = "website" | "portal";
 /** review/off: an admin's action asks before sending. auto/off: customer-started mail is On or Off. */
 export type EmailPolicyMode = "review" | "auto" | "off";
 // `doc`/`subjectDoc` are the visual editor's documents (absent from a backend older than the editor).
-export type EmailTemplate = { _id: string; event: string; name: string; subject: string; text: string; system?: boolean; doc?: JSONContent; subjectDoc?: JSONContent };
+export type EmailTemplate = { _id: string; event: string; name: string; subject: string; text: string; system?: boolean; doc?: JSONContent; subjectDoc?: JSONContent; updatedAt?: string };
 /** A detail an email may hold: `sample` is an example (template editor), `value` this email's own value (review). */
 export type TemplateVariable = { key: string; label: string; hint?: string; sample?: string; value?: string };
 /** Per action: whether it has an editable built-in (system) template, and what templates may use. */
@@ -13,11 +13,15 @@ export type TemplateCatalog = Record<string, { system: boolean; variables: Templ
 export type TemplateOption = { id: string; name: string; system: boolean };
 export type EmailDraft = {
   _id: string; event: string; to: string[]; subject: string; text: string;
-  status: "pending" | "sending" | "sent" | "skipped" | "failed";
+  status: "pending" | "sending" | "sent" | "queued" | "skipped" | "failed";
   requiredLinks?: string[]; attachments?: { filename: string }[];
   failure?: string; expiresAt: string; createdAt: string;
   reference?: { subscriberId?: string; tokenHash?: string };
   html?: string; templateOptions?: TemplateOption[];
+  templateDoc?: JSONContent; templateSubjectDoc?: JSONContent; selectedTemplateId?: string; templateRevision?: string; templateLabel?: string;
+  templatePreviewHtml?: string; templatePreviewSubject?: string;
+  channelOptions?: { id: string; label: string; enabled: boolean; reason: string }[]; defaultChannel?: string;
+  delivery?: { channels?: string[]; lockedAt?: string; emailStatus?: string; whatsappStatus?: string };
   // The review as an editor document, and the chips it may use.
   doc?: JSONContent; editorFields?: { variables: TemplateVariable[]; blocks: TemplateVariable[] };
 };

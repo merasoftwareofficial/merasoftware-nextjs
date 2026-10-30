@@ -42,11 +42,16 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
   const [editor, setEditor] = useState<TemplateEditor | null>(null);
   const [sample, setSample] = useState<{ subject: string; html: string; whatsapp?: string } | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [draft, setDraft] = useState<EmailDraft | null>(null);
   const [subject, setSubject] = useState("");
+  const [reviewSubjectDoc, setReviewSubjectDoc] = useState<JSONContent | undefined>();
+  const [channel, setChannel] = useState("");
+  const [reviewTemplate, setReviewTemplate] = useState<{ id: string; name: string; revision?: string } | null>(null);
   const [reviewDoc, setReviewDoc] = useState<JSONContent | undefined>(undefined);
   const [templateId, setTemplateId] = useState("current");
   const [dialogError, setDialogError] = useState("");
+  const [dialogNotice, setDialogNotice] = useState("");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState(""); // "" = every section
   const [observedAt, setObservedAt] = useState(0);
@@ -118,39 +123,64 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     finally { setBusy(false); }
   }
   async function review(id: string) {
+    setPreviewOpen(false);
+    setDialogNotice("");
     setBusy(true); setError("");
     try {
       const value = await request<EmailDraft>( `/drafts/${id}`);
-      setDraft(value); setSubject(value.subject); setReviewDoc(value.doc ?? plainDoc(value.text)); setTemplateId("current"); setPreviewHtml(value.html || ""); setDialogError("");
+      setDraft(value); setSubject(value.templatePreviewSubject || value.subject); setReviewSubjectDoc(value.templateSubjectDoc); setReviewDoc(value.templateDoc ?? value.doc ?? plainDoc(value.text));
+      setTemplateId(value.selectedTemplateId || "current"); setReviewTemplate(value.selectedTemplateId ? { id: value.selectedTemplateId, name: value.templateLabel || "Message", revision: value.templateRevision } : null);
+      setChannel(value.delivery?.channels?.length ? (value.delivery.channels.length === 2 ? "both" : value.delivery.channels[0]) : value.defaultChannel || ""); setPreviewHtml(value.templatePreviewHtml || value.html || ""); setDialogError("");
     } catch (err) { setError(reason(err)); }
     finally { setBusy(false); }
   }
   async function chooseTemplate(id: string) {
-    if (!draft || id === "current") { if (draft) { setSubject(draft.subject); setReviewDoc(draft.doc ?? plainDoc(draft.text)); setTemplateId(id); setPreviewHtml(draft.html || ""); } return; }
+    if (!draft || id === "current") { if (draft) { setSubject(draft.subject); setReviewSubjectDoc(undefined); setReviewTemplate(null); setReviewDoc(draft.doc ?? plainDoc(draft.text)); setTemplateId(id); setPreviewHtml(draft.html || ""); } return; }
     setBusy(true); setDialogError("");
     try {
-      const value = await request<{ subject: string; text: string; doc?: JSONContent; html: string }>( `/drafts/${draft._id}/preview`, "POST", { templateId: id });
-      setSubject(value.subject); setReviewDoc(value.doc ?? plainDoc(value.text)); setTemplateId(id); setPreviewHtml(value.html);
+      const value = await request<EmailDraft>( `/drafts/${draft._id}/preview`, "POST", { templateId: id });
+      setSubject(value.subject); setReviewSubjectDoc(value.templateSubjectDoc); setReviewDoc(value.templateDoc ?? value.doc ?? plainDoc(value.text)); setTemplateId(id); setPreviewHtml(value.html || "");
+      setReviewTemplate(value.selectedTemplateId ? { id: value.selectedTemplateId, name: value.templateLabel || "Message", revision: value.templateRevision } : null);
     } catch (err) { setDialogError(reason(err)); }
     finally { setBusy(false); }
   }
   async function previewEdits() {
     if (!draft || busy) return; setBusy(true); setDialogError("");
-    try { setPreviewHtml((await request<{ html: string }>(`/drafts/${draft._id}/preview`, "POST", { subject, doc: reviewDoc })).html); }
+    try { setPreviewHtml((await request<{ html: string }>(`/drafts/${draft._id}/preview`, "POST", { subject, subjectDoc: reviewSubjectDoc, doc: reviewDoc })).html); setPreviewOpen(true); }
     catch (err) { setDialogError(reason(err)); }
+    finally { setBusy(false); }
+  }
+  async function saveReviewTemplate() {
+    if (!reviewTemplate || !draft || busy || draft.status !== "pending") return;
+    setBusy(true); setDialogError("");
+    try {
+      const saved = await request<EmailTemplate>(`/templates/${reviewTemplate.id}`, "PUT", { name: reviewTemplate.name, doc: reviewDoc, subjectDoc: reviewSubjectDoc, subject, expectedUpdatedAt: reviewTemplate.revision });
+      setReviewTemplate({ id: saved._id, name: saved.name, revision: saved.updatedAt });
+      setDialogNotice("Selected template updated.");
+      setPreviewHtml((await request<{ html: string }>(`/drafts/${draft._id}/preview`, "POST", { subject, subjectDoc: reviewSubjectDoc, doc: reviewDoc })).html);
+      await load();
+    } catch (error) { setDialogError(reason(error)); }
     finally { setBusy(false); }
   }
   async function decide(choice: "send" | "skip") {
     if (!draft || busy) return; setBusy(true); setDialogError("");
     try {
-      await request( `/drafts/${draft._id}/decision`, "POST", { choice, subject, doc: reviewDoc, templateId });
-      setDraft(null); await load(); setNotice(choice === "send" ? "Email sent." : "Email skipped. The original request is saved.");
+      const result = await request<{ status: string; delivery?: { email: string; whatsapp: string; failure?: string } }>( `/drafts/${draft._id}/decision`, "POST", { choice, subject, subjectDoc: reviewSubjectDoc, doc: reviewDoc, templateId, ...(channel ? { channels: channel } : {}) });
+      if (result.status === "failed") {
+        const current = await request<EmailDraft>(`/drafts/${draft._id}`);
+        setDraft(current); setSubject(current.subject); setReviewDoc(current.doc ?? plainDoc(current.text)); setReviewSubjectDoc(undefined); setReviewTemplate(null);
+        setDialogError(`Email: ${result.delivery?.email} · WhatsApp: ${result.delivery?.whatsapp}. ${result.delivery?.failure || ""}`);
+      } else {
+        setDraft(null); setNotice(choice !== "send" ? "Message skipped. The original request is saved." : result.delivery
+          ? [result.delivery.email === "sent" ? "Email sent." : "", result.delivery.whatsapp === "queued" ? "WhatsApp queued." : ""].filter(Boolean).join(" ") : "Email sent.");
+      }
+      await load();
     } catch (err) {
       setDialogError(reason(err));
       try {
         const current = await request<EmailDraft>(`/drafts/${draft._id}`);
         setDraft(current);
-        if (current.status !== "pending") { setSubject(current.subject); setReviewDoc(current.doc ?? plainDoc(current.text)); setTemplateId("current"); }
+        if (current.status !== "pending") { setSubject(current.subject); setReviewSubjectDoc(undefined); setReviewTemplate(null); setReviewDoc(current.doc ?? plainDoc(current.text)); setTemplateId("current"); }
       } catch { /* Keep the reviewed content visible when the service is unavailable. */ }
       await load();
     }
@@ -255,19 +285,30 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
         <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewTemplate()}>Preview sample</button>{editor.system && editor._id && <button type="button" disabled={busy} onClick={() => void resetTemplate()}>Reset to original</button>}<button type="button" disabled={busy} onClick={() => setEditor(null)}>Cancel</button><button className="admin-button" disabled={busy} type="submit">{busy ? "Working…" : "Save template"}</button></div>
       </form>}
       {draft && <div>
-        <h2 id="email-dialog-title">Review email</h2><p><strong>To:</strong> {draft.to.join(", ")}</p><p>The request is saved. Choose whether to send this email.</p>
+        <h2 id="email-dialog-title">Review message</h2><p><strong>To:</strong> {draft.to.join(", ")}</p><p>The request is saved. Choose whether to send this message.</p>
         {!!draft.attachments?.length && <p>Attachments: {draft.attachments.map(row => row.filename).join(", ")}</p>}
+        {!!draft.attachments?.length && ["whatsapp", "both"].includes(channel) && <small>Files are attached to email. WhatsApp sends the message and its links.</small>}
         {draft.status === "failed" && <p className={styles.banner}>A retry uses the originally reviewed content and the same delivery key to prevent duplicates.</p>}
+        {!!draft.channelOptions?.length && <><label htmlFor="review-channel">Send via</label><select id="review-channel" value={channel} disabled={busy || !!draft.delivery?.lockedAt} onChange={event => setChannel(event.target.value)}>
+          {draft.channelOptions.map(row => <option key={row.id} value={row.id} disabled={!row.enabled}>{row.label}{!row.enabled ? ` — ${row.reason}` : ""}</option>)}
+        </select></>}
         <label htmlFor="review-template">Template</label><select id="review-template" value={templateId} disabled={busy || draft.status !== "pending"} onChange={e => void chooseTemplate(e.target.value)}><option value="current">Current draft</option>{(draft.templateOptions || []).map(row => <option key={row.id || "built-in"} value={row.id}>{optionLabel(row)}</option>)}</select>
-        <label htmlFor="review-subject">Subject</label><input id="review-subject" maxLength={300} value={subject} disabled={busy || draft.status !== "pending"} onChange={e => setSubject(e.target.value)} />
-        <EmailEditor id="review-message" label="Message" value={reviewDoc} disabled={busy || draft.status !== "pending"} onChange={setReviewDoc} variables={draft.editorFields?.variables} blocks={draft.editorFields?.blocks} />
+        {reviewSubjectDoc ? <EmailEditor id="review-subject" label="Subject" singleLine compact value={reviewSubjectDoc} onChange={setReviewSubjectDoc} disabled={busy || draft.status !== "pending"} variables={draft.editorFields?.variables} /> : <>
+          <label htmlFor="review-subject">Subject</label><input id="review-subject" maxLength={300} value={subject} disabled={busy || draft.status !== "pending"} onChange={e => setSubject(e.target.value)} />
+        </>}
+        <EmailEditor id="review-message" label="Message" compact value={reviewDoc} disabled={busy || draft.status !== "pending"} onChange={setReviewDoc} variables={draft.editorFields?.variables} blocks={draft.editorFields?.blocks} />
         {draft.status === "pending" && <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewEdits()}>Update preview</button></div>}
-        {previewHtml && <EmailPreview html={previewHtml} />}
+        {previewHtml && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>Preview</summary><EmailPreview html={previewHtml} /></details>}
         {!!draft.requiredLinks?.length && <details><summary>Required links (preserved when sending)</summary>{draft.requiredLinks.map(link => <p className={styles.link} key={link}>{link}</p>)}</details>}
-        <p className={styles.muted}>Edits apply to this email only. Reusable templates are changed separately.</p>
+        <p className={styles.muted}>{reviewTemplate ? "Send uses these edits once. Save template updates the selected saved message for future use." : "Edits apply to this message only. No original template is linked for saving."}</p>
+        {dialogNotice && <p role="status">{dialogNotice}</p>}
+        {dialogError && reviewTemplate && draft.status === "pending" && <button disabled={busy} onClick={() => void chooseTemplate(reviewTemplate.id)}>Reload saved message</button>}
         {off && <p className={styles.error}>Email for this action is Off. You can skip this draft or change its rule.</p>}
         {dialogError && <p className={styles.error} role="alert">{dialogError}</p>}
-        <div className={styles.actions}><button disabled={busy} onClick={() => void decide("skip")}>Don’t Send Mail</button><button className="admin-button" disabled={busy || !!off || !subject.trim() || !docHasContent(reviewDoc)} onClick={() => void decide("send")}>{busy ? "Working…" : "Send Mail"}</button></div>
+        <div className={styles.actions}>
+          {reviewTemplate && draft.status === "pending" && <button disabled={busy} onClick={() => void saveReviewTemplate()}>Save template</button>}
+          <button disabled={busy} onClick={() => void decide("skip")}>Don’t Send Mail</button><button className="admin-button" disabled={busy || draft.status === "sending" || !!off || !subject.trim() || !docHasContent(reviewDoc) || (!!draft.channelOptions && !draft.delivery?.lockedAt && !draft.channelOptions.find(row => row.id === channel)?.enabled)} onClick={() => void decide("send")}>{busy ? "Working…" : channel === "both" ? "Send" : channel === "whatsapp" ? "Send WhatsApp" : "Send Mail"}</button>
+        </div>
       </div>}
     </dialog>
   </div>;

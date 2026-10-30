@@ -297,7 +297,7 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     });
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.locator('article').filter({ hasText: 'client@example.test' }).getByRole('button', { name: 'Review email', exact: true }).click();
-    await page.getByRole('heading', { name: 'Review email' }).waitFor();
+    await page.getByRole('heading', { name: 'Review message' }).waitFor();
     const options = await page.getByLabel('Template', { exact: true }).locator('option').allTextContents();
     assert.deepEqual(options, ['Current draft', 'Standard (built-in)']);
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /prepared/);
@@ -361,6 +361,7 @@ test('browser: every action offers its Standard template, and the details guide 
     });
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.locator('article').filter({ hasText: 'neha@example.test' }).getByRole('button', { name: 'Review email', exact: true }).click();
+    await page.locator('summary').filter({ hasText: /^Available details$/ }).click();
     const reviewGuide = page.getByRole('region', { name: 'Available details for Message' });
     await reviewGuide.getByRole('listitem').filter({ hasText: 'Customer name' }).getByText('In this email: Neha', { exact: true }).waitFor();
     await reviewGuide.getByRole('listitem').filter({ hasText: 'Login link' }).getByText('Empty in this email', { exact: true }).waitFor();
@@ -547,6 +548,52 @@ test('browser: Communication shows what needs attention and the recent emails, e
     await review.getByRole('heading', { name: 'Email history' }).waitFor();
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test('browser: compact review edits the selected original template, keeps name chips and sends WhatsApp-only', async () => {
+  const { Queue } = backend('./whatsapp/src/models.js');
+  const { composeTemplate } = backend('./helpers/emailTemplates');
+  await Queue.init();
+  const oldEnabled = process.env.ENABLE_WHATSAPP;
+  process.env.ENABLE_WHATSAPP = 'true';
+  const recipient = await userModel.create({ name: 'Compact Customer', email: 'compact-review@example.test', phone: '9876543291', roles: ['customer'] });
+  const template = await EmailTemplate.create({ event: 'lead.proposal', name: 'Compact custom', subject: 'Proposal for {{name}}', text: 'Hello {{name}}, please check your proposal.' });
+  const values = { name: recipient.name, amount: '₹500', link: 'https://example.test/proposal' };
+  const composed = composeTemplate(template, values, {});
+  const row = await EmailDraft.create({ event: template.event, actor: admin._id, application: 'portal', status: 'pending', to: [recipient.email], ...composed, values, sourceTemplateId: template._id, expiresAt: new Date(Date.now() + 3600000) });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage(); page.setDefaultTimeout(10000);
+    await page.goto(websiteBase);
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click();
+    await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.locator('article').filter({ hasText: recipient.email }).getByRole('button', { name: 'Review email', exact: true }).click();
+    await page.getByRole('heading', { name: 'Review message', exact: true }).waitFor();
+    assert.equal(await page.getByLabel('Template', { exact: true }).inputValue(), String(template._id));
+    assert.equal(await page.getByLabel('Send via').inputValue(), 'both');
+    const editor = page.getByLabel('Message', { exact: true });
+    assert.equal(await editor.locator('[data-email-variable="name"]').innerText(), 'Lead name');
+    assert.doesNotMatch(await editor.innerText(), /Compact Customer|\{\{/);
+    await editor.fill('Please check, ');
+    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Lead name' });
+    const beforeCount = await EmailTemplate.countDocuments();
+    await page.getByRole('button', { name: 'Save template', exact: true }).click();
+    await page.getByText('Selected template updated.', { exact: true }).waitFor();
+    assert.equal(await EmailTemplate.countDocuments(), beforeCount);
+    assert.match((await EmailTemplate.findById(template._id)).text, /Please check, \{\{name\}\}/);
+    assert.ok(await page.getByRole('dialog').isVisible(), 'saving does not dismiss or repeat the business action');
+    await page.getByRole('button', { name: 'Update preview', exact: true }).click();
+    await page.waitForFunction(() => /Please check, Compact Customer/.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
+    await page.getByLabel('Send via').selectOption('whatsapp');
+    const emailsBefore = providerCalls.length;
+    await page.getByRole('button', { name: 'Send WhatsApp', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    await page.getByText('WhatsApp queued.', { exact: true }).waitFor();
+    assert.equal(providerCalls.length, emailsBefore);
+    assert.equal((await EmailDraft.findById(row._id)).status, 'queued');
+    assert.match((await Queue.findOne({ emailDraftId: row._id })).text, /Compact Customer/);
+    assert.equal((await EmailHistory.findOne({ draftId: row._id })).status, 'queued');
+  } finally { await browser.close(); if (oldEnabled === undefined) delete process.env.ENABLE_WHATSAPP; else process.env.ENABLE_WHATSAPP = oldEnabled; }
 });
 
 test('browser: search shows only the matching jobs, already open', async () => {

@@ -68,9 +68,10 @@ type Props = {
   id: string; label: string; value: JSONContent | undefined; onChange: (doc: JSONContent) => void;
   disabled?: boolean; singleLine?: boolean; variables?: TemplateVariable[]; blocks?: TemplateVariable[];
   channel?: "email" | "whatsapp";
+  compact?: boolean;
 };
 
-export function EmailEditor({ id, label, value, onChange, disabled, singleLine, variables = [], blocks = [], channel = "email" }: Props) {
+export function EmailEditor({ id, label, value, onChange, disabled, singleLine, variables = [], blocks = [], channel = "email", compact = false }: Props) {
   // Keyed by content: callers pass fresh arrays each render, and a new key rebuilds the editor.
   const labelsKey = JSON.stringify([...variables, ...blocks].map(row => [row.key, { label: row.label, hint: row.hint }]));
   const labels = useMemo<Labels>(() => Object.fromEntries(JSON.parse(labelsKey)), [labelsKey]);
@@ -123,7 +124,9 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
       </div>
       <EditorContent editor={editor} />
     </div>
-    {channel === "email" && !singleLine && !!choices.length && <DetailsGuide label={label} choices={choices} disabled={disabled || !editor} onInsert={choice => insert({ type: choice.kind, attrs: { key: choice.key } })} />}
+    {channel === "email" && !singleLine && !!choices.length && (compact
+      ? <details><summary>Available details</summary><DetailsGuide label={label} choices={choices} disabled={disabled || !editor} onInsert={choice => insert({ type: choice.kind, attrs: { key: choice.key } })} /></details>
+      : <DetailsGuide label={label} choices={choices} disabled={disabled || !editor} onInsert={choice => insert({ type: choice.kind, attrs: { key: choice.key } })} />)}
   </div>;
 }
 
