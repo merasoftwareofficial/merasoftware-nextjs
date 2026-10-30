@@ -60,7 +60,7 @@ before(async () => {
   writeFileSync(headers, `import {context} from './auth-fixture'; export const cookies=async()=>({get:(name:string)=>{const token=context.getStore()?.token;return name==='token'&&token?{value:token}:undefined}});`);
   await build({
     absWorkingDir: root, bundle: true, platform: 'node', format: 'cjs', packages: 'external', outfile: path.join(qaDir, 'server.cjs'), tsconfig: path.join(root, 'tsconfig.json'),
-    stdin: { contents: `import * as emailRoutes from './src/app/api/email-control/[[...path]]/route'; import * as subscriptionRoute from './src/app/api/subscribe/route'; export {emailRoutes,subscriptionRoute}; export {context} from ${JSON.stringify(auth)}; export {subscriberRepo} from './src/lib/repo'; export {confirmSubscription,unsubscribe} from './src/lib/subscription-actions'; export {emailControlRequest} from './src/lib/email-control-server';`, resolveDir: root, loader: 'ts' },
+    stdin: { contents: `import * as emailRoutes from './src/app/api/email-control/[[...path]]/route'; import * as subscriptionRoute from './src/app/api/subscribe/route'; export {emailRoutes,subscriptionRoute}; export * as contactRoutes from './src/app/api/admin-contact-settings/route'; export {context} from ${JSON.stringify(auth)}; export {subscriberRepo} from './src/lib/repo'; export {confirmSubscription,unsubscribe} from './src/lib/subscription-actions'; export {emailControlRequest} from './src/lib/email-control-server';`, resolveDir: root, loader: 'ts' },
     plugins: [{ name: 'request-context-fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}', loader: 'js' })); } }],
   });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
@@ -71,7 +71,7 @@ before(async () => {
   database = await MongoMemoryServer.create({ instance: { launchTimeout: Number(process.env.EMAIL_TEST_MONGO_TIMEOUT || 60000) } });
   await mongoose.connect(database.getUri(), { dbName: 'website-email-isolated' });
   [admin, websiteAdmin] = await userModel.create([{ name: 'Portal Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Website Admin', email: 'website-admin@example.test', roles: ['member'] }]);
-  const app = express(); app.use(express.json()); app.use(backend('cookie-parser')()); app.use(requestMiddleware); app.use('/api/email-control', backend('./routes/emailControl'));
+  const app = express(); app.use(express.json()); app.use(backend('cookie-parser')()); app.use(requestMiddleware); app.use('/api/email-control', backend('./routes/emailControl')); app.all('/api/admin/my-settings', backend('./middleware/authToken'), backend('./controller/admin/mySettings'));
   await new Promise(resolve => { backendServer = app.listen(0, '127.0.0.1', resolve); });
   process.env.PORTAL_API_URL = `http://127.0.0.1:${backendServer.address().port}`;
   process.chdir(temporary);
@@ -612,4 +612,21 @@ test('browser: search shows only the matching jobs, already open', async () => {
     await page.getByText('No website mail matches “nothing-like-this”.', { exact: true }).waitFor();
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+
+test('admin contact proxy shares backend settings and rejects website-only admins and foreign origins', async () => {
+  async function contact(user, method = 'GET', origin = 'http://website.test') {
+    const body = { name: 'Portal Admin', contactEmail: 'contact@example.test', whatsappNumbers: ['+919876543210'] };
+    const req = new Request('http://website.test/api/admin-contact-settings', { method, headers: { 'Content-Type': 'application/json', Origin: origin }, ...(method === 'PATCH' ? { body: JSON.stringify(body) } : {}) });
+    const response = await qa.context.run(context(user), () => qa.contactRoutes[method](req));
+    return { status: response.status, ...await response.json() };
+  }
+  assert.equal((await contact(null)).status, 401);
+  assert.equal((await contact(websiteAdmin)).status, 403);
+  assert.equal((await contact(admin, 'PATCH', 'http://foreign.test')).status, 403);
+  const saved = await contact(admin, 'PATCH');
+  assert.equal(saved.status, 200); assert.equal(saved.data.contactEmail, 'contact@example.test');
+  assert.deepEqual((await contact(admin)).data.whatsappNumbers, ['+919876543210']);
+  assert.equal((await userModel.findById(admin._id)).email, 'admin@example.test');
 });

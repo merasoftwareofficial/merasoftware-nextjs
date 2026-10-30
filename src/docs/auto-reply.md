@@ -8,10 +8,10 @@
 
 **Step 1 is live and accepted by the owner (31 Oct); "Recognise messages" is On.** Backend `14361b1`, website `9c8b072`, together with the email-review work. A typed ad message from another number was recognised with the correct number. Whether a real ad click also shows the number and "From an ad" isn't confirmed; the first real ad message in the box will show it.
 
-**Steps 2, 3 and 4 are coded and tested locally on 31 Oct, but not committed or deployed.** "Send replies" and "Add to leads" stay Off after deploying, so nothing changes until the owner turns them on.
+**Steps 2, 3 and 4 are pushed by the owner on 31 Oct (backend `489948f`, portal `5b9127e`, website `0b2c664`); the real test is pending.** "Send replies" and "Add to leads" stay Off until the owner turns them on.
 
 Next, in order:
-1. The owner approves committing and deploying. Backend first, then portal, then website.
+1. Confirm the deploys finished on Render and Vercel.
 2. Real test: "Add to leads" On, then "Send replies" On, from a number that is not in Leads and has no account. Check the lead, the reply in the same chat, and that a message typed from the owner's phone cancels a waiting reply.
 3. Broadcast to `Inquiry` needs `BROADCAST_JOBS_ENABLED=true` on Render; the Broadcast box says so if it is off.
 

@@ -6,6 +6,8 @@ Repos under E:\Allprojects: backend (delivery/templates, Render), merasoftware (
 
 ## Current work
 
+Project-node review integration and personal admin contact settings: see [node-communication-settings.md](node-communication-settings.md) for current contracts, migration and verification. Both reuse this communication pipeline.
+
 Compact review upgrade is implemented and tested locally, not committed/pushed/deployed. Owner review and real-contact test remain pending. Owner wants dropdowns, visible Name/detail chips and same-template updates, reusing the existing system.
 
 - Popup: recipient/attachment summary → Send via (Email/WhatsApp/Both) → template dropdown → subject/message editor → collapsible details/preview → Save template, Don't Send, Send. Missing contacts/channels disabled with a reason; backend validates again. WhatsApp is queued, not claimed delivered.
