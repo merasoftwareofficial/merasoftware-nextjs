@@ -15,8 +15,9 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   { items: [{ label: "Overview", href: "/admin", minimum: "moderator" }] },
   { title: "Business", items: [
     { label: "Leads", href: "/admin/leads", minimum: "editor" },
-    { label: "Offers", href: "/admin/offers", minimum: "admin", also: ["/admin/packages"] },
+    { label: "Offers", href: "/admin/offers", minimum: "admin" },
     { label: "Plans", href: "/admin/plans", minimum: "admin" },
+    { label: "Packages", href: "/admin/packages", minimum: "admin" },
     { label: "Communication", href: "/admin/communication", minimum: "admin", also: ["/admin/email-control", "/admin/whatsapp"] },
   ] },
   { title: "Website", items: [
@@ -34,7 +35,7 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   { title: "Settings", items: [{ label: "Site settings", href: "/admin/settings", minimum: "admin" }] },
 ];
 /** Pages that talk to the portal as its admin; shown only while the portal admin role is active. */
-const SALES_PAGES = ["/admin/offers", "/admin/plans"];
+const SALES_PAGES = ["/admin/offers", "/admin/plans", "/admin/packages"];
 
 /**
  * `role` comes from the signed-in user. The panel is staff-only; hiding what a
