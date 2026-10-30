@@ -1,6 +1,6 @@
-/* Communication: four boxes that navigate, what needs attention, recent activity, and the side panel. */
+/* Communication navigation, attention, activity, and side panel. */
 .hub{display:grid;gap:22px;min-width:0}
-.boxes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .box{display:grid;gap:6px;align-content:start;justify-items:start;padding:18px 20px;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;background:var(--paper);color:inherit;font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
 .boxGroup{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 

@@ -67,9 +67,10 @@ export function docHasContent(node: JSONContent | undefined): boolean {
 type Props = {
   id: string; label: string; value: JSONContent | undefined; onChange: (doc: JSONContent) => void;
   disabled?: boolean; singleLine?: boolean; variables?: TemplateVariable[]; blocks?: TemplateVariable[];
+  channel?: "email" | "whatsapp";
 };
 
-export function EmailEditor({ id, label, value, onChange, disabled, singleLine, variables = [], blocks = [] }: Props) {
+export function EmailEditor({ id, label, value, onChange, disabled, singleLine, variables = [], blocks = [], channel = "email" }: Props) {
   // Keyed by content: callers pass fresh arrays each render, and a new key rebuilds the editor.
   const labelsKey = JSON.stringify([...variables, ...blocks].map(row => [row.key, { label: row.label, hint: row.hint }]));
   const labels = useMemo<Labels>(() => Object.fromEntries(JSON.parse(labelsKey)), [labelsKey]);
@@ -82,7 +83,7 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
     editable: !disabled,
     extensions: singleLine
       ? [StarterKit.configure({ ...OFF, document: false, heading: false, bulletList: false, listItem: false, listKeymap: false, hardBreak: false, bold: false, link: false, dropcursor: false, gapcursor: false, trailingNode: false }), SubjectDocument, EmailVariable.configure({ labels })]
-      : [StarterKit.configure({ ...OFF, heading: { levels: [2] }, link: { autolink: true, openOnClick: false, linkOnPaste: true } }), EmailVariable.configure({ labels }), EmailSection.configure({ labels })],
+      : [StarterKit.configure({ ...OFF, italic: channel === "whatsapp" ? {} : false, heading: channel === "whatsapp" ? false : { levels: [2] }, link: { autolink: true, openOnClick: false, linkOnPaste: true } }), EmailVariable.configure({ labels }), ...(channel === "email" ? [EmailSection.configure({ labels })] : [])],
     content: value ?? emptyDoc,
     editorProps: {
       attributes: { id, role: "textbox", "aria-label": label, "aria-multiline": String(!singleLine), class: `tiptap-surface ${styles.surface} ${singleLine ? styles.singleLine : ""}` },
@@ -90,14 +91,15 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
       handleKeyDown: (_, event) => !!singleLine && event.key === "Enter",
     },
     onUpdate: ({ editor: instance }) => { const doc = instance.getJSON(); emitted.current = JSON.stringify(doc); onChange(doc); },
-  }, [labelsKey, singleLine]);
+  }, [labelsKey, singleLine, channel]);
 
   useEffect(() => {
     if (!editor || !value || JSON.stringify(value) === emitted.current) return;
     emitted.current = JSON.stringify(value);
     editor.commands.setContent(value, { emitUpdate: false });
   }, [editor, value]);
-  useEffect(() => { editor?.setEditable(!disabled); }, [editor, disabled]);
+  // Enabling/disabling is not a content edit (otherwise it clears a freshly loaded preview).
+  useEffect(() => { editor?.setEditable(!disabled, false); }, [editor, disabled]);
 
   const insert = (content: JSONContent) => editor?.chain().focus().insertContent(content).run();
   const choices = [...variables.map(row => ({ ...row, kind: "emailVariable" })), ...blocks.map(row => ({ ...row, kind: "emailSection" }))];
@@ -107,7 +109,8 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
       <div className="tiptap-toolbar" role="toolbar" aria-label={`${label} formatting`}>
         {!singleLine && <>
           <button type="button" disabled={disabled || !editor} className={editor?.isActive("bold") ? "on" : ""} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold (Ctrl+B)"><b>B</b> Bold</button>
-          <button type="button" disabled={disabled || !editor} className={editor?.isActive("heading") ? "on" : ""} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>Heading</button>
+          {channel === "email" ? <button type="button" disabled={disabled || !editor} className={editor?.isActive("heading") ? "on" : ""} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>Heading</button>
+            : <button type="button" disabled={disabled || !editor} className={editor?.isActive("italic") ? "on" : ""} onClick={() => editor?.chain().focus().toggleItalic().run()}><i>I</i> Italic</button>}
           <button type="button" disabled={disabled || !editor} className={editor?.isActive("bulletList") ? "on" : ""} onClick={() => editor?.chain().focus().toggleBulletList().run()}>• List</button>
           {!!choices.length && <span className="tiptap-divider" />}
         </>}
@@ -120,7 +123,7 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
       </div>
       <EditorContent editor={editor} />
     </div>
-    {!singleLine && !!choices.length && <DetailsGuide label={label} choices={choices} disabled={disabled || !editor} onInsert={choice => insert({ type: choice.kind, attrs: { key: choice.key } })} />}
+    {channel === "email" && !singleLine && !!choices.length && <DetailsGuide label={label} choices={choices} disabled={disabled || !editor} onInsert={choice => insert({ type: choice.kind, attrs: { key: choice.key } })} />}
   </div>;
 }
 
