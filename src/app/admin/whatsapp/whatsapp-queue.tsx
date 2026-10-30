@@ -80,7 +80,7 @@ export function WhatsappQueueView({ active = true }: { active?: boolean }) {
         <thead><tr><th>#</th><th>To</th><th>Message</th><th>Status</th><th>Leaves (IST)</th><th>Time left</th></tr></thead>
         <tbody>{reply.rows.map(row => <tr key={row._id}>
           <td>{row.position}</td>
-          <td><strong>{phoneLabel(row.to)}</strong><small>{row.email || "—"}</small></td>
+          <td><strong>{phoneLabel(row.to)}</strong><small>{row.event === "auto-reply" ? "Auto reply" : row.email || "—"}</small></td>
           <td><details><summary>{row.text.split("\n")[0].replace(/\*/g, "") || "Message"}</summary><WhatsappText text={row.text} /></details></td>
           <td><strong>{row.status === "sending" ? "Sending now" : row.attempts ? `Trying again (try ${row.attempts + 1})` : "Waiting"}</strong>{row.lastError && <small>{row.lastError}</small>}</td>
           <td>{row.eta && row.status === "pending" ? formatIndiaDateTime(row.eta, { second: "2-digit" }) : "—"}</td>

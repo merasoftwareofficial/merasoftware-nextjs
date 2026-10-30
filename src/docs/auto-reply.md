@@ -6,14 +6,16 @@
 
 ## Where the work stands (30 Oct 2026)
 
-**Step 1 is coded and tested locally, but not committed or deployed.** No reply is sent and no lead is made yet.
+**Step 1 is live and accepted by the owner (31 Oct); "Recognise messages" is On.** Backend `14361b1`, website `9c8b072`, together with the email-review work. A typed ad message from another number was recognised with the correct number. Whether a real ad click also shows the number and "From an ad" isn't confirmed; the first real ad message in the box will show it.
 
-Next: the owner approves committing and deploying Step 1, then runs the real-number test under Plan → Step 1. Steps 2–4 come after that test.
+**Steps 2, 3 and 4 are coded and tested locally on 31 Oct, but not committed or deployed.** "Send replies" and "Add to leads" stay Off after deploying, so nothing changes until the owner turns them on.
 
-- **Commit only Step 1's files.** Both repos also hold another session's uncommitted email-review work, such as `helpers/whatsappQueue.js`, `helpers/emailController.js` and `email-editor.tsx`.
-- **Backend:** `whatsapp/src/inbound.js`, `autoReplyRules.js`, `models.js`, `whatsapp.js`, `index.js`, `whatsapp/tests/inbound.test.js`, `connection.test.js`, `helpers/autoReplyJobs.js`, `routes/autoReply.js`, `tests/autoReply.test.js`, root `index.js`, and only the `test:whatsapp` line of `package.json` (its `test:email` line belongs to the email-review work).
-- **Website:** `src/app/admin/communication/auto-reply-panel.tsx`, `auto-reply.module.css`, `communication-hub.tsx`, `src/app/api/auto-reply/`, `tests/auto-reply.test.mjs`, `package.json`, this doc.
-- **Rollback:** `backup\backend\work38-auto-reply-step1`, `backup\merasoftware\work53-auto-reply-step1`.
+Next, in order:
+1. The owner approves committing and deploying. Backend first, then portal, then website.
+2. Real test: "Add to leads" On, then "Send replies" On, from a number that is not in Leads and has no account. Check the lead, the reply in the same chat, and that a message typed from the owner's phone cancels a waiting reply.
+3. Broadcast to `Inquiry` needs `BROADCAST_JOBS_ENABLED=true` on Render; the Broadcast box says so if it is off.
+
+**Rollback:** `backup\backend\work39-auto-reply-steps234`, `backup\merasoftware\work54-auto-reply-steps234`, `backup\frontend\work34-auto-reply-steps234` (Steps 2–4); `backup\backend\work38-auto-reply-step1`, `backup\merasoftware\work53-auto-reply-step1` (Step 1).
 
 ## What the owner wants
 
@@ -116,8 +118,9 @@ Each step ends with the owner's check. Back up first in `E:\Allprojects\backup\<
 | `updateLead.js`, `editDetails` | Never changes status | Saving a name on an `Inquiry` lead moves it to Contacted |
 | `helpers/wonLead.js` | Sets `Won` on the open lead found by phone, then saves | Fill the name from the account first. Otherwise the save fails, the error is only logged, and the client never gets a `Won` lead |
 | `convertLead.js` | No name check; `lead.save()` runs after the client account is made | Refuse early when the name is empty, so no half-finished conversion is left |
-| `planRequest.js:153` | Finds open leads by exact phone; `addToLead` adds a note only | Add `Inquiry` to `OPEN_LEAD_STATUSES`; an `Inquiry` lead takes the form's name and email and moves to Contacted |
-| `createLead.js:60`, `updateLead.js:230` | Duplicate check on exact phone text | Use the shared phone helper, so a typed `98765…` matches a saved `+9198765…` |
+| `planRequest.js:153` | Finds open leads by exact phone; `addToLead` adds a note only | `claimInquiryLead` runs first: an `Inquiry` lead takes the form's name and email and moves to Contacted. It doesn't use `addToLead`, whose 10-minute repeat window would lose the request. `OPEN_LEAD_STATUSES` stays as it was |
+| `planRequest.js` member path, `helpers/offerReservations.js` | Made a new lead for an account | `claimInquiryLead` first: an `Inquiry` with that number becomes the account's lead, so one person never has two |
+| `createLead.js:60`, `updateLead.js:230` | Duplicate check on exact phone text | Use the shared phone helper (`helpers/leadPhone.js`), so a typed `98765…` matches a saved `+9198765…` |
 | Proposal upload and message | Uses `lead.name` | Ask for the name first, so no message goes out with a blank name |
 
 ## Where the changes go
@@ -141,12 +144,14 @@ Each step ends with the owner's check. Back up first in `E:\Allprojects\backup\<
 - **The chat's id may not be the phone number.** WhatsApp can identify a chat by a LID instead. The system finds the real number with `key.remoteJidAlt` and `getPNForLID` (Baileys 7.0.0-rc14), which isn't proven on a real ad message yet. If no real number is found, make no lead, send no reply and show it as needing attention. A 15-digit LID passes the queue's number check (tested), so never use a LID's digits as a phone.
 - **Store phones as `+` and digits,** the format `parsePhone` produces and `planRequest.js` matches on. `normalizePhone('14155552671')` returns null (tested), so a foreign number without `+` would be unusable.
 - **Filter on the message's age, not only its type.** Baileys also uses `append` outside offline delivery (`messages-recv.js:346`, `:1257`) and can repeat a message as `notify` on a placeholder resend (`process-message.js:352`); the age limit and the unique message id cover these. `messageTimestamp` can be a number or a `Long`, so convert it before comparing.
+- **Our own message in a LID chat.** WhatsApp's alternate id on it can be our own number, so `chatPhone` uses the LID map first and never takes our number for theirs.
+- **Guest login isn't joined up.** `helpers/guestIdentityMatch.js` compares phones as text. Someone with an `Inquiry` lead who types the exact saved number is refused ("already in use", as with any lead); typing it another way makes a second lead.
 - **Queue order is oldest first.** Reply rows have no `broadcastRecipientId`, so `broadcastJobs.js` treats them as service messages and holds the next Broadcast row while they wait.
 - **A reply waiting past `maxAgeHours` (24) expires** if the queue is paused or WhatsApp is offline. The lead stays and the reply doesn't go.
 
 ## Tests
 
-State on 30 Oct, after Step 1: backend `npm run test:whatsapp` passes 86 of 86, `npm run test:lead-status` 41 of 41; website `npm run test:auto-reply` 2 of 2, `test:broadcast` 2 of 2, `test:whatsapp` 10 of 10. Only the tests for Step 1 exist so far; the list below covers all the steps. `tests/leadStatuses.test.js:32-34` checks the status lists exactly and must be updated for `Inquiry`.
+State on 31 Oct: backend `npm run test:whatsapp` passes 112 of 112, `test:lead-status` 56 of 56, `test:email` 50 of 50, `tests/offerReservations.test.js` 43 of 43; website `npm run test:auto-reply` 2 of 2, `test:broadcast` 2 of 2, `test:whatsapp` 10 of 10; portal `node tests/inquiry-lead-browser.cjs` 5 of 5. The tests were also checked by breaking 16 rules on purpose: all 16 are caught. Everything uses fakes for WhatsApp, so the real-phone checks in Plan remain. `tests/leadStatuses.test.js:32-34` checks the status lists exactly and must be updated for `Inquiry`.
 
 Added to `npm run test:whatsapp`, using the real sender:
 - message filter (groups, status, own messages, repeats, `notify` and `append`, too old) and rule matching

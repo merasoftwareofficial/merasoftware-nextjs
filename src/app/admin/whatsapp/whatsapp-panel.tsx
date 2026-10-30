@@ -185,7 +185,7 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
       {queue && (!queue.rows.length ? <p>No messages here yet.</p> : <div className={styles.tableWrap}><table className={styles.table}>
         <thead><tr><th>To</th><th>Message</th><th>Status</th><th>Time (IST)</th><th>Action</th></tr></thead>
         <tbody>{queue.rows.map(row => <tr key={row._id}>
-          <td><strong>{phoneLabel(row.to)}</strong><small>{row.email || "—"}</small></td>
+          <td><strong>{phoneLabel(row.to)}</strong><small>{row.event === "auto-reply" ? "Auto reply" : row.email || "—"}</small></td>
           <td><details><summary>{row.text.split("\n")[0].replace(/\*/g, "") || "Message"}</summary><WhatsappText text={row.text} /></details></td>
           <td><strong>{STATUS_LABEL[row.status]}</strong>{row.lastError && <small>{row.lastError}</small>}</td>
           <td>{row.sentAt ? <>Sent {formatIndiaDateTime(row.sentAt)}</> : <>Queued {formatIndiaDateTime(row.createdAt)}</>}</td>

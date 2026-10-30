@@ -8,6 +8,7 @@
 .switch[data-off]{cursor:default}
 .switch[data-off] strong{color:var(--muted)}
 .message{box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit;padding:10px;font:inherit;font-weight:400;resize:vertical}
+.reply{min-width:0}
 .detected{border-top:1px solid var(--line);padding-top:16px}
 .detected h3{margin:0 0 10px;font-size:15px}
 .detected ul{display:grid;gap:10px;margin:0;padding:0;list-style:none}

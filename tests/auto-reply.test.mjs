@@ -77,17 +77,39 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     await page.getByRole('button', { name: /^Auto Reply Ad message/ }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('heading', { name: 'Auto Reply', exact: true }).waitFor();
-    const recognise = dialog.getByRole('checkbox', { name: /Recognise messages/ });
+    const recognise = dialog.getByRole('checkbox', { name: /^Recognise messages/ });
     await dialog.getByText('No messages recognised yet.').waitFor();
     assert.equal(await recognise.isChecked(), false);
-    assert.ok(await dialog.getByRole('checkbox', { name: /Send replies/ }).isDisabled());
-    assert.ok(await dialog.getByRole('checkbox', { name: /Add to leads/ }).isDisabled());
+    const sendReplies = dialog.getByRole('checkbox', { name: /^Send replies/ }), addLeads = dialog.getByRole('checkbox', { name: /^Add to leads/ });
+    assert.ok(await sendReplies.isDisabled(), 'needs Recognise messages first');
+    assert.ok(await addLeads.isDisabled(), 'needs Recognise messages first');
     assert.equal(await dialog.getByRole('textbox', { name: 'Ad message' }).inputValue(), 'Hello! Can I get more info on this?');
+    const replyBox = dialog.getByRole('textbox', { name: 'Reply', exact: true });
+    await replyBox.getByText('Thanks for reaching out.').waitFor();
+    assert.match(await replyBox.textContent(), /ਧੰਨਵਾਦ/);
+    assert.ok(await dialog.getByRole('button', { name: 'Save reply' }).isDisabled(), 'opening the box changes nothing');
+    assert.equal(await dialog.getByRole('combobox', { name: 'Insert detail into Reply' }).count(), 0, 'a reply has no name field');
 
     await recognise.click();
-    await dialog.getByRole('status').filter({ hasText: 'Recognising messages is On' }).waitFor();
+    await dialog.getByRole('status').filter({ hasText: 'Recognise messages is On' }).waitFor();
     assert.equal((await State.findById(STATE_ID).lean()).autoReply.recognise, true);
     await dialog.getByText('WhatsApp is not connected').waitFor();
+    await sendReplies.click();
+    await dialog.getByRole('status').filter({ hasText: 'Send replies is On' }).waitFor();
+    await addLeads.click();
+    await dialog.getByRole('status').filter({ hasText: 'Add to leads is On' }).waitFor();
+    assert.deepEqual({ ...(await State.findById(STATE_ID).lean()).autoReply }, { recognise: true, sendReplies: true, addLeads: true });
+
+    await replyBox.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type(' Thank you');
+    await page.waitForTimeout(5500); // a refresh of the page's data must not wipe what is being typed
+    assert.match(await replyBox.textContent(), /Thank you/);
+    await dialog.getByRole('button', { name: 'Save reply' }).click();
+    await dialog.getByRole('status').filter({ hasText: 'Reply saved' }).waitFor();
+    assert.match((await Rule.findOne().lean()).reply, /Thank you/);
+    await dialog.getByRole('status').filter({ hasText: 'Reply saved' }).waitFor();
+    assert.ok(await dialog.getByRole('button', { name: 'Save reply' }).isDisabled());
 
     const box = dialog.getByRole('textbox', { name: 'Ad message' });
     const save = dialog.getByRole('button', { name: 'Save ad message' });
@@ -102,7 +124,7 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     assert.equal((await Rule.findOne().lean()).message, 'I saw your website design advert today');
 
     await Inbox.create([
-      { messageId: 'a', phone: '919876543210', text: 'Hello! Can I get more info on this?', profileName: 'Ravi', deliveredAs: 'append', sentAt: new Date(), adMarker: { externalAdReply: true }, status: 'closed' },
+      { messageId: 'a', phone: '919876543210', text: 'Hello! Can I get more info on this?', profileName: 'Ravi', deliveredAs: 'append', sentAt: new Date(), adMarker: { externalAdReply: true }, status: 'closed', outcome: 'lead-and-reply', replyStatus: 'sent', leadId: new mongoose.Types.ObjectId() },
       { messageId: 'b', phone: null, text: 'Hello! Can I get more info on this?', deliveredAs: 'notify', sentAt: new Date(), status: 'needs-attention' },
     ]);
     await dialog.getByRole('heading', { name: 'Recognised messages (2)' }).waitFor({ timeout: 8000 });
@@ -111,6 +133,9 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     await dialog.getByText('From an ad', { exact: true }).waitFor();
     await dialog.getByText('Arrived while the service was restarting').waitFor();
     await dialog.getByText('Ravi', { exact: true }).waitFor();
+    await dialog.getByText('Added to leads', { exact: true }).waitFor();
+    await dialog.getByText('Reply sent', { exact: true }).waitFor();
+    await dialog.getByText('1 added to leads · 1 reply sent · 0 waiting').waitFor();
     await page.screenshot({ path: path.join(qaDir, 'auto-reply-desktop.png') });
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -120,8 +145,10 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     await page.screenshot({ path: path.join(qaDir, 'auto-reply-mobile.png') });
 
     await recognise.click();
-    await dialog.getByRole('status').filter({ hasText: 'Recognising messages is Off' }).waitFor();
+    await dialog.getByRole('status').filter({ hasText: 'Recognise messages is Off' }).waitFor();
     assert.equal((await State.findById(STATE_ID).lean()).autoReply.recognise, false);
+    assert.ok(await sendReplies.isDisabled(), 'the other two show as inactive');
+    assert.equal(await sendReplies.isChecked(), false);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     assert.equal(await page.getByRole('dialog').count(), 0);
   } finally { await browser.close(); }

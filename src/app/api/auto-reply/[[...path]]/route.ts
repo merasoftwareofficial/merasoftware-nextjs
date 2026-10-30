@@ -4,7 +4,7 @@ import { AuthError, getSession } from "@/lib/auth";
 import { PortalApiError, portalApiRequest } from "@/lib/portal-api";
 
 type Context = { params: Promise<{ path?: string[] }> };
-const allowed = (method: string, path: string) => (method === "GET" && path === "status") || (method === "POST" && ["switches", "message"].includes(path));
+const allowed = (method: string, path: string) => (method === "GET" && path === "status") || (method === "POST" && ["switches", "message", "reply"].includes(path));
 async function handle(request: Request, context: Context) {
   try {
     const path = ((await context.params).path || []).join("/");

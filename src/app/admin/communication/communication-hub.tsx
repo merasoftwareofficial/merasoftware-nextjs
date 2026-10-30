@@ -29,7 +29,7 @@ type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; 
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
 const PANELS: Record<PanelId, Panel> = {
   "broadcast": { group: "WhatsApp", title: "Broadcast", whatsapp: true, tabs: [], description: "Choose a lead group, write or reuse a message, and send through the WhatsApp queue." },
-  "auto-reply": { group: "WhatsApp", title: "Auto Reply", whatsapp: true, tabs: [], description: "Recognise the ad message in incoming chats." },
+  "auto-reply": { group: "WhatsApp", title: "Auto Reply", whatsapp: true, tabs: [], description: "Recognise the ad message, reply through the queue and add the number to Leads." },
   "whatsapp-connection": { group: "WhatsApp", title: "WhatsApp Connection", whatsapp: true, tabs: [],
     description: "The linked number: connection, QR code, pause and unlink." },
   "whatsapp-queue": { group: "WhatsApp", title: "WhatsApp Queue", whatsapp: true,
@@ -176,7 +176,7 @@ export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolea
   const waiting = status ? status.counts.pending + status.counts.sending : 0;
   const BOX_LINES: Record<PanelId, { line: string | null; tone?: "ok" | "warn" }> = {
     "broadcast": { line: portalAdmin ? "Lead groups · saved messages" : "Portal admin only" },
-    "auto-reply": { line: portalAdmin ? "Ad message · recognised chats" : "Portal admin only" },
+    "auto-reply": { line: portalAdmin ? "Ad message · reply · leads" : "Portal admin only" },
     "whatsapp-connection": { line: whatsappLine(row => `${connectionLabel(row)}${row.paused ? " · paused" : ""}${row.phone ? ` · ${phoneLabel(row.phone)}` : ""}`), tone: status ? connected ? "ok" : "warn" : undefined },
     "whatsapp-queue": { line: whatsappLine(() => `${waiting.toLocaleString("en-IN")} waiting`) },
     "email-templates": { line: emailLine("actions", "messages") },
