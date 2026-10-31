@@ -1,3 +1,4 @@
+import { BusinessLocation } from "@/components/business-location";
 import { formatIndiaDate } from "@/lib/date-time";
 /* eslint @next/next/no-img-element: off -- Cloudinary images are not configured for next/image. */
 import cta from "@/components/campaign/homepage-ctas.module.css";
@@ -124,6 +125,7 @@ export default async function Home() {
           </div><SectionVisual data={visuals["home.contact"]} label="Contact illustration" />
         </div>
       </section>
+      <BusinessLocation />
     </main>
     <SiteFooter />
   </>;

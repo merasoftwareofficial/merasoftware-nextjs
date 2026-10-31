@@ -85,7 +85,8 @@ test('browser: Communication → Final Message → time limit and replies', { ti
     await dialog.getByRole('heading', { name: 'Final Message', exact: true }).waitFor();
     const time = dialog.getByRole('spinbutton', { name: 'Time limit, in hours' });
     await dialog.getByText('Voice message', { exact: true }).waitFor();
-    await dialog.getByText('Lead stage: Negative').waitFor();
+    await dialog.getByRole('heading', { name: 'Needs decision (1)' }).waitFor();
+    await dialog.getByRole('button', { name: 'Interested', exact: true }).waitFor();
     assert.equal(await time.inputValue(), '24');
     const save = dialog.getByRole('button', { name: 'Save time limit' });
     assert.ok(await save.isDisabled(), 'opening the box changes nothing');
@@ -96,6 +97,16 @@ test('browser: Communication → Final Message → time limit and replies', { ti
     await save.click();
     await dialog.getByRole('status').filter({ hasText: 'New final messages say 72 hours' }).waitFor();
     assert.equal((await State.findById(STATE_ID).lean()).finalMessage.hours, 72);
+    const words = dialog.getByRole('textbox', { name: "Messages that don't count as a reply" });
+    assert.equal(await words.inputValue(), ['ok', 'thik a', 'thik hai', 'thik hai ji', 'kardo ji', 'krdo', 'karde', 'kardo'].join('\n'));
+    await words.fill('ok\nokay');
+    await dialog.getByRole('button', { name: 'Save list' }).click();
+    await dialog.getByRole('status').filter({ hasText: 'List saved' }).waitFor();
+    assert.deepEqual([...(await State.findById(STATE_ID).lean()).finalMessage.ignoredReplies], ['ok', 'okay']);
+    await dialog.getByRole('button', { name: 'Mark Dead', exact: true }).click();
+    await dialog.getByRole('status').filter({ hasText: 'Ravi: Moved to Dead.' }).waitFor();
+    await dialog.getByRole('heading', { name: 'Needs decision (0)' }).waitFor();
+    assert.equal((await mongoose.connection.db.collection('leads').findOne({ _id: leadId })).status, 'Dead');
     await page.setViewportSize({ width: 390, height: 844 });
     const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Final Message"]'); return panel.scrollWidth - panel.clientWidth; });
     assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);

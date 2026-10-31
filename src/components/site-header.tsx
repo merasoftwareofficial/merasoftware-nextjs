@@ -1,3 +1,5 @@
+import { BUSINESS_LOCATION } from "@/lib/business-location";
+import { LocationPin } from "@/components/business-location";
 import Link from "@/components/link";
 import { BRAND_LOGO } from "@/lib/brand";
 import { Suspense } from "react";
@@ -94,6 +96,7 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           <NavSlot />
         </Suspense>
         <div className="header-actions">
+          <a className="header-location" href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" aria-label="Location — open directions in Google Maps"><LocationPin /><span>Location</span></a>
           <Suspense fallback={<span className="session-link session-loading" />}>
             <SessionSlot />
           </Suspense>
