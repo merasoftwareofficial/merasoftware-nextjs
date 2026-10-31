@@ -12,6 +12,18 @@
 | Website Leads page | On hold (owner) until the correction is finished |
 | Broadcast | Manual core implemented locally; verification below. Not committed, pushed, deployed or tested on a real phone |
 
+## Final Message (built 31 Oct, tests pass; not committed or deployed; real-phone test pending)
+
+**Owner's rules:** marking a lead `Negative` opens the normal review popup: Send or Don't Send, channel, template. WhatsApp or Both: no reply within the time limit moves the lead to `Dead`; any reply of any kind keeps it `Negative` and shows it to the admin. Email only or Don't Send: no timer, it never goes `Dead` by itself. `Dead` sits below `Negative`, is never deleted, and is in no Broadcast group; offering it a new offer later is a later decision. The message goes to one person once. Don't Send, expired or failed can be sent again.
+
+- **Message:** Email Templates action `lead.finalMessage`, with a `Time limit` chip from Insert detail. One setting (Communication → Final Message, default 24 hours) fills the chip and sets the wait; a message already prepared keeps its own time.
+- **Code:** `helpers/finalMessage.js` (who can get it, prepares the draft), `helpers/finalMessageJobs.js` (minute job: follows the draft and queue row, replies, deadlines), `whatsapp/src/inbound.js` (notes replies apart from Auto Reply's switches, only for numbers being waited on), `FinalMessage` in `whatsapp/src/models.js`. `sender.js` is unchanged; messages reach the queue only through the popup's decision.
+- **Buttons:** portal lead page "Send final message"; portal Leads page "Final message (n)" for leads already `Negative`, one popup per lead. The website box holds the time limit and replies only, because the review popup lives in the portal.
+- **Excluded:** clients' numbers and clients' own project requests. `Dead` waits while WhatsApp isn't connected.
+- **Next:** owner's review, then deploy (backend first), then a real test with the owner's number: reply, no reply (short time limit), Don't Send, and a reply from a LID chat. Then the owner presses the button for leads already `Negative`.
+- **Tests:** backend `npm run test:final-message`; website `npm run test:auto-reply`; portal `tests/lead-proposals-browser.cjs`, `tests/inquiry-lead-browser.cjs`.
+- **Rollback:** `backup\backend\work40-final-message`, `backup\frontend\work35-final-message`, `backup\merasoftware\work55-final-message`. New files had no earlier version.
+
 ## Next steps, in order
 
 0. **Check the portal with the owner:** the `Proposal Sent` filter must show 12 of 69. The badge migration ran on `merasoftware-db` on 30 Oct: 12 leads have `proposalSentAt`, statuses Contacted 45, Negative 4, Won 20, `remainingStatus` 0, a repeat dry run is 0/0. Old values: `E:\Allprojects\backup\backend\proposal-badge-migration-30oct.json`. If the filter still shows 0, the live backend doesn't return the field: its version isn't confirmed, only the push is.
@@ -35,10 +47,12 @@
 
 ## Lead system (done)
 
+**31 Oct local change:** Matured leads allow follow-up notes and attachments; new follow-ups keep Won, and historical note edits preserve their original badges and the lead stage. Account edits, conversion and proposal restrictions stay as before. Lead → Client uses the existing link with availability checking; Client → Lead resolves the same convertedToUserId relationship without copying data. UI label stays Matured; stored value stays Won. Verified locally: backend lead-status suite 58/58; scoped Matured browser checks 3/3 (follow-up add/edit, live bidirectional navigation, unavailable/trashed links); portal production build passed with existing warnings. The broader legacy proposal browser run timed out waiting for its WhatsApp review dialog; that unrelated flow is not verified by this change. No push or deployment.
+
 **Owner decision:** `Proposal Sent` is a permanent badge (`lead.proposalSentAt`), not a status. Adding any proposal sets it and never changes the stage, even on `Negative`. Broadcast's `Proposal Sent` target = badge + stage `Contacted` or `Positive`. Old follow-ups keep the `Proposal Sent` badge as history.
 
 - **Statuses, SSOT:** `backend/helpers/leadStatuses.js` (values, rules), `frontend/src/helpers/leadStatuses.js` (labels, colours, dropdowns). Change a status in these two only.
-- **Stages:** `Contacted` on creation; `Contacted`, `Positive`, `Negative` by the admin; `Won` (shown "Matured") by becoming a client. Follow-up dropdown: the three, with the current stage chosen. Leads list: stage filter plus a separate `Proposal Sent` filter.
+- **Stages:** `Contacted` on creation; `Contacted`, `Positive`, `Negative`, `Dead` by the admin; `Dead` also by Final Message; `Won` (shown "Matured") by becoming a client. Follow-up dropdown: these four, with the current stage chosen. Leads list: stage filter plus a separate `Proposal Sent` filter.
 - **Proposals:** `components/admin/LeadProposals.js`, `controller/lead/uploadProposal.js`. Version, amount, note and timeline entry; client sees files only after conversion.
 - **Proposal message:** action `lead.proposal` (Email Templates), always reviewed first. With an email: email plus its WhatsApp copy. Phone only: same popup, then `controller/lead/sendProposalWhatsapp.js` queues it once.
 - **`Won`:** `helpers/wonLead.js`, called from `addRoleToUser` and the sign-in fallback; `convertLead` makes its own. `scripts/backfillWonLeads.js` never links.
@@ -96,7 +110,9 @@ Website:
 - **`enqueueWhatsApp` doesn't check `ENABLE_WHATSAPP`.** The dispatcher must.
 - **Foreign numbers without `+` are unusable** (`normalizePhone` returns null). Never guess a country code.
 - **Manual phase has no extra daily cap.** Do not introduce the earlier proposed releasedDay/day-limit policy without a new owner decision.
-- **No incoming messages are read** (no `messages.upsert`), so typing STOP can't work; use the link.
+- **Incoming messages are read only for Auto Reply and Final Message** (`whatsapp/src/inbound.js`). There is no opt-out: typing STOP does nothing.
 - **Ban risk stays:** Baileys, unofficial, same number as service messages. Existing queue pacing remains; no extra daily limit (owner).
 - **Name new things "broadcast":** "campaign" is taken on the website.
 
+
+**31 Oct list timestamps (local):** Leads use separate Added/Modified columns; Clients use Joined/Updated. Each shows date over time via one AdminDateTime component (IST, 12-hour). Leads use createdAt/updatedAt; Clients retain backend latestActivityAt as the single update/sort source, now including account updatedAt alongside existing project/payment/ticket activity. Missing values show a dash. Verified: real Leads/Clients browser rendering checks date/time and UTC-to-IST date rollover; backend controller check confirms profile/project update precedence; portal production build passes with existing warnings. No push/deploy.

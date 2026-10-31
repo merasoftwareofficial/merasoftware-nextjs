@@ -13,7 +13,7 @@ const backend = createRequire(path.resolve(root, '../backend/package.json'));
 const mongoose = backend('mongoose'), express = backend('express'), jwt = backend('jsonwebtoken');
 const { MongoMemoryServer } = backend('mongodb-memory-server');
 const User = backend('./models/userModel');
-const { Inbox, Rule, State, STATE_ID } = backend('./whatsapp/src/models.js');
+const { FinalMessage, Inbox, Rule, State, STATE_ID } = backend('./whatsapp/src/models.js');
 let db, backendServer, websiteServer, websiteBase, qa, admin, member;
 const qaDir = path.join(root, '.next', 'auto-reply-qa');
 async function request(pathname, method = 'GET', user = admin, websiteRole = 'admin', body) {
@@ -67,6 +67,44 @@ test('proxy enforces both admin roles and its allow-list', async () => {
   assert.equal((await request('/api/auto-reply/unknown')).status, 404);
   assert.equal((await request('/api/auto-reply/switches')).status, 404, 'POST only');
   assert.equal((await request('/api/auto-reply/status', 'POST', admin, 'admin', {})).status, 404);
+});
+test('browser: Communication → Final Message → time limit and replies', { timeout: 60000 }, async () => {
+  const leadId = new mongoose.Types.ObjectId();
+  await mongoose.connection.db.collection('leads').insertOne({ _id: leadId, name: 'Ravi', status: 'Negative' });
+  await FinalMessage.create({ leadId, phone: '919876543210', status: 'replied', lastReplyAt: new Date(), lastReplyText: 'Voice message', replySeenAt: new Date() });
+  assert.equal((await request('/api/auto-reply/final-message')).status, 200);
+  assert.equal((await request('/api/auto-reply/final-message', 'GET', member)).status, 403);
+  assert.equal((await request('/api/auto-reply/final-message/time')).status, 404, 'POST only');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
+    page.setDefaultTimeout(10000);
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: /^Final Message Time limit/ }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('heading', { name: 'Final Message', exact: true }).waitFor();
+    const time = dialog.getByRole('spinbutton', { name: 'Time limit, in hours' });
+    await dialog.getByText('Voice message', { exact: true }).waitFor();
+    await dialog.getByText('Lead stage: Negative').waitFor();
+    assert.equal(await time.inputValue(), '24');
+    const save = dialog.getByRole('button', { name: 'Save time limit' });
+    assert.ok(await save.isDisabled(), 'opening the box changes nothing');
+    await time.fill('0');
+    await save.click();
+    await dialog.getByRole('alert').filter({ hasText: 'whole number of hours' }).waitFor();
+    await time.fill('72');
+    await save.click();
+    await dialog.getByRole('status').filter({ hasText: 'New final messages say 72 hours' }).waitFor();
+    assert.equal((await State.findById(STATE_ID).lean()).finalMessage.hours, 72);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Final Message"]'); return panel.scrollWidth - panel.clientWidth; });
+    assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);
+    await page.screenshot({ path: path.join(qaDir, 'final-message-mobile.png') });
+  } finally {
+    await browser.close();
+    await FinalMessage.deleteMany({});
+    await State.deleteMany({});
+  }
 });
 test('browser: Communication → Auto Reply → switch, ad message and recognised messages', { timeout: 90000 }, async () => {
   const browser = await chromium.launch();
