@@ -550,7 +550,7 @@ test('browser: Communication shows what needs attention and the recent emails, e
   } finally { await browser.close(); }
 });
 
-test('browser: compact review edits the selected original template, keeps name chips and sends WhatsApp-only', async () => {
+test('browser: compact review creates a new template, keeps name chips and sends WhatsApp-only', async () => {
   const { Queue } = backend('./whatsapp/src/models.js');
   const { composeTemplate } = backend('./helpers/emailTemplates');
   await Queue.init();
@@ -578,9 +578,12 @@ test('browser: compact review edits the selected original template, keeps name c
     await page.getByLabel('Insert detail into Message').selectOption({ label: 'Lead name' });
     const beforeCount = await EmailTemplate.countDocuments();
     await page.getByRole('button', { name: 'Save template', exact: true }).click();
-    await page.getByText('Selected template updated.', { exact: true }).waitFor();
-    assert.equal(await EmailTemplate.countDocuments(), beforeCount);
-    assert.match((await EmailTemplate.findById(template._id)).text, /Please check, \{\{name\}\}/);
+    await page.getByText('New template saved. Original unchanged.', { exact: true }).waitFor();
+    assert.equal(await EmailTemplate.countDocuments(), beforeCount + 1);
+    assert.equal((await EmailTemplate.findById(template._id)).text, template.text);
+    const savedId = await page.getByLabel('Template', { exact: true }).inputValue();
+    assert.notEqual(savedId, String(template._id));
+    assert.match((await EmailTemplate.findById(savedId)).text, /Please check, \{\{name\}\}/);
     assert.ok(await page.getByRole('dialog').isVisible(), 'saving does not dismiss or repeat the business action');
     await page.getByRole('button', { name: 'Update preview', exact: true }).click();
     await page.waitForFunction(() => /Please check, Compact Customer/.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));

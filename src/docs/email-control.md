@@ -8,10 +8,10 @@ Repos under E:\Allprojects: backend (delivery/templates, Render), merasoftware (
 
 Project-node review integration and personal admin contact settings: see [node-communication-settings.md](node-communication-settings.md) for current contracts, migration and verification. Both reuse this communication pipeline.
 
-Compact review upgrade is implemented and tested locally, not committed/pushed/deployed. Owner review and real-contact test remain pending. Owner wants dropdowns, visible Name/detail chips and same-template updates, reusing the existing system.
+Compact review upgrade is implemented and tested locally, not committed/pushed/deployed. Owner review and real-contact test remain pending. Owner now requires popup saves to create a new purpose-scoped template, preserving existing templates and defaults.
 
 - Popup: recipient/attachment summary → Send via (Email/WhatsApp/Both) → template dropdown → subject/message editor → collapsible details/preview → Save template, Don't Send, Send. Missing contacts/channels disabled with a reason; backend validates again. WhatsApp is queued, not claimed delivered.
-- Save template explicitly updates the selected original ID, never creates a duplicate or changes the default. Send uses current edits once; it does not silently save them. Name chips stay reusable; actual customer values appear only in preview/output. A stale save is refused; Reload saved message reloads that ID.
+- Save template in both shared review popups creates a new custom template through POST /templates with sourceTemplateId, event and a visible New template name. The backend derives the action from the source and rejects mismatches/application violations. The new ID is added to the current dropdown and selected. Originals and EmailPolicy.defaultTemplate remain unchanged. Send uses current edits once; it does not silently save them. Name chips remain reusable; actual customer values appear only in preview/output. Explicit template-management Edit still uses PUT with revision protection.
 - Default template selection still belongs to EmailPolicy.defaultTemplate, otherwise Standard. Multiple saved templates already existed and are reused. Older drafts without a known source template cannot save over a guessed template; selecting an original explicitly enables editing it.
 - Automatic/customer/system actions retain existing On/Off behavior and legacy email→WhatsApp copy flow. This change adds explicit channel selection to reviewed messages, not new automatic sending rules.
 
@@ -34,7 +34,7 @@ Frontends:
 
 ## Special paths and boundaries
 
-- Add Lead is reviewed before saving: AdminLeadsPage sends form name/email/phone to /lead-preview. Preview can select/save original templates but cannot send. createLead re-derives values/contact from validated form, saves the business record, then requestMiddleware decides the prepared draft. Duplicate/refused business actions never deliver. Result messageDelivery reports email sent / WhatsApp queued / unfinished delivery.
+- Add Lead is reviewed before saving: AdminLeadsPage sends form name/email/phone to /lead-preview. Preview can select templates and save new copies but cannot send. createLead re-derives values/contact from validated form, saves the business record, then requestMiddleware decides the prepared draft. Duplicate/refused business actions never deliver. Result messageDelivery reports email sent / WhatsApp queued / unfinished delivery.
 - Phone-only proposals keep the existing LeadProposals preview/decision endpoint. leadProposalMessage.js now shares original-template metadata/selection and subject-chip handling; it permits WhatsApp only, derives values/link from the saved lead/proposal and uses a deterministic queue ID per lead/version. Existing proposal claim remains. No second popup or new email draft is created for that path.
 - Both means independent email acceptance and WhatsApp queue submission. One may succeed while the other fails; only unfinished submission retries. Once queued, WhatsApp transport outcomes/retries live in the existing WhatsApp queue UI.
 - Files remain email attachments; WhatsApp sends text and its links, as before. Required links survive edits. Invoice reminder counters change on email acceptance only. Subscription confirmation requires email; website proxy still validates subscriber/token/state before approval.
@@ -42,10 +42,16 @@ Frontends:
 
 ## Verification / next action
 
-- Backend npm run test:email includes existing emailControl and new reviewDelivery integration tests: original chips/same ID/stale save, three channel choices, contact validation, double submit, partial retries, unsaved leads and phone-only proposal. In-memory MongoDB, provider mocked, no real messages.
-- Website npm run test:email uses actual proxy/backend/database and browser editor. New compact case checks source chips, same-template PUT and WhatsApp-only without email. Legacy tests open the new details disclosure where needed.
-- Portal node tests/email-control-browser.cjs covers legacy flow plus compact source chips/channel selection/same-template PUT and processedResult exactly once.
-- Passed: backend email 50/50 (includes 10 new delivery cases), lead-status 41/41 and current WhatsApp suite 86/86; website email 22/22, portal browser script (legacy + compact flow), TypeScript and targeted ESLint. Source-preview alignment was also rechecked after the final correction. No real provider/phone delivery tested.
+- Backend npm run test:email includes existing emailControl and new reviewDelivery integration tests: original chips/explicit-edit stale save/new-copy action isolation, three channel choices, contact validation, double submit, partial retries, unsaved leads and phone-only proposal. In-memory MongoDB, provider mocked, no real messages.
+- Website npm run test:email uses actual proxy/backend/database and browser editor. New compact case checks source chips, new-template POST and WhatsApp-only without email. Legacy tests open the new details disclosure where needed.
+- Portal node tests/email-control-browser.cjs covers legacy flow plus compact source chips/channel selection/new-template POST and processedResult exactly once.
+- Passed: backend email 51/51 (includes 10 new delivery cases), lead-status 41/41 and current WhatsApp suite 86/86; website email 23/23, portal browser script (legacy + compact flow), TypeScript and targeted ESLint. Source-preview alignment was also rechecked after the final correction. No real provider/phone delivery tested.
 - Pre-change backups in each repo's external backup directory: E:\Allprojects\backup\<repo>\review-channels-20261030-232825. New files have no old version. Preserve concurrent unrelated Auto Reply work.
 - Next: owner reviews compact popup; real-email/phone test and deployment remain pending owner instruction. No production setting was enabled by this work.
 
+
+## Popup save correction — 31 October 2026
+
+Both shared review surfaces now create new custom records rather than updating their selected source. This covers portal saved drafts, pre-save Add Lead and phone-only proposal previews, plus website Communication review. Existing POST /templates, EmailTemplate, event registry, editor conversion and purpose-filtered templateOptions remain the only pipeline. Explicit template-management edits/resets retain their existing behavior. Lead-page manual messaging remains deferred.
+
+Regression proof: two successive copies survive in later drafts, Standard/custom source and default remain unchanged, chips stay reusable, other purposes cannot select the copy, and saving sends nothing. Website actual-backend browser and portal browser checks verify new ID selection and retained originals/options. Backend 51/51, website 23/23 and portal browser checks pass locally; no production writes or messages. Backups: backend backup/fix1, portal backup/fix2, website backup/fix1.

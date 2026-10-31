@@ -50,6 +50,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
   const [reviewTemplate, setReviewTemplate] = useState<{ id: string; name: string; revision?: string } | null>(null);
   const [reviewDoc, setReviewDoc] = useState<JSONContent | undefined>(undefined);
   const [templateId, setTemplateId] = useState("current");
+  const [templateName, setTemplateName] = useState("");
   const [dialogError, setDialogError] = useState("");
   const [dialogNotice, setDialogNotice] = useState("");
   const [historyFilter, setHistoryFilter] = useState("all");
@@ -129,6 +130,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     try {
       const value = await request<EmailDraft>( `/drafts/${id}`);
       setDraft(value); setSubject(value.templatePreviewSubject || value.subject); setReviewSubjectDoc(value.templateSubjectDoc); setReviewDoc(value.templateDoc ?? value.doc ?? plainDoc(value.text));
+      setTemplateName(`${value.templateLabel || "Message"} copy`);
       setTemplateId(value.selectedTemplateId || "current"); setReviewTemplate(value.selectedTemplateId ? { id: value.selectedTemplateId, name: value.templateLabel || "Message", revision: value.templateRevision } : null);
       setChannel(value.delivery?.channels?.length ? (value.delivery.channels.length === 2 ? "both" : value.delivery.channels[0]) : value.defaultChannel || ""); setPreviewHtml(value.templatePreviewHtml || value.html || ""); setDialogError("");
     } catch (err) { setError(reason(err)); }
@@ -140,6 +142,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     try {
       const value = await request<EmailDraft>( `/drafts/${draft._id}/preview`, "POST", { templateId: id });
       setSubject(value.subject); setReviewSubjectDoc(value.templateSubjectDoc); setReviewDoc(value.templateDoc ?? value.doc ?? plainDoc(value.text)); setTemplateId(id); setPreviewHtml(value.html || "");
+      setTemplateName(`${value.templateLabel || "Message"} copy`);
       setReviewTemplate(value.selectedTemplateId ? { id: value.selectedTemplateId, name: value.templateLabel || "Message", revision: value.templateRevision } : null);
     } catch (err) { setDialogError(reason(err)); }
     finally { setBusy(false); }
@@ -154,9 +157,11 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     if (!reviewTemplate || !draft || busy || draft.status !== "pending") return;
     setBusy(true); setDialogError("");
     try {
-      const saved = await request<EmailTemplate>(`/templates/${reviewTemplate.id}`, "PUT", { name: reviewTemplate.name, doc: reviewDoc, subjectDoc: reviewSubjectDoc, subject, expectedUpdatedAt: reviewTemplate.revision });
+      const saved = await request<EmailTemplate>("/templates", "POST", { event: draft.event, sourceTemplateId: reviewTemplate.id, name: templateName.trim(), doc: reviewDoc, subjectDoc: reviewSubjectDoc, subject });
       setReviewTemplate({ id: saved._id, name: saved.name, revision: saved.updatedAt });
-      setDialogNotice("Selected template updated.");
+      setTemplateId(saved._id);
+      setDraft(current => current ? { ...current, templateOptions: [...(current.templateOptions || []), { id: saved._id, name: saved.name, system: false }] } : current);
+      setDialogNotice("New template saved. Original unchanged.");
       setPreviewHtml((await request<{ html: string }>(`/drafts/${draft._id}/preview`, "POST", { subject, subjectDoc: reviewSubjectDoc, doc: reviewDoc })).html);
       await load();
     } catch (error) { setDialogError(reason(error)); }
@@ -300,13 +305,13 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
         {draft.status === "pending" && <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewEdits()}>Update preview</button></div>}
         {previewHtml && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>Preview</summary><EmailPreview html={previewHtml} /></details>}
         {!!draft.requiredLinks?.length && <details><summary>Required links (preserved when sending)</summary>{draft.requiredLinks.map(link => <p className={styles.link} key={link}>{link}</p>)}</details>}
-        <p className={styles.muted}>{reviewTemplate ? "Send uses these edits once. Save template updates the selected saved message for future use." : "Edits apply to this message only. No original template is linked for saving."}</p>
+        <p className={styles.muted}>{reviewTemplate ? "Send uses these edits once. Save template creates a new reusable template for this action." : "Edits apply to this message only. No original template is linked for saving."}</p>
         {dialogNotice && <p role="status">{dialogNotice}</p>}
         {dialogError && reviewTemplate && draft.status === "pending" && <button disabled={busy} onClick={() => void chooseTemplate(reviewTemplate.id)}>Reload saved message</button>}
         {off && <p className={styles.error}>Email for this action is Off. You can skip this draft or change its rule.</p>}
         {dialogError && <p className={styles.error} role="alert">{dialogError}</p>}
         <div className={styles.actions}>
-          {reviewTemplate && draft.status === "pending" && <button disabled={busy} onClick={() => void saveReviewTemplate()}>Save template</button>}
+          {reviewTemplate && draft.status === "pending" && <><label htmlFor="review-template-name">New template name</label><input id="review-template-name" maxLength={100} disabled={busy} value={templateName} onChange={event => setTemplateName(event.target.value)} /><button disabled={busy || !templateName.trim() || !docHasContent(reviewDoc)} onClick={() => void saveReviewTemplate()}>Save template</button></>}
           <button disabled={busy} onClick={() => void decide("skip")}>Don’t Send Mail</button><button className="admin-button" disabled={busy || draft.status === "sending" || !!off || !subject.trim() || !docHasContent(reviewDoc) || (!!draft.channelOptions && !draft.delivery?.lockedAt && !draft.channelOptions.find(row => row.id === channel)?.enabled)} onClick={() => void decide("send")}>{busy ? "Working…" : channel === "both" ? "Send" : channel === "whatsapp" ? "Send WhatsApp" : "Send Mail"}</button>
         </div>
       </div>}
