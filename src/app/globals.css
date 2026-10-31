@@ -602,8 +602,19 @@ html{scroll-padding-top:var(--header-height,0px)}
 .location-map-caption{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px;font-size:12px;font-weight:700}.location-map-caption>span{display:flex;align-items:center;gap:8px;letter-spacing:.05em}.location-map-caption a{font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .location-map-card iframe{display:block;width:100%;height:350px;border:0}.location-map-card>p{padding:16px 18px;margin:0;color:var(--muted);font-size:13px;line-height:1.5}
 .footer-address{font-style:normal;max-width:280px;font-size:14px;line-height:1.7;margin:16px 0 8px;color:var(--muted)}
-.site-header .header-location{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;white-space:nowrap;min-height:42px}.header-location svg{flex:none}
-@media(min-width:1025px) and (max-width:1250px){.site-header .header-inner>nav{gap:15px}.site-header .header-actions{gap:12px}.site-header .header-location span{display:none}}
+@media(min-width:1025px) and (max-width:1250px){.site-header .header-inner>nav{gap:15px}.site-header .header-actions{gap:12px}}
 @media(max-width:800px){.location-grid{grid-template-columns:1fr;gap:32px}.business-location{padding:60px 0}.location-map-card iframe{height:320px}}
-@media(max-width:480px){.site-header .header-actions{gap:9px}.site-header .header-location{font-size:12px;gap:3px}.site-header .brand-logo{flex-shrink:0}.site-header .brand-logo img{width:100px;height:auto}.location-map-caption{flex-wrap:wrap}.location-map-card iframe{height:290px}}
-@media(max-width:360px){.site-header .header-inner{gap:8px}.site-header .brand-logo img{width:85px}.site-header .header-actions{gap:7px}.site-header .header-location{font-size:11px}.site-header .menu-toggle{width:34px;height:34px}}
+@media(max-width:480px){.site-header .header-actions{gap:9px}.site-header .brand-logo{flex-shrink:0}.site-header .brand-logo img{width:100px;height:auto}.location-map-caption{flex-wrap:wrap}.location-map-card iframe{height:290px}}
+@media(max-width:360px){.site-header .header-inner{gap:8px}.site-header .brand-logo img{width:85px}.site-header .header-actions{gap:7px}.site-header .menu-toggle{width:34px;height:34px}}
+
+/* Location ribbon belongs to the header, so sticky offsets and menu positioning include it. */
+.site-header .location-ribbon{background:var(--brand-paper);color:var(--brand-navy);border-top:1px solid rgb(0 36 61 / .08);border-bottom:1px solid rgb(0 36 61 / .12)}
+.location-ribbon-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:38px}
+.location-ribbon-inner p{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;line-height:1.5;letter-spacing:.01em}
+.location-ribbon-inner p svg{flex:none;width:15px;height:15px}
+.location-ribbon-inner>a{display:inline-flex;align-items:center;gap:8px;min-height:38px;font-size:12px;font-weight:700;white-space:nowrap;text-underline-offset:3px}
+.location-ribbon-inner>a:hover{text-decoration:underline}.ribbon-address-mobile{display:none}
+@media(min-width:1025px){.site-header .header-inner{grid-template-columns:auto minmax(0,1fr) auto;gap:24px}.site-header .header-inner>nav{justify-content:center;gap:22px;white-space:nowrap}}
+@media(min-width:1025px) and (max-width:1250px){.site-header .header-inner{gap:18px}.site-header .header-inner>nav{gap:14px}.site-header .header-inner>.brand img{height:36px}.site-header .nav-cta{padding:11px 12px}.site-header .session-link{padding:10px 12px}}
+@media(max-width:600px){.ribbon-address-full{display:none}.ribbon-address-mobile{display:inline}.location-ribbon-inner{gap:10px}.location-ribbon-inner p,.location-ribbon-inner>a{font-size:12px}}
+.site-header .mobile-menu-panel{max-height:calc(100dvh - var(--header-height,116px));overflow-y:auto;overscroll-behavior:contain}

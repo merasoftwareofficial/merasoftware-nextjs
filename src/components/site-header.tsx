@@ -40,6 +40,7 @@ const NAV_LINKS: MenuLink[] = [
   ["Blog", "/blog"],
   ["Community", "/community"],
   ["About", "/about"],
+  ["Contact Us", "/contact"],
 ];
 
 /**
@@ -96,7 +97,6 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           <NavSlot />
         </Suspense>
         <div className="header-actions">
-          <a className="header-location" href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" aria-label="Location — open directions in Google Maps"><LocationPin /><span>Location</span></a>
           <Suspense fallback={<span className="session-link session-loading" />}>
             <SessionSlot />
           </Suspense>
@@ -106,6 +106,12 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           <Suspense fallback={<MobileMenu links={navEntries(null)} />}>
             <MobileMenuSlot />
           </Suspense>
+        </div>
+      </div>
+      <div className="location-ribbon">
+        <div className="container location-ribbon-inner">
+          <p><LocationPin /><span className="ribbon-address-full">{BUSINESS_LOCATION.shortAddress}</span><span className="ribbon-address-mobile">{BUSINESS_LOCATION.mobileAddress}</span></p>
+          <a href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" aria-label="Get directions to Mera Software in Google Maps">Get Directions <span aria-hidden="true">↗</span></a>
         </div>
       </div>
     </header>
