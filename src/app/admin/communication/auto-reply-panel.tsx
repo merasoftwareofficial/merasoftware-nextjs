@@ -29,7 +29,7 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : "
 const SWITCHES: { key: SwitchKey; title: string; hint: string }[] = [
   { key: "recognise", title: "Recognise messages", hint: "Looks for the ad message below in incoming chats. Off stops all of Auto Reply. Other WhatsApp messages are not affected." },
   { key: "sendReplies", title: "Send replies", hint: "Puts the reply below into the WhatsApp queue, where it waits its turn. Off also cancels replies still waiting." },
-  { key: "addLeads", title: "Add to leads", hint: "Adds a new number to Leads with the status Inquiry, and adds a remark to a lead that already exists. A Negative, Dead or deleted lead comes back. Filling in the name moves an Inquiry to Contacted." },
+  { key: "addLeads", title: "Add to leads", hint: "Adds a new number to Leads with the status Inquiry, and adds a remark to a lead that already exists. A Negative, Dead or deleted lead comes back. Filling in the name moves an Inquiry to Neutral." },
 ];
 const OUTCOME: Record<string, string> = {
   "lead-and-reply": "Added to leads · reply queued", "lead-only": "Added to leads", "reply-only": "Reply queued",

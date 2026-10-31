@@ -19,7 +19,7 @@ async function api<T>(path: string, method = "GET", body?: unknown, signal?: Abo
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Request failed.";
 const COUNTS: [string[], string][] = [[["review", "queued"], "being sent"], [["waiting"], "waiting for a reply"], [["replied"], "replied"], [["dead"], "moved to Dead"], [["not-sent"], "not sent"], [["email-only"], "by email only"]];
 const CHOICES: { id: Choice; label: string; done: string }[] = [
-  { id: "interested", label: "Interested", done: "Moved to Contacted." },
+  { id: "interested", label: "Interested", done: "Moved to Neutral." },
   { id: "dead", label: "Mark Dead", done: "Moved to Dead." },
   { id: "keep", label: "Keep Negative", done: "Kept in Negative." },
 ];

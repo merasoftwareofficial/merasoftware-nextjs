@@ -7,7 +7,7 @@ import { EmailEditor, emptyDoc, docHasContent } from "@/app/admin/email-control/
 import { formatIndiaDate } from "@/lib/date-time";
 import s from "./broadcast.module.css";
 
-type Group = { id: string; label: string; count: number; total: number; excluded: { invalidPhone: number; duplicatePhone: number; noName: number } };
+type Group = { id: string; label: string; count: number; total: number; excluded: { invalidPhone: number; duplicatePhone: number; noName: number; doNotDisturb?: number } };
 type Catalog = { groups: Group[]; fields: TemplateVariable[]; jobsEnabled: boolean; stopped: string | null };
 type Template = { _id: string; name: string; doc: JSONContent };
 type Run = { id: string; audience: string; title: string; state: string; total: number; createdAt: string; counts: Record<string, number> };
@@ -82,7 +82,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
         {catalog?.groups.map(row => <option key={row.id} value={row.id}>{row.label} ({row.count})</option>)}
       </select>
     </label>
-    {selectedGroup && <p className={s.note}>{selectedGroup.count} eligible numbers · {selectedGroup.excluded.invalidPhone} unusable phones · {selectedGroup.excluded.duplicatePhone} duplicate numbers.{selectedGroup.excluded.noName > 0 && ` ${selectedGroup.excluded.noName} have no name, so a message using the recipient's name skips them.`} Eligibility is checked again before queueing.</p>}
+    {selectedGroup && <p className={s.note}>{selectedGroup.count} eligible numbers · {selectedGroup.excluded.invalidPhone} unusable phones · {selectedGroup.excluded.duplicatePhone} duplicate numbers.{(selectedGroup.excluded.doNotDisturb ?? 0) > 0 && ` ${selectedGroup.excluded.doNotDisturb} left out because they are Dead, Wrong or in a final message countdown.`}{selectedGroup.excluded.noName > 0 && ` ${selectedGroup.excluded.noName} have no name, so a message using the recipient's name skips them.`} Eligibility is checked again before queueing.</p>}
     <label className={s.field}>Recent / saved messages
       <select aria-label="Recent / saved messages" value={templateId} disabled={busy || !catalog} onChange={event => choose(event.target.value)}>
         <option value="">New message</option>

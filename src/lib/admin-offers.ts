@@ -14,6 +14,7 @@ export function legacyOfferDestination(section?: string) {
   return `/admin/offers?section=${offerSection(section)}`;
 }
 export type OfferState = Offer["status"] | "active" | "expired";
+export const offerIsRunning = (offer: Offer) => offerState(offer, Date.now()) === "active";
 export function offerState(offer: Offer, now: number | null): OfferState {
   if (offer.status !== "published") return offer.status;
   if (now === null) return "published";

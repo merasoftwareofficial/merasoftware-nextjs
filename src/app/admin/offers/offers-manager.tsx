@@ -109,7 +109,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     <div className={s.actions}><Link className="admin-button" href="/admin/offers?section=settings&new=1">New offer +</Link><label>Filter offers <select aria-label="Filter offers" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
     <div className={s.list}>{offers.filter(offer => filter === "all" || offerState(offer, now) === filter).map(offer => <article className={s.row} key={offer.slug}>
       <div><h3>{offer.title}</h3><p>{offerState(offer, now)} · ₹{offer.offerPrice.toLocaleString("en-IN")} · /offer/{offer.slug}{offer.packageId && <> · Package: {packages.find(item => item.id === offer.packageId)?.name ?? offer.packageId}</>}</p>{packageNotice(offer) && <p className={s.warn}>{packageNotice(offer)}</p>}</div>
-      <div className={s.actions}><Link className="admin-action" href={`/admin/offers?section=settings&offer=${encodeURIComponent(offer.slug)}`}>Edit →</Link>{offer.status === "published" && <Link className="admin-action" href={`/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
+      <div className={s.actions}><Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(offer.slug)}`}>Target people →</Link><Link className="admin-action" href={`/admin/offers?section=settings&offer=${encodeURIComponent(offer.slug)}`}>Edit →</Link>{offer.status === "published" && <Link className="admin-action" href={`/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
     </article>)}</div>{!offers.some(offer => filter === "all" || offerState(offer, now) === filter) && <p>No offers match this filter.</p>}{notices}
   </div>;
   function update<K extends keyof Offer>(key: K, value: Offer[K]) {
@@ -159,7 +159,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     if (window.confirm(`Delete "${saved.title}"? It disappears from the website${saved.packageId ? " and its package is free for a new offer" : ""}. People who already reserved keep their saved price. It stays under the Archived filter.`)) submit({ ...saved, status: "archived" });
   }
   return <>
-    <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link><button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
+    <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link>{!creating && selected.slug && <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(selected.slug)}`}>Target people →</Link>}<button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
     <form className="admin-form" onSubmit={event => { event.preventDefault(); submit({ ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }); }}>
       <fieldset disabled={busy} className={s.fields}>
         <h3>Offer identity</h3><div className="form-columns">{field("Offer name", "title")}{field("URL slug", "slug")}</div>
