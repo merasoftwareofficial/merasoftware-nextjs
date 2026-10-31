@@ -29,10 +29,11 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : "
 const SWITCHES: { key: SwitchKey; title: string; hint: string }[] = [
   { key: "recognise", title: "Recognise messages", hint: "Looks for the ad message below in incoming chats. Off stops all of Auto Reply. Other WhatsApp messages are not affected." },
   { key: "sendReplies", title: "Send replies", hint: "Puts the reply below into the WhatsApp queue, where it waits its turn. Off also cancels replies still waiting." },
-  { key: "addLeads", title: "Add to leads", hint: "Adds a new number to Leads with the status Inquiry. Filling in the name moves it to Contacted." },
+  { key: "addLeads", title: "Add to leads", hint: "Adds a new number to Leads with the status Inquiry, and adds a remark to a lead that already exists. A Negative, Dead or deleted lead comes back. Filling in the name moves an Inquiry to Contacted." },
 ];
 const OUTCOME: Record<string, string> = {
   "lead-and-reply": "Added to leads · reply queued", "lead-only": "Added to leads", "reply-only": "Reply queued",
+  "updated-and-reply": "Lead updated · reply queued", "updated-only": "Lead updated", "team-number": "Team number, nothing done",
   "known-person": "Already known, nothing sent", "detected-only": "Recognised only", "switched-off": "Auto Reply was off",
 };
 const REPLY: Record<string, string> = { pending: "Reply waiting", sending: "Reply sending", sent: "Reply sent", failed: "Reply not sent", expired: "Reply expired", cancelled: "Reply cancelled", skipped: "Reply skipped" };
@@ -99,7 +100,7 @@ export function AutoReplyPanel({ active = true }: { active?: boolean }) {
     <div className={a.reply}>
       {reply ? <EmailEditor id="auto-reply-message" label="Reply" channel="whatsapp" value={reply} disabled={busy} onChange={setReplyDraft} /> : <Loader label="Loading the reply…" />}
     </div>
-    <p className={s.note}>Goes once to each new number, through the WhatsApp queue. A saved change applies to the next person; a reply already waiting keeps its words.</p>
+    <p className={s.note}>Goes to everyone who sends the ad message, except team numbers, through the WhatsApp queue. A saved change applies to the next person; a reply already waiting keeps its words.</p>
     <div className={s.actions}>
       <button type="button" disabled={busy || !replyDraft || !docHasContent(replyDraft)} onClick={() => void action(async () => {
         await api("reply", "POST", { doc: replyDraft }); await refresh(); setReplyDraft(null); setNotice("Reply saved. It applies from the next person.");
@@ -123,6 +124,7 @@ export function AutoReplyPanel({ active = true }: { active?: boolean }) {
               {row.status === "needs-attention" && <span data-tone="warn">Needs attention</span>}
               {row.outcome && OUTCOME[row.outcome] && !row.replyStatus && <span>{OUTCOME[row.outcome]}</span>}
               {row.outcome?.startsWith("lead") && row.replyStatus && <span>Added to leads</span>}
+              {row.outcome?.startsWith("updated") && row.replyStatus && <span>Lead updated</span>}
               {row.replyStatus && REPLY[row.replyStatus] && <span>{REPLY[row.replyStatus]}</span>}
             </div>
           </li>)}</ul>}
