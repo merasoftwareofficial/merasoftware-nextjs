@@ -1,4 +1,5 @@
 "use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
 import { useCallback, useEffect, useState } from "react";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import type { WhatsappStopped, WhatsappUpcoming, WhatsappUpcomingRow } from "@/lib/whatsapp-types";
@@ -40,16 +41,12 @@ export function WhatsappQueueView({ active = true }: { active?: boolean }) {
   const load = useCallback((signal?: AbortSignal) => whatsappApi<WhatsappUpcoming>("queue/upcoming", "GET", signal)
     .then(reply => { if (!signal?.aborted) { setData({ reply, offset: new Date(reply.now).getTime() - Date.now() }); setError(null); } })
     .catch(failure => { if (!signal?.aborted) setError(message(failure, "Could not load the WhatsApp queue.")); }), []);
-  // The list refreshes every 5 seconds while the tab is visible; the countdown moves every second.
+  useCommunicationRefresh(signal => load(signal), active);
   useEffect(() => {
     if (!active) return;
-    const controller = new AbortController();
-    const refresh = () => { if (document.visibilityState === "visible") void load(controller.signal); };
-    const first = setTimeout(refresh, 0);
-    const timer = setInterval(refresh, 5000);
     const clock = setInterval(() => setTick(Date.now()), 1000);
-    return () => { controller.abort(); clearTimeout(first); clearInterval(timer); clearInterval(clock); };
-  }, [load, active]);
+    return () => clearInterval(clock);
+  }, [active]);
 
   // The summary and the section are drawn at once; only their values wait for the first reply.
   const reply = data?.reply;

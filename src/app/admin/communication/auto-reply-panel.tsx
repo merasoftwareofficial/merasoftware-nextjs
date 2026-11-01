@@ -1,6 +1,7 @@
 "use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { docHasContent, EmailEditor } from "@/app/admin/email-control/email-editor";
 import { Loader } from "@/app/admin/email-control/loader";
@@ -50,13 +51,7 @@ export function AutoReplyPanel({ active = true }: { active?: boolean }) {
     const next = await api<Status>("status", "GET", undefined, signal);
     if (!signal?.aborted) { setStatus(next); setLoadError(""); }
   }, []);
-  useEffect(() => {
-    if (!active) return;
-    const controller = new AbortController();
-    const load = () => { if (document.visibilityState === "visible") refresh(controller.signal).catch(failure => { if (!controller.signal.aborted) setLoadError(errorText(failure)); }); };
-    const first = setTimeout(load, 0), timer = setInterval(load, 5000);
-    return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
-  }, [active, refresh]);
+  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setLoadError(errorText(failure)); }), active);
   async function action(work: () => Promise<void>) {
     setBusy(true); setError(""); setNotice("");
     try { await work(); await refresh(); } catch (failure) { setError(errorText(failure)); }

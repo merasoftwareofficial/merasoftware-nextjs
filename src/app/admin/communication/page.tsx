@@ -1,3 +1,4 @@
+import { CommunicationLiveProvider } from '@/lib/communication-live';
 import { redirect } from "next/navigation";
 import { AdminHeader } from "@/components/admin-layout";
 import { getSession, requireStaffPage } from "@/lib/auth";
@@ -27,8 +28,15 @@ export default async function CommunicationPage({ searchParams }: { searchParams
   const old = query.view !== undefined ? `view:${query.view}` : query.panel !== undefined ? `panel:${query.panel}` : "";
   if (query.view !== undefined || Object.hasOwn(OLD_LINKS, old)) redirect(`/admin/communication${OLD_LINKS[old] ? `?${OLD_LINKS[old]}` : ""}`);
   const initial: HubState = { panel: query.panel ?? null, tab: query.tab ?? null, app: query.app ?? null, show: query.show ?? null };
+  let feedUrl: string | null = null;
+  if (portalAdmin && process.env.PORTAL_API_URL) {
+    try {
+      const base = new URL(process.env.PORTAL_API_URL);
+      if (base.protocol === 'https:' || base.protocol === 'http:') feedUrl = `${base.origin}/api/portal-updates`;
+    } catch { /* current proxy error UI/fallback remains authoritative */ }
+  }
   return <main className="admin-main">
     <AdminHeader eyebrow="COMMUNICATION" title="Communication" description="Every email and WhatsApp the site sends, in one place." />
-    <CommunicationHub portalAdmin={portalAdmin} initial={initial} />
+    <CommunicationLiveProvider url={feedUrl}><CommunicationHub portalAdmin={portalAdmin} initial={initial} /></CommunicationLiveProvider>
   </main>;
 }

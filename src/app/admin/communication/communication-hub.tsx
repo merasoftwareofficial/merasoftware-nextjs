@@ -1,4 +1,5 @@
 "use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmailControlPanel, type EmailView } from "@/app/admin/email-control/email-control-panel";
@@ -153,15 +154,10 @@ export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolea
     return () => controller.abort();
   }, [portalAdmin, view.panel, countsKey]);
 
-  // Email counts and the last decisions: when the page opens and whenever a panel closes.
-  useEffect(() => {
-    if (view.panel) return;
-    const controller = new AbortController();
-    Promise.all((portalAdmin ? ["website", "portal"] as const : ["website"] as const).map(app => emailControlApi<EmailSummary>(app, "/summary", "GET", undefined, controller.signal)))
-      .then(rows => { if (!controller.signal.aborted) { setSummary(Object.fromEntries(rows.map(row => [row.application, row]))); setSummaryFailed(false); } })
-      .catch(() => { if (!controller.signal.aborted) setSummaryFailed(true); });
-    return () => controller.abort();
-  }, [portalAdmin, view.panel]);
+  // Email counts refresh on authorized events or when returning to the hub.
+  useCommunicationRefresh(signal => Promise.all((portalAdmin ? ["website", "portal"] as const : ["website"] as const).map(app => emailControlApi<EmailSummary>(app, "/summary", "GET", undefined, signal)))
+    .then(rows => { if (!signal.aborted) { setSummary(Object.fromEntries(rows.map(row => [row.application, row]))); setSummaryFailed(false); } })
+    .catch(() => { if (!signal.aborted) setSummaryFailed(true); }), !view.panel, 0);
   // A review list that loads keeps the Email Review count current.
   const reviewCount = useCallback((app: Application, count: number) => setSummary(current => {
     const row = current[app];
@@ -232,8 +228,8 @@ export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolea
       ["whatsapp-queue:history", <WhatsappPanel key="h" view="messages" show={historyShow} active={part("whatsapp-queue:history").shown} />],
     ];
     const emailParts: [string, React.ReactNode][] = apps.flatMap(app => [
-      [`email-templates:${app}`, <EmailControlPanel key={`t-${app}`} initialApplication={app} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} />],
-      [`email-review:${app}`, <EmailControlPanel key={`r-${app}`} initialApplication={app} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
+      [`email-templates:${app}`, <EmailControlPanel key={`t-${app}`} initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} />],
+      [`email-review:${app}`, <EmailControlPanel key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
     ] as [string, React.ReactNode][]);
     return <>
       {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}

@@ -1,6 +1,7 @@
 "use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Loader } from "@/app/admin/email-control/loader";
 import { phoneLabel } from "@/app/admin/whatsapp/whatsapp-panel";
 import { formatIndiaDate } from "@/lib/date-time";
@@ -37,13 +38,7 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
     const next = await api<Status>("final-message", "GET", undefined, signal);
     if (!signal?.aborted) { setStatus(next); setLoadError(""); }
   }, []);
-  useEffect(() => {
-    if (!active) return;
-    const controller = new AbortController();
-    const load = () => { if (document.visibilityState === "visible") refresh(controller.signal).catch(failure => { if (!controller.signal.aborted) setLoadError(errorText(failure)); }); };
-    const first = setTimeout(load, 0), timer = setInterval(load, 5000);
-    return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
-  }, [active, refresh]);
+  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setLoadError(errorText(failure)); }), active);
   async function action(work: () => Promise<string>) {
     setBusy(true); setError(""); setNotice("");
     try { const done = await work(); await refresh(); setNotice(done); } catch (failure) { setError(errorText(failure)); }

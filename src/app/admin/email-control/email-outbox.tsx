@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCommunicationRefresh } from "@/lib/communication-live";
+import { useState } from "react";
 import { emailControlApi } from "@/lib/email-control-client";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import type { Application, EmailOutboxData } from "@/lib/email-control-types";
 import styles from "./email-control.module.css";
 
 const emptyFilters = { status: "all", q: "", from: "", to: "" };
-export function EmailOutbox({ application, revision }: { application: Application; revision: number }) {
+export function EmailOutbox({ application, revision, active = true }: { application: Application; revision: number; active?: boolean }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [query, setQuery] = useState({ ...emptyFilters, page: 1 });
   const [retry, setRetry] = useState(0);
@@ -14,13 +15,10 @@ export function EmailOutbox({ application, revision }: { application: Applicatio
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
   const params = new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)])).toString();
   const requestKey = `${application}:${params}:${revision}:${retry}`;
-  useEffect(() => {
-    const controller = new AbortController();
-    emailControlApi<EmailOutboxData>(application, `/outbox?${params}`, "GET", undefined, controller.signal)
-      .then(data => { if (!controller.signal.aborted) { setResult({ key: requestKey, data }); setError(null); } })
-      .catch(err => { if (!controller.signal.aborted) setError({ key: requestKey, message: err instanceof Error ? err.message : "Could not load Outbox." }); });
-    return () => controller.abort();
-  }, [application, params, requestKey]);
+  useCommunicationRefresh(signal => emailControlApi<EmailOutboxData>(application, `/outbox?${params}`, "GET", undefined, signal)
+    .then(data => { if (!signal.aborted) { setResult({ key: requestKey, data }); setError(null); } })
+    .catch(err => { if (!signal.aborted) setError({ key: requestKey, message: err instanceof Error ? err.message : "Could not load Outbox." }); }), active, 0, requestKey);
+
   const data = result?.key === requestKey ? result.data : null;
   const failure = error?.key === requestKey ? error.message : null;
   const loading = !data && !failure;

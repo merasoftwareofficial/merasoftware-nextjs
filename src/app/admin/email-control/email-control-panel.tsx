@@ -1,4 +1,5 @@
 "use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { formatIndiaDateTime } from "@/lib/date-time";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -30,7 +31,7 @@ const matches = (event: CatalogEvent, query: string) => !query || [event.label, 
  */
 export type EmailView = "all" | "actions" | "activity" | "review" | "outbox" | "history";
 /** `query` filters the actions by name; `onReviewCount` reports how many mails wait for review (Communication's status bar). */
-export function EmailControlPanel({ initialApplication, canManagePortal, view = "all", showTabs = true, query = "", onReviewCount }: { initialApplication: Application; canManagePortal: boolean; view?: EmailView; showTabs?: boolean; query?: string; onReviewCount?: (count: number) => void }) {
+export function EmailControlPanel({ initialApplication, canManagePortal, active = true, view = "all", showTabs = true, query = "", onReviewCount }: { initialApplication: Application; canManagePortal: boolean; active?: boolean; view?: EmailView; showTabs?: boolean; query?: string; onReviewCount?: (count: number) => void }) {
   const [application, setApplication] = useState(initialApplication);
   const { track } = useTask();
   const request = useCallback(<T,>(path = "", method = "GET", body?: unknown, signal?: AbortSignal) => track(() => api<T>(application, path, method, body, signal)), [application, track]);
@@ -66,17 +67,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
     catch (err) { if (!signal?.aborted && current === generation.current) setError(reason(err)); }
     finally { if (current === generation.current) setLoading(false); }
   }, [request]);
-  useEffect(() => {
-    const controller = new AbortController();
-    const current = ++generation.current;
-    // Initial data follows the fetch lifecycle. Interactive work below uses
-    // the shared task loader, whose state changes start from user actions.
-    api<EmailControlData>(application, "", "GET", undefined, controller.signal)
-      .then(result => { if (current === generation.current) { setData(result); setObservedAt(result.serverNow); setError(""); } })
-      .catch(err => { if (!controller.signal.aborted && current === generation.current) setError(reason(err)); })
-      .finally(() => { if (!controller.signal.aborted && current === generation.current) setLoading(false); });
-    return () => controller.abort();
-  }, [application]);
+  useCommunicationRefresh(signal => load(signal), active, 0, application);
+
   useEffect(() => {
     if (editor || draft) dialog.current?.showModal();
     else dialog.current?.close();
@@ -270,7 +262,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, view = 
         {drafts.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{data.events.find(event => event.key === row.event)?.label} · {row.status}</small>{row.failure && <p className={styles.error}>{row.failure}</p>}</div><button className="admin-action" disabled={busy || row.status === "sending"} onClick={() => void review(row._id)}>{row.status === "failed" ? "Review / retry" : row.status === "sending" ? "Sending…" : "Review email"}</button></article>)}
       </>}
     </section>}
-    {showOutbox && <EmailOutbox key={application} application={application} revision={revision} />}
+    {showOutbox && <EmailOutbox key={application} application={application} revision={revision} active={active} />}
     {showHistory && <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><label>Status <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>{["all", "pending", "sent", "skipped", "failed", "expired"].map(value => <option key={value}>{value}</option>)}</select></label></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
       {!data ? !error && <Loader label="Loading history…" /> : <>
         {!history.length && <p>No matching email records.</p>}

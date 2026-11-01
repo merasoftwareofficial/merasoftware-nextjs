@@ -1,6 +1,7 @@
 "use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
 import type { TemplateVariable } from "@/lib/email-control-types";
 import { EmailEditor, emptyDoc, docHasContent } from "@/app/admin/email-control/email-editor";
@@ -38,13 +39,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     if (signal?.aborted) return;
     setCatalog(nextCatalog); setTemplates(nextTemplates); setRuns(nextRuns);
   }, []);
-  useEffect(() => {
-    if (!active) return;
-    const controller = new AbortController();
-    const load = () => { if (document.visibilityState === "visible") refresh(controller.signal).catch(error => { if (!controller.signal.aborted) setError(errorText(error)); }); };
-    const first = setTimeout(load, 0), timer = setInterval(load, 5000);
-    return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
-  }, [active, refresh]);
+  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setError(errorText(failure)); }), active);
   const selectedGroup = catalog?.groups.find(row => row.id === group);
   function choose(id: string) {
     const saved = templates.find(row => row._id === id);
