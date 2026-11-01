@@ -1,4 +1,3 @@
-import { VisitOfficeLink } from "@/components/visit-office-link";
 import Link from "@/components/link";
 import { BRAND_LOGO } from "@/lib/brand";
 import { Suspense } from "react";
@@ -99,7 +98,6 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           <Suspense fallback={<span className="session-link session-loading" />}>
             <SessionSlot />
           </Suspense>
-          <VisitOfficeLink className="header-location-link" />
           <Link className="nav-cta" href="/contact">
             Let&apos;s talk <span>↗</span>
           </Link>
