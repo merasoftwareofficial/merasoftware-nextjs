@@ -1,5 +1,4 @@
-import { BUSINESS_LOCATION } from "@/lib/business-location";
-import { LocationPin } from "@/components/business-location";
+import { VisitOfficeLink } from "@/components/visit-office-link";
 import Link from "@/components/link";
 import { BRAND_LOGO } from "@/lib/brand";
 import { Suspense } from "react";
@@ -100,20 +99,13 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
           <Suspense fallback={<span className="session-link session-loading" />}>
             <SessionSlot />
           </Suspense>
+          <VisitOfficeLink className="header-location-link" />
           <Link className="nav-cta" href="/contact">
             Let&apos;s talk <span>↗</span>
           </Link>
           <Suspense fallback={<MobileMenu links={navEntries(null)} />}>
             <MobileMenuSlot />
           </Suspense>
-        </div>
-      </div>
-      <div className="location-ribbon">
-        <div className="container location-ribbon-inner">
-          <a href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" title="Get directions in Google Maps">
-            <LocationPin /><span className="ribbon-address-full">{BUSINESS_LOCATION.shortAddress}</span><span className="ribbon-address-mobile">{BUSINESS_LOCATION.mobileAddress}</span>
-            <span className="ribbon-direction" aria-hidden="true">↗</span>
-          </a>
         </div>
       </div>
     </header>

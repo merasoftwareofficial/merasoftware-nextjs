@@ -11,6 +11,7 @@
  */
 
 import Link from "@/components/link";
+import { VisitOfficeLink } from "@/components/visit-office-link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -71,6 +72,7 @@ export function MobileMenu({ links }: { links: MenuEntry[] }) {
               ))}
             </div>
           ) : null)}
+          <VisitOfficeLink className="mobile-office-link" showLabel onActivate={() => setOpen(false)} />
           <Link className="mobile-menu-cta" href="/contact" onClick={() => setOpen(false)}>
             Let&apos;s talk <span>↗</span>
           </Link>

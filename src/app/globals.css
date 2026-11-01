@@ -607,14 +607,14 @@ html{scroll-padding-top:var(--header-height,0px)}
 @media(max-width:480px){.site-header .header-actions{gap:9px}.site-header .brand-logo{flex-shrink:0}.site-header .brand-logo img{width:100px;height:auto}.location-map-caption{flex-wrap:wrap}.location-map-card iframe{height:290px}}
 @media(max-width:360px){.site-header .header-inner{gap:8px}.site-header .brand-logo img{width:85px}.site-header .header-actions{gap:7px}.site-header .menu-toggle{width:34px;height:34px}}
 
-/* Location ribbon belongs to the header, so sticky offsets and menu positioning include it. */
-.site-header .location-ribbon{background:var(--brand-paper);color:var(--brand-navy);border-top:1px solid rgb(0 36 61 / .08);border-bottom:1px solid rgb(0 36 61 / .12)}
-.location-ribbon-inner{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:30px}
-.location-ribbon-inner>a{display:inline-flex;align-items:center;gap:6px;min-height:30px;border-radius:4px;color:inherit;font-size:11px;line-height:1.5;letter-spacing:.01em;text-underline-offset:3px}
-.location-ribbon-inner>a svg{flex:none;width:13px;height:13px}
-.ribbon-direction{margin-left:2px;font-size:14px;color:var(--brand-link)}
-.location-ribbon-inner>a:hover{text-decoration:underline}.location-ribbon-inner>a:focus-visible{outline:2px solid currentColor;outline-offset:2px}.ribbon-address-mobile{display:none}
 @media(min-width:1025px){.site-header .header-inner{grid-template-columns:auto minmax(0,1fr) auto;gap:24px}.site-header .header-inner>nav{justify-content:center;gap:22px;white-space:nowrap}}
 @media(min-width:1025px) and (max-width:1250px){.site-header .header-inner{gap:18px}.site-header .header-inner>nav{gap:14px}.site-header .header-inner>.brand img{height:36px}.site-header .nav-cta{padding:11px 12px}.site-header .session-link{padding:10px 12px}}
-@media(max-width:600px){.ribbon-address-full{display:none}.ribbon-address-mobile{display:inline}}
-.site-header .mobile-menu-panel{max-height:calc(100dvh - var(--header-height,116px));overflow-y:auto;overscroll-behavior:contain}
+.site-header .mobile-menu-panel{max-height:calc(100dvh - var(--header-height,80px));overflow-y:auto;overscroll-behavior:contain}
+
+/* Location preview: calm centered utility strip, with the existing Maps destination. */
+@media(max-width:600px){.location-ribbon-inner>a{gap:6px}.ribbon-directions-label{font-size:13px;padding-left:9px;margin-left:2px}}
+
+/* Location is a secondary header action; office details remain in Visit Us. */
+.header-location-link{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;flex-shrink:0;border:1px solid currentColor;border-radius:50%;color:inherit;opacity:.85;transition:opacity .2s,background .2s}
+.header-location-link:hover{opacity:1;background:rgb(0 184 204 / .14)}.header-location-link svg,.mobile-office-link svg{width:18px;height:18px;flex-shrink:0}.header-location-link:focus-visible,.mobile-office-link:focus-visible{outline:2px solid var(--brand-cyan);outline-offset:4px}.mobile-office-link{display:flex;align-items:center;gap:9px}
+@media(max-width:1024px){.header-location-link{display:none}}
