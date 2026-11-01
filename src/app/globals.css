@@ -615,6 +615,6 @@ html{scroll-padding-top:var(--header-height,0px)}
 @media(max-width:600px){.location-ribbon-inner>a{gap:6px}.ribbon-directions-label{font-size:13px;padding-left:9px;margin-left:2px}}
 
 /* Location is a secondary header action; office details remain in Visit Us. */
-.header-location-link{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;flex-shrink:0;border:1px solid currentColor;border-radius:50%;color:inherit;opacity:.85;transition:opacity .2s,background .2s}
-.header-location-link:hover{opacity:1;background:rgb(0 184 204 / .14)}.header-location-link svg,.mobile-office-link svg{width:18px;height:18px;flex-shrink:0}.header-location-link:focus-visible,.mobile-office-link:focus-visible{outline:2px solid var(--brand-cyan);outline-offset:4px}.mobile-office-link{display:flex;align-items:center;gap:9px}
+.header-location-link{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;flex-shrink:0;border:0;background:transparent;color:var(--brand-white);opacity:1}
+.header-location-link:hover{background:transparent}.header-location-link svg{transition:transform .2s ease}.header-location-link:hover svg{transform:scale(1.15)}.header-light .header-location-link{color:var(--brand-navy)}@media(prefers-reduced-motion:reduce){.header-location-link svg{transition:none}.header-location-link:hover svg{transform:none}}.header-location-link svg,.mobile-office-link svg{width:18px;height:18px;flex-shrink:0}.header-location-link:focus-visible,.mobile-office-link:focus-visible{outline:2px solid var(--brand-cyan);outline-offset:4px}.mobile-office-link{display:flex;align-items:center;gap:9px}
 @media(max-width:1024px){.header-location-link{display:none}}
