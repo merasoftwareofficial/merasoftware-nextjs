@@ -610,10 +610,10 @@ html{scroll-padding-top:var(--header-height,0px)}
 /* Location ribbon belongs to the header, so sticky offsets and menu positioning include it. */
 .site-header .location-ribbon{background:var(--brand-paper);color:var(--brand-navy);border-top:1px solid rgb(0 36 61 / .08);border-bottom:1px solid rgb(0 36 61 / .12)}
 .location-ribbon-inner{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:30px}
-.location-ribbon-inner p{display:flex;align-items:center;gap:6px;margin:0;font-size:11px;line-height:1.5;letter-spacing:.01em}
-.location-ribbon-inner p svg{flex:none;width:13px;height:13px}
-.location-ribbon-inner>a{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:4px;color:var(--brand-link);transition:background .2s}
-.location-ribbon-inner>a:hover{background:rgb(0 36 61 / .07)}.location-ribbon-inner>a:focus-visible{outline:2px solid currentColor;outline-offset:2px}.ribbon-address-mobile{display:none}
+.location-ribbon-inner>a{display:inline-flex;align-items:center;gap:6px;min-height:30px;border-radius:4px;color:inherit;font-size:11px;line-height:1.5;letter-spacing:.01em;text-underline-offset:3px}
+.location-ribbon-inner>a svg{flex:none;width:13px;height:13px}
+.ribbon-direction{margin-left:2px;font-size:14px;color:var(--brand-link)}
+.location-ribbon-inner>a:hover{text-decoration:underline}.location-ribbon-inner>a:focus-visible{outline:2px solid currentColor;outline-offset:2px}.ribbon-address-mobile{display:none}
 @media(min-width:1025px){.site-header .header-inner{grid-template-columns:auto minmax(0,1fr) auto;gap:24px}.site-header .header-inner>nav{justify-content:center;gap:22px;white-space:nowrap}}
 @media(min-width:1025px) and (max-width:1250px){.site-header .header-inner{gap:18px}.site-header .header-inner>nav{gap:14px}.site-header .header-inner>.brand img{height:36px}.site-header .nav-cta{padding:11px 12px}.site-header .session-link{padding:10px 12px}}
 @media(max-width:600px){.ribbon-address-full{display:none}.ribbon-address-mobile{display:inline}}

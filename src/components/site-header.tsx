@@ -110,9 +110,9 @@ export function SiteHeader({ dark = true }: { dark?: boolean }) {
       </div>
       <div className="location-ribbon">
         <div className="container location-ribbon-inner">
-          <p><LocationPin /><span className="ribbon-address-full">{BUSINESS_LOCATION.shortAddress}</span><span className="ribbon-address-mobile">{BUSINESS_LOCATION.mobileAddress}</span></p>
-          <a href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" aria-label="Get directions to Mera Software in Google Maps" title="Get directions in Google Maps">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21 3-6.5 18-3.5-8-8-3.5L21 3Z" /><path d="m11 13 5-5" /></svg>
+          <a href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer" title="Get directions in Google Maps">
+            <LocationPin /><span className="ribbon-address-full">{BUSINESS_LOCATION.shortAddress}</span><span className="ribbon-address-mobile">{BUSINESS_LOCATION.mobileAddress}</span>
+            <span className="ribbon-direction" aria-hidden="true">↗</span>
           </a>
         </div>
       </div>
