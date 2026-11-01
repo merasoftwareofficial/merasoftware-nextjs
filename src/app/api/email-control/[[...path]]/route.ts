@@ -8,9 +8,10 @@ import { subscriberRepo } from "@/lib/repo";
 
 type Context = { params: Promise<{ path?: string[] }> };
 const allowed = (method: string, path: string) => (
-  (method === "GET" && (path === "" || path === "outbox" || path === "summary" || /^drafts\/[a-f\d]{24}$/i.test(path))) ||
+  (method === "GET" && (path === "" || path === "outbox" || path === "summary" || /^preferences\/[\w.]+$/.test(path) || /^drafts\/[a-f\d]{24}$/i.test(path))) ||
   (method === "POST" && (path === "templates" || path === "templates/preview" || /^templates\/[a-f\d]{24}\/reset$/i.test(path) || /^drafts\/[a-f\d]{24}\/(decision|preview)$/i.test(path))) ||
-  (method === "PUT" && (/^policies\/[\w.]+$/.test(path) || /^templates\/[a-f\d]{24}$/i.test(path)))
+  (method === "PUT" && (/^(policies|preferences)\/[\w.]+$/.test(path) || /^templates\/[a-f\d]{24}$/i.test(path))) ||
+  (["PATCH", "DELETE"].includes(method) && /^templates\/[a-f\d]{24}$/i.test(path))
 );
 async function handle(request: Request, context: Context) {
   try {
@@ -63,3 +64,5 @@ async function handle(request: Request, context: Context) {
 export const GET = handle;
 export const POST = handle;
 export const PUT = handle;
+export const PATCH = handle;
+export const DELETE = handle;

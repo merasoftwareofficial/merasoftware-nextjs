@@ -31,6 +31,26 @@
 .card small { color:var(--muted); font-size:14px; line-height:1.5; }
 .dialog { width:min(740px, 94vw); max-height:90vh; overflow:auto; border:1px solid var(--line, #cbd0d4); border-radius:14px; padding:26px; background:var(--surface, #fff); color:var(--ink, #1d1d1b); }
 .dialog::backdrop { background:rgb(0 0 0 / .55); }
+.reviewWindow { width:min(640px,95vw); padding:0; overflow:hidden; font-family:system-ui,sans-serif; }
+.reviewLayout { display:flex; flex-direction:column; max-height:90dvh; }
+.reviewHeader { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line,#cbd0d4); flex:none; }
+.reviewWindow .reviewHeader h2 { margin:0 0 3px; font-size:19px; }
+.reviewHeader button { background:none; border:0; color:inherit; font-size:24px; cursor:pointer; padding:4px 10px; }
+.reviewBody { padding:12px 20px 18px; overflow:auto; min-height:0; }
+.reviewWindow .reviewBody { font-size:14px; }
+.reviewWindow .reviewBody p { margin:7px 0; line-height:1.4; }
+.reviewWindow .reviewBody label { margin-top:10px; }
+.reviewBody summary { cursor:pointer; font-size:13px; overflow-wrap:anywhere; }
+.reviewSelectors { display:grid; grid-template-columns:minmax(110px,1fr) minmax(0,2fr); gap:12px; }
+.templateSelect { display:flex; gap:6px; }
+.templateSelect select { min-width:0; }
+.templateSelect button { padding:0 12px; border:1px solid var(--line,#cbd0d4); border-radius:7px; background:transparent; color:inherit; cursor:pointer; }
+.templateTools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px; margin-top:10px; background:var(--surface,#f4f6f5); border:1px solid var(--line,#cbd0d4); border-radius:7px; font-size:13px; }
+.templateTools button { padding:6px 10px; border:1px solid var(--line,#cbd0d4); border-radius:5px; background:transparent; color:inherit; cursor:pointer; }
+.templateTools label { margin:0; }
+.templateTools input { flex:1; min-width:140px; width:auto; }
+.reviewFooter { justify-content:flex-end; margin:0; padding:12px 20px; border-top:1px solid var(--line,#cbd0d4); flex:none; }
+@media(max-width:420px) { .reviewSelectors { grid-template-columns:1fr; gap:0; } .reviewBody { padding:10px 12px; } }
 .dialog h2 { font-size:22px; font-weight:650; margin-bottom:12px; }
 .dialog p { line-height:1.6; margin:10px 0; }
 .dialog label { display:block; margin:16px 0 6px; font-size:14px; font-weight:600; }
@@ -46,6 +66,10 @@
 .editorField .surface p { margin:0 0 12px; }
 .editorField .singleLine { min-height:0; padding:10px 14px; }
 .editorField .singleLine p { margin:0; }
+.reviewBody .editorField { margin-top:12px; }
+.reviewBody .editorField .surface { min-height:110px; max-height:240px; overflow:auto; padding:10px 12px; }
+.reviewBody .editorField .singleLine { min-height:0; }
+.reviewBody .editorLabel { margin:0 0 5px; }
 .chip { display:inline-block; padding:1px 8px; margin:0 1px; border:1px solid var(--brand-teal, #007f99); border-radius:999px; background:rgb(0 127 153 / .14); color:inherit; font-size:.9em; line-height:1.5; white-space:nowrap; }
 .sectionChip { margin:0 0 12px; padding:12px 14px; border:1px dashed var(--brand-teal, #007f99); border-radius:8px; background:rgb(0 127 153 / .1); color:inherit; font-weight:600; }
 .chip:global(.ProseMirror-selectednode),.sectionChip:global(.ProseMirror-selectednode) { outline:2px solid var(--brand-link, #006b80); outline-offset:1px; }

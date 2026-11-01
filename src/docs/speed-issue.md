@@ -4,9 +4,10 @@ Updated 2 November 2026. Scope: the React portal (`E:\Allprojects\frontend`) and
 
 ## 1. Where things stand
 
-- Owner's latest check, live: "much better, but data still takes time". **The owner has decided the next job is data caching.**
-- The screen flash and double loading are fixed and live. What remains is the wait for data after a screen opens.
-- Nothing about caching is built yet. All repositories are pushed and clean on `main`, except this document's move.
+- Owner's latest check, live: "much better, but data still takes time". The owner decided the next job is data caching, on the Leads and Clients pages first.
+- The screen flash and double loading are fixed and live.
+- **Caching and clickable headings for Leads list, Lead detail and Clients list are built on 2 Nov, uncommitted in the frontend, awaiting the owner's review.** Backup: `E:\Allprojects\backup\frontend\work48-caching-sort`. No backend change.
+- Not yet checked: the live feed on the live server. If it is down, screens stay correct but re-read each time.
 
 | Repository | Latest commit |
 |---|---|
@@ -53,23 +54,38 @@ Sidebar order changed at the owner's request: Dashboard first, Settings last, Em
 | Final message count pulled about 215 KB to return a number | About 18–20 KB | `pendingLeads(fields)` in `helpers/finalMessage.js`, `controller/lead/finalMessage.js` |
 | No timing | Numbers-only log, off unless switched on | `helpers/leadTiming.js`, `index.js` |
 
-## 4. Next job: caching
+## 4. Caching (built, awaiting review)
 
-The owner decided this; the method below is a recommendation from the code and is not yet owner-approved. Present your plan and get a go-ahead before coding.
+Owner's rules: UI stays put and only data fills in; a loader shows while data really is loading; very old data is never shown; F5 and tab switch always bring new data.
 
-**Rule change:** earlier work forbade keeping finished responses. The comments in `useResource.js` and `pendingReads.js` still say so. The owner's caching decision replaces that rule, so update those comments in the same change.
+| Data state | What the screen does |
+|---|---|
+| First open or F5 | UI at once, loader for the data |
+| Under 5 minutes, nothing changed, feed connected | Data at once, no server call |
+| Changed, 5–30 minutes old, or feed down | Data with "Updating...", then new data |
+| Over 30 minutes old | Old data hidden, loader, then new data |
+| Read fails | Data under 30 minutes stays with the error; older data is not shown; 404 drops it |
 
-**Recommended first step:** show the last data at once and refresh it behind the screen, in the browser's memory, inside `src/hooks/useResource.js` (the one data hook; Leads uses it through `useLeadResource`). Leave the backend alone at first.
+| Before | Now | Where |
+|---|---|---|
+| Finished answers were never kept | Screens opt in with `cache:` a policy; memory only, emptied by F5, logout or account change | `utils/resourceCache.js`, `hooks/useResource.js` |
+| Nothing knew what changed while a screen was closed | The feed marks answers stale; a reconnect marks all stale | `hooks/usePortalUpdates.js` |
+| Back arrow lost the list position; the first row always took focus | Position, filters and focus on the opened row return by any route; only the scroll number goes to `sessionStorage` | `hooks/useListReturn.js`, `AdminWorkspaceList` `focusId` |
+| Lists loaded on first visit | Leads, final message count and Clients preload once after the feed connects | `utils/resourcePreload.js`, `AdminShell` |
+| Lead actions opened whenever `lead` existed | They need `confirmed`, the signal that the data is current | `AdminLeadDetailPage.js`, `LeadProposals` |
+| Client behaviour filter was lost on leaving | In the URL | `AdminLeadsPage.js`, `helpers/scrollTop.js` |
+| Clients ignored new tickets | `tickets` added for the Clients list only | `resourceDomains()` |
+| Sort dropdown | Clickable headings on Leads and Clients, sort in the URL; blanks stay last; the dropdown is gone | `helpers/adminListSort.js`, `AdminWorkspaceList` |
 
-Things that will break if missed:
-1. **Accounts must never mix.** Key by `getResourceScope()` and the URL, and clear everything when `setResourceIdentity` changes the scope. The router keeps one account's screens from showing to the next, and the cache must do the same.
-2. **Keep it in memory only.** Leads hold names and phone numbers, so do not write them to `localStorage` or `sessionStorage`.
-3. **Forms must survive.** `onData(data, initial)` fills forms when `initial` is true. Refreshed data must not overwrite what someone is typing (`AdminSettingsPage`, `AdminMoneyManagementPage`, the lead follow-up form).
-4. **Writes must refresh the cache.** Pages call `refresh()` after saving; a cached entry must update too. The live feed marks data stale through `usePortalUpdates` and `resourceDomains()`. `/admin/leads` has no entry in `resourceDomains()`, so Leads refreshes through `useLeadUpdates`.
-5. **Stale data must never decide money or messages.** Payment, wallet and checkout must not act on cached amounts. Keep lead actions closed until fresh data arrives: `contactBlock` decides Send message. Do not cache `contactBlocks()` on the backend, because send paths rely on it.
-6. **`loading` changes meaning.** Screens show a loader while `loading` is true. With cached data they should show the data with a small refresh sign instead, and an error must not hide it.
+Keep these true:
+1. Lead screens depend on `leads`, `users` and `communication`, because the Send message block reads all three. Do not cache `contactBlocks()` on the backend: send paths re-check it (`leadMessage.js`).
+2. The keepalive is invisible to the browser, so a silently dead feed goes unnoticed. The 5-minute limit covers that.
+3. Do not add `cache` to forms or money screens: Settings, Money Management, Payment records, wallet, checkout.
+4. Preloading Clients runs `purgeExpiredGuests()`, the same as opening the list. Do not preload Trash.
 
-What caching will not fix: the first visit after a page refresh, and any new lead not yet opened. Those still pay the 1.8s, which is why the region question still matters.
+Next, only if the owner asks: Dashboard and Trash, then Client workspace with its own check, because it holds money data. Dashboard shows 0 while loading, to be replaced by a loader in that round.
+
+Caching does not fix the first load after F5 or a lead never opened: those still pay about 1.8s, which is why the region question still matters.
 
 ## 5. Tests
 
@@ -77,7 +93,8 @@ What caching will not fix: the first visit after a page refresh, and any new lea
 |---|---|
 | `cd frontend`, `npm run build`, `node tests/admin-navigation-browser.cjs` | Clicking between admin screens. Covers flash, reads per screen, scroll, logout, phone width |
 | `node tests/portal-deploy-matrix.browser.cjs` | 38 routes and widths, draft survival, recovery |
-| `CI=true npx react-scripts test --watchAll=false` | 63 Jest tests |
+| `node tests/admin-cache-browser.cjs` (after the build) | Kept data, age limits, list return, closed actions, headings: 86 checks |
+| `CI=true npx react-scripts test --watchAll=false` | 78 Jest tests |
 | `cd backend`, `node --test --test-concurrency=4 tests/*.test.js` | 579 tests (run on a copy without `.env`) |
 | `E:\Allprojects\backup\backend\work46-lead-queries\audit-scripts` | Old vs new block rule (needs a copy with `helpers/leadContactBlock.old.js`), database calls with 240ms delay, live timing |
 
@@ -88,7 +105,7 @@ In Playwright scroll tests click through the DOM: `.click()` scrolls first and h
 ## 6. Rules for this work
 
 - Before editing, read `AGENTS.md`, and the installed Next docs for website code.
-- Backups go in `E:\Allprojects\backup\<repo>\workNN`, never inside a repository. Latest: frontend `work47-sidebar-order`, backend `work46-lead-queries`, website `work67-speed-doc`.
+- Backups go in `E:\Allprojects\backup\<repo>\workNN`, never inside a repository. Latest: frontend `work48-caching-sort`, backend `work46-lead-queries`, website `work68-caching-doc`.
 - Tests use isolated data only: no real messages, charges or production data. Do not use owner servers on ports 3000, 3001 or 8080. Website `.env.local` points at production, so do not run Next against it.
 - Keep financial, pricing, approval, refund, renewal, reservation and WhatsApp rules unchanged.
 - The WhatsApp block rule stays in `contactBlocks()` alone. Phones are compared normalised, so it cannot be filtered per lead in the database. A review row with no draft keeps its old answer on purpose.
