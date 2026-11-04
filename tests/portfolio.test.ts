@@ -6,7 +6,7 @@ import path from "node:path";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { portfolioRepo } from "../src/lib/portfolio/repo";
-import { publicPortfolio, isPublicPortfolio, type PortfolioEntry, type PortfolioSource } from "../src/lib/portfolio/types";
+import { publicPortfolio, isPublicPortfolio, sameUrl, type PortfolioEntry, type PortfolioSource } from "../src/lib/portfolio/types";
 import { editorialSchema, sourceSchema } from "../src/lib/portfolio/rules";
 import { sourceStatusText } from "../src/lib/portfolio/source-status";
 import { groupPortfolioByClient } from "../src/lib/portfolio/client-groups";
@@ -32,6 +32,19 @@ after(async () => {
 });
 const source = (id: string, revision: number): PortfolioSource => ({ id, revision, available: true, type: "project", customerId: "private-id", customerName: "Private client", name: "Source project", category: "websites", state: "completed", linkedProjectId: "", url: "https://example.com", captureAllowed: true });
 for (const driver of ["json", "mongo"]) {
+  test(`${driver}: a URL saved to the portal is mirrored, queues screenshots once and survives the next sync`, async () => {
+    process.env.DATA_DRIVER = driver;
+    const id = driver === "json" ? "7".repeat(24) : "8".repeat(24);
+    await portfolioRepo.sync({ ...source(id, 100), url: "" });
+    assert.equal((await portfolioRepo.find(id))!.capture.status, "idle");
+    const applied = (await portfolioRepo.applyPortalUrl(id, "https://client.example/"))!;
+    assert.equal(applied.source.url, "https://client.example/"); assert.equal(applied.source.revision, 100);
+    assert.equal(applied.capture.status, "queued");
+    await portfolioRepo.sync({ ...source(id, 200), url: "https://client.example/" });
+    const synced = (await portfolioRepo.find(id))!;
+    assert.equal(synced.capture.token, applied.capture.token, "the same URL from the portal must not queue a second capture");
+    await portfolioRepo.sync({ ...source(id, 300), url: "https://client.example/", captureAllowed: false }); // leave no queued job for later tests
+  });
   test(`${driver}: progress and order date are stored for admin identification`, async () => {
     process.env.DATA_DRIVER = driver;
     const id = driver === "json" ? "e".repeat(24) : "f".repeat(24);
@@ -135,4 +148,13 @@ test("admin list groups by client, newest client first, linked services under th
   assert.deepEqual(groups.map(group => group.customerName), ["NEW", "OLD"]);
   assert.deepEqual(groups[0].rows.map(entry => entry._id[0]), ["4", "2", "3"]);
   assert.equal(groups[0].projects, 2); assert.equal(groups[0].services, 1);
+});
+test("public live link follows the portal URL, the toggle and older entries' saved link", () => {
+  const entry = (patch: Partial<PortfolioEntry>, url = "") => ({ liveUrl: "", source: { ...source("c".repeat(24), 1), url }, ...patch }) as unknown as PortfolioEntry;
+  assert.equal(publicPortfolio(entry({ showLiveUrl: true }, "https://portal.example/")).liveUrl, "https://portal.example/");
+  assert.equal(publicPortfolio(entry({ showLiveUrl: false }, "https://portal.example/")).liveUrl, "");
+  assert.equal(publicPortfolio(entry({ liveUrl: "https://old.example" })).liveUrl, "https://old.example");
+  assert.equal(publicPortfolio(entry({}, "https://portal.example/")).liveUrl, "", "older entries without a saved link stay without one");
+  assert.equal(sameUrl("https://site.example", "https://site.example/"), true);
+  assert.equal(sameUrl("", "https://site.example/"), false);
 });

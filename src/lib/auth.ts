@@ -34,6 +34,13 @@ export class AuthError extends Error {
  * lookup. It never outlives the request, so a role change still shows on the
  * next one. Where there is no render to memoise in, it simply runs each time.
  */
+/** Work that changes portal data needs the portal admin role to be the active one. */
+export async function requirePortalAdmin(task: string) {
+  const session = await getSession();
+  if (!session) throw new AuthError("Sign in to continue.", 401);
+  if (!session.portalRoles.includes("admin") || session.portalActiveRole !== "admin") throw new AuthError(`Switch to your portal admin role to ${task}.`, 403);
+}
+
 export const getSession = cache(async function getSession(): Promise<{ user: User; portalRoles: string[]; portalActiveRole: string } | null> {
   const store = await cookies();
   const token = store.get(PORTAL_COOKIE)?.value;

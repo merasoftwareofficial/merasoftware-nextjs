@@ -24,7 +24,7 @@ async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> 
 }
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Request failed.";
 
-export function OfferTargetsPanel({ slug, running, ended }: { slug: string; running: boolean; ended: boolean }) {
+export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { slug: string; running: boolean; ended: boolean; portalUrl?: string }) {
   const offerPath = `offers/${encodeURIComponent(slug)}`;
   const [rows, setRows] = useState<Row[] | null>(null);
   const [counts, setCounts] = useState<Counts | null>(null);
@@ -64,6 +64,12 @@ export function OfferTargetsPanel({ slug, running, ended }: { slug: string; runn
     catch (failure) { setError(errorText(failure)); await load().catch(() => {}); }
     finally { setBusy(false); }
   };
+  const changeStatus = (row: Row, behaviour: string) => act(async () => {
+    const result = await api<{ finalMessage?: string; finalMessageReadiness?: { ready: boolean; message: string } }>(`leads/${row.leadId}/behaviour`, "PATCH", { behaviour });
+    setNotice(behaviour !== "Negative" ? "Current status saved." : result.finalMessageReadiness?.ready === false
+      ? `Current status saved. ${result.finalMessageReadiness.message}`
+      : "Current status saved. Open the client's Final message action to review or resume it. The countdown starts only after WhatsApp sends it.");
+  });
 
   const ofKind = useMemo(() => (candidates || []).filter(row => row.type === kind), [candidates, kind]);
   const categoryCounts = useMemo(() => {
@@ -126,7 +132,7 @@ export function OfferTargetsPanel({ slug, running, ended }: { slug: string; runn
       <div className={s.tabs} role="group" aria-label="Who to choose from">
         {([["client", "Matured Clients"], ["lead", "Leads"]] as const).map(([id, name]) => <button key={id} type="button" aria-pressed={kind === id} onClick={() => { setKind(id); setCategories([]); }}>{name}</button>)}
       </div>
-      <fieldset className={s.categories}><legend>{kind === "client" ? "Client behaviour" : "Lead stage"}</legend>
+      <fieldset className={s.categories}><legend>{kind === "client" ? "Client current status" : "Lead stage"}</legend>
         {(kind === "client" ? BEHAVIOURS : LEAD_CATEGORIES).map(category => <label key={category}><input type="checkbox" checked={categories.includes(category)} onChange={() => setCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category])} /> {label(category)} <small>{categoryCounts[category] || 0}</small></label>)}
       </fieldset>
       <label className={s.field}>Search by name, phone or email<input value={search} onChange={event => setSearch(event.target.value)} /></label>
@@ -151,7 +157,7 @@ export function OfferTargetsPanel({ slug, running, ended }: { slug: string; runn
     {shown.length > 0 && <ul className={s.list}>{shown.map(row => <li key={row.id}>
       <div className={s.who}><b>{row.name || row.phone || "Unnamed"}</b><small>{row.type === "client" ? "Existing client" : "Lead"}{row.phone ? ` · ${row.phone}` : ""}</small>{row.blockLabel && <span className={s.reason}>{row.blockLabel}</span>}</div>
       <div className={s.cell}>{row.type === "client"
-        ? <label className={s.field}>Behaviour<select value={row.category} disabled={busy} onChange={event => void act(() => api(`leads/${row.leadId}/behaviour`, "PATCH", { behaviour: event.target.value }))}>{BEHAVIOURS.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>
+        ? <div><label className={s.field}>Current status<select value={row.category} disabled={busy} onChange={event => void changeStatus(row, event.target.value)}>{BEHAVIOURS.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
         : <div className={s.field}>Lead stage<span className={s.tag}>{label(row.category)}</span></div>}
       </div>
       <div className={s.cell}>{row.stage === "Won"

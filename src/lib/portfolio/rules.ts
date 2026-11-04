@@ -25,7 +25,7 @@ export const editorialSchema = z.object({
   brand: z.string().trim().max(180), category: z.string().trim().max(100),
   summary: z.string().trim().max(400), problem: z.string().trim().max(12000),
   solution: z.string().trim().max(12000), result: z.string().trim().max(12000),
-  services: z.array(z.string().trim().min(1).max(100)).max(30), liveUrl: webUrl,
+  services: z.array(z.string().trim().min(1).max(100)).max(30), liveUrl: webUrl, showLiveUrl: z.boolean().optional(),
   cover: imageSchema.nullable(), gallery: z.array(imageSchema).max(30),
   status: z.enum(["draft", "published", "hidden"]), featured: z.boolean(),
   sortOrder: z.number().int().min(-10000).max(10000),

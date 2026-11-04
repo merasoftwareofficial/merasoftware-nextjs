@@ -4,6 +4,8 @@ import { errorResponse } from "@/lib/api";
 import { requireSameOrigin } from "@/lib/portfolio/integration-auth";
 import { editorialSchema, webUrl } from "@/lib/portfolio/rules";
 import { portfolioRepo } from "@/lib/portfolio/repo";
+import { savePortalProjectLink } from "@/lib/portfolio/portal-link";
+import { sameUrl } from "@/lib/portfolio/types";
 import { mediaRepo } from "@/lib/repo";
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -26,9 +28,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (!asset || asset.kind === "video" || asset.url !== image.url) throw new Error("Choose an image from the Media Library.");
     }
     if (data.status === "published" && (!data.summary || !data.cover || !data.category)) throw new Error("Add a summary, category and cover image before publishing.");
+    // A project's live URL is the portal's: save it there first (after every website check
+    // passed), so the client portal, screenshots and this page all use one value.
+    let portalUpdated = false;
+    if (before.source.type === "project" && !sameUrl(data.liveUrl, before.source.url)) {
+      if (!before.source.available) throw new Error("The portal project is unavailable, so its website URL cannot be changed.");
+      data.liveUrl = await savePortalProjectLink(id, data.liveUrl.trim(), before.source.captureAllowed);
+      await portfolioRepo.applyPortalUrl(id, data.liveUrl);
+      portalUpdated = true;
+    }
     const entry = await portfolioRepo.update(id, data);
     if (!entry) return NextResponse.json({ error: "Source is unavailable or this service belongs to another project." }, { status: 409 });
-    return NextResponse.json({ entry });
+    return NextResponse.json({ entry, portalUpdated });
   } catch (error) { return errorResponse(error); }
 }
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {

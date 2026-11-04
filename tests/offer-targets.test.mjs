@@ -25,6 +25,8 @@ async function request(pathname, method = 'GET', user = admin, websiteRole = 'ad
 }
 before(async () => {
   process.env.TOKEN_SECRET_KEY = 'website-offer-target-isolated-secret';
+  process.env.ENABLE_WHATSAPP = 'true';
+  process.env.CLIENT_FINAL_MESSAGE_ENABLED = 'true';
   process.env.PORTFOLIO_WEBSITE_URL = 'https://website.example.test';
   process.env.PORTFOLIO_INTEGRATION_SECRET = 'isolated-test-secret-32-characters-long';
   globalThis.fetch = async (url, options) => String(url).includes('/api/offers/live')
@@ -49,7 +51,7 @@ before(async () => {
     { name: 'Unhappy Lead', phone: '9000000002', status: 'Unhappy' },
     { name: 'Dead Lead', phone: '9000000003', status: 'Dead' },
   ]);
-  const app = express(); app.use(express.json()); app.use(backend('cookie-parser')()); app.use('/api/offer-targets', backend('./routes/offerTargets'));
+  const app = express(); app.use(express.json()); app.use(backend('cookie-parser')()); app.use('/api', backend('./helpers/emailController').requestMiddleware); app.use('/api/offer-targets', backend('./routes/offerTargets'));
   await new Promise(resolve => { backendServer = app.listen(0, '127.0.0.1', resolve); });
   process.env.PORTAL_API_URL = `http://127.0.0.1:${backendServer.address().port}`;
   qa = createRequire(import.meta.url)(path.join(qaDir, 'server.cjs'));
@@ -99,12 +101,13 @@ test('browser: choose a client by behaviour and leads one by one; stage, behavio
     await add.getByRole('button', { name: 'Add 3 to offer' }).click();
     await page.getByRole('status').filter({ hasText: '3 added.' }).waitFor();
     const counts = page.getByRole('region', { name: 'Counts for this offer' });
+    await page.waitForFunction(() => /3\s*People/.test(document.querySelector('[aria-label="Counts for this offer"]')?.textContent || ''));
     assert.match(await counts.innerText(), /3\s*People/);
     assert.match(await counts.innerText(), /1\s*Existing clients/);
     assert.match(await counts.innerText(), /2\s*Leads/);
 
     const client = page.getByRole('listitem').filter({ hasText: 'Rajan Client' });
-    await client.getByLabel('Behaviour').selectOption('Active');
+    await client.getByLabel('Current status').selectOption('Active');
     await page.waitForFunction(() => document.querySelector('select:not([disabled])'));
     const won = await Lead.findOne({ convertedToUserId: rajan._id }).lean();
     for (let i = 0; i < 40 && (await Lead.findById(won._id).lean()).clientBehaviour !== 'Active'; i++) await new Promise(resolve => setTimeout(resolve, 100));
@@ -124,6 +127,15 @@ test('browser: choose a client by behaviour and leads one by one; stage, behavio
     await page.getByRole('combobox', { name: 'Stage' }).first().selectOption('Won');
     assert.equal(await page.getByRole('listitem').count(), 1);
     await page.getByRole('combobox', { name: 'Stage' }).first().selectOption('all');
+
+    await client.getByLabel('Current status').selectOption('Negative');
+    const recovery = client.getByRole('link', { name: 'Review final message' });
+    await recovery.waitFor();
+    assert.equal(await recovery.getAttribute('href'), `/admin-panel/leads/${won._id}`);
+    const tracked = await backend('./whatsapp/src/models.js').FinalMessage.findOne({ leadId: won._id }).lean();
+    assert.equal(tracked.status, 'review');
+    assert.equal(tracked.subjectKind, 'client');
+    assert.equal(await backend('./whatsapp/src/models.js').Queue.countDocuments(), 0, 'website caller prepares a review, never sends by changing status');
 
     await page.setViewportSize({ width: 390, height: 800 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no sideways scroll at phone width');

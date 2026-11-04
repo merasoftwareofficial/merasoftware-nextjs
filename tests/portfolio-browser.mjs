@@ -19,6 +19,7 @@ async function port() {
 async function main() {
   const database = new MongoMemoryServer({ instance: { launchTimeout: 60_000 } });
   let browser, portal, app;
+  const portalLinkSaves = [];
   let output = '';
   try {
     await database.start();
@@ -31,7 +32,11 @@ async function main() {
     portal = http.createServer((req, res) => {
       if (req.url === '/fixture.png') { res.writeHead(200, { 'Content-Type': 'image/png' }); res.end(fixtureImage); return; }
       res.setHeader('Content-Type', 'application/json');
-      if (req.url === '/api/user-details') res.end(JSON.stringify({ success: true, data: { _id: userId, name: 'Browser Admin', email: 'admin@portfolio.test', roles: ['admin'], isGuest: false } }));
+      if (req.url === '/api/user-details') res.end(JSON.stringify({ success: true, data: { _id: userId, name: 'Browser Admin', email: 'admin@portfolio.test', roles: ['admin'], role: 'admin', isGuest: false } }));
+      else if (req.method === 'PATCH' && /^\/api\/admin\/projects\/[a-f0-9]{24}\/portfolio-source$/.test(req.url)) {
+        let body = ''; req.on('data', chunk => { body += chunk; });
+        req.on('end', () => { const data = JSON.parse(body); portalLinkSaves.push({ url: req.url, cookie: req.headers.cookie || '', ...data }); res.end(JSON.stringify({ success: true, data: { projectLink: data.projectLink ? new URL(data.projectLink).toString() : '' } })); });
+      }
       else if (req.url === '/api/portfolio-integration/sync') res.end(JSON.stringify({ queued: true, pending: 0, failed: 0, lastDelivery: new Date().toISOString() }));
       else { res.statusCode = 404; res.end('{}'); }
     });
@@ -94,11 +99,20 @@ async function main() {
     await page.getByRole('button', { name: /Portfolio browser fixture/ }).click();
     await page.getByLabel(/^Visibility/).selectOption('published');
     await page.getByLabel('Featured on homepage', { exact: true }).check();
+    await page.getByLabel('Live website URL (synced with portal)', { exact: true }).fill('https://client-live.example');
     const saving = page.waitForResponse(response => response.url() === `${origin}/api/portfolio/${projectId}` && response.request().method() === 'PATCH');
     await page.getByRole('button', { name: 'Save changes', exact: true }).first().click();
     const savedResponse = await saving;
     assert.equal(savedResponse.status(), 200, await savedResponse.text());
-    await page.getByRole('status').filter({ hasText: 'Saved.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'also updated in the client portal' }).waitFor();
+    assert.equal(portalLinkSaves.length, 1);
+    assert.equal(portalLinkSaves[0].url, `/api/admin/projects/${projectId}/portfolio-source`);
+    assert.equal(portalLinkSaves[0].projectLink, 'https://client-live.example'); assert.equal(portalLinkSaves[0].captureAllowed, false);
+    assert.ok(portalLinkSaves[0].cookie.includes(`token=${token}`), 'the admin session is forwarded to the portal');
+    assert.equal(await page.getByLabel('Live website URL (synced with portal)', { exact: true }).inputValue(), 'https://client-live.example/');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).first().click();
+    await page.getByRole('status').filter({ hasText: 'The preview and public visibility' }).waitFor();
+    assert.equal(portalLinkSaves.length, 1, 'an unchanged URL does not call the portal again');
     const hostile = await admin.request.patch(`${origin}/api/portfolio/${projectId}`, { headers: { Origin: 'https://untrusted.example' }, data: {} });
     assert.equal(hostile.status(), 403);
     const captureRequest = await admin.request.post(`${origin}/api/portfolio/${projectId}`, { data: { url: 'https://example.com' } });
@@ -113,6 +127,7 @@ async function main() {
     await page.goto(`${origin}/work/clearer-business-websites`);
     await page.getByRole('heading', { name: 'Clearer business websites', exact: true }).waitFor();
     assert.equal(await page.getByText('Private source client').count(), 0);
+    assert.equal(await page.getByRole('link', { name: /Visit website/ }).getAttribute('href'), 'https://client-live.example/');
     await page.getByRole('button', { name: /♡ Like/ }).click();
     await page.getByRole('button', { name: /♡ Like/ }).and(page.locator('[aria-pressed="true"]')).waitFor();
     const results = path.join(root, 'test-results'); mkdirSync(results, { recursive: true });

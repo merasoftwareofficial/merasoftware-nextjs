@@ -6,6 +6,7 @@ import { settingsRepo } from "@/lib/repo";
 import { resolvedOffers } from "@/lib/offers";
 import { offerIsRunning } from "@/lib/admin-offers";
 import { OfferTargetsPanel } from "./offer-targets-panel";
+import { portalAddresses } from "@/lib/portal";
 
 export const metadata = { title: "Target people — Admin" };
 export default async function OfferTargetsPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -20,6 +21,6 @@ export default async function OfferTargetsPage({ params }: { params: Promise<{ s
   const running = offerIsRunning(offer);
   return <main className="admin-main">
     <AdminHeader eyebrow="TARGET PEOPLE" title={offer.title} description="Choose who this offer is for, and follow each person's stage for this offer." action={<Link className="admin-button" href="/admin/offers">All offers</Link>} />
-    <OfferTargetsPanel slug={offer.slug} running={running} ended={offer.status === "published" && !running} />
+    <OfferTargetsPanel slug={offer.slug} running={running} ended={offer.status === "published" && !running} portalUrl={portalAddresses().portalUrl} />
   </main>;
 }

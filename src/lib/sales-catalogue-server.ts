@@ -1,12 +1,10 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { AuthError, getSession } from "@/lib/auth";
+import { AuthError, requirePortalAdmin } from "@/lib/auth";
 import type { SalesCatalogue } from "./sales-packages";
 
 export async function requireSalesAdmin() {
-  const session = await getSession();
-  if (!session) throw new AuthError("Sign in to continue.", 401);
-  if (!session.portalRoles.includes("admin") || session.portalActiveRole !== "admin") throw new AuthError("Switch to your portal admin role to manage prices and packages.", 403);
+  await requirePortalAdmin("manage prices and packages");
 }
 export async function salesBackend(admin: boolean, body?: unknown, path = "sales-packages"): Promise<SalesCatalogue | unknown> {
   const origin = process.env.PORTAL_API_URL;

@@ -18,6 +18,10 @@ services list; their own entries cannot be published as duplicate cards.
    and `CLOUDINARY_ASSET_FOLDER` for manual uploads and captured images.
 5. On the worker set its existing portal `MONGODB_URI`, `PORTFOLIO_WEBSITE_URL` to
    the Next.js origin, and `PORTFOLIO_CAPTURE_ENABLED=true`.
+   Production value must be `https://www.merasoftware.com`: the bare domain redirects and
+   the worker rejects redirects. Production backend (Railway) had no
+   `ENABLE_PORTFOLIO_WORKER` until Nov 2026, so nothing imported after the one-off
+   4 Oct 2026 local run.
 6. In the backend directory run `npm ci`, then `npx playwright install --with-deps chromium`.
    Run `npm run portfolio:worker` as a persistent background service (Node 20.19+).
    This is independent of `ENABLE_CRONS`; it does not enable payments/renewal/file-cleanup jobs.
@@ -40,6 +44,41 @@ Check sync status reports pending/retrying deliveries and the last successful de
 Do not run the worker locally with production database/website settings for a preview.
 Use separate development settings. The implementation's automated tests use disposable
 MongoDB and temporary JSON files; they never connect to the configured production database.
+
+## Admin list: client groups and progress (4 Nov 2026)
+
+`/admin/portfolio` groups entries by client so similar project names stay identifiable.
+
+- **Before:** one flat table; each row showed the title with the client name in small grey
+  text and the raw source code (`in progress`). Rows of one client were scattered.
+- **Now:** one group per client (client with the newest order first, header shows project /
+  service / published counts and "Open client in portal ↗"). Inside a group projects run
+  newest order first; a linked service sits indented under its own project. Each project
+  shows domain, order date, last 6 characters of the order ID and a "Portal ↗" link to
+  `/admin-panel/project-details/:orderId`. If the editorial title differs, the portal name
+  is shown under it.
+- **Progress text** (owner chose plain text, no progress bar): `40%` while running
+  (`0%` before work starts), `Completed` when done, one word for cancelled / approval
+  pending / payment rejected, `Active` / `Closed` for services. List and editor use the
+  same helper.
+
+Code:
+- Backend `helpers/portfolioSource.js` now also sends `progress` (from
+  `getOrderState().progress`, projects only, otherwise `null`) and `orderedAt` (order
+  `createdAt`, ObjectId time as fallback). `scripts/portfolioWorker.js` selects `createdAt`.
+- Website accepts both as optional fields: `src/lib/portfolio/rules.ts` (`sourceSchema`),
+  `types.ts`, `src/models/Portfolio.ts` (the Mongoose sub-schema must list them or they are
+  dropped).
+- `src/lib/portfolio/source-status.ts` (`sourceStatusText`) and
+  `src/lib/portfolio/client-groups.ts` (`groupPortfolioByClient`) drive
+  `src/app/admin/portfolio/portfolio-list.tsx`; `page.tsx` passes `PORTAL_URL` (links are
+  hidden when it is not set).
+- Public `/work` pages are unchanged; these fields never leave the admin.
+
+**Deploy order:** website first, then backend. The website strips unknown fields and the
+backend outbox marks them delivered, so a backend-first deploy would lose the new fields
+until the source changes again. After the backend deploy every record re-delivers once
+(hash changed); editorial content is preserved.
 
 ## Screenshot workflow
 

@@ -30,6 +30,15 @@ async function ready() {
 }
 const idle = (): PortfolioCapture => ({ status: "idle", url: "", token: "", attempts: 0, nextAttemptAt: 0, leaseUntil: 0, error: "", completedAt: "", candidates: [] });
 const queued = (url: string, before = idle()): PortfolioCapture => ({ ...before, status: "queued", url, token: randomUUID(), attempts: 0, nextAttemptAt: Date.now(), leaseUntil: 0, error: "" });
+// One capture rule for portal syncs and website URL saves: a new, changed or re-enabled
+// project URL queues screenshots; anything else stops a running job. null = unchanged.
+const nextCapture = (before: PortfolioEntry | null, source: PortfolioSource): PortfolioCapture | null => {
+  const changed = !before || source.url !== before.source.url || source.captureAllowed !== before.source.captureAllowed || source.available !== before.source.available;
+  if (!changed) return null;
+  return source.available && source.captureAllowed && source.url && source.type === "project"
+    ? queued(source.url, before?.capture)
+    : { ...(before?.capture ?? idle()), status: "idle", token: randomUUID(), leaseUntil: 0 };
+};
 const sorted = (entries: PortfolioEntry[]) => entries.sort((a, b) => a.sortOrder - b.sortOrder || b.createdAt.localeCompare(a.createdAt));
 
 export const portfolioRepo = {
@@ -51,21 +60,17 @@ export const portfolioRepo = {
     const now = new Date().toISOString();
     const before = await this.find(source.id);
     if (before && before.source.revision >= source.revision) return false;
-    const captureChanged = !before || source.url !== before.source.url || source.captureAllowed !== before.source.captureAllowed || source.available !== before.source.available;
-    const capture = captureChanged
-      ? source.available && source.captureAllowed && source.url && source.type === "project"
-        ? queued(source.url, before?.capture)
-        : { ...(before?.capture ?? idle()), status: "idle" as const, token: randomUUID(), leaseUntil: 0 }
-      : before!.capture;
+    const changedCapture = nextCapture(before, source);
+    const capture = changedCapture ?? before!.capture;
     const patch: Partial<PortfolioEntry> = { source, syncedAt: now };
-    if (captureChanged) patch.capture = capture;
+    if (changedCapture) patch.capture = changedCapture;
     if (!source.available || source.linkedProjectId) { patch.status = "hidden"; patch.updatedAt = now; }
     if (!before) {
       const row: PortfolioEntry = {
         _id: source.id, source, title: source.name || "Untitled project",
         slug: `${(slugify(source.name) || "project").slice(0, 145)}-${source.id}`,
         brand: "", category: source.category, summary: "", problem: "", solution: "", result: "",
-        services: [], liveUrl: "", cover: null, gallery: [], status: "draft", featured: false,
+        services: [], liveUrl: "", showLiveUrl: true, cover: null, gallery: [], status: "draft", featured: false,
         sortOrder: 0, capture, createdAt: now, updatedAt: now, syncedAt: now,
       };
       if (!source.available || source.linkedProjectId) row.status = "hidden";
@@ -98,6 +103,15 @@ export const portfolioRepo = {
     if (!row || (patch.status === "published" && (!row.source.available || row.source.linkedProjectId))) return null;
     if (patch.slug && store.entries.some(entry => entry._id !== id && entry.slug === patch.slug)) throw new Error("That portfolio slug is already used.");
     Object.assign(row, changes); write(store); return row;
+  },
+  // The portal accepted a new live URL: mirror it now (the next sync carries the same value)
+  // and queue screenshots exactly as a sync would.
+  async applyPortalUrl(id: string, url: string): Promise<PortfolioEntry | null> {
+    const row = await this.find(id);
+    if (!row) return null;
+    const source = { ...row.source, url };
+    const capture = nextCapture(row, source);
+    return this.update(id, capture ? { source, capture } : { source });
   },
   async queueCapture(id: string, url: string): Promise<PortfolioEntry | null> {
     const row = await this.find(id);

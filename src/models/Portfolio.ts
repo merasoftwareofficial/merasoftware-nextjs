@@ -13,7 +13,7 @@ const capture = new Schema({
 const schema = new Schema({
   _id: String, source, title: String, slug: { type: String, unique: true }, brand: String,
   category: String, summary: String, problem: String, solution: String, result: String,
-  services: [String], liveUrl: String, cover: { type: image, default: null }, gallery: [image],
+  services: [String], liveUrl: String, showLiveUrl: Boolean, cover: { type: image, default: null }, gallery: [image],
   status: String, featured: Boolean, sortOrder: Number, capture,
   createdAt: String, updatedAt: String, syncedAt: String,
 }, { versionKey: false });

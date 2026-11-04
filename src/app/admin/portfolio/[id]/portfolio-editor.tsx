@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import Link from "@/components/link";
 import { MediaPicker } from "@/components/media-picker";
 import { ImageChooser } from "@/components/image-chooser";
-import type { PortfolioEntry, PortfolioImage } from "@/lib/portfolio/types";
+import { projectUrl, showsLiveUrl, type PortfolioEntry, type PortfolioImage } from "@/lib/portfolio/types";
 import { sourceStatusText } from "@/lib/portfolio/source-status";
 const sources = { upload: true, library: true, url: false };
 export function PortfolioEditor({ entry, linkedServices }: { entry: PortfolioEntry; linkedServices: string[] }) {
-  const [draft, setDraft] = useState(entry);
+  // The URL field shows the portal's live URL (the earlier website copy if the portal has none).
+  const editable = (row: PortfolioEntry): PortfolioEntry => ({ ...row, liveUrl: projectUrl(row), showLiveUrl: showsLiveUrl(row) });
+  const [draft, setDraft] = useState(() => editable(entry));
   const [capture, setCapture] = useState(entry.capture);
   const [captureUrl, setCaptureUrl] = useState(entry.source.url || entry.liveUrl);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -25,11 +27,13 @@ export function PortfolioEditor({ entry, linkedServices }: { entry: PortfolioEnt
   }, [capture.status, entry._id]);
   function change<K extends keyof PortfolioEntry>(key: K, value: PortfolioEntry[K]) { setDraft(previous => ({ ...previous, [key]: value })); setMessage(""); }
   async function save() {
+    if (source.type === "project" && source.url && !draft.liveUrl.trim() && !window.confirm("Removing this URL also removes the \"View website\" button from the client's portal. Continue?")) return;
     setBusy(true); setMessage(""); setError("");
     try {
       const response = await fetch(`/api/portfolio/${entry._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, services: [...new Set(draft.services.map(service => service.trim()).filter(Boolean))] }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Save failed.");
-      setDraft(result.entry); setSource(result.entry.source); setCapture(result.entry.capture); setMessage("Saved. The preview and public visibility now reflect these changes.");
+      setDraft(editable(result.entry)); setSource(result.entry.source); setCapture(result.entry.capture); setCaptureUrl(projectUrl(result.entry));
+      setMessage(result.portalUpdated ? "Saved. The live website URL was also updated in the client portal." : "Saved. The preview and public visibility now reflect these changes.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Save failed."); } finally { setBusy(false); }
   }
   async function requestCapture() {
@@ -40,13 +44,14 @@ export function PortfolioEditor({ entry, linkedServices }: { entry: PortfolioEnt
       setCapture(result.entry.capture); setMessage("Screenshots queued. Keep editing while the worker captures the website.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Capture failed."); } finally { setBusy(false); }
   }
-  const textFields = [["title", "Public title"], ["slug", "URL slug"], ["brand", "Public client / brand name"], ["category", "Category"], ["liveUrl", "Public live website URL"]] as const;
+  const textFields = [["title", "Public title"], ["slug", "URL slug"], ["brand", "Public client / brand name"], ["category", "Category"]] as const;
   const largeFields = [["summary", "Short description"], ["problem", "The challenge"], ["solution", "What we built"], ["result", "The result"]] as const;
   const updateImage = (index: number, patch: Partial<PortfolioImage>) => change("gallery", draft.gallery.map((image, n) => n === index ? { ...image, ...patch } : image));
   return <><div className="portfolio-editor-heading"><div><p className="eyebrow">PORTFOLIO</p><h1>{entry.title}</h1></div><Link href="/admin/portfolio">← All projects</Link></div>
     <section className="portfolio-source"><strong>Source: {source.name}</strong><p>{source.customerName} · {sourceStatusText(source)} · Last synced {formatIndiaDateTime(entry.syncedAt)}</p>{source.linkedProjectId ? <p>This service belongs to a project. <Link href={`/admin/portfolio/${source.linkedProjectId}`}>Manage its project presentation →</Link></p> : null}</section>
     <form className="portfolio-editor" onSubmit={event => { event.preventDefault(); void save(); }}>
-      <div className="portfolio-editor-fields">{textFields.map(([key, label]) => <label className="admin-field" key={key}>{label}<input value={draft[key]} onChange={event => change(key, event.target.value)} required={key === "title" || key === "slug"} maxLength={key === "liveUrl" ? 2000 : key === "category" ? 100 : 180} /></label>)}
+      <div className="portfolio-editor-fields">{textFields.map(([key, label]) => <label className="admin-field" key={key}>{label}<input value={draft[key]} onChange={event => change(key, event.target.value)} required={key === "title" || key === "slug"} maxLength={key === "category" ? 100 : 180} /></label>)}
+        {source.type === "project" ? <div><label className="admin-field">Live website URL (synced with portal)<input type="url" value={draft.liveUrl} onChange={event => change("liveUrl", event.target.value)} maxLength={2000} placeholder="https://client-website.com" disabled={!source.available} /></label><small>Saving updates the client portal too: their &quot;View website&quot; button and screenshots use this URL.</small><label className="portfolio-checkbox"><input type="checkbox" checked={draft.showLiveUrl ?? true} onChange={event => change("showLiveUrl", event.target.checked)} />Show live link on public page</label></div> : null}
         {largeFields.map(([key, label]) => <label className="admin-field" key={key}>{label}<textarea rows={key === "summary" ? 3 : 6} maxLength={key === "summary" ? 400 : 12000} value={draft[key]} onChange={event => change(key, event.target.value)} /></label>)}
         <label className="admin-field">Services provided (one per line)<textarea rows={4} value={draft.services.join("\n")} onChange={event => change("services", event.target.value.split("\n"))} /></label>
         {linkedServices.length ? <div className="portfolio-source"><p>Linked purchased services: {linkedServices.join(" · ")}</p><button className="admin-action" type="button" onClick={() => change("services", [...new Set([...draft.services.filter(Boolean), ...linkedServices])])}>Add to services provided</button></div> : null}
