@@ -13,6 +13,8 @@ export interface PortfolioSource {
   linkedProjectId: string;
   url: string;
   captureAllowed: boolean;
+  progress?: number | null;
+  orderedAt?: string;
 }
 export interface PortfolioImage {
   assetId: string;

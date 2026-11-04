@@ -67,6 +67,18 @@ async function main() {
     const admin = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     await admin.addCookies([{ name: 'token', value: token, url: origin }]);
     const page = await admin.newPage(); page.setDefaultTimeout(30_000);
+    const newClientId = new mongoose.Types.ObjectId().toString(), runningId = new mongoose.Types.ObjectId().toString();
+    await integration([{ ...source, id: runningId, customerId: newClientId, customerName: 'Newest browser client', name: 'Running shop website', state: 'in_progress', progress: 40, orderedAt: new Date().toISOString(), url: 'https://www.example.com/' }]);
+    await page.goto(`${origin}/admin/portfolio`);
+    const clientRows = page.locator('.portfolio-client-row');
+    await assert.doesNotReject(clientRows.first().getByText('Newest browser client').waitFor());
+    assert.equal(await clientRows.count(), 2);
+    const running = page.locator('tr', { hasText: 'Running shop website' });
+    assert.ok((await running.innerText()).includes('40%')); assert.ok((await running.innerText()).includes('example.com'));
+    assert.equal(await running.getByRole('link', { name: 'Portal ↗' }).getAttribute('href'), `${portalOrigin}/admin-panel/project-details/${runningId}`);
+    assert.ok((await page.locator('tr', { hasText: 'Imported browser project' }).first().innerText()).includes('Completed'));
+    assert.ok((await page.locator('tr.portfolio-linked-row', { hasText: 'SEO support' }).innerText()).includes('Linked to Imported browser project'));
+    mkdirSync(path.join(root, 'test-results'), { recursive: true }); await page.screenshot({ path: path.join(root, 'test-results', 'portfolio-admin-list.png'), fullPage: true });
     await page.goto(`${origin}/admin/portfolio/${projectId}`);
     await page.getByLabel('Public title', { exact: true }).fill('Clearer business websites');
     await page.getByLabel('URL slug', { exact: true }).fill('clearer-business-websites');

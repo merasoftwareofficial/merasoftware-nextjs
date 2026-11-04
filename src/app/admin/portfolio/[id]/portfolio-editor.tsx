@@ -6,6 +6,7 @@ import Link from "@/components/link";
 import { MediaPicker } from "@/components/media-picker";
 import { ImageChooser } from "@/components/image-chooser";
 import type { PortfolioEntry, PortfolioImage } from "@/lib/portfolio/types";
+import { sourceStatusText } from "@/lib/portfolio/source-status";
 const sources = { upload: true, library: true, url: false };
 export function PortfolioEditor({ entry, linkedServices }: { entry: PortfolioEntry; linkedServices: string[] }) {
   const [draft, setDraft] = useState(entry);
@@ -43,7 +44,7 @@ export function PortfolioEditor({ entry, linkedServices }: { entry: PortfolioEnt
   const largeFields = [["summary", "Short description"], ["problem", "The challenge"], ["solution", "What we built"], ["result", "The result"]] as const;
   const updateImage = (index: number, patch: Partial<PortfolioImage>) => change("gallery", draft.gallery.map((image, n) => n === index ? { ...image, ...patch } : image));
   return <><div className="portfolio-editor-heading"><div><p className="eyebrow">PORTFOLIO</p><h1>{entry.title}</h1></div><Link href="/admin/portfolio">← All projects</Link></div>
-    <section className="portfolio-source"><strong>Source: {source.name}</strong><p>{source.customerName} · {source.available ? source.state.replaceAll("_", " ") : "Source unavailable"} · Last synced {formatIndiaDateTime(entry.syncedAt)}</p>{source.linkedProjectId ? <p>This service belongs to a project. <Link href={`/admin/portfolio/${source.linkedProjectId}`}>Manage its project presentation →</Link></p> : null}</section>
+    <section className="portfolio-source"><strong>Source: {source.name}</strong><p>{source.customerName} · {sourceStatusText(source)} · Last synced {formatIndiaDateTime(entry.syncedAt)}</p>{source.linkedProjectId ? <p>This service belongs to a project. <Link href={`/admin/portfolio/${source.linkedProjectId}`}>Manage its project presentation →</Link></p> : null}</section>
     <form className="portfolio-editor" onSubmit={event => { event.preventDefault(); void save(); }}>
       <div className="portfolio-editor-fields">{textFields.map(([key, label]) => <label className="admin-field" key={key}>{label}<input value={draft[key]} onChange={event => change(key, event.target.value)} required={key === "title" || key === "slug"} maxLength={key === "liveUrl" ? 2000 : key === "category" ? 100 : 180} /></label>)}
         {largeFields.map(([key, label]) => <label className="admin-field" key={key}>{label}<textarea rows={key === "summary" ? 3 : 6} maxLength={key === "summary" ? 400 : 12000} value={draft[key]} onChange={event => change(key, event.target.value)} /></label>)}

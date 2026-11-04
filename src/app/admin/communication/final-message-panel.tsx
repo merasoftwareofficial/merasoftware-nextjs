@@ -8,7 +8,7 @@ import { formatIndiaDate } from "@/lib/date-time";
 import s from "./broadcast.module.css";
 import a from "./auto-reply.module.css";
 
-type Reply = { _id: string; phone: string | null; name: string; lastReplyAt?: string; lastReplyText?: string };
+type Reply = { _id: string; phone: string | null; name: string; subjectKind?: "lead" | "client"; lastReplyAt?: string; lastReplyText?: string };
 type Status = { hours: number; minHours: number; maxHours: number; ignoredReplies: string[]; counts: Record<string, number>; needsDecision: Reply[] };
 type Choice = "interested" | "dead" | "keep";
 async function api<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -73,6 +73,7 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
         : <ul>{status.needsDecision.map(row => <li key={row._id}>
             <div className={a.who}>
               <strong>{row.name || (row.phone ? phoneLabel(row.phone) : "No name")}</strong>
+              <span>{row.subjectKind === "client" ? "Matured client" : "Lead"}</span>
               {row.name && row.phone && <span>{phoneLabel(row.phone)}</span>}
               {row.lastReplyAt && <time>{formatIndiaDate(row.lastReplyAt, { year: undefined, hour: "numeric", minute: "2-digit", hour12: true })}</time>}
             </div>
@@ -86,7 +87,7 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
     <label className={s.field}>Time limit, in hours
       <input className={a.message} aria-label="Time limit, in hours" type="number" min={status?.minHours ?? 1} max={status?.maxHours ?? 720} step={1} value={hours} disabled={busy || !status} onChange={event => setDraft(event.target.value)} />
     </label>
-    <p className={s.note}>This one setting fills the Time limit in the message and sets how long the system waits. No reply in this time moves the lead to Dead.</p>
+    <p className={s.note}>This setting fills the time limit in the message and sets how long the system waits. With no reply, a lead moves to Dead or a client&apos;s behaviour becomes Dead.</p>
     <div className={s.actions}>
       <button type="button" disabled={busy || !status || draft === null || draft.trim() === String(status.hours)} onClick={() => void saveTime()}>{busy ? "Working…" : "Save time limit"}</button>
     </div>
@@ -99,6 +100,6 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
       <button type="button" disabled={busy || !status || ignoredDraft === null || ignoredDraft === savedIgnored} onClick={() => void saveIgnored()}>{busy ? "Working…" : "Save list"}</button>
     </div>
 
-    <p className={s.note}>You choose Send or Don&apos;t Send in a popup in the portal, when you mark a lead Negative. For leads already in Negative, use the Final message button on the portal&apos;s Leads page. To change the words, open Email Templates → Portal → Final message. Only WhatsApp and Both are followed: replies to email can&apos;t be read here. Every message goes through the WhatsApp queue.</p>
+    <p className={s.note}>Choose Send or Don&apos;t Send in the portal when a lead or client is marked Negative. For those already Negative, use Final message on the Leads page. Edit the words in Email Templates → Portal → Final message. Only WhatsApp and Both are followed; replies to email can&apos;t be read here. Every message goes through the WhatsApp queue.</p>
   </section>;
 }

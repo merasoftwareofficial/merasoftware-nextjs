@@ -6,8 +6,10 @@ import path from "node:path";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { portfolioRepo } from "../src/lib/portfolio/repo";
-import { publicPortfolio, isPublicPortfolio, type PortfolioSource } from "../src/lib/portfolio/types";
-import { editorialSchema } from "../src/lib/portfolio/rules";
+import { publicPortfolio, isPublicPortfolio, type PortfolioEntry, type PortfolioSource } from "../src/lib/portfolio/types";
+import { editorialSchema, sourceSchema } from "../src/lib/portfolio/rules";
+import { sourceStatusText } from "../src/lib/portfolio/source-status";
+import { groupPortfolioByClient } from "../src/lib/portfolio/client-groups";
 import { PortfolioModel } from "../src/models/Portfolio";
 
 let database: MongoMemoryServer;
@@ -30,6 +32,14 @@ after(async () => {
 });
 const source = (id: string, revision: number): PortfolioSource => ({ id, revision, available: true, type: "project", customerId: "private-id", customerName: "Private client", name: "Source project", category: "websites", state: "completed", linkedProjectId: "", url: "https://example.com", captureAllowed: true });
 for (const driver of ["json", "mongo"]) {
+  test(`${driver}: progress and order date are stored for admin identification`, async () => {
+    process.env.DATA_DRIVER = driver;
+    const id = driver === "json" ? "e".repeat(24) : "f".repeat(24);
+    await portfolioRepo.sync({ ...source(id, 100), url: "", state: "in_progress", progress: 40, orderedAt: "2026-10-12T05:00:00.000Z" });
+    const entry = (await portfolioRepo.find(id))!;
+    assert.equal(entry.source.progress, 40); assert.equal(entry.source.orderedAt, "2026-10-12T05:00:00.000Z");
+    assert.equal(JSON.stringify(publicPortfolio(entry)).includes("2026-10-12"), false);
+  });
   test(`${driver}: sync preserves editorial content, deduplicates events and ignores old revisions`, async () => {
     process.env.DATA_DRIVER = driver;
     const id = driver === "json" ? "a".repeat(24) : "b".repeat(24);
@@ -98,4 +108,31 @@ test("mongo: expired claims get a new token and simultaneous initial imports con
   const next = (await portfolioRepo.claimCapture())!;
   assert.notEqual(first.capture.token, next.capture.token);
   assert.equal(await portfolioRepo.finishCapture(id, first.capture.token, []), false);
+});
+test("source schema accepts deliveries with and without the admin identification fields", () => {
+  assert.equal(sourceSchema.safeParse(source("c".repeat(24), 1)).success, true);
+  assert.equal(sourceSchema.safeParse({ ...source("c".repeat(24), 1), progress: null, orderedAt: "2026-10-12T05:00:00.000Z" }).success, true);
+  assert.equal(sourceSchema.safeParse({ ...source("c".repeat(24), 1), progress: 140 }).success, false);
+});
+test("progress text is a percentage while running, Completed when done, one word otherwise", () => {
+  const base = source("c".repeat(24), 1);
+  assert.equal(sourceStatusText({ ...base, state: "in_progress", progress: 40 }), "40%");
+  assert.equal(sourceStatusText({ ...base, state: "approved_not_started", progress: 0 }), "0%");
+  assert.equal(sourceStatusText({ ...base, state: "completed", progress: 100 }), "Completed");
+  assert.equal(sourceStatusText({ ...base, state: "cancelled", progress: 60 }), "Cancelled");
+  assert.equal(sourceStatusText({ ...base, type: "service", state: "plan_active", progress: null }), "Active");
+  assert.equal(sourceStatusText({ ...base, state: "in_progress" }), "In progress");
+  assert.equal(sourceStatusText({ ...base, available: false }), "Source unavailable");
+});
+test("admin list groups by client, newest client first, linked services under their project", () => {
+  const row = (id: string, customerId: string, orderedAt: string, extra: Partial<PortfolioSource> = {}) => ({ _id: id, createdAt: "2026-01-01T00:00:00.000Z", status: "draft", source: { ...source(id, 1), customerId, customerName: customerId.toUpperCase(), orderedAt, ...extra } }) as unknown as PortfolioEntry;
+  const groups = groupPortfolioByClient([
+    row("1".repeat(24), "old", "2026-09-01T00:00:00.000Z"),
+    row("2".repeat(24), "new", "2026-10-01T00:00:00.000Z"),
+    row("3".repeat(24), "new", "2026-11-01T00:00:00.000Z", { type: "service", linkedProjectId: "2".repeat(24) }),
+    row("4".repeat(24), "new", "2026-10-20T00:00:00.000Z"),
+  ]);
+  assert.deepEqual(groups.map(group => group.customerName), ["NEW", "OLD"]);
+  assert.deepEqual(groups[0].rows.map(entry => entry._id[0]), ["4", "2", "3"]);
+  assert.equal(groups[0].projects, 2); assert.equal(groups[0].services, 1);
 });

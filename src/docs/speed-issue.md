@@ -75,7 +75,8 @@ Owner's rules: UI stays put and only data fills in; a loader shows while data re
 | Lead actions opened whenever `lead` existed | They need `confirmed`, the signal that the data is current | `AdminLeadDetailPage.js`, `LeadProposals` |
 | Client behaviour filter was lost on leaving | In the URL | `AdminLeadsPage.js`, `helpers/scrollTop.js` |
 | Clients ignored new tickets | `tickets` added for the Clients list only | `resourceDomains()` |
-| Sort dropdown | Clickable headings on Leads and Clients, sort in the URL; blanks stay last; the dropdown is gone | `helpers/adminListSort.js`, `AdminWorkspaceList` |
+| Sort dropdown | Clickable headings on Leads and Clients, sort in the URL; blanks stay last; the dropdown is gone. The chosen heading is bold green; a mouse click leaves no box, and the focus ring shows for keyboard only | `helpers/adminListSort.js`, `AdminWorkspaceList` |
+| "Loading..." text, and false values while loading ("0 clients", "No projects found", "Contacted", "Showing 0 of 0") | Every section shows at once (owner's rule): lists have a spinner in the rows, whole screens a floating one that blocks nothing, and unknown values read "...". Client workspace opens its default tab without waiting for data. Client workspace and Dashboard get this too, without a cache | `components/admin/DataSpinner.js`, `AdminWorkspaceList`, `AdminLeadDetailPage.js`, `AdminClientWorkspace.js`, `AdminDashboard.js` |
 
 Keep these true:
 1. Lead screens depend on `leads`, `users` and `communication`, because the Send message block reads all three. Do not cache `contactBlocks()` on the backend: send paths re-check it (`leadMessage.js`).
@@ -83,7 +84,7 @@ Keep these true:
 3. Do not add `cache` to forms or money screens: Settings, Money Management, Payment records, wallet, checkout.
 4. Preloading Clients runs `purgeExpiredGuests()`, the same as opening the list. Do not preload Trash.
 
-Next, only if the owner asks: Dashboard and Trash, then Client workspace with its own check, because it holds money data. Dashboard shows 0 while loading, to be replaced by a loader in that round.
+Next, only if the owner asks: Dashboard and Trash, then Client workspace with its own check, because it holds money data.
 
 Caching does not fix the first load after F5 or a lead never opened: those still pay about 1.8s, which is why the region question still matters.
 
@@ -93,7 +94,7 @@ Caching does not fix the first load after F5 or a lead never opened: those still
 |---|---|
 | `cd frontend`, `npm run build`, `node tests/admin-navigation-browser.cjs` | Clicking between admin screens. Covers flash, reads per screen, scroll, logout, phone width |
 | `node tests/portal-deploy-matrix.browser.cjs` | 38 routes and widths, draft survival, recovery |
-| `node tests/admin-cache-browser.cjs` (after the build) | Kept data, age limits, list return, closed actions, headings: 86 checks |
+| `node tests/admin-cache-browser.cjs` (after the build) | Kept data, age limits, list return, closed actions, headings, spinners: 99 checks |
 | `CI=true npx react-scripts test --watchAll=false` | 78 Jest tests |
 | `cd backend`, `node --test --test-concurrency=4 tests/*.test.js` | 579 tests (run on a copy without `.env`) |
 | `E:\Allprojects\backup\backend\work46-lead-queries\audit-scripts` | Old vs new block rule (needs a copy with `helpers/leadContactBlock.old.js`), database calls with 240ms delay, live timing |
@@ -105,7 +106,7 @@ In Playwright scroll tests click through the DOM: `.click()` scrolls first and h
 ## 6. Rules for this work
 
 - Before editing, read `AGENTS.md`, and the installed Next docs for website code.
-- Backups go in `E:\Allprojects\backup\<repo>\workNN`, never inside a repository. Latest: frontend `work48-caching-sort`, backend `work46-lead-queries`, website `work68-caching-doc`.
+- Backups go in `E:\Allprojects\backup\<repo>\workNN`, never inside a repository. Latest: frontend `work51-floating-spinner`, backend `work46-lead-queries`, website `work70-floating-spinner-doc`.
 - Tests use isolated data only: no real messages, charges or production data. Do not use owner servers on ports 3000, 3001 or 8080. Website `.env.local` points at production, so do not run Next against it.
 - Keep financial, pricing, approval, refund, renewal, reservation and WhatsApp rules unchanged.
 - The WhatsApp block rule stays in `contactBlocks()` alone. Phones are compared normalised, so it cannot be filtered per lead in the database. A review row with no draft keeps its old answer on purpose.

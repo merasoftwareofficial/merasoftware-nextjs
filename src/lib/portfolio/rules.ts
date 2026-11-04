@@ -10,6 +10,9 @@ export const sourceSchema = z.object({
   customerId: z.string().max(100), customerName: z.string().max(300),
   name: z.string().max(300), category: z.string().max(100), state: z.string().max(100),
   linkedProjectId: z.string().max(100), url: webUrl, captureAllowed: z.boolean(),
+  // Optional so deliveries from an older backend remain valid.
+  progress: z.number().int().min(0).max(100).nullable().optional(),
+  orderedAt: z.string().max(40).optional(),
 });
 export const imageSchema = z.object({
   assetId: z.string().min(1).max(100), url: webUrl.refine(Boolean, "Choose an image."),

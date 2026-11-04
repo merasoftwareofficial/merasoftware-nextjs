@@ -4,6 +4,7 @@ const source = new Schema({
   id: String, revision: Number, available: Boolean, type: String,
   customerId: String, customerName: String, name: String, category: String,
   state: String, linkedProjectId: String, url: String, captureAllowed: Boolean,
+  progress: Number, orderedAt: String,
 }, { _id: false });
 const capture = new Schema({
   status: String, url: String, token: String, attempts: Number, nextAttemptAt: Number,
