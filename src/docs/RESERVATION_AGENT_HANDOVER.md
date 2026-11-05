@@ -1,5 +1,7 @@
 # Start here: offer reservation/payment handover
 
+**Next work (5 Nov 2026):** per-offer reservation hours, the start/closing WhatsApp messages and the per-action "Send via" setting are planned and verified in [reservation-countdown.md](reservation-countdown.md). Read it for that work.
+
 Updated **25 October 2026, Asia/Kolkata**. This is the cross-repository entry point for the next agent. Read this first, then the current backend audit/rollout guide, then only the files relevant to the next task.
 
 ## Current truth

@@ -5,7 +5,7 @@ import type { OfferReservation, ReservationList } from "@/lib/offer-reservations
 import { useServerTime } from "@/components/use-server-time";
 import { type PhoneCountry, type PhoneValue } from "@/components/phone-field";
 import type { Offer } from "@/lib/offers";
-import { reservationPhase, reserveCta } from "@/lib/offer-reservation-rules";
+import { reservationHoldHours, reservationPhase, reserveCta } from "@/lib/offer-reservation-rules";
 
 const INDIA: PhoneCountry[] = [{ code: "+91", label: "India", digits: 10 }];
 
@@ -64,7 +64,7 @@ export type ReservationControl = ReturnType<typeof useOfferReservation>;
  * confirmation in a dialog (lib/offer-reservation-rules.ts). `config` is undefined when public
  * reservations are off or in previews; the hook then does nothing.
  */
-export function useOfferReservation(config: ReservationConfig | undefined, offer: Pick<Offer, "status" | "endsAt" | "targets" | "reserveWindowHours">) {
+export function useOfferReservation(config: ReservationConfig | undefined, offer: Pick<Offer, "status" | "endsAt" | "targets" | "reserveWindowHours" | "reservationHoldHours">) {
   const enabled = !!config, slug = config?.slug ?? "", quoteKey = config?.quoteKey ?? "", signedIn = !!config?.signedIn, endsAt = offer.endsAt;
   const countries = config?.countries ?? INDIA;
   const router = useNavigate();
@@ -123,7 +123,7 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
   const phase = enabled ? reservationPhase(offer, row, loaded, now) : "none";
   return {
     phase, row, now, error, busy, loaded, signedIn, needsPhone, phone, countries,
-    cta: reserveCta(phase, row, now),
+    cta: reserveCta(phase, row, now, reservationHoldHours(offer)),
     setPhone(value: PhoneValue) { setPhoneState(value); phoneRef.current = value; },
     /** The dialog's confirm: reserve now, or keep the intent and sign in first (it reserves on return). */
     confirm() {

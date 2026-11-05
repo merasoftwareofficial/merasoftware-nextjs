@@ -3,6 +3,8 @@ import type { JSONContent } from "@tiptap/core";
 export type Application = "website" | "portal";
 /** review/off: an admin's action asks before sending. auto/off: customer-started mail is On or Off. */
 export type EmailPolicyMode = "review" | "auto" | "off";
+/** An action's "Send via": every message of the action goes this way unless a reviewer changes one message. */
+export type EmailChannel = "whatsapp" | "email" | "both";
 // `doc`/`subjectDoc` are the visual editor's documents (absent from a backend older than the editor).
 export type EmailTemplate = { _id: string; event: string; name: string; subject: string; text: string; system?: boolean; doc?: JSONContent; subjectDoc?: JSONContent; updatedAt?: string };
 /** A detail an email may hold: `sample` is an example (template editor), `value` this email's own value (review). */
@@ -44,8 +46,11 @@ export type EmailControlData = {
   application: Application;
   // `trigger` is absent from a backend older than customer-action control; treat it as "admin".
   // `group` (the job whose mails share one box) is absent from an older backend; the label stands in.
-  events: { key: string; section: string; label: string; group?: string; application: Application; trigger?: "admin" | "customer" | "system" }[];
-  policies: { event: string; mode: EmailPolicyMode; defaultTemplate: string | null }[];
+  // `defaultChannel`/`channels` (the action's Send via before an admin changes it, and the routes it allows)
+  // are absent from a backend older than Send via; the panel then hides the setting.
+  events: { key: string; section: string; label: string; group?: string; application: Application; trigger?: "admin" | "customer" | "system";
+    audience?: "customer" | "team"; defaultChannel?: EmailChannel; channels?: EmailChannel[] }[];
+  policies: { event: string; mode: EmailPolicyMode; defaultTemplate: string | null; channel?: EmailChannel }[];
   // Absent from a backend older than the template system; the panel then shows legacy choices.
   catalog?: TemplateCatalog; templates: EmailTemplate[]; drafts: EmailDraft[]; history: EmailHistory[]; automaticSending: false; serverNow: number;
 };

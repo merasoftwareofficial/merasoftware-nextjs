@@ -1,0 +1,58 @@
+"use client";
+import { useCommunicationRefresh } from "@/lib/communication-live";
+
+import { useCallback, useState } from "react";
+import { Loader } from "@/app/admin/email-control/loader";
+import { phoneLabel } from "@/app/admin/whatsapp/whatsapp-panel";
+import { useServerTime } from "@/components/use-server-time";
+import { formatIndiaDate } from "@/lib/date-time";
+import s from "./broadcast.module.css";
+import a from "./auto-reply.module.css";
+
+type Running = { id: string; customer: string; phone: string; offer: string; reservedAt: string; deadline: string; extended: boolean; hours: number };
+type Overview = { serverNow: string; counts: { running: number; used: number; expired: number; closures: Record<string, number> }; running: Running[] };
+async function load(signal?: AbortSignal): Promise<Overview> {
+  const response = await fetch("/api/auto-reply/reservations", { signal, cache: "no-store" });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "Reservation request failed.");
+  return result.data;
+}
+const CLOSURES: [string, string][] = [["sent", "expiry messages sent"], ["not-sent", "not sent"], ["late", "too late to send"], ["failed", "will retry"]];
+function timeLeft(until: number, now: number) {
+  const minutes = Math.max(0, Math.floor((until - now) / 60000));
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m left` : `${minutes}m left`;
+}
+const when = (value: string) => formatIndiaDate(value, { year: undefined, hour: "numeric", minute: "2-digit", hour12: true });
+
+// How offer reservations stand (merasoftware/src/docs/reservation-countdown.md). The hours are set on each offer
+// (Admin → Offers); the three messages are Email Templates actions, sent by their Send via.
+export function ReservationPanel({ active = true }: { active?: boolean }) {
+  const [data, setData] = useState<Overview | null>(null);
+  const [error, setError] = useState("");
+  const serverNow = useServerTime();
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const next = await load(signal);
+    if (!signal?.aborted) { setData(next); setError(""); }
+  }, []);
+  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setError(failure instanceof Error ? failure.message : "Request failed."); }), active);
+  const now = serverNow ?? (data ? Date.parse(data.serverNow) : 0);
+  const closures = data ? CLOSURES.filter(([key]) => data.counts.closures[key]).map(([key, label]) => `${data.counts.closures[key].toLocaleString("en-IN")} ${label}`) : [];
+  return <section className={s.panel} aria-label="Reservation">
+    {error && <p role="alert" className={s.error}>{error}</p>}
+    <div className={a.detected}>
+      <h3>Running{data ? ` (${data.counts.running.toLocaleString("en-IN")})` : ""}</h3>
+      {data && <p className={s.note}>{data.counts.used.toLocaleString("en-IN")} used for a project · {data.counts.expired.toLocaleString("en-IN")} expired{closures.length ? ` · ${closures.join(" · ")}` : ""}</p>}
+      {!data ? <Loader label="Loading…" /> : !data.running.length ? <p className={s.note}>No reservation is running.</p>
+        : <ul>{data.running.map(row => <li key={row.id}>
+            <div className={a.who}>
+              <strong>{row.customer || "Customer"}</strong>
+              {row.phone && <span>{phoneLabel(row.phone)}</span>}
+              <span>{timeLeft(Date.parse(row.deadline), now)}</span>
+            </div>
+            <p>{row.offer} · {row.hours} hours · ends {when(row.deadline)}{row.extended ? " (extended)" : ""}</p>
+          </li>)}</ul>}
+    </div>
+    <p className={s.note}>Each offer sets how long its reservation lasts (Admin → Offers → Reservation lasts). The countdown starts when the customer reserves. When a project is created on the reservation, the normal project message goes and nothing else. When the time ends with no project, the customer gets the offer-expired message once, with the offers page link. To give one customer more time, use Extend deadline on the client&apos;s page in the portal.</p>
+    <p className={s.note}>Edit the words and choose Send via in Email Templates → Portal → Offers: Offer reservation confirmation, Offer reservation extended, Offer reservation expired.</p>
+  </section>;
+}

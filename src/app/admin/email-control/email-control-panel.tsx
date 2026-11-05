@@ -10,7 +10,7 @@ import { EmailOutbox } from "./email-outbox";
 import { Loader } from "./loader";
 import type { JSONContent } from "@tiptap/core";
 import { chipDoc, docHasContent, EmailEditor, EmailPreview, plainDoc } from "./email-editor";
-import type { Application, EmailControlData, EmailDraft, EmailPolicyMode, EmailTemplate, TemplateOption } from "@/lib/email-control-types";
+import type { Application, EmailChannel, EmailControlData, EmailDraft, EmailPolicyMode, EmailTemplate, TemplateOption } from "@/lib/email-control-types";
 import styles from "./email-control.module.css";
 import { WhatsappText } from "../whatsapp/whatsapp-text";
 
@@ -20,6 +20,7 @@ const templateBody = (value: TemplateEditor) => ({ event: value.event, name: val
 const reason = (error: unknown) => error instanceof Error ? error.message : "Email request failed.";
 const optionLabel = (option: { name: string; system?: boolean; id?: string; _id?: string }) => option.system && (option.id || option._id) ? `${option.name} (built-in)` : option.name;
 const MODE_LABEL: Record<EmailPolicyMode, string> = { review: "Asks before sending", auto: "Sends automatically", off: "Off" };
+const CHANNEL_LABEL: Record<EmailChannel, string> = { whatsapp: "WhatsApp only", email: "Email only", both: "Email + WhatsApp" };
 type CatalogEvent = EmailControlData["events"][number];
 // Customer-started and server-sent mail is On/Off; every other action asks the admin first.
 const isAutomatic = (event: CatalogEvent) => event.trigger === "customer" || event.trigger === "system";
@@ -83,9 +84,9 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     generation.current++; setData(null); setLoading(true); setError(""); setApplication(next); setNotice(""); setHistoryFilter("all"); setSectionFilter("");
     const url = new URL(window.location.href); url.searchParams.set("tab", next); window.history.replaceState(null, "", url);
   }
-  async function policy(event: string, mode: EmailPolicyMode, defaultTemplate: string | null) {
+  async function policy(event: string, mode: EmailPolicyMode, defaultTemplate: string | null, channel?: EmailChannel) {
     setBusy(true); setNotice(""); setError("");
-    try { await request( `/policies/${event}`, "PUT", { mode, defaultTemplate }); await load(); setNotice("Email rule saved."); }
+    try { await request( `/policies/${event}`, "PUT", { mode, defaultTemplate, ...(channel ? { channel } : {}) }); await load(); setNotice(channel ? "Send via saved. New messages of this action go this way." : "Email rule saved."); }
     catch (err) { setError(reason(err)); }
     finally { setBusy(false); }
   }
@@ -125,11 +126,9 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     setBusy(true); setError("");
     try {
       let value = await request<EmailDraft>( `/drafts/${id}`);
-      let rememberedChannel = "";
       if (value.status === "pending" && !value.delivery?.lockedAt) {
         try {
-          const preference = await request<{ channel?: string; templateId?: string; templateUnavailable?: boolean }>(`/preferences/${value.event}`);
-          rememberedChannel = value.channelOptions?.length ? preference.channel || "" : "";
+          const preference = await request<{ templateId?: string; templateUnavailable?: boolean }>(`/preferences/${value.event}`);
           if (preference.templateId && value.templateOptions?.some(row => row.id === preference.templateId)) {
             const selected = await request<EmailDraft>(`/drafts/${id}/preview`, "POST", { templateId: preference.templateId });
             value = { ...value, ...selected, templatePreviewSubject: selected.subject, templatePreviewHtml: selected.html };
@@ -140,7 +139,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
       setDraft(value); setSubject(value.templatePreviewSubject || value.subject); setReviewSubjectDoc(value.templateSubjectDoc); setReviewDoc(value.templateDoc ?? value.doc ?? plainDoc(value.text));
       setTemplateName(`${value.templateLabel || "Message"} copy`);
       setTemplateId(value.selectedTemplateId || "current"); setReviewTemplate(value.selectedTemplateId ? { id: value.selectedTemplateId, name: value.templateLabel || "Message", revision: value.templateRevision } : null);
-      setChannel(value.delivery?.channels?.length ? (value.delivery.channels.length === 2 ? "both" : value.delivery.channels[0]) : rememberedChannel || value.defaultChannel || ""); setPreviewHtml(value.templatePreviewHtml || value.html || ""); setDialogError("");
+      // The review opens on the action's Send via (defaultChannel); a locked send keeps its own channels.
+      setChannel(value.delivery?.channels?.length ? (value.delivery.channels.length === 2 ? "both" : value.delivery.channels[0]) : value.defaultChannel || ""); setPreviewHtml(value.templatePreviewHtml || value.html || ""); setDialogError("");
       setDirty(false); setPendingChoice(null); setTemplateAction("");
     } catch (err) { setError(reason(err)); }
     finally { setBusy(false); }
@@ -150,7 +150,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     if (dirty) { setPendingChoice(id); return; }
     await applyTemplate(id);
   }
-  async function remember(fields: { channel?: string; templateId?: string | null }) {
+  async function remember(fields: { templateId: string | null }) {
     if (!draft) return;
     try { await request(`/preferences/${draft.event}`, "PUT", fields); }
     catch { setDialogNotice("Selection applies now, but could not be remembered. Choose it again to retry."); }
@@ -232,18 +232,29 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   function policyFor(event: CatalogEvent) {
     return data?.policies.find(row => row.event === event.key) || { mode: event.trigger === "system" ? "auto" as const : isAutomatic(event) ? "off" as const : "review" as const, defaultTemplate: null };
   }
+  // The action's Send via, the same rule as the backend's channelFor(): saved choice, else its default.
+  function channelOf(event: CatalogEvent): EmailChannel | undefined {
+    if (!event.channels?.length) return undefined;
+    const saved = data?.policies.find(row => row.event === event.key)?.channel;
+    return saved && event.channels.includes(saved) ? saved : event.defaultChannel;
+  }
   function rulesTable(events: CatalogEvent[]) {
     if (!data) return null;
-    return <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Mail</th><th>Sending rule</th><th>Default template</th><th>Templates</th></tr></thead><tbody>
+    const sendVia = events.some(event => event.channels?.length);
+    return <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Mail</th><th>Sending rule</th>{sendVia && <th>Send via</th>}<th>Default template</th><th>Templates</th></tr></thead><tbody>
       {events.map(event => {
         const customer = isAutomatic(event);
         const current = policyFor(event);
+        const route = channelOf(event);
         const templates = data.templates.filter(row => row.event === event.key);
         const system = templates.find(row => row.system);
-        return <tr key={event.key}><td><small>{customer ? "Automatic" : "After an admin action"}</small><strong>{event.label}</strong></td>
+        return <tr key={event.key}><td><small>{customer ? "Automatic" : "After an admin action"}{event.audience === "team" ? " · to the team" : ""}</small><strong>{event.label}</strong></td>
           <td>{customer
             ? <select aria-label={`${event.label} mail`} disabled={busy || loading} value={current.mode === "auto" ? "auto" : "off"} onChange={e => void policy(event.key, e.target.value as EmailPolicyMode, current.defaultTemplate)}><option value="auto">On — send automatically</option><option value="off">Off</option></select>
             : <select aria-label={`${event.label} sending rule`} disabled={busy || loading} value={current.mode} onChange={e => void policy(event.key, e.target.value as EmailPolicyMode, current.defaultTemplate)}><option value="review">Ask before sending</option><option value="off">Off</option></select>}</td>
+          {sendVia && <td>{route && <select aria-label={`${event.label} route`} disabled={busy || loading || (event.channels?.length ?? 0) < 2} value={route} onChange={e => void policy(event.key, current.mode, current.defaultTemplate, e.target.value as EmailChannel)}>
+            {(event.channels ?? []).map(value => <option key={value} value={value}>{CHANNEL_LABEL[value]}</option>)}</select>}
+            {(event.channels?.length ?? 0) === 1 && <small>Needs the email link</small>}</td>}
           <td><select aria-label={`${event.label} default template`} disabled={busy || loading} value={current.defaultTemplate || system?._id || ""} onChange={e => void policy(event.key, current.mode, e.target.value || null)}>{templateChoices(event.key).map(row => <option value={row.id} key={row.id || "built-in"}>{optionLabel(row)}</option>)}</select></td>
           <td><div className={styles.actions}><button disabled={busy} onClick={() => newTemplate(event.key)}>Add template</button>{templates.map(row => <button disabled={busy} key={row._id} onClick={() => editTemplate(toEditor(row))}>Edit {optionLabel(row)}</button>)}</div></td>
         </tr>;
@@ -260,7 +271,10 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   }
   function groupSummary(events: CatalogEvent[]) {
     const modes = [...new Set(events.map(event => policyFor(event).mode))];
-    return { rule: modes.length === 1 ? MODE_LABEL[modes[0]] : "Mixed rules", sends: modes.some(mode => mode !== "off") };
+    // The routes of the actions that send; an older backend without Send via keeps its old label.
+    const routes = [...new Set(events.filter(event => policyFor(event).mode !== "off").map(channelOf))];
+    const route = routes.length === 1 && routes[0] ? CHANNEL_LABEL[routes[0]] : routes.length > 1 ? "Mixed routes" : "Email + WhatsApp";
+    return { rule: modes.length === 1 ? MODE_LABEL[modes[0]] : "Mixed rules", sends: modes.some(mode => mode !== "off"), route };
   }
   const editorCatalog = editor ? data?.catalog?.[editor.event] : undefined;
   const actions = view === "all" || view === "actions";
@@ -287,7 +301,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
           const summary = groupSummary(events);
           return <details className={styles.group} key={group} open={search ? true : undefined}>
             <summary><strong>{group}</strong><span className={styles.groupMeta}>{events.length} {events.length === 1 ? "mail" : "mails"} · {summary.rule}</span>
-              <span className={summary.sends ? styles.channelOn : styles.channelOff}>{summary.sends ? "Email + WhatsApp" : "Nothing sent"}</span></summary>
+              <span className={summary.sends ? styles.channelOn : styles.channelOff}>{summary.sends ? summary.route : "Nothing sent"}</span></summary>
             {rulesTable(events)}
           </details>;
         })}
@@ -305,7 +319,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     {showHistory && <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><label>Status <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>{["all", "pending", "sent", "skipped", "failed", "expired"].map(value => <option key={value}>{value}</option>)}</select></label></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
       {!data ? !error && <Loader label="Loading history…" /> : <>
         {!history.length && <p>No matching email records.</p>}
-        {history.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{status(row)} · {row.status === "sent" ? `Sent: ${row.sentAt ? formatIndiaDateTime(row.sentAt) : "Time unavailable"}` : `Updated: ${formatIndiaDateTime(row.updatedAt)}`}</small></div></article>)}
+        {history.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{status(row)} · {row.status === "sent" ? `Sent: ${row.sentAt ? formatIndiaDateTime(row.sentAt) : "Time unavailable"}` : `Updated: ${formatIndiaDateTime(row.updatedAt)}`}</small>{row.status === "skipped" && row.failure && <p className={styles.muted}>{row.failure}</p>}</div></article>)}
       </>}
     </section>}
     <dialog ref={dialog} className={`${styles.dialog} ${draft ? styles.reviewWindow : ""}`} aria-labelledby="email-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) { if (draft) setPendingChoice("close"); else setEditor(null); } }}>
@@ -316,7 +330,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         <EmailEditor id="template-subject" label="Subject" singleLine disabled={busy} value={editor.subjectDoc} onChange={value => setEditor(current => current && { ...current, subjectDoc: value })} variables={editorCatalog?.variables} />
         <EmailEditor id="template-message" label="Message" disabled={busy} value={editor.doc} onChange={value => setEditor(current => current && { ...current, doc: value })} variables={editorCatalog?.variables} blocks={editorCatalog?.blocks} />
         {sample && <div className={styles.sample} role="region" aria-label="Sample email"><strong>{sample.subject}</strong><EmailPreview html={sample.html} /></div>}
-        {sample?.whatsapp && <div className={styles.sample} role="region" aria-label="Sample WhatsApp message"><strong>WhatsApp message</strong><p className={styles.muted}>Sent after the email, with this same text.</p><WhatsappText text={sample.whatsapp} /></div>}
+        {sample?.whatsapp && <div className={styles.sample} role="region" aria-label="Sample WhatsApp message"><strong>WhatsApp message</strong><p className={styles.muted}>WhatsApp sends this same text; files go by email only.</p><WhatsappText text={sample.whatsapp} /></div>}
         {dialogError && <p className={styles.error} role="alert">{dialogError}</p>}
         <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewTemplate()}>Preview sample</button>{editor.system && editor._id && <button type="button" disabled={busy} onClick={() => void resetTemplate()}>Reset to original</button>}<button type="button" disabled={busy} onClick={() => setEditor(null)}>Cancel</button><button className="admin-button" disabled={busy} type="submit">{busy ? "Working…" : "Save template"}</button></div>
       </form>}
@@ -328,12 +342,12 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         {!!draft.attachments?.length && ["whatsapp", "both"].includes(channel) && <small>Files are attached to email. WhatsApp sends the message and its links.</small>}
         {draft.status === "failed" && <p className={styles.banner}>A retry uses the originally reviewed content and the same delivery key to prevent duplicates.</p>}
         <div className={styles.reviewSelectors}>
-        {!!draft.channelOptions?.length && <div><label htmlFor="review-channel">Send via</label><select id="review-channel" value={channel} disabled={busy || draft.status !== "pending" || !!draft.delivery?.lockedAt} onChange={async event => { const selected = event.target.value; setChannel(selected); setBusy(true); await remember({ channel: selected }); setBusy(false); }}>
+        {!!draft.channelOptions?.length && <div><label htmlFor="review-channel">Send via</label><select id="review-channel" value={channel} disabled={busy || draft.status !== "pending" || !!draft.delivery?.lockedAt} onChange={event => setChannel(event.target.value)}>
           {draft.channelOptions.map(row => <option key={row.id} value={row.id} disabled={!row.enabled}>{row.label}{!row.enabled ? ` — ${row.reason}` : ""}</option>)}
         </select></div>}
         <div><label htmlFor="review-template">Template</label><div className={styles.templateSelect}><select id="review-template" value={templateId} disabled={busy || draft.status !== "pending"} onChange={e => void chooseTemplate(e.target.value)}><option value="current">Current draft</option>{(draft.templateOptions || []).map(row => <option key={row.id || "built-in"} value={row.id}>{optionLabel(row)}</option>)}</select><button type="button" aria-label="Manage template" aria-expanded={!!templateAction} disabled={busy || draft.status !== "pending"} onClick={() => setTemplateAction(templateAction ? "" : "menu")}>⋯</button></div></div>
         </div>
-        {draft.channelOptions?.find(row => row.id === channel)?.enabled === false && <p role="status" className={styles.error}>{draft.channelOptions.find(row => row.id === channel)?.reason}. Choose an available channel.</p>}
+        {draft.channelOptions?.find(row => row.id === channel)?.enabled === false && <p role="status" className={styles.error}>{draft.channelOptions.find(row => row.id === channel)?.reason.replace(/\.$/, "")}. Choose an available channel.</p>}
         {templateAction === "menu" && <div className={styles.templateTools} aria-label="Template actions">{([['update', 'Update this template'], ['new', 'Save as new template'], ['rename', 'Rename'], ['delete', 'Delete']] as const).map(([action, label]) => <button key={action} disabled={busy || (action !== "new" && !reviewTemplate) || ((action === "rename" || action === "delete") && !!draft.templateOptions?.find(row => row.id === templateId)?.system)} onClick={() => { setTemplateName(action === "rename" ? reviewTemplate?.name || "" : `${reviewTemplate?.name || "Message"} copy`); setReplacementId(""); setTemplateAction(action); }}>{label}</button>)}</div>}
         {templateAction && templateAction !== "menu" && <div className={styles.templateTools}>
           {(templateAction === "new" || templateAction === "rename") ? <><label htmlFor="review-template-name">{templateAction === "new" ? "New template name" : "Template name"}</label><input autoFocus id="review-template-name" maxLength={100} disabled={busy} value={templateName} onChange={event => setTemplateName(event.target.value)} /></> : <span>{templateAction === "delete" ? `Delete “${reviewTemplate?.name}”? Your current message and history are kept.` : `Update “${reviewTemplate?.name}” for future messages?`}</span>}
@@ -348,7 +362,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         {draft.status === "pending" && <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewEdits()}>Update preview</button></div>}
         {previewHtml && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>Preview</summary><EmailPreview html={previewHtml} /></details>}
         {!!draft.requiredLinks?.length && <details><summary>Required links (preserved when sending)</summary>{draft.requiredLinks.map(link => <p className={styles.link} key={link}>{link}</p>)}</details>}
-        <p className={styles.muted}>{dirty ? "Edited for this message. " : ""}Send does not save template changes. Channel and template selections are remembered for this action.</p>
+        <p className={styles.muted}>{dirty ? "Edited for this message. " : ""}Send does not save template changes. The template choice is remembered for this action; Send via starts from the action&apos;s setting in Email Templates and a change here applies to this message only.</p>
         {dialogNotice && <p role="status">{dialogNotice}</p>}
         {dialogError && reviewTemplate && draft.status === "pending" && <button disabled={busy} onClick={() => void chooseTemplate(reviewTemplate.id)}>Reload saved message</button>}
         {off && <p className={styles.error}>Email for this action is Off. You can skip this draft or change its rule.</p>}

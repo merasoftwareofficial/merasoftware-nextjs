@@ -117,6 +117,42 @@ test('browser: Communication → Final Message → time limit and replies', { ti
     await State.deleteMany({});
   }
 });
+test('browser: Communication → Reservation → running reservations with time left, used and expired counts', { timeout: 60000 }, async () => {
+  const Reservation = backend('./models/offerReservationModel');
+  const customer = await User.create({ name: 'Reserving Customer', email: 'reserve@example.test', roles: ['member'], phone: '+919876500009' });
+  const hour = 3600000, now = Date.now();
+  const base = { userId: customer._id, periodEndsAt: new Date(now + hour), regularPrice: 10000, reservedPrice: 5000, origin: 'customer' };
+  await Reservation.create([
+    { ...base, offerSlug: 'running', offerSnapshot: { title: 'Running offer' }, reservedAt: new Date(now - hour), expiresAt: new Date(now + 47 * hour), closureStatus: 'pending' },
+    { ...base, offerSlug: 'used', offerSnapshot: { title: 'Used offer' }, reservedAt: new Date(now - 2 * hour), expiresAt: new Date(now + 70 * hour), projectId: new mongoose.Types.ObjectId() },
+    { ...base, offerSlug: 'gone', offerSnapshot: { title: 'Gone offer' }, reservedAt: new Date(now - 80 * hour), expiresAt: new Date(now - 8 * hour), closureStatus: 'sent' },
+  ]);
+  assert.equal((await request('/api/auto-reply/reservations')).status, 200);
+  assert.equal((await request('/api/auto-reply/reservations', 'GET', member)).status, 403);
+  assert.equal((await request('/api/auto-reply/reservations', 'POST', admin, 'admin', {})).status, 404, 'read only');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
+    page.setDefaultTimeout(10000);
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: /^Reservation Running/ }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
+    await dialog.getByText('Reserving Customer', { exact: true }).waitFor();
+    await dialog.getByText('+91 98765 00009', { exact: true }).waitFor();
+    await dialog.getByText(/^Running offer · 48 hours · ends /).waitFor();
+    await dialog.getByText(/^4[67]h \d+m left$/).waitFor();
+    await dialog.getByText('1 used for a project · 1 expired · 1 expiry messages sent', { exact: true }).waitFor();
+    assert.equal(await dialog.getByText('Used offer').count(), 0, 'a used reservation is not running');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Reservation"]'); return panel.scrollWidth - panel.clientWidth; });
+    assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);
+    await page.screenshot({ path: path.join(qaDir, 'reservation-mobile.png') });
+  } finally {
+    await browser.close();
+    await Reservation.deleteMany({});
+  }
+});
 test('browser: Communication → Auto Reply → switch, ad message and recognised messages', { timeout: 90000 }, async () => {
   const browser = await chromium.launch();
   try {

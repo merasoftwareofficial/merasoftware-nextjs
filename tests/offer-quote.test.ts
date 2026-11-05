@@ -17,3 +17,13 @@ test("the reserve window is timing only: it never changes an offer's quote key",
   assert.notEqual(offerWithQuote({ ...offer, offerPrice: 599 }, DEFAULT_UNIVERSAL_TERMS).quoteKey, base.quoteKey);
   assert.notEqual(offerWithQuote({ ...offer, terms: ["Changed"] }, DEFAULT_UNIVERSAL_TERMS).quoteKey, base.quoteKey);
 });
+
+test("reservation hours are part of the deal: signed, while offers without them keep their key", () => {
+  const offer = offerSchema.parse(DEFAULT_OFFER);
+  const base = offerWithQuote(offer, DEFAULT_UNIVERSAL_TERMS);
+  assert.equal(base.quoteKey, "e983da20ddde82602c95e39fd6ffaaf297fb7d80bd649275de81c35aa5c785e6");
+  const held = offerWithQuote({ ...offer, reservationHoldHours: 48 }, DEFAULT_UNIVERSAL_TERMS);
+  assert.notEqual(held.quoteKey, base.quoteKey);
+  assert.equal(held.reservationHoldHours, 48, "the backend receives the hours");
+  assert.equal(offerWithQuote({ ...offer, reservationHoldHours: undefined }, DEFAULT_UNIVERSAL_TERMS).quoteKey, base.quoteKey);
+});

@@ -1,36 +1,955 @@
-Business name: Deep interior exterior & decorate
-Owner name: Parminder Singh
-address: New Janta Nagar gill road Ludhiana, Punjab - 141003
-Time: 9am to 8pm
-Phone no: 87290 31319
-Services
-
-Doors
-Modern kitchen
-Wardrobes
-Home Interior Design
-Office Interior Design
-Bedroom Interior
-Living Room Interior
-False Ceiling (POP & Gypsum)
-Wall Paneling & Decorative Walls
-TV Units & Cabinets
-Wardrobes & Storage Solutions
-Flooring & Tile Work
-Interior Painting & Wallpaper
-Lighting Design
-Balcony & Terrace Design
-Boundary Wall Design
-Gate Design
-Wallpaper Installation
-Furniture Decoration
-Wooden Decorative Work
-Speciality: interior and exterior de vich kise v type work aa jave eh karange......aur bakiya de rate ton ghat rate de vich aur agar customer bole material sadda taan customer de sahmne material leya k use kita janda....sari working customer de ghar ohdiya eyes agge kiti jandi koi hidden work nahi karde
-
-aur material da jo kharch aya sirf onna lainde koi extra charge nahi jo starting ch deal ho gyi osse hisaab nal kam karna eh nahi k baad vich vad paise bol dene after work
-
-je customer da material hove taan v sara work ohde sahmne karna
-
-interior exterior de masle ch agar kise nu tiles work, paint etc eve de work lyi team hai ehna kol jo eh provide karange customer nu
-
-quality bilkul good hundi aa work di, jis tarike da v koi design dikhave eh work kar dinde ne
+HEAD Ping received at: 2026-11-04T09:15:53.984Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+[whatsapp] backend memory rss=163MB
+[whatsapp] memory rss=123MB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:20:59.412Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+Origin not allowed by CORS: https://merasoftware-frontend-portal-k38v36bp9.vercel.app
+Origin not allowed by CORS: https://merasoftware-frontend-portal-k38v36bp9.vercel.app
+HEAD Ping received at: 2026-11-04T09:26:04.720Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+[whatsapp] backend memory rss=164MB
+[whatsapp] memory rss=124MB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:31:08.812Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:36:13.514Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+[whatsapp] backend memory rss=164MB
+[whatsapp] memory rss=124MB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:41:18.446Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:46:23.150Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+[whatsapp] backend memory rss=164MB
+[whatsapp] memory rss=123MB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:51:28.214Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T09:56:33.285Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+[whatsapp] backend memory rss=165MB
+[whatsapp] memory rss=125MB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T10:01:38.697Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+HEAD Ping received at: 2026-11-04T10:06:43.106Z
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+[whatsapp] backend memory rss=165MB
+[whatsapp] memory rss=125MB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> Running 'node index.js'
+userId 6a47989b56a94e02d89b7246
+Crons disabled (ENABLE_CRONS is not "true") — skipping cleanup/renewal/chess-cleanup schedulers.
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+Connected to DB
+[portfolio] Worker supervisor started.
+[whatsapp] Worker supervisor started.
+Server is running 10000
+HEAD Ping received at: 2026-11-04T10:11:48.229Z
+[whatsapp] Stopping (SIGTERM): closing the link and releasing the sender lock.
+==> Your service is live 🎉
+==> 
+==> ///////////////////////////////////////////////////////////
+==> 
+==> Available at your primary URL https://api.merasoftware.com + 1 more domain
+==> 
+==> ///////////////////////////////////////////////////////////
+Connected to DB
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+Sender lease held — connecting to WhatsApp.
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false
+}
+userId 6a47989b56a94e02d89b7246
+user {
+  userDetails: {
+    isDetailsCompleted: false,
+    kycRejectionReasons: [],
+    kycStatus: 'pending'
+  },
+  _id: new ObjectId('6a47989b56a94e02d89b7246'),
+  name: 'Admin User',
+  email: 'admin@merasoftware.com',
+  roles: [ 'admin' ],
+  walletBalance: 0,
+  bankAccounts: [],
+  allowLoginFreeUploadLinks: false,
+  isGuest: false

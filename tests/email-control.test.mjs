@@ -183,7 +183,9 @@ test('changed or unsubscribed requests cannot send stale confirmation emails', a
 test('failed delivery retries keep original content and never repeat subscription creation', async () => {
   const draft = await pending('retry@example.test'); providerFails = true;
   const first = await request(`/api/email-control/drafts/${draft._id}/decision?application=website`, 'POST', { choice: 'send', subject: 'Original approval', text: 'Original text' }, websiteAdmin);
-  assert.equal(first.status, 400); providerFails = false;
+  providerFails = false;
+  // Every send follows the action's Send via (Email for subscriptions): a failed part is reported, not thrown.
+  assert.equal(first.status, 200); assert.equal(first.data.status, 'failed'); assert.equal(first.data.delivery.email, 'failed');
   await request(`/api/email-control/drafts/${draft._id}/decision?application=website`, 'POST', { choice: 'send', subject: 'Changed', text: 'Changed' }, websiteAdmin);
   assert.equal(providerCalls.at(-1).key, providerCalls.at(-2).key); assert.deepEqual(providerCalls.at(-1).body, providerCalls.at(-2).body);
   assert.equal((await EmailDraft.findById(draft._id)).status, 'sent');
@@ -313,6 +315,11 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     await page.getByRole('button', { name: 'Update preview', exact: true }).click();
     await page.waitForFunction(() => /Dear Ravi, sorry for Shop\./.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /Refund Details/);
+    // A customer action opens on its Send via (WhatsApp only); WhatsApp is off in this suite, so the reviewer picks Email for this one message.
+    const via = page.getByLabel('Send via', { exact: true });
+    assert.equal(await via.inputValue(), 'whatsapp');
+    await page.getByText('WhatsApp is off on the server. Choose an available channel.', { exact: true }).waitFor();
+    await via.selectOption('email');
     await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     const sent = providerCalls.at(-1).body;
@@ -449,7 +456,18 @@ test('browser: one box per job holds its customer and admin mails; customer mail
     await page.getByText('Email rule saved.', { exact: true }).waitFor();
     assert.equal((await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean()).mode, 'auto');
     assert.equal(await mail.inputValue(), 'auto');
-    assert.match(await summary.innerText(), /2 mails · Mixed rules/); assert.match(await summary.innerText(), /Email \+ WhatsApp/);
+    // The box shows the route of the mails that send: the customer's copy is WhatsApp only by default.
+    assert.match(await summary.innerText(), /2 mails · Mixed rules/); assert.match(await summary.innerText(), /WhatsApp only/);
+    // Send via: customer mail starts WhatsApp only, team mail Email + WhatsApp; a change is saved on the action.
+    const route = row.getByLabel('Update request received route');
+    assert.equal(await route.inputValue(), 'whatsapp');
+    assert.deepEqual(await route.locator('option').allTextContents(), ['WhatsApp only', 'Email only', 'Email + WhatsApp']);
+    assert.equal(await job.getByLabel('New update request (admin) route').inputValue(), 'both');
+    await route.selectOption('both');
+    await page.getByText('Send via saved. New messages of this action go this way.', { exact: true }).waitFor();
+    const saved = await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean();
+    assert.equal(saved.channel, 'both'); assert.equal(saved.mode, 'auto', 'changing the route keeps the rule');
+    assert.match(await summary.innerText(), /Email \+ WhatsApp/);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -571,7 +589,8 @@ test('browser: compact review creates a new template, keeps name chips and sends
     await page.locator('article').filter({ hasText: recipient.email }).getByRole('button', { name: 'Review email', exact: true }).click();
     await page.getByRole('heading', { name: 'Review & send', exact: true }).waitFor();
     assert.equal(await page.getByLabel('Template', { exact: true }).inputValue(), String(template._id));
-    assert.equal(await page.getByLabel('Send via').inputValue(), 'both');
+    // The review opens on the action's Send via: a customer action is WhatsApp only by default.
+    assert.equal(await page.getByLabel('Send via', { exact: true }).inputValue(), 'whatsapp');
     await page.screenshot({ path: path.join(qaDir, 'compact-review-desktop.png') });
     const editor = page.getByLabel('Message', { exact: true });
     assert.equal(await editor.locator('[data-email-variable="name"]').innerText(), 'Lead name');

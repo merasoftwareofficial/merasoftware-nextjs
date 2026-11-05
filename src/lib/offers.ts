@@ -57,6 +57,9 @@ export const offerSchema = z.object({
   // Hours before the end that public Reserve opens (lib/offer-reservation-rules.ts); missing = 24.
   // Timing only: left out of the quote key (lib/offer-quote.ts).
   reserveWindowHours: z.number().int().min(1).max(720).optional(),
+  // How many hours a reservation of this offer lasts (lib/offer-reservation-rules.ts); missing = 72.
+  // Part of the deal, so it is signed in the quote key; offers without it keep their key.
+  reservationHoldHours: z.number().int().min(1).max(720).optional(),
 }).strict().refine(value => value.mainPrice >= value.discountPrice && value.discountPrice >= value.offerPrice, {
   message: "Prices must follow main price ≥ normal discount price ≥ offer price.", path: ["offerPrice"],
 }).refine(value => value.pricingRule !== "percentage" || (value.benefitValue !== undefined && value.benefitValue <= 100), { message: "Percentage benefit must be between 0 and 100.", path: ["benefitValue"] })

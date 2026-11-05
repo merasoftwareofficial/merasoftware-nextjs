@@ -6,7 +6,7 @@ import { offerDiscountPercent, type Offer } from "@/lib/offers";
 import { useOfferReservation, type ReservationConfig } from "@/components/offer-reservations";
 import { PhoneField } from "@/components/phone-field";
 import type { OfferReservation } from "@/lib/offer-reservations";
-import { reserveCta, RESERVE_HOLD_HOURS, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
+import { reservationHoldHours, reserveCta, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -16,11 +16,11 @@ function Arrow() {
 
 // Admin preview of the reservation states, without any request (admin/offers/offers-manager.tsx).
 export type ReservationPreview = "normal" | "open" | "reserved";
-function previewState(state: ReservationPreview, now: number): { phase: ReservationPhase; cta: ReserveCta } {
+function previewState(state: ReservationPreview, now: number, holdHours: number): { phase: ReservationPhase; cta: ReserveCta } {
   const phase: ReservationPhase = state === "open" ? "open" : state === "reserved" ? "reserved" : "none";
-  const due = new Date(now + (RESERVE_HOLD_HOURS * 60 - 40) * 60000).toISOString();
+  const due = new Date(now + (holdHours * 60 - 40) * 60000).toISOString();
   const row: OfferReservation | null = state === "reserved" ? { id: "preview", offerSlug: "preview", title: "", reservedPrice: 0, regularPrice: 0, terms: [], reservedAt: due, expiresAt: due, deadline: due, extendedUntil: null, status: "reserved", projectId: null, confirmationStatus: "sent" } : null;
-  return { phase, cta: reserveCta(phase, row, now) };
+  return { phase, cta: reserveCta(phase, row, now, holdHours) };
 }
 
 /**
@@ -33,7 +33,8 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   const dialog = useRef<HTMLDialogElement>(null);
   const reserveDialog = useRef<HTMLDialogElement>(null);
   const control = useOfferReservation(preview ? undefined : reservation, offer);
-  const shown = preview ? previewState(previewReservation ?? "normal", now ?? Date.parse(offer.endsAt)) : control;
+  const holdHours = reservationHoldHours(offer);
+  const shown = preview ? previewState(previewReservation ?? "normal", now ?? Date.parse(offer.endsAt), holdHours) : control;
   const end = Date.parse(offer.endsAt);
   const validEnd = Number.isFinite(end);
   const expired = !validEnd || (now !== null && now >= end);
@@ -109,11 +110,11 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
     </dialog>
     {reservation && !preview && <dialog className={s.termsDialog} ref={reserveDialog} aria-labelledby="reserve-title" onClick={event => { if (event.target === event.currentTarget) reserveDialog.current?.close(); }}>
       <div className={s.dialogContent}>
-        <div className={s.dialogHeader}><h2 id="reserve-title">Reserve this price for {RESERVE_HOLD_HOURS} hours</h2><button type="button" aria-label="Close reservation" onClick={() => reserveDialog.current?.close()}>×</button></div>
+        <div className={s.dialogHeader}><h2 id="reserve-title">Reserve this price for {holdHours} hours</h2><button type="button" aria-label="Close reservation" onClick={() => reserveDialog.current?.close()}>×</button></div>
         <p>{offer.title} · {money(offer.offerPrice)}</p>
         <ul>
-          <li>Your price is held for {RESERVE_HOLD_HOURS} hours from the moment you reserve.</li>
-          <li>No payment now. Pay the first bill before your reservation deadline to keep this price.</li>
+          <li>Your price is held for {holdHours} hours from the moment you reserve.</li>
+          <li>No payment now. Get your project started before your reservation ends, or this offer expires for you.</li>
           {!control.signedIn && <li>Reserving needs an account. Sign in, or create one in a minute; you come back here and the reservation is saved.</li>}
         </ul>
         {control.error && <p role="alert" className={s.reserveError}>{control.error}</p>}

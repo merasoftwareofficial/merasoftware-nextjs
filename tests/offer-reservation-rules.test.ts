@@ -3,7 +3,8 @@ import { test } from "node:test";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { DEFAULT_OFFER, type Offer } from "../src/lib/offers";
-import { reservationOpen, reservationPhase, reserveCta, reserveWindowHours } from "../src/lib/offer-reservation-rules";
+import { reservationHoldHours, reservationOpen, reservationPhase, reserveCta, reserveWindowHours } from "../src/lib/offer-reservation-rules";
+import { offerSchema } from "../src/lib/offers";
 import type { OfferReservation } from "../src/lib/offer-reservations";
 
 const NOW = Date.parse("2026-10-25T12:00:00Z");
@@ -41,8 +42,22 @@ test("one main button per state", () => {
   assert.equal(reservationPhase(offer({ endsAt: ends(-1) }), row(), true, NOW), "reserved");
 });
 
+test("reservation hours: default 72, per-offer setting shown on the Reserve button, saved by the offer form", () => {
+  assert.equal(reservationHoldHours({}), 72);
+  assert.equal(reservationHoldHours({ reservationHoldHours: 48 }), 48);
+  for (const bad of [0, 721, 2.5]) assert.equal(reservationHoldHours({ reservationHoldHours: bad }), 72, String(bad));
+  const cta = reserveCta("open", null, NOW, reservationHoldHours({ reservationHoldHours: 48 }));
+  assert.equal(cta.kind === "reserve" && cta.label, "Reserve price for 48 hours");
+  assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, reservationHoldHours: 48 }).success, true);
+  for (const bad of [0, 721, 1.5]) assert.equal(offerSchema.safeParse({ ...DEFAULT_OFFER, reservationHoldHours: bad }).success, false, String(bad));
+});
+
 // The backend (helpers/offerReservations.js) is the authority; the page copy must agree with it.
 const backend = "E:/Allprojects/backend/helpers/offerReservations.js";
+test("website hours agree with the backend's", { skip: !existsSync(backend) && "backend checkout not found" }, () => {
+  const { holdHours } = createRequire(import.meta.url)(backend);
+  for (const value of [undefined, 1, 6, 48, 72, 720, 0, 721, 2.5]) assert.equal(reservationHoldHours({ reservationHoldHours: value }), holdHours({ reservationHoldHours: value }), String(value));
+});
 test("website rule agrees with the backend reservation check", { skip: !existsSync(backend) && "backend checkout not found" }, () => {
   const { reservationRefusal } = createRequire(import.meta.url)(backend);
   let checked = 0;
