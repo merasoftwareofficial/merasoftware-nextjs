@@ -6,6 +6,10 @@ Local checks: backend email 51/51; website email 23/23; portal email browser pas
 
 # Website audit index
 
+## Reservation seconds UI — 6 November 2026
+
+The existing `timeLeft()` presentation formatter in `src/lib/offer-reservation-rules.ts` now renders hours, minutes and seconds for both the offer card and sticky bar. It rounds remaining seconds up and clamps at zero, matching My Offers. The existing shared `useServerTime()` already ticks every second; no timer, API, persistence or reservation/expiry rule changed. Updated existing label expectations; reservation rules and isolated browser reservation flow pass (6/6). Originals are in `backup/fix7`.
+
 ## Reservation/payment integration — 25 October 2026
 
 Read [RESERVATION_AGENT_HANDOVER.md](../src/docs/RESERVATION_AGENT_HANDOVER.md) for the full cross-app context. Backend owns money, eligibility, snapshots and revisions; website owns catalogue content, shared quote generation, authenticated proxy and presentation.

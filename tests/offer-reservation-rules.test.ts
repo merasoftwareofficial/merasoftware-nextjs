@@ -32,7 +32,7 @@ test("one main button per state", () => {
   assert.equal(label(reservationPhase(offer({ endsAt: ends(72) }), null, true, NOW)), "enquire", "outside the window");
   assert.equal(label(reservationPhase(open, null, false, NOW)), "Checking reservation…");
   assert.equal(label(reservationPhase(open, null, true, NOW)), "Reserve price for 72 hours");
-  assert.equal(label(reservationPhase(open, row(), true, NOW), row()), "Reserved · 72h 0m left");
+  assert.equal(label(reservationPhase(open, row(), true, NOW), row()), "Reserved · 72h 0m 0s left");
   assert.equal(label(reservationPhase(open, row({ status: "under_review" }), true, NOW)), "Payment under review");
   assert.equal(label(reservationPhase(open, row({ status: "confirmed" }), true, NOW)), "Price locked");
   assert.equal(label(reservationPhase(open, row({ status: "expired", deadline: ends(-1), periodEndsAt: open.endsAt }), true, NOW)), "Reservation expired");

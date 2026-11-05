@@ -62,8 +62,8 @@ export type ReserveCta =
   | { kind: "status"; label: string };
 
 function timeLeft(until: number, now: number) {
-  const minutes = Math.max(0, Math.floor((until - now) / 60000));
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m left`;
+  const seconds = Math.max(0, Math.ceil((until - now) / 1000));
+  return `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m ${seconds % 60}s left`;
 }
 /** The one main button on the card and in the sticky bar. holdHours: reservationHoldHours(offer). */
 export function reserveCta(phase: ReservationPhase, row: OfferReservation | null, now: number, holdHours = DEFAULT_HOLD_HOURS): ReserveCta {

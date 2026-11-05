@@ -6,6 +6,11 @@ Local checks: backend email 51/51; website email 23/23; portal email browser pas
 
 # Verified code routes
 
+## Reservation seconds UI — 6 November 2026
+
+- Offer card and sticky bar countdown label: `timeLeft()` in `src/lib/offer-reservation-rules.ts` now includes seconds using the existing shared one-second server clock. My Offers already shows seconds. Reservation rules, deadlines and transport are unchanged. Originals: `backup/fix7`.
+- Validation: reservation rules and isolated reservation browser flow pass (6/6).
+
 ## Reservation/payment work — 25 October 2026
 
 - **Start here:** [cross-repo agent handover](../src/docs/RESERVATION_AGENT_HANDOVER.md). Current decisions, exact test commands/evidence, backups and pending rollout are centralized there.

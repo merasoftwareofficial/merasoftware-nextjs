@@ -77,7 +77,7 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     await page.getByLabel('Password', { exact: true }).fill('test-password');
     await page.getByRole('button', { name: 'Sign in →', exact: true }).click();
     await page.waitForURL('**/offer/test-offer');
-    await main(page).filter({ hasText: /^Reserved · 7[12]h [0-9]+m left$/ }).waitFor();
+    await main(page).filter({ hasText: /^Reserved · 7[12]h [0-9]+m [0-9]+s left$/ }).waitFor();
     assert.equal(posts, 1, 'Login automatically performs the pending POST once');
     assert.equal(await main(page).getAttribute('href'), '/account/offers');
     assert.match(await sticky(page).innerText(), /^Reserved · /);
