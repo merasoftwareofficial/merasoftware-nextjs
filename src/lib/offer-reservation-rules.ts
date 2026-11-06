@@ -58,6 +58,15 @@ export function reservationPhase(offer: Reservable, row: OfferReservation | null
   return loaded ? "open" : "checking";
 }
 
+/**
+ * The price the customer's reservation still holds, else null (the offer's own price applies).
+ * Saved at reserve time and never changed (backend offerReservationModel reservedPrice), so it can
+ * differ from the offer after the admin edits it. An expired reservation holds nothing.
+ */
+export function heldPrice(phase: ReservationPhase, row: OfferReservation | null): number | null {
+  return row && (phase === "reserved" || phase === "requested" || phase === "review" || phase === "confirmed") ? row.reservedPrice : null;
+}
+
 export type ReserveCta =
   | { kind: "enquire" }
   | { kind: "reserve"; label: string; disabled: boolean }

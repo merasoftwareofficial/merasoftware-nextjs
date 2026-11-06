@@ -87,6 +87,9 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     await main(page).filter({ hasText: /^Start my project · 7[12]h [0-9]+m [0-9]+s left$/ }).waitFor();
     assert.equal(posts, 1, 'Login automatically performs the pending POST once');
     assert.match(await sticky(page).innerText(), /^Start my project · /);
+    // The card keeps the offer's price; the sticky bar shows the reservation's own saved price with its timer.
+    assert.match(await page.locator('[class*="sticky"]').innerText(), /Your reserved price\s+₹5,000/);
+    assert.doesNotMatch(await card(page).innerText(), /₹5,000/);
     await page.reload(); await main(page).filter({ hasText: /^Start my project/ }).waitFor(); assert.equal(posts, 1);
     // Start my project: the same dialog asks once; Confirm pauses the reservation (owner decision 7 Nov 2026).
     await main(page).click();

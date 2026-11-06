@@ -6,7 +6,7 @@ import { offerDiscountPercent, type Offer } from "@/lib/offers";
 import { useOfferReservation, type ReservationConfig } from "@/components/offer-reservations";
 import { PhoneField } from "@/components/phone-field";
 import type { OfferReservation } from "@/lib/offer-reservations";
-import { reservationHoldHours, reserveCta, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
+import { heldPrice, reservationHoldHours, reserveCta, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -61,6 +61,9 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   // A saved reservation stays visible after the offer ends; Reserve itself never outlives the offer.
   const cta: ReserveCta = expired && (shown.cta.kind === "reserve" || shown.phase === "expired") ? { kind: "enquire" } : shown.cta;
   const { error, phase } = control;
+  // The card keeps the offer's current price; the reservation's own saved price shows with its timer
+  // (sticky bar, Start dialog), also after the admin changed the offer or it ended.
+  const held = heldPrice(phase, control.row);
   // A refusal (e.g. after returning from sign-in) opens the dialog to explain it; success closes it.
   useEffect(() => { if (error && reserveDialog.current && !reserveDialog.current.open) reserveDialog.current.showModal(); }, [error]);
   useEffect(() => { if (phase !== "open" && phase !== "checking" && !error) reserveDialog.current?.close(); }, [phase, error]);
@@ -113,7 +116,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
     {reservation && !preview && <dialog className={s.termsDialog} ref={reserveDialog} aria-labelledby="reserve-title" onClick={event => { if (event.target === event.currentTarget) reserveDialog.current?.close(); }}>
       {starting ? <div className={s.dialogContent}>
         <div className={s.dialogHeader}><h2 id="reserve-title">Start your project on this offer?</h2><button type="button" aria-label="Close" onClick={() => reserveDialog.current?.close()}>×</button></div>
-        <p>{offer.title} · {money(control.row?.reservedPrice ?? offer.offerPrice)}</p>
+        <p>{offer.title} · {money(held ?? offer.offerPrice)}</p>
         <ul>
           <li>Our team will contact you to set up your project.</li>
           <li>Your reservation is paused, so this offer does not expire while we prepare it.</li>
@@ -135,6 +138,6 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
           : <button type="button" className={s.claim} disabled={control.busy || control.cta.kind !== "reserve" || control.cta.disabled || (control.needsPhone && !control.phone.phone.trim())} onClick={control.confirm}>{control.busy ? "Reserving…" : control.signedIn ? "Confirm reservation" : "Continue to sign in"}<Arrow /></button>}
       </div>}
     </dialog>}
-    {!preview && <div className={s.sticky}><div><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></div>{action(undefined, expired ? "Contact us" : offer.ctaLabel)}</div>}
+    {!preview && <div className={s.sticky}><div>{held !== null ? <><span>Your reserved price</span><strong>{money(held)}</strong></> : <><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></>}</div>{action(undefined, expired ? "Contact us" : offer.ctaLabel)}</div>}
   </main>;
 }

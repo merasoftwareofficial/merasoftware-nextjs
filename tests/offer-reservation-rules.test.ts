@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { DEFAULT_OFFER, type Offer } from "../src/lib/offers";
-import { reservationHoldHours, reservationOpen, reservationPhase, reserveCta, reserveWindowHours } from "../src/lib/offer-reservation-rules";
+import { heldPrice, reservationHoldHours, reservationOpen, reservationPhase, reserveCta, reserveWindowHours } from "../src/lib/offer-reservation-rules";
 import { offerSchema } from "../src/lib/offers";
 import type { OfferReservation } from "../src/lib/offer-reservations";
 
@@ -47,6 +47,16 @@ test("one main button per state", () => {
   assert.equal(label(reservationPhase(open, row({ status: "expired", deadline: ends(-1), periodEndsAt: ends(-48) }), true, NOW)), "Reserve price for 72 hours");
   // A running reservation stays visible after the offer itself ends.
   assert.equal(reservationPhase(offer({ endsAt: ends(-1) }), row(), true, NOW), "reserved");
+});
+
+test("held price: the reservation keeps its saved price while it holds, the offer's price otherwise", () => {
+  // The admin raised the offer after the reserve: the reservation still holds its own 699.
+  const raised = offer({ offerPrice: 3499 });
+  assert.equal(heldPrice(reservationPhase(raised, row(), true, NOW), row()), 699);
+  for (const phase of ["reserved", "requested", "review", "confirmed"] as const) assert.equal(heldPrice(phase, row()), 699, phase);
+  for (const phase of ["expired", "none", "open", "checking"] as const) assert.equal(heldPrice(phase, row()), null, phase);
+  assert.equal(heldPrice(reservationPhase(raised, row({ deadline: ends(-1) }), true, NOW), row({ deadline: ends(-1) })), null, "expired unpaid");
+  assert.equal(heldPrice("reserved", null), null);
 });
 
 test("reservation hours: default 72, per-offer setting shown on the Reserve button, saved by the offer form", () => {
