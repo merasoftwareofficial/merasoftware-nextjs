@@ -23,7 +23,7 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
   });
   const js = bundle.outputFiles.find(file => file.path.endsWith('.js')).contents, css = bundle.outputFiles.find(file => file.path.endsWith('.css'))?.contents ?? '';
   const now = Date.parse('2026-10-24T12:00:00Z');
-  let signedIn = false, quoteKey = 'version-1', rows = [], posts = 0, failNext = false, needPhone = false, sentPhone = null, endsIn = 1, targets = null, windowHours = null;
+  let signedIn = false, quoteKey = 'version-1', rows = [], posts = 0, starts = 0, failNext = false, needPhone = false, sentPhone = null, endsIn = 1, targets = null, windowHours = null;
   const row = () => ({ id: 'reservation-1', offerSlug: 'test-offer', title: 'Reserved website', reservedPrice: 5000, regularPrice: 10000,
     terms: ['Agreed scope'], reservedAt: new Date(now).toISOString(), expiresAt: new Date(now + 72 * 3600000).toISOString(), status: 'reserved', projectId: null, confirmationStatus: 'pending' });
   const server = http.createServer(async (req, res) => {
@@ -33,6 +33,13 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     if (req.url === '/api/time') return res.end(JSON.stringify({ now }));
     if (req.url === '/fixture') return res.end(JSON.stringify({ signedIn, quoteKey, targets, windowHours, now: new Date(now).toISOString(), endsAt: new Date(now + endsIn * 3600000).toISOString() }));
     if (req.url === '/api/signin') { signedIn = true; return res.end(JSON.stringify({ success: true, data: {} })); }
+    // Start my project (backend helpers/reservationStart.js): pauses the reservation.
+    const startMatch = req.url.match(/^\/api\/offer-reservations\/([^/]+)\/start$/);
+    if (startMatch && req.method === 'POST') {
+      starts++;
+      rows = rows.map(item => item.id === startMatch[1] ? { ...item, status: 'start_requested', startRequestedAt: new Date(now).toISOString() } : item);
+      return res.end(JSON.stringify({ reservation: rows.find(item => item.id === startMatch[1]), requested: true }));
+    }
     if (req.url === '/api/offer-reservations') {
       if (!signedIn) { res.statusCode = 401; return res.end(JSON.stringify({ error: 'Sign in' })); }
       if (req.method === 'POST') {
@@ -77,11 +84,23 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     await page.getByLabel('Password', { exact: true }).fill('test-password');
     await page.getByRole('button', { name: 'Sign in →', exact: true }).click();
     await page.waitForURL('**/offer/test-offer');
-    await main(page).filter({ hasText: /^Reserved · 7[12]h [0-9]+m [0-9]+s left$/ }).waitFor();
+    await main(page).filter({ hasText: /^Start my project · 7[12]h [0-9]+m [0-9]+s left$/ }).waitFor();
     assert.equal(posts, 1, 'Login automatically performs the pending POST once');
+    assert.match(await sticky(page).innerText(), /^Start my project · /);
+    await page.reload(); await main(page).filter({ hasText: /^Start my project/ }).waitFor(); assert.equal(posts, 1);
+    // Start my project: the same dialog asks once; Confirm pauses the reservation (owner decision 7 Nov 2026).
+    await main(page).click();
+    const startDialog = page.getByRole('dialog', { name: 'Start your project on this offer?' });
+    await startDialog.getByText(/does not expire while we prepare it/).waitFor();
+    await startDialog.getByRole('button', { name: 'Confirm' }).click();
+    await main(page).filter({ hasText: /^Start requested · our team will contact you$/ }).waitFor();
+    assert.equal(starts, 1); assert.equal(await startDialog.isVisible(), false, 'the dialog closes');
     assert.equal(await main(page).getAttribute('href'), '/account/offers');
-    assert.match(await sticky(page).innerText(), /^Reserved · /);
-    await page.reload(); await main(page).filter({ hasText: /^Reserved/ }).waitFor(); assert.equal(posts, 1);
+    // Paused past its old deadline: My offers shows the request, never Expired.
+    rows = [{ ...rows[0], expiresAt: new Date(now - 1000).toISOString() }];
+    await page.goto(origin + '/account/offers'); await page.getByText('Start requested', { exact: true }).waitFor();
+    assert.match(await page.locator('article').innerText(), /Paused – our team is setting up your project/);
+    assert.doesNotMatch(await page.locator('article').getAttribute('class'), /is-expired/);
     // Expired rows remain grey on My Offers, even with a badly wrong device clock/timezone.
     rows = [{ ...row(), expiresAt: new Date(now - 1000).toISOString(), status: 'expired' }];
     await page.addInitScript(() => { Date.now = () => 0; });
@@ -105,7 +124,7 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     failNext = true; await dialog(stale).getByRole('button', { name: 'Confirm reservation' }).click();
     await dialog(stale).getByRole('alert').filter({ hasText: 'Temporary outage' }).waitFor();
     await dialog(stale).getByRole('button', { name: 'Confirm reservation' }).click();
-    await main(stale).filter({ hasText: /^Reserved/ }).waitFor();
+    await main(stale).filter({ hasText: /^Start my project/ }).waitFor();
     assert.equal(posts, 3);
     assert.equal(await dialog(stale).isVisible(), false, 'the dialog closes after reserving');
 
@@ -117,7 +136,7 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     assert.equal(await dialog(phoneless).getByRole('button', { name: 'Confirm reservation' }).isDisabled(), true, 'Phone is required before retrying');
     await dialog(phoneless).getByLabel('Mobile number', { exact: true }).fill('98765 43210');
     await dialog(phoneless).getByRole('button', { name: 'Confirm reservation' }).click();
-    await main(phoneless).filter({ hasText: /^Reserved/ }).waitFor();
+    await main(phoneless).filter({ hasText: /^Start my project/ }).waitFor();
     assert.deepEqual(sentPhone, { countryCode: '+91', phone: '98765 43210' });
 
     // 4. Signup sends the phone with the account.
@@ -141,7 +160,7 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     const renew = await open();
     await main(renew).filter({ hasText: 'Reserve price for 72 hours' }).waitFor();
     await main(renew).click(); await dialog(renew).getByRole('button', { name: 'Confirm reservation' }).click();
-    await main(renew).filter({ hasText: /^Reserved/ }).waitFor();
+    await main(renew).filter({ hasText: /^Start my project/ }).waitFor();
     assert.equal(rows.length, 2); assert.equal(rows[1].id, 'old-period');
     // A project-attached historical reservation cannot be renewed by the UI.
     rows = [{ ...rows[1], projectId: 'existing-project' }];
@@ -175,7 +194,7 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
       await measure('normal', { endsIn: 72 });
       await measure('reserve open', {});
       await measure('phone asked', { signedIn: true, needPhone: true }, async view => { await main(view).click(); await dialog(view).getByRole('button', { name: 'Confirm reservation' }).click(); await dialog(view).getByLabel('Mobile number', { exact: true }).waitFor(); });
-      await measure('reserved', { signedIn: true, rows: [row()] }, async view => { await main(view).filter({ hasText: /^Reserved/ }).waitFor(); });
+      await measure('reserved', { signedIn: true, rows: [row()] }, async view => { await main(view).filter({ hasText: /^Start my project/ }).waitFor(); });
       assert.equal(new Set(Object.values(heights)).size, 1, `${viewport.width}px card heights: ${JSON.stringify(heights)}`);
     }
     assert.deepEqual(errors, []);

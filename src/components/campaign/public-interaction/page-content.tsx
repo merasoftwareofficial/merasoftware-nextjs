@@ -64,8 +64,10 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   // A refusal (e.g. after returning from sign-in) opens the dialog to explain it; success closes it.
   useEffect(() => { if (error && reserveDialog.current && !reserveDialog.current.open) reserveDialog.current.showModal(); }, [error]);
   useEffect(() => { if (phase !== "open" && phase !== "checking" && !error) reserveDialog.current?.close(); }, [phase, error]);
-  const action = (className: string | undefined, enquireLabel: string) => cta.kind === "reserve"
-    ? <button type="button" className={className} disabled={cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{cta.label}<Arrow /></button>
+  // Reserve and Start my project are confirmed in the same dialog; its words follow the button.
+  const starting = control.cta.kind === "start";
+  const action = (className: string | undefined, enquireLabel: string) => cta.kind === "reserve" || cta.kind === "start"
+    ? <button type="button" className={className} disabled={cta.kind === "reserve" && cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{cta.label}<Arrow /></button>
     : cta.kind === "status" ? <Link className={className} href="/account/offers">{cta.label}<Arrow /></Link>
     : <a className={className} href={href}>{enquireLabel}<Arrow /></a>;
 
@@ -109,7 +111,16 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
       </div>
     </dialog>
     {reservation && !preview && <dialog className={s.termsDialog} ref={reserveDialog} aria-labelledby="reserve-title" onClick={event => { if (event.target === event.currentTarget) reserveDialog.current?.close(); }}>
-      <div className={s.dialogContent}>
+      {starting ? <div className={s.dialogContent}>
+        <div className={s.dialogHeader}><h2 id="reserve-title">Start your project on this offer?</h2><button type="button" aria-label="Close" onClick={() => reserveDialog.current?.close()}>×</button></div>
+        <p>{offer.title} · {money(control.row?.reservedPrice ?? offer.offerPrice)}</p>
+        <ul>
+          <li>Our team will contact you to set up your project.</li>
+          <li>Your reservation is paused, so this offer does not expire while we prepare it.</li>
+        </ul>
+        {control.error && <p role="alert" className={s.reserveError}>{control.error}</p>}
+        <button type="button" className={s.claim} disabled={control.busy} onClick={control.start}>{control.busy ? "Sending…" : "Confirm"}<Arrow /></button>
+      </div> : <div className={s.dialogContent}>
         <div className={s.dialogHeader}><h2 id="reserve-title">Reserve this price for {holdHours} hours</h2><button type="button" aria-label="Close reservation" onClick={() => reserveDialog.current?.close()}>×</button></div>
         <p>{offer.title} · {money(offer.offerPrice)}</p>
         <ul>
@@ -122,7 +133,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
         {!control.loaded && control.error
           ? <button type="button" className={s.claim} onClick={control.retry}>Try again<Arrow /></button>
           : <button type="button" className={s.claim} disabled={control.busy || control.cta.kind !== "reserve" || control.cta.disabled || (control.needsPhone && !control.phone.phone.trim())} onClick={control.confirm}>{control.busy ? "Reserving…" : control.signedIn ? "Confirm reservation" : "Continue to sign in"}<Arrow /></button>}
-      </div>
+      </div>}
     </dialog>}
     {!preview && <div className={s.sticky}><div><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></div>{action(undefined, expired ? "Contact us" : offer.ctaLabel)}</div>}
   </main>;

@@ -1,6 +1,6 @@
 # Offers system — conversation handoff
 
-Last updated: 22 October 2026, Asia/Calcutta. This file records the decisions, implementation history, verification boundaries and remaining work from this conversation. Read this before reviewing or changing the offer system.
+Last updated: 6 November 2026, Asia/Calcutta. Latest task and current handoff: see sections 13–14. Sections 1–12 preserve the earlier conversation and its historical verification boundaries; their statements about the "current request" describe that earlier session, not the latest request.
 
 ## 1. Current state at a glance
 
@@ -369,3 +369,117 @@ For the next requested task:
 7. Retain backups/evidence. If the user requests rollback, undo only the relevant change set using verified available originals and its new-file/move manifest.
 
 No secret values, real login tokens or customer payment evidence are intentionally included in this handoff.
+
+## 13. Navigation, guidance and unified package/offer experience — 6 November 2026
+
+### Latest request and authorized work
+
+The user describes a content-rich, dynamic website whose visitor journey is confusing. They want professional guidance, education and navigation based on visitor intent, with short contextual hints and a clear next step. They explicitly request verification, a continuously maintained `offer.md`, and an explanation of our understanding and intended work. This turn covers source inspection, documentation and a proposed implementation sequence. Product implementation has not started.
+
+Target verified: `E:/Allprojects/merasoftware`; root `AGENTS.md` read. IDE tabs under DreamZ/Ishvora and the initial AccountApp working directory do not select the project. No agents were delegated. Prior `offer.md` preserved byte-for-byte at `backup/offer-navigation-20261106/offer.md`; original and backup SHA256 matched before editing.
+
+### User requirements, preserved for the next agent
+
+1. A visitor who only wants to understand the business should quickly learn what services it provides, who they help, how delivery works and where to learn more.
+2. A visitor ready to start a project should move from their requirement to the appropriate service and relevant packages, with useful small hints along the way.
+3. A visitor comparing packages and current offers should easily discover both and move between related entries.
+4. A visitor checking legitimacy should reach genuine work, business information, contact details and evidence of the process. Use actual evidence; do not invent testimonials, client counts or guarantees.
+5. Explain the company's strongest asset, its system, clearly. Inspect actual capabilities before writing claims or designing walkthroughs; the exact public-facing capabilities still need verification.
+6. Put a proper current-offers section on the homepage, rather than relying on a small buried link. Make offers easy to find elsewhere too.
+7. Highlight packages with eligible active offers clearly, including the benefit, price and offer status. A small sentence alone is insufficient.
+8. Clicking a package should open a rich detail experience comparable to today's offer detail page. With an offer, the experience presents the three pricing levels; without one, the same page structure presents normal pricing and package information.
+9. Package and offer details should become one coherent experience, rather than separate incomplete descriptions. Preserve package identity and included scope when entering from an offer. Exact URL and multi-package/multi-offer resolution design remains to be decided from the data model.
+10. Keep this file current after each meaningful inspection, decision, implementation milestone or verification. Another chat or agent must be able to understand the original need, completed changes and pending work without repeating the conversation.
+
+The user considers the existing plan customization system strong. Improve its discoverability and surrounding guidance while preserving working customization behavior. Packages, project categories and purchasable service plans remain different business objects.
+
+### Source evidence inspected this turn
+
+| Area | Observed implementation | Implication |
+| --- | --- | --- |
+| Header `src/components/site-header.tsx` | Services, Packages dropdown, optional Work, Blog, Community, About and Contact; no Offers entry. Plans are appended to the package submenu. | Offers lack a direct primary navigation route. Desktop/mobile use shared entries. |
+| Homepage `src/app/page.tsx` | Services link to service slugs; a small packages CTA follows services. Offer discovery is a short link inside the final contact section. No dedicated offers section or visitor-intent selector. | Source supports the user's discoverability complaint. |
+| Footer `src/components/site-footer.tsx` | Services, optional work, blog, contact/location; no package or offer links. | Missing another useful discovery path. |
+| Services `src/app/services/page.tsx` | Settings-driven grouped expandable service descriptions with optional per-service CTA and a final next-step section. | Build on existing dynamic content; do not claim services are absent. |
+| Service details `src/app/services/[slug]/page.tsx` | Contact CTA and generic `packagesHref()` link. | Package destination is not selected by service relevance here. |
+| Package listing `src/app/packages/[slug]/page.tsx` | Slug identifies an admin-created listing page; packages filtered by `item.pages`. Catalogue failure shows an honest contact fallback. | This route is NOT an individual package detail route. Do not replace listing URLs casually. |
+| `src/lib/package-pages-server.ts` | Generic packages links use first configured listing, otherwise contact. | Multiple visitor needs currently share a generic destination. |
+| Package group `src/components/campaign/staff-packages.tsx` | Already has an Explore offers button. | Offers are not entirely unreachable; distinguish weak discovery from total absence. |
+| Package card `src/components/campaign/package-card.tsx` | Price, scope, collapsible terms; active offer appears in a paragraph with saving/deadline. Primary action opens a mailto enquiry. | No package detail navigation in the inspected card; offer treatment needs visual review. |
+| `src/lib/sales-packages.ts` | Package has stable id, regularPrice, discountedPrice, offerExtraPrice, offerSlug, inclusions, terms, linkedPlanIds and listing pages. QuotedPackage includes backend quote. | Preserve backend pricing ownership; never assume offer price equals the selected package's total. |
+| Offers `src/app/offer/page.tsx` | Published offers listed from settings; cards open `/offer/[slug]`. Listing metadata is noindex/nofollow. `/offers` redirects to `/offer`. | Reuse real offer catalogue. Publication alone must not be described as proof of current eligibility. SEO policy needs explicit review. |
+| Offer details `src/app/offer/[slug]/page.tsx` | Uses settings offer, resolved terms, quote key and optional authenticated reservation configuration. | Shared page work must retain reservation/terms behavior and avoid losing package context. |
+| `src/components/campaign/public-interaction/page-content.tsx` | Existing detailed offer view includes Main price, Normal discount price, offer price and expired state, plus enquiry/reservation actions. | Reuse appropriate presentation; no-offer state must work without inventing an offer. |
+| `src/app/plans/page.tsx` | Backend plan catalogue grouped by category, links via PlanCard into customization detail. | Retain plan journey and outage/empty states. |
+| `src/app/about/page.tsx` and homepage | Existing approach/work/contact sections; homepage work depends on feature flag and featured entries. | Trust content exists, but the complete trust journey and actual published evidence remain to be audited. |
+
+Related prior architecture: `src/docs/package-pages.md`. Its historical description says header label "Pricing & Packages", whereas current source uses "Packages"; source wins for current behavior. Earlier production/test assertions in that document have not been freshly reproduced.
+
+### Proposed implementation sequence
+
+1. Complete a visitor-journey audit in a real local browser: desktop/mobile menus, homepage to services to relevant packages, offers to package details, trust paths, system explanation and plan customization entry. Record actual destinations, missing cues and screenshots. Verify published content and catalogue state without editing live data.
+2. Define a concise journey map: understand services; start a project; compare packages/offers; understand our system; verify our work/business. Translate these into useful homepage choices and contextual links, avoiding a forced questionnaire or excessive competing CTAs.
+3. Design the shared detail model around stable package identity, existing offer eligibility and backend quotes. Keep package listing pages intact. Specify behavior for multiple related packages/offers, no offer, expired/unpublished/ineligible offer, missing package, deleted listing and catalogue outage. Reconcile three pricing levels with actual selected-package amounts and extras before displaying them.
+4. Implement shared package/offer presentation and navigation with appropriate canonical URLs/redirects. Preserve existing offer links, reservation state, terms, plan behavior, admin-driven content and backend price validation. Do not create package checkout as an incidental change.
+5. Add visible offer discovery in homepage/header/footer as appropriate; prominent eligible offer cards; relevant next-step hints on services, listings and details. Handle no active offers truthfully. Keep new editable sections compatible with existing admin content ownership.
+6. Present verified system capabilities and genuine trust evidence, connected to relevant visitor decisions. Avoid exposing internal implementation details as marketing content.
+7. Verify journeys, mobile layout, keyboard access/focus, expiry transitions, pricing consistency, old links and existing customization/reservations. Run checks appropriate to changed code. Update this document with exact changes, evidence and remaining limitations after each milestone.
+
+### Completion criteria
+
+- A new visitor can identify services and a relevant next step without already knowing internal terminology.
+- Offers are discoverable from the homepage and navigation; relevant package cards clearly expose active benefits and link to details.
+- Each package has a full detail experience with its scope, exclusions, pricing, applicable terms and next action, including when no offer exists.
+- The shared experience uses three truthful pricing levels when an eligible offer applies, and normal pricing when it does not. Expired offers cannot masquerade as current deals.
+- Visitors can follow clear paths to real work/business evidence and an understandable description of the actual system.
+- Existing listing URLs, dynamic administration, plan customization and offer reservation behavior remain verified.
+
+### Current boundary / next action
+
+Completed: targeted source audit above; requirements and handoff recorded; original document backed up. Only `offer.md` and its backup were created/updated during this turn. No application code, production data, backend/frontend repository, deployment or existing server changed. No runtime or browser tests performed; this is not a complete visual/live-site verification. Next: present understanding and proposed direction to the user, then continue the remaining audit and agreed implementation scope. Do not resume the older incomplete payment-policy work merely because it is documented in sections 1–12.
+
+## 14. Local homepage-only comparison — 6 November 2026
+
+### Latest scope overrides implementation proposals above
+
+User authorized a separate HTML comparison folder, then explicitly clarified: **upgrade only the homepage, not the whole website**. Do not implement the shared package/offer detail page or redesign inner pages as part of this preview. Original production homepage must remain intact. User also asked to verify the present homepage carefully before making the example.
+
+Applied Sites skill's local-only workflow (`C:/Users/Sandeep/.codex/plugins/cache/openai-curated-remote/sites/1.1.3/skills/sites/SKILL.md` and local preview reference). No Site registration/publication. No agents spawned.
+
+### Output
+
+Folder: `E:/Websites/example website`.
+
+- `index.html`: comparison launcher.
+- `original.html`: rendered live homepage copy with original content/layout.
+- `improved.html`: homepage-only proposal in the same design, using copied assets.
+- `assets/`: 23 downloaded assets including CSS dependencies/fonts, hero video, logos and images.
+- `preview.js`: isolated menus/header/location sharing; no production React or analytics.
+- `improvements.css`: added homepage styles.
+- `verification.md`: findings, checks and limitations.
+- `evidence/`: live/local screenshots, audit, layout comparison and local check reports.
+- `capture.cjs`, `prepare.cjs`, `check.cjs`, `compare-baseline.cjs`: retained preparation/verification scripts using this repository's installed Playwright.
+
+Before updating this document again, its then-current contents were copied to `E:/Websites/example website/evidence/offer-before-preview-update.md`; SHA256 matched.
+
+### Verified findings and implemented preview
+
+Actual live homepage has seven main sections. Hero uses video, not a still image. Header package submenu has One-Time Packages and Plans. “Explore our work” hero CTA currently leads to Services. Homepage service copy omits apps/software prominently described on the live Services page. Existing system statement is generic growth copy. Real portfolio evidence is present. No obvious horizontal overflow on the inspected live mobile homepage.
+
+Inspected public destinations read-only: Services, Work, Offers, One-Time Packages, Plans, About. They were NOT copied or changed. Observed five packages and four plans. Current captured offer: Digital Growth Kit, attached to All-in-One Startup, ₹25,000 main / ₹20,000 normal discounted / ₹3,499 offer; package showed expiry 8 November 2026, 11:59 pm IST. These observations replace assumptions based on older sample defaults for this preview only; they do not rewrite catalogue data.
+
+The improved homepage adds exactly **one** section, Current Offers. Existing hero/service/system/work/contact sections provide clearer content and next-step links; existing system statement becomes a four-step workflow using published About/Plans descriptions. Homepage header/footer get discovery links. Hero media, genuine work, journal and business location are retained. No invented project results, testimonials or internal portal screenshots. Offer snapshot/expiry notice included; local script changes the captured offer's status after the displayed deadline.
+
+### Verification evidence
+
+- `evidence/baseline-comparison.json`: fresh live versus local original at 1440px and 390px; all seven section texts match exactly; every section height difference is 0px at both widths. This does not establish pixel-identical moving video frames or backend equivalence.
+- `evidence/local-checks.json`: both original/improved at 390px, 768px, 1440px; no horizontal overflow, all images decoded, video ready, no uncaught JS errors, menus open and Escape closes expanded state.
+- Full-page live/local screenshots retained. Updated system grid visually inspected via `evidence/improved-system.png` after ensuring steps/actions span the full width.
+- Initial image checks ran before lazy images loaded; final verification explicitly decoded them and passed. These were loading-timing observations, not missing asset failures.
+- Some live analytics/RSC prefetch requests aborted during navigation. They are recorded in the audit and are not represented as homepage asset failures.
+
+### Boundaries and next step
+
+Original production application files were not edited. Existing unrelated dirty repository changes were present at start (reservation components, rules, tests and API work); none were modified by this task. Only this handoff document was updated inside the project. All preview work is in the separate folder. No production writes, backend changes, deployment, account login, or server shutdown performed.
+
+Static preview inner-page links open the real website; real forms/login/pricing remain there. Local reactions do not submit votes. Maps remain external and need internet. New content is not wired into the production admin. Shared package/offer details remain a future separate task. Do not claim business conversion or every aspect of usability is proven by these checks. Next step is user comparison of the two homepage versions and any requested refinements within homepage scope.

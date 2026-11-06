@@ -35,7 +35,7 @@ export function reservationOpen(offer: Reservable, now: number) {
   return reservableOffer(offer) && Number.isFinite(endsAt) && now < endsAt && now >= reservationOpensAt(offer);
 }
 
-export type ReservationPhase = "none" | "checking" | "open" | "reserved" | "review" | "confirmed" | "expired";
+export type ReservationPhase = "none" | "checking" | "open" | "reserved" | "requested" | "review" | "confirmed" | "expired";
 
 /**
  * The customer's state for one offer. A saved reservation wins, unless it expired unpaid and a
@@ -49,6 +49,8 @@ export function reservationPhase(offer: Reservable, row: OfferReservation | null
     if (!(renewable && open)) {
       if (row.status === "confirmed") return "confirmed";
       if (row.status === "under_review") return "review";
+      // Paused by Start my project: never expired here, whatever the old deadline says (backend isPaused).
+      if (row.status === "start_requested") return "requested";
       return row.status === "reserved" && due > now ? "reserved" : "expired";
     }
   }
@@ -59,18 +61,27 @@ export function reservationPhase(offer: Reservable, row: OfferReservation | null
 export type ReserveCta =
   | { kind: "enquire" }
   | { kind: "reserve"; label: string; disabled: boolean }
+  | { kind: "start"; label: string }
   | { kind: "status"; label: string };
 
 function timeLeft(until: number, now: number) {
   const seconds = Math.max(0, Math.ceil((until - now) / 1000));
   return `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m ${seconds % 60}s left`;
 }
-/** The one main button on the card and in the sticky bar. holdHours: reservationHoldHours(offer). */
+/**
+ * The one main button on the card and in the sticky bar. holdHours: reservationHoldHours(offer).
+ * A running reservation without a project shows Start my project (owner decision 7 Nov 2026), confirmed in
+ * the same dialog as Reserve; once pressed, the clock is paused until the team acts.
+ */
 export function reserveCta(phase: ReservationPhase, row: OfferReservation | null, now: number, holdHours = DEFAULT_HOLD_HOURS): ReserveCta {
   switch (phase) {
     case "open": return { kind: "reserve", label: `Reserve price for ${holdHours} hours`, disabled: false };
     case "checking": return { kind: "reserve", label: "Checking reservation…", disabled: true };
-    case "reserved": return { kind: "status", label: `Reserved · ${timeLeft(Date.parse(row!.deadline ?? row!.expiresAt), now)}` };
+    case "reserved": {
+      const left = timeLeft(Date.parse(row!.deadline ?? row!.expiresAt), now);
+      return row!.projectId ? { kind: "status", label: `Reserved · ${left}` } : { kind: "start", label: `Start my project · ${left}` };
+    }
+    case "requested": return { kind: "status", label: "Start requested · our team will contact you" };
     case "review": return { kind: "status", label: "Payment under review" };
     case "confirmed": return { kind: "status", label: "Price locked" };
     case "expired": return { kind: "status", label: "Reservation expired" };

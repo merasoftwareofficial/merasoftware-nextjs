@@ -18,15 +18,18 @@ function remaining(expiresAt: string, now: number) {
 }
 function ReservationCard({ row, now }: { row: OfferReservation; now: number }) {
   const review = row.status === "under_review";
+  // Start my project pauses the clock until the team acts: never expired while paused.
+  const paused = row.status === "start_requested";
   // The deadline in force (an admin extension moves it); the original stays as history.
   const due = row.deadline ?? row.expiresAt;
-  const expired = row.status !== "confirmed" && !review && Date.parse(due) <= now;
+  const expired = row.status !== "confirmed" && !review && !paused && Date.parse(due) <= now;
   return <article className={`offer-reservation${expired ? " is-expired" : ""}`}>
     <h2>{row.title}</h2>
-    <p className="offer-reservation-status"><b>{expired ? "Expired" : row.status === "confirmed" ? "Price locked" : review ? "Payment under review" : "Reserved"}</b> {price(row.reservedPrice)}</p>
+    <p className="offer-reservation-status"><b>{expired ? "Expired" : row.status === "confirmed" ? "Price locked" : review ? "Payment under review" : paused ? "Start requested" : "Reserved"}</b> {price(row.reservedPrice)}</p>
     {row.status === "reserved" && !expired && <p aria-live="off">{remaining(due, now)}</p>}
+    {paused && <p>Paused – our team is setting up your project.</p>}
     {review && <p>Your payment was submitted before the deadline and is being verified. Your reserved price is held.</p>}
-    <p className="offer-reservation-meta">Reserved: {deadline(row.reservedAt)}<br />Payment deadline: {deadline(due)}{row.extendedUntil ? " (extended by our team)" : ""}</p>
+    <p className="offer-reservation-meta">Reserved: {deadline(row.reservedAt)}<br />Payment deadline: {paused ? "paused until your project is set up" : `${deadline(due)}${row.extendedUntil ? " (extended by our team)" : ""}`}</p>
     {!row.projectId && !expired && <p>Our team will help you create your project and complete payment.</p>}
     <details><summary>Reserved terms</summary><ul>{row.terms.map((term, index) => <li key={index}>{term}</li>)}</ul></details>
   </article>;
@@ -94,6 +97,17 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
     } catch (err) { setError(err instanceof Error ? err.message : "Could not reserve this offer"); }
     finally { setBusy(false); }
   }, [slug, quoteKey]);
+  // Start my project: the team is told and the clock pauses (backend helpers/reservationStart.js).
+  const startProject = useCallback(async (id: string) => {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/offer-reservations/${encodeURIComponent(id)}/start`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not send your request");
+      setRow(data.reservation);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not send your request"); }
+    finally { setBusy(false); }
+  }, []);
   useEffect(() => {
     if (!enabled || !signedIn) return;
     let active = true;
@@ -132,6 +146,8 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
       catch { setError("Allow browser session storage to return to this reservation after signing in."); return; }
       router.push(`/login?next=${encodeURIComponent(`/offer/${slug}`)}`);
     },
+    /** The dialog's confirm when the card shows Start my project. */
+    start() { if (row) void startProject(row.id); },
     retry() { setError(""); setRetry(value => value + 1); },
   };
 }

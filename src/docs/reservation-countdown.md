@@ -4,9 +4,14 @@
 
 **Repos,** under `E:\Allprojects`: `backend` (Express, email control, WhatsApp worker; Render), `merasoftware` (website and its admin; Vercel), `frontend` (customer portal and its admin). Paths below are inside these.
 
-## Status (5 Nov 2026)
+## Status (7 Nov 2026)
 
-- **Part A and Part B are built locally (5 Nov) and await the owner's review.** Nothing is committed, pushed or deployed, and no production data or real message was touched. Docs with before/after follow the owner's "perfect".
+- **Part C (reminders + Start my project, below) is built locally and awaits the owner's review.** It is not committed, pushed or deployed. No production data or real message was touched. Docs with before/after follow the owner's "perfect".
+  - Tests: the backend suite passes 793 of 793 with `node --test --test-concurrency=3 tests/*.test.js whatsapp/tests/*.test.js`. Without the concurrency limit, files fail on this PC from load, not from the code. The new `npm run test:reservation-reminders` passes 10 of 10.
+  - Website: `npx tsc --noEmit`, `offer-reservation-rules` + `offer-quote`, `offer-reservations.browser` (with the Start flow), `communication-live.browser`, `test:email` and `test:auto-reply` pass.
+  - Portal: `reserved-offers-admin-browser` and `portal-workspace-ui.browser` pass. `offer-reservations-browser` still fails at "Loading your offers…", as it did on HEAD before this work.
+  - Rollback: originals are in `E:\Allprojects\backup\backend\work56-reservation-reminders`, `backup\merasoftware\work79-reservation-reminders` and `backup\frontend\work61-reservation-reminders`. New files have no original: backend `helpers/reservationReminders.js`, `helpers/reservationStart.js`, `tests/reservationReminders.test.js`; website `src/app/api/offer-reservations/[id]/start/route.ts`.
+- **Parts A and B are committed** (git log: "reservation system dynamic countdown and clossure"). Their deployment is not verified. Docs with before/after follow the owner's "perfect".
 - **Tests on 5 Nov:**
   - Backend: the whole suite, `node --test tests/*.test.js whatsapp/tests/*.test.js`, passes 734 of 734. The new file `npm run test:reservation-countdown` passes 19 of 19.
   - Website: `npx tsc --noEmit` passes. `test:email` 23/23, `test:auto-reply` 4/4 (including the new Reservation box test), `test:whatsapp` 10/10, `test:broadcast` 2/2, offer unit tests 21/21, `offer-reservations.browser` and `communication-live.browser` all pass.
@@ -163,6 +168,47 @@ Invoice facts:
 - **Website:** `tests/offer-reservation-rules.test.ts`, `tests/offer-quote.test.ts`, `tests/offer-reservations.browser.mjs`, `npm run test:auto-reply`, `npx tsc --noEmit`.
 - **Portal:** `tests/offer-reservations-browser.cjs`, `tests/portal-workspace-ui.browser.cjs`, `tests/reserved-offers-admin-browser.cjs`.
 - **Real phone test after deploy,** with the owner's approval.
+
+## Part C — Reminders and "Start my project" (owner decisions 7 Nov 2026)
+
+### What the owner wants
+
+- **Two reminders** while a reservation runs: one when 24 hours are left, one when 1 hour is left. Each shows the time left in words and the exact deadline, and links to the offer page.
+- **"Start my project"** on the offer card, for a member or a client who reserved. The card's existing main button and the existing Reserve dialog are reused. No new UI section and no new field.
+- **One confirm** sends two messages: the team gets the customer's details and the lead link, and the customer gets "we have received your request". Both go by Email + WhatsApp.
+- **The clock stops** at the request and stays stopped until the team acts. A customer who asked is never sent "better luck next time" because the team was late.
+- **The team ends the pause** with existing controls only:
+  - **Create the project** on the reservation (existing project form, "Customer's reserved offer"). The countdown resumes for the first payment with the time that was left, never less than 24 hours.
+  - **Extend deadline** (existing button) resumes the countdown from any future time. Shorter is allowed, e.g. 1 hour with reason "Customer declined", after which the closing message goes.
+- After a resume, the customer may press Start again. Each request has its own messages.
+- **A request nobody acts on** reminds the team once a day, at most 3 times.
+- **Every step adds a follow-up line** on the person's one lead. The lead status never changes.
+- **Defaults:** the reminders, the customer's start message and the closing message (`offer.reservation.expired`) default to Both. The team message is a team action (Both). All four new actions are system mail, so they are On from the start. Send via can change any of them.
+- Reservations made before Part C ships get no reminders.
+
+### Built (file → change)
+
+| Place | Change |
+|---|---|
+| Backend `models/offerReservationModel.js` | `remindersEnabled`, `remindersSent` (`<stage>:<deadline ISO>`), `startRequestedAt`, `pausedRemainingMs`, `startRequests[]` (time left, notices, team alerts, how it ended) |
+| Backend `helpers/offerReservations.js` | `isPaused`. View status `start_requested`. A paused row is never renewable. Attach on a paused row resumes with `max(time left, 24 h)` via `extendedUntil` + an extension entry. `extendReservation` on a paused row accepts any future time and clears the pause. New reservations get `remindersEnabled` |
+| Backend `helpers/projectPricing.js` | A paused reservation can be selected after its old deadline |
+| Backend `helpers/reservationClosure.js` | Never closes a paused row. The Reservation box lists paused rows first, with `startRequestedAt` |
+| Backend new `helpers/reservationReminders.js` | 24 h / 1 h stages. A missed run sends only the latest stage. A stage is skipped when the countdown started within stage + 1 h |
+| Backend new `helpers/reservationStart.js` | `requestProjectStart` (atomic against the closing job; a repeat click returns the saved request), `noteLead`, `deliverStartNotices`, `alertPendingStarts` |
+| Backend `emailDefinitions.js` + `emailCatalog.js` | `offer.reservation.reminder`, `offer.reservation.lastHour`, `offer.start.request.admin` (team; daily "waiting N days" block), `offer.start.request.received`. Links: `<website>/offer/<slug>` |
+| Backend `routes/offerReservations.js`, `index.js` | `POST /api/offer-reservations/:id/start`; the minute job also runs reminders, start notices and team alerts (same `OFFER_RESERVATION_JOBS_ENABLED` / `OFFER_RESERVATION_CONFIRMATIONS_ENABLED` flags) |
+| Website `offer-reservation-rules.ts`, `offer-reservations.tsx`, `page-content.tsx` | Phase `requested`. The main button reads "Start my project · <time> left" (no project yet), then "Start requested · our team will contact you". The Reserve dialog shows the start text. My offers shows "Start requested" / "Paused" |
+| Website `api/offer-reservations/[id]/start/route.ts`, `offer/[slug]/page.tsx` | Pass-through route. An archived offer's page sends a signed-in user to My offers instead of a 404 |
+| Website `reservation-panel.tsx` | Paused rows: "Start requested · waiting …", "paused since …"; notes list the new templates |
+| Portal `ReservedOffersPanel.js`, `AdminClientWorkspace.js`, `MyOffers.js` | Status "Start requested" + paused line; Extend form defaults to the resume time; the project form allows a paused reservation and says the countdown resumes; customer My offers shows the pause |
+
+### Before deploy
+
+- The team's WhatsApp copy reaches only admin emails (`vacomputers.com@gmail.com`, `syncvap@gmail.com`) whose account or lead has a saved phone. If they have none, the team gets email only.
+- A signed-out customer opening a reminder link sees the public card. After sign-in the card shows Start my project.
+- The resume message is the existing "Offer reservation extended" text.
+- Deploy the backend before the website and the portal.
 
 ## Out of scope
 

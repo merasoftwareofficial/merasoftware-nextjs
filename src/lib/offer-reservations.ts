@@ -4,7 +4,9 @@ export type OfferReservation = {
   // expiresAt: original 72 hours (history). deadline: the one in force, after any admin extension.
   terms: string[]; reservedAt: string; expiresAt: string; deadline: string; extendedUntil: string | null;
   // under_review: a payment submitted before the deadline awaits approval; the price stays held.
-  status: "reserved" | "expired" | "confirmed" | "under_review"; projectId: string | null;
+  // start_requested: the customer pressed Start my project; the clock is paused until the team acts.
+  status: "reserved" | "expired" | "confirmed" | "under_review" | "start_requested"; projectId: string | null;
+  startRequestedAt?: string | null; pausedRemainingMs?: number;
   confirmationStatus: "pending" | "sent" | "paused" | "failed" | "expired";
 };
 export type ReservationList = { reservations: OfferReservation[]; serverNow: string };

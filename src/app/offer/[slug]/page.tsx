@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { PublicInteraction } from "@/components/campaign/public-interaction/page-content";
 import { settingsRepo } from "@/lib/repo";
@@ -18,9 +18,11 @@ export default async function Page({ params }: Props) {
   const { slug } = await params;
   const settings = await settingsRepo.get();
   const offer = publishedOffers(settings.offers).find(item => item.slug === slug);
-  if (!offer) notFound();
-  const quote = offerWithQuote(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS);
   const user = await getSessionUser();
+  // Reservation messages link here (backend emailDefinitions.js offerPageLink). Once an offer is archived,
+  // a signed-in customer is sent to My offers, where a reservation of it stays visible.
+  if (!offer) { if (user) redirect("/account/offers"); notFound(); }
+  const quote = offerWithQuote(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS);
   const enabled = process.env.OFFER_RESERVATIONS_ENABLED === 'true';
   // Only a signed-in owner can be asked for a missing phone, so only then load the country list.
   const countries = enabled && user ? await phoneCountries() : undefined;

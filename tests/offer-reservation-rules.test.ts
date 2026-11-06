@@ -32,7 +32,14 @@ test("one main button per state", () => {
   assert.equal(label(reservationPhase(offer({ endsAt: ends(72) }), null, true, NOW)), "enquire", "outside the window");
   assert.equal(label(reservationPhase(open, null, false, NOW)), "Checking reservation…");
   assert.equal(label(reservationPhase(open, null, true, NOW)), "Reserve price for 72 hours");
-  assert.equal(label(reservationPhase(open, row(), true, NOW), row()), "Reserved · 72h 0m 0s left");
+  // Owner decision 7 Nov 2026: a running reservation without a project offers Start my project.
+  assert.equal(label(reservationPhase(open, row(), true, NOW), row()), "Start my project · 72h 0m 0s left");
+  assert.equal(reserveCta("reserved", row(), NOW).kind, "start");
+  assert.equal(label(reservationPhase(open, row({ projectId: "p1" }), true, NOW), row({ projectId: "p1" })), "Reserved · 72h 0m 0s left");
+  // Pressed: paused, never expired, whatever the old deadline says.
+  const paused = row({ status: "start_requested", deadline: ends(-5), startRequestedAt: ends(-10) });
+  assert.equal(reservationPhase(open, paused, true, NOW), "requested");
+  assert.equal(label("requested", paused), "Start requested · our team will contact you");
   assert.equal(label(reservationPhase(open, row({ status: "under_review" }), true, NOW)), "Payment under review");
   assert.equal(label(reservationPhase(open, row({ status: "confirmed" }), true, NOW)), "Price locked");
   assert.equal(label(reservationPhase(open, row({ status: "expired", deadline: ends(-1), periodEndsAt: open.endsAt }), true, NOW)), "Reservation expired");
