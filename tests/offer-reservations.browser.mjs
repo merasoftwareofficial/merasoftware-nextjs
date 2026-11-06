@@ -95,6 +95,9 @@ test('offer card reserve flow: one main button, dialog, sign-in continuation, re
     await main(page).click();
     const startDialog = page.getByRole('dialog', { name: 'Start your project on this offer?' });
     await startDialog.getByText(/does not expire while we prepare it/).waitFor();
+    // The dialog sits in the middle of the screen, not in the top-left corner.
+    { const box = await startDialog.boundingBox(), view = page.viewportSize();
+      assert(Math.abs(box.x + box.width / 2 - view.width / 2) <= 2 && Math.abs(box.y + box.height / 2 - view.height / 2) <= 2, `dialog centred, got ${JSON.stringify(box)}`); }
     await startDialog.getByRole('button', { name: 'Confirm' }).click();
     await main(page).filter({ hasText: /^Start requested · our team will contact you$/ }).waitFor();
     assert.equal(starts, 1); assert.equal(await startDialog.isVisible(), false, 'the dialog closes');
