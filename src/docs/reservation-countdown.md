@@ -6,7 +6,7 @@
 
 ## Status (7 Nov 2026)
 
-- **Part C (reminders + Start my project, below) is built locally and awaits the owner's review.** It is not committed, pushed or deployed. No production data or real message was touched. Docs with before/after follow the owner's "perfect".
+- **Part C (reminders + Start my project, below) is committed by the owner** in all three repos ("offer page ton cleint vallo project start karan wala system", 6 Nov). The team-recipients fix (in "Before deploy") is pushed to backend `main` (`4857186`, 7 Nov). First live run, 7 Nov: a Start request queued the team WhatsApp to the number in the admin's settings, with the admin's settings email (`merasoftwareofficial@gmail.com`, not the fallback). The WhatsApp messages waited for the Sending rules hours; whether they went after 8 am is not checked yet. Docs with before/after follow the owner's "perfect".
   - Tests: the backend suite passes 793 of 793 with `node --test --test-concurrency=3 tests/*.test.js whatsapp/tests/*.test.js`. Without the concurrency limit, files fail on this PC from load, not from the code. The new `npm run test:reservation-reminders` passes 10 of 10.
   - Website: `npx tsc --noEmit`, `offer-reservation-rules` + `offer-quote`, `offer-reservations.browser` (with the Start flow), `communication-live.browser`, `test:email` and `test:auto-reply` pass.
   - Portal: `reserved-offers-admin-browser` and `portal-workspace-ui.browser` pass. `offer-reservations-browser` still fails at "Loading your offers…", as it did on HEAD before this work.
@@ -205,7 +205,13 @@ Invoice facts:
 
 ### Before deploy
 
-- The team's WhatsApp copy reaches only admin emails (`vacomputers.com@gmail.com`, `syncvap@gmail.com`) whose account or lead has a saved phone. If they have none, the team gets email only.
+- **Team recipients (pushed 7 Nov, backend only, backup `work57-team-contacts`):**
+  - Every mail to the admins goes to each active admin's Admin → Settings: the contact email (else the login email) and up to two WhatsApp numbers. The rule is in `helpers/teamContacts.js` and applied in `emailController.js` `prepareMail`. The numbers come from `whatsappQueue.js` `teamPhoneRows` and `reviewDelivery.js`.
+  - An admin without a number still gets the email.
+  - Only while no admin has saved anything, the owner's fallback is used: `syncvap@gmail.com`, +91 92565 37003, +91 93563 93094.
+  - `vacomputers.com@gmail.com` is no longer a team recipient.
+  - `sendDeveloperAssignmentEmail` keeps its developer.
+  - Tests: `npm run test:team-contacts` 5/5; full backend suite 798/798.
 - A signed-out customer opening a reminder link sees the public card. After sign-in the card shows Start my project.
 - The resume message is the existing "Offer reservation extended" text.
 - Deploy the backend before the website and the portal.
