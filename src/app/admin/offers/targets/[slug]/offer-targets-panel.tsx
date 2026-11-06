@@ -13,6 +13,8 @@ const LABELS: Record<string, string> = { Contacted: "Neutral", Won: "Matured" };
 const label = (value: string) => LABELS[value] || value;
 const STAGES: Stage[] = ["Contacted", "Positive", "Negative"];
 const BEHAVIOURS = ["Contacted", "Positive", "Active", "Lazy", "Tough", "Negative", "Unhappy", "Dead"];
+// Inquiry is set only by the system (a Dead client who wrote after the closure message): filtered and shown, never chosen.
+const CLIENT_CATEGORIES = ["Inquiry", ...BEHAVIOURS];
 const LEAD_CATEGORIES = ["Inquiry", "Contacted", "Positive", "Active", "Lazy", "Tough", "Negative", "Unhappy", "Dead", "Wrong"];
 const personKey = (row: { type: string; id: string }) => `${row.type}:${row.id}`;
 
@@ -133,7 +135,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
         {([["client", "Matured Clients"], ["lead", "Leads"]] as const).map(([id, name]) => <button key={id} type="button" aria-pressed={kind === id} onClick={() => { setKind(id); setCategories([]); }}>{name}</button>)}
       </div>
       <fieldset className={s.categories}><legend>{kind === "client" ? "Client current status" : "Lead stage"}</legend>
-        {(kind === "client" ? BEHAVIOURS : LEAD_CATEGORIES).map(category => <label key={category}><input type="checkbox" checked={categories.includes(category)} onChange={() => setCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category])} /> {label(category)} <small>{categoryCounts[category] || 0}</small></label>)}
+        {(kind === "client" ? CLIENT_CATEGORIES : LEAD_CATEGORIES).map(category => <label key={category}><input type="checkbox" checked={categories.includes(category)} onChange={() => setCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category])} /> {label(category)} <small>{categoryCounts[category] || 0}</small></label>)}
       </fieldset>
       <label className={s.field}>Search by name, phone or email<input value={search} onChange={event => setSearch(event.target.value)} /></label>
       <div className={s.bar}>
@@ -157,7 +159,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
     {shown.length > 0 && <ul className={s.list}>{shown.map(row => <li key={row.id}>
       <div className={s.who}><b>{row.name || row.phone || "Unnamed"}</b><small>{row.type === "client" ? "Existing client" : "Lead"}{row.phone ? ` · ${row.phone}` : ""}</small>{row.blockLabel && <span className={s.reason}>{row.blockLabel}</span>}</div>
       <div className={s.cell}>{row.type === "client"
-        ? <div><label className={s.field}>Current status<select value={row.category} disabled={busy} onChange={event => void changeStatus(row, event.target.value)}>{BEHAVIOURS.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
+        ? <div><label className={s.field}>Current status<select value={row.category} disabled={busy} onChange={event => void changeStatus(row, event.target.value)}>{BEHAVIOURS.includes(row.category) ? null : <option value={row.category} disabled>{label(row.category)}</option>}{BEHAVIOURS.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
         : <div className={s.field}>Lead stage<span className={s.tag}>{label(row.category)}</span></div>}
       </div>
       <div className={s.cell}>{row.stage === "Won"
