@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
-import { categoryChoices, categoryLabel, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
+import { categoryChoices, categoryLabel, type PackageDraft, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
 import { useServerTime } from "@/components/use-server-time";
 import { packagePagePath, type PackagePage } from "@/lib/package-pages";
 import { DEFAULT_HOLD_HOURS, DEFAULT_RESERVE_WINDOW_HOURS } from "@/lib/offer-reservation-rules";
@@ -15,6 +15,9 @@ import s from "./packages-manager.module.css";
 // The one package form (src/docs/package-offers.md, owner decisions 7 Nov 2026): 1. the package, 2. its page
 // design, 3. an optional offer. The package ID and the offer link are made from their names on first save.
 // Nothing about the offer is needed until "Add offer" is pressed; then every field the system needs is.
+// Save draft keeps the whole form as a working copy with only the package name (and the offer name) filled;
+// nothing in prices, pages or the portal sees it. Publish checks everything and makes it live. A published
+// package keeps its own copy until "Publish changes" or "Discard draft" (owner decisions 7 Nov 2026).
 
 type Item = SalesPackage & { design: PackageDesign };
 type PayMode = "" | "current" | "advance" | "limited_uploads" | "pay_later";
@@ -37,7 +40,27 @@ function toItem(row: SalesPackage, offers: Offer[] = []): Item {
   if (config.discountedPrice === undefined) config.discountedPrice = config.regularPrice;
   if (!config.pages) config.pages = [];
   const design = inheritedDesign(row, offers.filter(offer => offer.packageId === row.id)) ?? defaultPackageDesign(row);
+  // Live packages are published or archived; an older hidden package goes live when it is published.
+  if (config.status === "draft") config.status = "published";
   return { ...config, design: { ...design } };
+}
+// A new offer still marked draft is not published with the package; it stays in the working copy.
+const keptOffer = (form: OfferForm | null) => form && !form.base && form.status === "draft" ? form : null;
+const ENDED_NOTE ="The offer in this draft was ended meanwhile, so it was left out. Add a new offer if you want one.";
+// A working copy holds the form as typed. Its offer is matched to that offer as it is now: one that was ended
+// meanwhile is left out, so it is never published again.
+function fromDraft(draft: PackageDraft, offers: Offer[]): { item: Item; form: OfferForm | null; dropped: boolean } {
+  const raw = draft.data.item as Partial<Item>;
+  const item: Item = { ...blank, status: "published", ...raw, id: draft.packageId, name: String(raw.name ?? draft.name),
+    inclusions: Array.isArray(raw.inclusions) ? raw.inclusions : [], terms: Array.isArray(raw.terms) ? raw.terms : [],
+    linkedPlanIds: Array.isArray(raw.linkedPlanIds) ? raw.linkedPlanIds : [], pages: Array.isArray(raw.pages) ? raw.pages : [],
+    design: { ...defaultPackageDesign({ name: String(raw.name ?? draft.name) }), ...(raw.design ?? {}) } };
+  const saved = draft.data.offer as OfferForm | null | undefined;
+  if (!saved) return { item, form: null, dropped: false };
+  if (!saved.base) return { item, form: { ...blankOffer(), ...saved }, dropped: false };
+  const base = offers.find(offer => offer.slug === saved.base!.slug);
+  if (!base || base.status === "archived") return { item, form: null, dropped: true };
+  return { item, form: { ...saved, base }, dropped: false };
 }
 function blankOffer(): OfferForm {
   const end = new Date(Date.now() + 7 * 86400000);
@@ -110,13 +133,20 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [pageDraft, setPageDraft] = useState<{ title: string; intro: string } | null>(null);
   const [pageBusy, setPageBusy] = useState(false);
   const [pageError, setPageError] = useState("");
-  const opened = openPackageId ? initial.packages.find(row => row.id === openPackageId) : undefined;
-  const [item, setItem] = useState<Item | null>(opened ? toItem(opened, initialOffers) : null);
-  const [creating, setCreating] = useState(false);
-  const [offerForm, setOfferForm] = useState<OfferForm | null>(null);
-  const [baseline, setBaseline] = useState("");
+  const [drafts, setDrafts] = useState<PackageDraft[]>(initial.drafts ?? []);
+  // ?package=<id> opens its working copy when it has one, else the live package.
+  const openedDraft = openPackageId ? (initial.drafts ?? []).find(row => row.packageId === openPackageId) : undefined;
+  const opened = openPackageId && !openedDraft ? initial.packages.find(row => row.id === openPackageId) : undefined;
+  const openedCopy = openedDraft ? fromDraft(openedDraft, initialOffers) : undefined;
+  const [item, setItem] = useState<Item | null>(openedCopy?.item ?? (opened ? toItem(opened, initialOffers) : null));
+  // creating = not live yet: a new package, or a draft that was never published.
+  const [creating, setCreating] = useState(!!openedDraft && !initial.packages.some(row => row.id === openPackageId));
+  const [offerForm, setOfferForm] = useState<OfferForm | null>(openedCopy?.form ?? null);
+  // The working copy's version (0 = no copy saved yet); a save or publish from an older one is refused.
+  const [draftVersion, setDraftVersion] = useState(openedDraft?.version ?? 0);
+  const [baseline, setBaseline] = useState(openedCopy ? JSON.stringify({ next: openedCopy.item, form: openedCopy.form }) : "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(openedCopy?.dropped ? ENDED_NOTE : "");
   // After a refused Save, the marked fields follow every change until they are right.
   const [tried, setTried] = useState(false);
   const [message, setMessage] = useState("");
@@ -128,14 +158,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const dirty = !!item && snapshot(item, offerForm) !== baseline;
 
   // The offer the package form edits: its running offer, else its latest draft. Every other one is history.
-  const ownOffers = (id: string) => offers.filter(offer => offer.packageId === id);
-  const currentOffer = (id: string) => {
+  const ownOffers = (id: string, list = offers) => list.filter(offer => offer.packageId === id);
+  const currentOffer = (id: string, list = offers) => {
     if (!id || now === null) return undefined;
-    const own = ownOffers(id);
+    const own = ownOffers(id, list);
     return own.find(offer => offerRunning(offer, now)) ?? own.filter(offer => offer.status === "draft").sort((a, b) => Date.parse(b.endsAt) - Date.parse(a.endsAt))[0];
   };
-  // Opening a package from a link (?package=) loads its offer once the clock is known.
-  const loadedFor = useRef<string | null>(null);
+  // Opening a package from a link (?package=) loads its offer once the clock is known; a working copy has its own.
+  const loadedFor = useRef<string | null>(openedDraft ? openedDraft.packageId : null);
   useEffect(() => {
     if (!item || creating || now === null || loadedFor.current === item.id) return;
     loadedFor.current = item.id;
@@ -155,14 +185,28 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guard, true); };
   }, [dirty]);
 
+  function show(config: Item | null, form: OfferForm | null, isNew: boolean, version: number, note = "") {
+    loadedFor.current = config && config.id ? config.id : null;
+    setItem(config); setCreating(isNew); setOfferForm(form); setDraftVersion(version); setBaseline(snapshot(config, form));
+    setError(note); setTried(false); setMessage(""); setConfirmEnd(false);
+  }
+  // A package opens its working copy when it has one, else the live package and its current offer.
+  function open(id: string, list = drafts, live = catalogue.packages, offerList = offers) {
+    const draft = list.find(row => row.packageId === id);
+    const row = live.find(entry => entry.id === id);
+    if (draft) { const copy = fromDraft(draft, offerList); return show(copy.item, copy.form, !row, draft.version, copy.dropped ? ENDED_NOTE : ""); }
+    if (!row) return show(null, null, false, 0);
+    const current = now !== null ? currentOffer(id, offerList) : undefined;
+    show(toItem(row, offerList), current ? formFromOffer(current) : null, false, 0);
+  }
   function choose(next: SalesPackage | null, isNew = false) {
     if (dirty && !window.confirm("Discard unsaved package changes?")) return;
-    const config = next ? toItem(next, isNew ? [] : offers) : null;
-    const current = config && !isNew && now !== null ? currentOffer(config.id) : undefined;
-    const form = current ? formFromOffer(current) : null;
-    loadedFor.current = config && !isNew ? config.id : null;
-    setItem(config); setCreating(isNew); setOfferForm(form); setBaseline(snapshot(config, form));
-    setError(""); setTried(false); setMessage(""); setConfirmEnd(false);
+    if (next && !isNew) return open(next.id);
+    show(next ? toItem(next, []) : null, null, isNew, 0);
+  }
+  function chooseDraft(draft: PackageDraft) {
+    if (dirty && !window.confirm("Discard unsaved package changes?")) return;
+    open(draft.packageId);
   }
   function update<K extends keyof Item>(key: K, value: Item[K]) {
     setItem(current => {
@@ -177,9 +221,12 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   function offerField<K extends keyof OfferForm>(key: K, value: OfferForm[K]) { setOfferForm(current => current ? { ...current, [key]: value } : current); }
   // Pages that still exist; a package showing none of them is flagged in the list and editor.
   const shownOn = (row: SalesPackage) => (row.pages || []).filter(slug => pages.some(page => page.slug === slug));
-  async function reloadCatalogue() {
+  async function reloadCatalogue(): Promise<SalesCatalogue | null> {
     const reload = await fetch("/api/packages", { cache: "no-store" });
-    if (reload.ok) setCatalogue(await reload.json());
+    if (!reload.ok) return null;
+    const next = await reload.json() as SalesCatalogue;
+    setCatalogue(next); setDrafts(next.drafts ?? []);
+    return next;
   }
   // Page create/delete save at once, separately from the package form.
   async function createPage() {
@@ -213,52 +260,111 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     finally { setPageBusy(false); }
   }
 
-  // One save: everything is checked, then the package (portal) and its offer (website) are written.
-  async function send(next: Item, form: OfferForm | null, isNew: boolean, done: string) {
+  // Save draft: only the package name (and the offer name when an offer was added). Nothing goes live.
+  async function saveDraft() {
+    if (!item) return;
+    setTried(false); setError(""); setMessage("");
+    if (!item.name.trim()) { setError("Enter the package name to save a draft."); return; }
+    if (offerForm && !offerForm.title.trim()) { setError("Enter the offer name to save the offer in the draft."); return; }
+    setBusy(true);
+    try {
+      const response = await fetch("/api/packages/drafts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save", ...(item.id ? { packageId: item.id, version: draftVersion } : {}), data: { item, offer: offerForm } }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The draft was not saved. Please try again.");
+      const draft = result as PackageDraft;
+      const next = { ...item, id: draft.packageId };
+      setDrafts(current => [draft, ...current.filter(row => row.packageId !== draft.packageId)]);
+      loadedFor.current = draft.packageId;
+      setItem(next); setDraftVersion(draft.version); setBaseline(snapshot(next, offerForm));
+      setMessage(creating ? `Draft saved. Its link /package/${draft.packageId} goes live when you publish.` : "Draft saved. The live page stays as it is until you publish the changes.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The draft was not saved. Please try again."); }
+    finally { setBusy(false); }
+  }
+  // Publish: everything is checked, then the package (portal) and its offer (website) are written, and the
+  // working copy is removed. An offer still marked draft is not published; it stays in the copy.
+  async function send(next: Item, form: OfferForm | null, isNew: boolean, done: string, draft?: { version: number; keepOffer?: OfferForm }, reopen = false) {
     setBusy(true); setError(""); setMessage("");
     try {
-      const config = { ...next, inclusions: lines(next.inclusions), terms: lines(next.terms), ...(isNew ? { id: "" } : {}) };
+      const config = { ...next, inclusions: lines(next.inclusions), terms: lines(next.terms) };
       const offerPart = form ? { creating: !form.base, offer: offerPayload(form, next) } : undefined;
-      const response = await fetch("/api/packages", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: config, creating: isNew, ...(offerPart ? { offer: offerPart } : {}) }) });
+      const response = await fetch("/api/packages", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: config, creating: isNew, ...(offerPart ? { offer: offerPart } : {}), ...(draft ? { draft } : {}) }) });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Nothing was saved. Please try again.");
+      if (!response.ok) throw new Error(result.error || "Nothing was published. Please try again.");
       const saved = toItem(result.package as SalesPackage);
       let savedForm = form;
+      let offerList = offers;
       if (result.offer) {
         const offer = result.offer as Offer;
-        setOffers(current => [...current.filter(row => row.slug !== offer.slug), offer]);
+        offerList = [...offers.filter(row => row.slug !== offer.slug), offer];
+        setOffers(offerList);
         savedForm = offer.status === "archived" ? null : formFromOffer(offer);
+      }
+      const keptDraft = result.draft as PackageDraft | null;
+      if (draft && !result.offerError) {
+        setDrafts(current => [...(keptDraft ? [keptDraft] : []), ...current.filter(row => row.packageId !== saved.id)]);
+        setDraftVersion(keptDraft?.version ?? 0);
+        if (keptDraft) savedForm = draft.keepOffer ?? null;
       }
       loadedFor.current = saved.id;
       setTried(false); setItem(saved); setCreating(false); setOfferForm(savedForm); setBaseline(snapshot(saved, result.offerError ? form : savedForm)); setConfirmEnd(false);
       setMessage(done.replace("{link}", `/package/${saved.id}`));
-      if (result.offerError) { setOfferForm(form); setError(`Package saved, offer not saved: ${result.offerError}`); }
+      if (result.offerError) { setOfferForm(form); setError(`Package published, offer not published: ${result.offerError} The draft is kept.`); }
       else if (result.linkError) setError(result.linkError);
+      else if (result.draftError) setError(`Published, but the draft: ${result.draftError}`);
       else if (result.unsynced?.length) setError(`Package saved, but these older drafts were not updated: ${result.unsynced.join(", ")}.`);
-      await reloadCatalogue();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nothing was saved. Please try again."); }
+      const fresh = await reloadCatalogue();
+      // Ending an offer leaves the rest of the working copy as it was: open it again as it is now.
+      if (reopen && fresh) { open(saved.id, fresh.drafts ?? [], fresh.packages, offerList); setMessage(done.replace("{link}", `/package/${saved.id}`)); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Nothing was published. Please try again."); }
     finally { setBusy(false); }
   }
   function save(e: React.FormEvent) {
     e.preventDefault(); if (!item || now === null) return;
     setTried(true); setError(""); setMessage("");
-    if (Object.keys(check(item, offerForm, now)).length) return;
-    const running = offerForm?.base && offerRunning(offerForm.base, now);
-    if (running && !window.confirm(`This updates the live page of "${offerForm!.base!.title}" at once. People who already reserved keep their saved price. Save?`)) return;
-    const done = !offerForm ? (creating ? "Package saved. Its page is {link}. No offer: customers see 2 prices." : "Package saved. Existing client agreements stay unchanged.")
-      : offerForm.status === "published" ? "Package and offer saved. The offer is live on {link} with 3 prices and the countdown."
-      : "Package and offer saved. The offer is a draft: customers still see 2 prices until you publish it.";
-    void send(item, offerForm, creating, done);
+    const keep = keptOffer(offerForm);
+    const sending = keep ? null : offerForm;
+    if (Object.keys(check(item, sending, now)).length) return;
+    const running = sending?.base && offerRunning(sending.base, now);
+    if (running && !window.confirm(`This updates the live page of "${sending!.base!.title}" at once. People who already reserved keep their saved price. Publish?`)) return;
+    const done = !sending ? (keep ? "Package published. The offer stays in the draft until you publish it." : creating ? "Package published. Its page is {link}. No offer: customers see 2 prices." : "Changes published. Existing client agreements stay unchanged.")
+      : sending.status === "published" ? "Package and offer published. The offer is live on {link} with 3 prices and the countdown."
+      : "Package published. The offer is not live: customers see 2 prices.";
+    void send(item, sending, creating, done, { version: draftVersion, ...(keep ? { keepOffer: keep } : {}) });
   }
-  // End offer = archive: it leaves the website, the package is back to 2 prices, reservations keep their price.
+  // End offer = archive, at once: it leaves the website, the package is back to 2 prices, reservations keep their
+  // price. The live package is sent as it is; a working copy keeps its other changes.
   function endOffer() {
-    if (!item || !offerForm?.base) return;
-    void send(JSON.parse(baseline).next as Item, { ...formFromOffer(offerForm.base), status: "archived" as never }, false, "Offer ended. The package page shows 2 prices again.");
+    const live = item && catalogue.packages.find(row => row.id === item.id);
+    if (!live || !offerForm?.base) return;
+    void send(toItem(live, offers), { ...formFromOffer(offerForm.base), status: "archived" as never }, false, "Offer ended. The package page shows 2 prices again.", undefined, true);
+  }
+  // Discard draft: a published package goes back to what is live; a never-published one is deleted.
+  async function discardDraft() {
+    if (!item || !draftVersion) return;
+    if (!window.confirm(creating ? `Delete the draft "${item.name}"? It was never published, so nothing on the website changes.` : "Discard the draft? The form goes back to what is live now.")) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/packages/drafts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", packageId: item.id, version: draftVersion }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The draft was not discarded. Please try again.");
+      const rest = drafts.filter(row => row.packageId !== item.id);
+      setDrafts(rest);
+      if (creating) show(null, null, false, 0); else open(item.id, rest);
+      setMessage(creating ? "Draft deleted." : "Draft discarded. The form shows the live package.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The draft was not discarded. Please try again."); }
+    finally { setBusy(false); }
   }
 
   if (!item) return <div>
     <p>Each package has its own page with 2 prices. Add an offer to a package to show 3 prices and a countdown. Packages have no checkout and never activate or purchase service plans.</p>
-    <button className="admin-button" onClick={() => choose({ ...blank, order: catalogue.packages.length }, true)}>New package +</button>
+    <button className="admin-button" onClick={() => choose({ ...blank, status: "published", order: catalogue.packages.length }, true)}>New package +</button>
+    {message && <p role="status">{message}</p>}
+    {drafts.filter(draft => !catalogue.packages.some(row => row.id === draft.packageId)).map(draft => <article className={`admin-form ${s.listRow}`} key={`draft-${draft.packageId}`}><h2>{draft.name}</h2>
+      <p>Not published yet · link /package/{draft.packageId} is reserved</p>
+      <div className={s.chips}><span className={s.chip}>Draft</span></div>
+      <div className="form-actions"><button className="admin-action" onClick={() => chooseDraft(draft)}>Edit draft →</button></div>
+    </article>)}
     {catalogue.packages.map(row => {
       const running = now === null ? undefined : ownOffers(row.id).find(offer => offerRunning(offer, now));
       const draft = !running && ownOffers(row.id).some(offer => offer.status === "draft");
@@ -266,14 +372,15 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         <p>{row.status} · {categoryLabel(catalogue.categories, row.category)} · {rupee(row.discountedPrice ?? row.regularPrice)} normal price</p>
         <div className={s.chips}>
           {running ? <span className={s.ok}>Offer running: {running.title} · {rupee(running.offerPrice)} · ends {formatIndiaDateTime(running.endsAt)}</span> : draft ? <span className={s.chip}>Draft offer</span> : <span className={s.chip}>No offer</span>}
+          {drafts.some(draft => draft.packageId === row.id) && <span className={s.warn}>Unpublished changes (draft)</span>}
           {shownOn(row).length ? shownOn(row).map(slug => <span className={s.chip} key={slug}>{pages.find(page => page.slug === slug)?.title}</span>) : <span className={s.warn}>No page assigned</span>}
         </div>
-        <div className="form-actions"><button className="admin-action" onClick={() => choose(row)}>Edit package →</button><button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "draft", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>{row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View page ↗</Link>}</div>
+        <div className="form-actions"><button className="admin-action" onClick={() => choose(row)}>Edit package →</button><button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>{row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View page ↗</Link>}</div>
       </article>;
     })}
   </div>;
 
-  const errors: Errors = tried && now !== null ? check(item, offerForm, now) : {};
+  const errors: Errors = tried && now !== null ? check(item, keptOffer(offerForm) ? null : offerForm, now) : {};
   const err = (key: string) => errors[key] ? <span className={s.msg}>{errors[key]}</span> : null;
   const bad = (key: string) => errors[key] ? s.bad : undefined;
   const field = (key: keyof PackageDesign, label: string, max: number, required = true, hint?: string) => <label className={`admin-field ${bad(`design.${key}`) ?? ""}`}><span>{label}{required && " *"}</span><input aria-label={label} maxLength={max} value={item.design[key]} onChange={e => design(key, e.target.value)} />{hint && <small>{hint}</small>}{err(`design.${key}`)}</label>;
@@ -281,7 +388,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const running = !!savedOffer && now !== null && offerRunning(savedOffer, now);
   const past = item.id ? ownOffers(item.id).filter(offer => offer.slug !== savedOffer?.slug).sort((a, b) => Date.parse(b.endsAt) - Date.parse(a.endsAt)) : [];
   const lastEnded = !offerForm ? past[0] : undefined;
-  const id = creating ? idFromName(item.name) : item.id;
+  const id = creating ? item.id || idFromName(item.name) : item.id;
   const offerLink = savedOffer?.slug ?? offerSlugFromName(offerForm?.title ?? "");
   let previewEnd = NaN;
   try { previewEnd = offerForm ? Date.parse(indiaInputToUtc(offerForm.endsAt, true)) : NaN; } catch { /* not a date yet */ }
@@ -299,12 +406,13 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     <div className={s.layout}>
       <form className={`admin-form ${s.form}`} onSubmit={save} noValidate><fieldset disabled={busy} className={s.fields}>
         {/* 1. Package */}
-        <section className={s.sec}><div className={s.sechead}><h2>1. Package</h2><span className={s.tag}>Always required</span></div>
-          <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name *</span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
-          <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? <span>Made from the name when you first save. If it is taken, -2 is added.</span> : <><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
+        {draftVersion > 0 && <p className={s.warnNote}>{creating ? "Draft: not published yet. Save draft keeps your work; Publish checks every field and makes it live." : "You are editing the draft of a published package. The live page stays as it is until you press Publish changes."}</p>}
+        <section className={s.sec}><div className={s.sechead}><h2>1. Package</h2><span className={s.tag}>Required to publish</span></div>
+          <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name * <small>(needed to save a draft)</small></span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
+          <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> :<><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
           <div className="form-columns">
             <label className="admin-field"><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => update("category", e.target.value)}>{categoryChoices(catalogue.categories, [item.category]).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>{running && <small>Fixed while its offer runs.</small>}</label>
-            <label className="admin-field"><span>Package status *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="draft">Draft (hidden)</option><option value="published">Published</option>{!running && <option value="archived">Archived</option>}</select></label>
+            <label className="admin-field"><span>When published *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="published">Show on the website</option>{!running && <option value="archived">Archived (hidden)</option>}</select><small>Archived hides the package; it can be shown again later.</small></label>
           </div>
           <fieldset className={s.pages} disabled={pageBusy}><legend>Show on pages</legend>
             {!shownOn(item).length && <p><span className={s.warn}>No page assigned</span> This package is not listed on a Pricing &amp; Packages page until you tick one. Its own page still works.</p>}
@@ -331,7 +439,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         </section>
 
         {/* 2. Page design */}
-        <section className={s.sec}><div className={s.sechead}><h2>2. Page design</h2><span className={s.tag}>Always required</span></div>
+        <section className={s.sec}><div className={s.sechead}><h2>2. Page design</h2><span className={s.tag}>Required to publish</span></div>
           <p className={s.note}>The design of this package&apos;s page, with or without an offer. Pre-filled for a new package, so you only change what you want.</p>
           <div className="form-columns">{field("eyebrow", "Eyebrow text", 100)}{field("badge", "Card badge", 60, true, "While an offer runs, a % OFF badge is added by itself.")}</div>
           <div className="form-columns">{field("heading", "Main heading", 160)}{field("headingHighlight", "Highlighted heading text", 120, false)}</div>
@@ -351,7 +459,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             {running && <p className={s.idline}><span className={s.tagRun}>Running</span> Ends in <b>{Math.floor(leftMs / 86400000)}d {Math.floor(leftMs / 3600000) % 24}h</b>. Edit and save to update the live page. <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(savedOffer!.slug)}`}>Target people →</Link></p>}
             <div className="form-columns">
               <label className={`admin-field ${bad("offerTitle") ?? ""}`}><span>Offer name *</span><input aria-label="Offer name" maxLength={120} placeholder="e.g. Diwali Launch Offer" value={offerForm.title} onChange={e => offerField("title", e.target.value)} /><small>Shown on the card, sticky bar, emails and My offers.</small>{err("offerTitle")}</label>
-              <label className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><select aria-label="Offer status" value={offerForm.status} onChange={e => offerField("status", e.target.value as OfferForm["status"])}><option value="draft">Draft (not on the website)</option><option value="published">Published</option></select>{err("offerStatus")}</label>
+              <label className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><select aria-label="Offer status" value={offerForm.status} onChange={e => offerField("status", e.target.value as OfferForm["status"])}><option value="draft">{savedOffer ? "Draft (not on the website)" : "Draft (kept in the package draft)"}</option><option value="published">Published</option></select>{!savedOffer && offerForm.status === "draft" && <small>Publish keeps this offer in the draft. Choose Published to make it live with the package.</small>}{err("offerStatus")}</label>
             </div>
             <p className={s.idline}>Offer link: <code>/offer/{offerLink}</code> <span className={s.lock}>auto</span> <span>Opens this package page. Made from the offer name; never reused.</span></p>
             <p className={s.inherit}>From the package (not typed again): main price <b>{rupee(item.regularPrice)}</b> · normal price <b>{rupee(item.discountedPrice)}</b> · category, included work, terms and page design.</p>
@@ -381,8 +489,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         </section>
       </fieldset>
       <div className={s.savebar}>
-        <div className={s.result}>{Object.keys(errors).length > 0 && <p className="form-error" role="alert">Nothing was saved. Fix the marked fields first.</p>}{error && <p className="form-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}</div>
-        <div className={s.row}><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { const saved = JSON.parse(baseline); setItem(saved.next); setOfferForm(saved.form); setTried(false); setError(""); }}>Discard changes</button><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : offerForm ? "Save package & offer" : "Save package"}</button></div>
+        <div className={s.result}>{Object.keys(errors).length > 0 && <p className="form-error" role="alert">Not published. Fix the marked fields first, or press Save draft to keep your work.</p>}{error && <p className="form-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}</div>
+        <div className={s.row}><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { const saved = JSON.parse(baseline); setItem(saved.next); setOfferForm(saved.form); setTried(false); setError(""); }}>Discard changes</button>{draftVersion > 0 && <button type="button" className="admin-action is-danger" disabled={busy} onClick={discardDraft}>{creating ? "Delete draft" : "Discard draft"}</button>}<button type="button" className="admin-action" disabled={busy || (!dirty && (draftVersion > 0 || !creating))} onClick={saveDraft}>Save draft</button><button className="admin-button" disabled={busy || (!dirty && !creating && !draftVersion)}>{busy ? "Working…" : creating ? "Publish" : "Publish changes"}</button></div>
       </div>
       </form>
 

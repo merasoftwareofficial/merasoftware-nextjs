@@ -17,9 +17,12 @@ export async function PATCH(request: Request) {
     if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Invalid save origin." }, { status: 403 });
     const data = requestSchema.parse(await request.json());
     if (data.kind === "offer") {
-      // One save path for every offer (lib/offer-save-server.ts). Offers on a package are made and edited in
-      // the package form (app/api/packages); this route keeps editing offers and the package offer list.
-      const result = await saveOfferRecord(data.offer, data.creating);
+      // Offers are made, edited and published only in the package form (app/api/packages, src/docs/package-offers.md),
+      // so its prices, design and link stay in sync. This route keeps editing older offers without a package.
+      if (data.creating) return NextResponse.json({ error: "Offers are created in Packages: open a package and press + Add offer." }, { status: 400 });
+      const saved = (await settingsRepo.get()).offers?.[data.offer.slug];
+      if (data.offer.packageId || saved?.packageId) return NextResponse.json({ error: "This offer belongs to a package. Edit it in Packages." }, { status: 400 });
+      const result = await saveOfferRecord(data.offer, false);
       if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
       return NextResponse.json(result.offer, result.linkError ? { headers: { "X-Package-Link-Error": encodeURIComponent(result.linkError) } } : undefined);
     }

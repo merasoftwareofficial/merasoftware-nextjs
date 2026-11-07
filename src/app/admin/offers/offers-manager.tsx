@@ -1,13 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "@/components/loading/navigation";
 import { indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import Link from "@/components/link";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
 import { DEFAULT_HOLD_HOURS, DEFAULT_RESERVE_WINDOW_HOURS } from "@/lib/offer-reservation-rules";
 import { OfferPreview } from "@/components/campaign/offer-preview";
-import { DEFAULT_OFFER, offerDiscountPercent, offerFinalPrice, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
-import { offerOutOfSync, offerRunning, packageOfferProblem, runningOfferForPackage, syncOfferWithPackage } from "@/lib/offer-packages";
+import { DEFAULT_OFFER, offerFinalPrice, resolvedTerms, type Offer, type OfferListing } from "@/lib/offers";
+import { offerOutOfSync, offerRunning } from "@/lib/offer-packages";
 import s from "./offers-manager.module.css";
 import { categoryChoices, type ProjectCategory, type QuotedPackage, type SalesCatalogue } from "@/lib/sales-packages";
 import { offerState, type OfferState } from "@/lib/admin-offers";
@@ -19,11 +18,12 @@ function Lines({ label, value, change }: { label: string; value: string[]; chang
 }
 const cleanLines = (value: string[]) => value.map(item => item.trim()).filter(Boolean);
 
-export function OffersManager({ initialOffers, initialTerms, initialListing, section, initialOfferSlug, createNew = false }: {
-  initialOffers: Offer[]; initialTerms: string[]; initialListing: OfferListing; section: string; initialOfferSlug?: string; createNew?: boolean;
+// Offers are created, edited and linked only in the package form (src/docs/package-offers.md, owner decision
+// 7 Nov 2026). This form edits the older offers saved without a package; their own Packages ticks are gone.
+export function OffersManager({ initialOffers, initialTerms, initialListing, section, initialOfferSlug }: {
+  initialOffers: Offer[]; initialTerms: string[]; initialListing: OfferListing; section: string; initialOfferSlug?: string;
 }) {
   const [offers, setOffers] = useState(initialOffers);
-  const router = useNavigate();
   const [packages, setPackages] = useState<QuotedPackage[]>([]);
   const [plans, setPlans] = useState<NonNullable<SalesCatalogue["plans"]>>([]);
   // Project categories come from the portal with the sales catalogue; null = not loaded (yet).
@@ -35,9 +35,8 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     fetch("/api/packages", { cache: "no-store", signal: controller.signal }).then(response => response.ok ? response.json() : null).then(data => { if (data) { setPackages(data.packages || []); setPlans(data.plans || []); setCategories(data.categories || []); } else setCatalogueFailed(true); }).catch(error => { if (error?.name !== "AbortError") setCatalogueFailed(true); });
     return () => controller.abort();
   }, [section]);
-  const initialSelected: Offer | null = section !== "settings" ? null : createNew ? { ...DEFAULT_OFFER, slug: "", title: "", status: "draft", heading: "", headingHighlight: "", description: "", supportingLine: "", mainPrice: 0, discountPrice: 0, offerPrice: 0, endsAt: "", inclusions: [], terms: [], order: initialOffers.length } : initialOffers.find(offer => offer.slug === initialOfferSlug) ?? null;
+  const initialSelected: Offer | null = section !== "settings" ? null : initialOffers.find(offer => offer.slug === initialOfferSlug) ?? null;
   const [selected, setSelected] = useState<Offer | null>(initialSelected);
-  const [creating, setCreating] = useState(createNew);
   const [baseline, setBaseline] = useState(JSON.stringify(initialSelected));
   const [filter, setFilter] = useState<"all" | OfferState>("all");
   const now = useServerTime();
@@ -51,16 +50,9 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const preview = useRef<HTMLDialogElement>(null);
   // Which reservation state the unsaved preview shows (no request is made).
   const [previewState, setPreviewState] = useState<ReservationPreview>("normal");
-  // Package ticks are stored on each package in the portal (offerSlug), so a package has one offer
-  // and the package editor shows the same link. null = unchanged from the saved links.
-  const [linked, setLinked] = useState<string[] | null>(null);
-  const linkable = packages.filter(item => item.status !== "archived" && (selected?.applicableCategories || []).includes(item.category));
-  const savedLinked = !selected || creating ? [] : linkable.filter(item => item.offerSlug === selected.slug).map(item => item.id);
-  const linkedNow = (linked ?? savedLinked).filter(id => linkable.some(item => item.id === id));
-  const linksDirty = JSON.stringify([...linkedNow].sort()) !== JSON.stringify([...savedLinked].sort());
   const dirty = section === "terms" ? JSON.stringify(terms) !== JSON.stringify(savedTerms)
     : section === "listing" ? JSON.stringify(listing) !== JSON.stringify(savedListing)
-    : selected !== null && (JSON.stringify(selected) !== baseline || linksDirty);
+    : selected !== null && JSON.stringify(selected) !== baseline;
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -110,7 +102,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   if (!selected) return <div>
     {section === "settings" && <p>Select an offer below to open its settings.</p>}
     {/* Offers are made on a package, in the package form (src/docs/package-offers.md, owner decision 7 Nov 2026). */}
-    <div className={s.actions}><Link className="admin-button" href="/admin/packages">Add an offer on a package →</Link><label>Filter offers <select aria-label="Filter offers" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
+    <div className={s.actions}><label>Filter offers <select aria-label="Filter offers" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
     <div className={s.list}>{offers.filter(offer => filter === "all" || offerState(offer, now) === filter).map(offer => <article className={s.row} key={offer.slug}>
       <div><h3>{offer.title}</h3><p>{offerState(offer, now)} · ₹{offer.offerPrice.toLocaleString("en-IN")} · /offer/{offer.slug}{offer.packageId && <> · Package: {packages.find(item => item.id === offer.packageId)?.name ?? offer.packageId}</>}</p>{packageNotice(offer) && <p className={s.warn}>{packageNotice(offer)}</p>}</div>
       <div className={s.actions}><Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(offer.slug)}`}>Target people →</Link><Link className="admin-action" href={editHref(offer)}>Edit →</Link>{offer.status === "published" && <Link className="admin-action" href={offer.packageId ? `/package/${encodeURIComponent(offer.packageId)}` : `/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
@@ -126,36 +118,15 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       return next;
     });
   }
-  // Runs after the offer itself is saved, so the portal can check the saved offer's categories and price.
-  async function saveLinks(offerSlug: string) {
-    const response = await fetch("/api/packages/offer-links", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerSlug, packageIds: linkedNow }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(`Offer saved, but packages were not linked: ${result.error || "please try again."}`);
-    const reload = await fetch("/api/packages", { cache: "no-store" });
-    if (reload.ok) setPackages((await reload.json()).packages || []);
-    setLinked(null);
-  }
   const policy = selected.paymentPolicy || { mode: "current" as const, uploadAllowance: 0, dueDays: 7, cycleScope: "first_purchase" as const, reminderOffsets: [-1, 0, 3] };
   const targets = selected.targets ?? ["projects"];
   const projectsEnabled = targets.includes("projects");
   const plansEnabled = targets.includes("service_plans");
   const policyUpdate = (value: Partial<NonNullable<Offer["paymentPolicy"]>>) => update("paymentPolicy", { ...policy, ...value });
-  const field = (label: string, key: keyof Pick<Offer, "title" | "slug" | "eyebrow" | "heading" | "headingHighlight" | "description" | "supportingLine" | "subheading" | "tagline" | "badge" | "priceDescription" | "ctaLabel" | "contactHref">, required = true) => <label className="admin-field"><span>{label}</span><input required={required} maxLength={key === "contactHref" ? 500 : key === "slug" ? 80 : 300} disabled={key === "slug" && !creating} value={selected[key] ?? ""} onChange={e => update(key, e.target.value)} /></label>;
+  const field = (label: string, key: keyof Pick<Offer, "title" | "slug" | "eyebrow" | "heading" | "headingHighlight" | "description" | "supportingLine" | "subheading" | "tagline" | "badge" | "priceDescription" | "ctaLabel" | "contactHref">, required = true) => <label className="admin-field"><span>{label}</span><input required={required} maxLength={key === "contactHref" ? 500 : key === "slug" ? 80 : 300} disabled={key === "slug"} value={selected[key] ?? ""} onChange={e => update(key, e.target.value)} /></label>;
   const previewOffer = offerView({ ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms), endsAt: selected.endsAt || DEFAULT_OFFER.endsAt }, packages.find(item => item.id === selected.packageId));
-  // Package offers (lib/offer-packages.ts): every new offer, and any offer saved with a package.
-  // Offers saved before package offers keep the full form below.
-  const packageOffer = creating || !!selected.packageId;
-  const source = selected.packageId ? packages.find(item => item.id === selected.packageId) : undefined;
-  const sourceProblem = source ? packageOfferProblem(selected, source) : null;
-  const runningOn = (item: QuotedPackage) => now === null ? undefined : runningOfferForPackage(item, offers, now, selected.slug);
-  const sourceBusy = source && runningOn(source);
-  const percent = offerDiscountPercent(selected);
-  function choosePackage(id: string) {
-    const item = packages.find(row => row.id === id);
-    if (item) setSelected(current => current && syncOfferWithPackage(current, item));
-  }
   function submit(next: Offer) {
-    void save({ kind: "offer", offer: next, creating }, async data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setCreating(false); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); if (linksDirty && !result.packageId) await saveLinks(result.slug); if (creating) router.replace(`/admin/offers?section=settings&offer=${encodeURIComponent(result.slug)}`); });
+    void save({ kind: "offer", offer: next, creating: false }, data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); });
   }
   // Delete = archive: the offer leaves the website and frees its package; reservations keep their saved price.
   function remove() {
@@ -163,25 +134,13 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     if (window.confirm(`Delete "${saved.title}"? It disappears from the website${saved.packageId ? " and its package is free for a new offer" : ""}. People who already reserved keep their saved price. It stays under the Archived filter.`)) submit({ ...saved, status: "archived" });
   }
   return <>
-    <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link>{!creating && selected.slug && <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(selected.slug)}`}>Target people →</Link>}<button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
+    <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link>{selected.slug && <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(selected.slug)}`}>Target people →</Link>}<button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
     <form className="admin-form" onSubmit={event => { event.preventDefault(); submit({ ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }); }}>
       <fieldset disabled={busy} className={s.fields}>
         <h3>Offer identity</h3><div className="form-columns">{field("Offer name", "title")}{field("URL slug", "slug")}</div>
         <small>URL: /offer/{selected.slug || "your-offer"}. The URL stays fixed after creation.</small>
         <div className="form-columns"><label className="admin-field"><span>Status</span><select aria-label="Status" value={selected.status} onChange={e => update("status", e.target.value as Offer["status"])}><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></label><label className="admin-field"><span>Card order</span><input type="number" min={0} max={9999} required value={selected.order} onChange={e => update("order", Number(e.target.value))} /></label></div>
-        {packageOffer && <>
-          <h3>Package</h3>
-          <label className="admin-field"><span>Package</span><select aria-label="Package" required disabled={!creating} value={selected.packageId ?? ""} onChange={e => choosePackage(e.target.value)}>
-            <option value="" disabled>{packages.length ? "Select the package this offer is for" : catalogueFailed ? "Packages could not be loaded from the portal" : "Loading packages…"}</option>
-            {packages.filter(item => item.status !== "archived" || item.id === selected.packageId).map(item => { const running = runningOn(item); return <option key={item.id} value={item.id} disabled={!!item.offerExtraPrice}>{item.name} · ₹{item.regularPrice.toLocaleString("en-IN")} / ₹{item.discountedPrice.toLocaleString("en-IN")}{running ? ` — running offer: ${running.title}` : item.offerExtraPrice ? " — has an extra scope price" : ""}</option>; })}
-            {selected.packageId && !source && <option value={selected.packageId}>{selected.packageId} (unavailable)</option>}
-          </select><small>{creating ? "Its two struck prices, included work and terms come from the package and stay in sync with it. The package cannot be changed after the offer is created." : <>Its two struck prices, included work and terms come from this package. <Link href="/admin/packages">Edit them in Packages →</Link></>}</small></label>
-          {source && sourceBusy && selected.status === "published" && <p className={s.warn}>{`"${source.name}" already has a running offer: "${sourceBusy.title}". Save this one as a draft, or edit that offer, or let it expire or delete it first.`}</p>}
-          {source && sourceBusy && selected.status !== "published" && <p className={s.warn}>{`"${source.name}" has a running offer: "${sourceBusy.title}". This draft can be published after that offer expires or is deleted.`}</p>}
-          {source && !sourceProblem && offerOutOfSync(selected, source) && <p className={s.warn}>The package changed since this offer was saved. <button type="button" className="text-link" onClick={() => choosePackage(source.id)}>Use the package values</button> (saving also applies them).</p>}
-          {sourceProblem && <p role="alert" className="form-error">{sourceProblem}</p>}
-        </>}
-        {!packageOffer && <><h3>Where this offer applies</h3>
+        <h3>Where this offer applies</h3>
         <div className="form-columns">{(["projects", "service_plans"] as const).map(target => <label key={target}><input type="checkbox" checked={targets.includes(target)} onChange={e => update("targets", e.target.checked ? [...targets, target] : targets.filter(value => value !== target))} />{target === "projects" ? "Projects / showcase packages" : "Service-plan purchases (payment timing only)"}</label>)}</div>
         <fieldset className={s.dependentFields} disabled={!plansEnabled} aria-label="Service plan eligibility">
           <label className="admin-field"><span>Eligible service plans</span><select aria-label="Eligible service plans" multiple size={5} value={selected.planIds || []} onChange={e => update("planIds", Array.from(e.target.selectedOptions, option => option.value))}>{plans.map(plan => <option key={plan._id} value={plan._id}>{plan.serviceName}{plan.servicePlan?.capability !== "upload_data" ? " (no uploads)" : ""}</option>)}</select><small>{plansEnabled ? "Select specific plans. Their existing billing prices stay unchanged." : "Check Service-plan purchases above to select plans."}</small></label>
@@ -191,11 +150,9 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         <p>Select the project categories eligible for this offer.</p>
         {categories === null && <small role={catalogueFailed ? "alert" : undefined}>{catalogueFailed ? "Project categories could not be loaded from the portal. Already selected categories are kept; publishing checks them again." : "Loading project categories from the portal…"}</small>}
         <div className="form-columns">{categoryChoices(categories ?? undefined, selected.applicableCategories || []).map(({ category: id, label, status }) => <label key={id}><input type="checkbox" checked={selected.applicableCategories?.includes(id) ?? false} onChange={e => update("applicableCategories", e.target.checked ? [...(selected.applicableCategories || []), id] : selected.applicableCategories?.filter(value => value !== id))} /> {label}{status === "archived" ? " (archived)" : ""}</label>)}</div>
-        <div className="admin-field"><span>Packages with this offer</span>
-          {linkable.length ? linkable.map(item => { const ticked = linkedNow.includes(item.id); const other = item.offerSlug && item.offerSlug !== selected.slug ? offers.find(row => row.slug === item.offerSlug)?.title || item.offerSlug : ""; return <label key={item.id}><input type="checkbox" checked={ticked} onChange={e => setLinked(e.target.checked ? [...linkedNow, item.id] : linkedNow.filter(id => id !== item.id))} /> {item.name}{other ? ticked ? ` (moves here from ${other} on save)` : ` (now on ${other})` : ""}</label>; }) : <small>No packages in the selected categories yet.</small>}
-          <small>A package has one offer. Ticking a package that is on another offer moves it here. The package editor shows the same link.</small></div>
+        <small>A new offer is added to a package in Packages.</small>
         </fieldset>
-        <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label></>}
+        <label className="admin-field"><span>Pricing rule</span><select value={selected.pricingRule || ""} onChange={e => update("pricingRule", e.target.value as Offer["pricingRule"])}><option value="" disabled>Select a pricing rule</option><option value="fixed_price">Fixed offer bundle price</option><option value="fixed_discount">Fixed rupee discount</option><option value="percentage">Percentage discount</option></select><small>Fixed price uses the Offer price below. A package can add an explicit charge for its extra scope.</small></label>
         <h3>Payment timing</h3>
         <label className="admin-field"><span>Payment policy</span><select aria-label="Payment policy" value={policy.mode} onChange={e => policyUpdate({ mode: e.target.value as typeof policy.mode })}><option value="current">Keep current system rules</option><option value="advance">Advance payment</option><option value="limited_uploads">Limited uploads before payment</option><option value="pay_later">Pay later (uploads stay available)</option></select></label>
         {policy.mode !== "current" && <>
@@ -207,23 +164,19 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
         {selected.pricingRule && selected.pricingRule !== "fixed_price" && <label className="admin-field"><span>{selected.pricingRule === "percentage" ? "Discount percentage" : "Discount amount (₹)"}</span><input type="number" required min={0} max={selected.pricingRule === "percentage" ? 100 : 10000000} step="0.01" value={selected.benefitValue ?? ""} onChange={e => update("benefitValue", Number(e.target.value))} /></label>}
         <h3>Heading & content</h3>{field("Eyebrow text", "eyebrow")}<div className="form-columns">{field("Main heading", "heading")}{field("Highlighted heading text", "headingHighlight", false)}</div>
         {field("Short description", "description")}{field("Supporting line", "supportingLine", false)}{field("Benefits subheading", "subheading")}
-        {packageOffer ? <div className={s.locked}><strong>What&apos;s included (from the package)</strong>{selected.inclusions.length ? <ul>{selected.inclusions.map((line, index) => <li key={index}>{line}</li>)}</ul> : <small>Select a package.</small>}</div> : <Lines label="What's included" value={selected.inclusions} change={v => update("inclusions", v)} />}
+        <Lines label="What's included" value={selected.inclusions} change={v => update("inclusions", v)} />
         <div className="form-columns">{field("Price-card tagline", "tagline")}{field("Offer badge", "badge")}</div>
-        <h3>Prices & expiry</h3>{packageOffer ? <div className={s.prices}>
-          <div className="admin-field"><span>Main price (from the package)</span><del>₹{selected.mainPrice.toLocaleString("en-IN")}</del></div>
-          <div className="admin-field"><span>Normal discount price (from the package)</span><del>₹{selected.discountPrice.toLocaleString("en-IN")}</del></div>
-          <label className="admin-field"><span>Offer price (₹)</span><input aria-label="Offer price (₹)" type="number" min={0} max={10000000} step="0.01" required value={selected.offerPrice} onChange={e => update("offerPrice", Number(e.target.value))} /><small>{percent ? `Shown as ${percent}% OFF the main price.` : "Enter a price below the main price."}</small></label>
-        </div> : <div className={s.prices}>{([ ["Main price (₹)", "mainPrice"], ["Normal discount price (₹)", "discountPrice"], ["Offer price (₹)", "offerPrice"] ] as const).map(([label,key]) => <label className="admin-field" key={key}><span>{label}</span><input type="number" min={0} max={10000000} step="0.01" required value={selected[key]} onChange={e => update(key, Number(e.target.value))} /></label>)}</div>}
+        <h3>Prices & expiry</h3><div className={s.prices}>{([ ["Main price (₹)", "mainPrice"], ["Normal discount price (₹)", "discountPrice"], ["Offer price (₹)", "offerPrice"] ] as const).map(([label,key]) => <label className="admin-field" key={key}><span>{label}</span><input type="number" min={0} max={10000000} step="0.01" required value={selected[key]} onChange={e => update(key, Number(e.target.value))} /></label>)}</div>
         {field("Short price description", "priceDescription")}
         <label className="admin-field"><span>Expires at (India time / IST)</span><input aria-label="Expires at (India time / IST)" type="datetime-local" required value={toIndiaInput(selected.endsAt)} onChange={e => update("endsAt", e.target.value ? indiaInputToUtc(e.target.value, true) : "")} /><small>One fixed deadline. The countdown never resets on refresh.</small></label>
         {targets.includes("projects") && <label className="admin-field"><span>Reserve opens (hours before the offer ends)</span><input aria-label="Reserve opens (hours before the offer ends)" type="number" min={1} max={720} step={1} placeholder={String(DEFAULT_RESERVE_WINDOW_HOURS)} value={selected.reserveWindowHours ?? ""} onChange={e => update("reserveWindowHours", e.target.value ? Number(e.target.value) : undefined)} /><small>From 1 to 720 hours. Empty = {DEFAULT_RESERVE_WINDOW_HOURS} hours. The Reserve button appears on the offer page from then until the offer ends.</small></label>}
         {targets.includes("projects") && <label className="admin-field"><span>Reservation lasts (hours)</span><input aria-label="Reservation lasts (hours)" type="number" min={1} max={720} step={1} placeholder={String(DEFAULT_HOLD_HOURS)} value={selected.reservationHoldHours ?? ""} onChange={e => update("reservationHoldHours", e.target.value ? Number(e.target.value) : undefined)} /><small>From 1 to 720 hours. Empty = {DEFAULT_HOLD_HOURS} hours. The countdown starts when the customer reserves; if no project is started by then, the customer gets the offer-expired message. A change here applies to new reservations only.</small></label>}
         <h3>Enquiry action</h3>{field("CTA label", "ctaLabel")}{field("Contact destination", "contactHref")}<small>Use mailto: for email, tel: for phone, or an HTTPS contact link.</small>
-        <h3>Terms & conditions</h3>{packageOffer ? <div className={s.locked}><strong>Package terms (from the package)</strong>{selected.terms.length ? <ul>{selected.terms.map((line, index) => <li key={index}>{line}</li>)}</ul> : <small>This package has no terms of its own.</small>}<p>Shown with the validity date (added automatically) and the universal terms.</p></div> : <>
+        <h3>Terms & conditions</h3>
         <label className="admin-field"><span>Terms to show</span><select aria-label="Terms to show" value={selected.termsMode} onChange={e => update("termsMode", e.target.value as Offer["termsMode"])}><option value="universal">Universal only</option><option value="offer">Offer-specific only</option><option value="combined">Universal + offer-specific</option></select></label>
-        <Lines label="Offer-specific terms" value={selected.terms} change={v => update("terms", v)} /><p>Validity is added automatically from the expiry date.</p></>}
+        <Lines label="Offer-specific terms" value={selected.terms} change={v => update("terms", v)} /><p>Validity is added automatically from the expiry date.</p>
       </fieldset>{notices}
-      <div className={s.actions}><button className="admin-button" disabled={busy || (!dirty && !creating)}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setLinked(null); setError(""); }}>Discard changes</button>{!creating && JSON.parse(baseline)?.status !== "archived" && <button type="button" className="admin-action" disabled={busy || dirty} onClick={remove}>Delete offer</button>}</div>
+      <div className={s.actions}><button className="admin-button" disabled={busy || !dirty}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setError(""); }}>Discard changes</button>{JSON.parse(baseline)?.status !== "archived" && <button type="button" className="admin-action" disabled={busy || dirty} onClick={remove}>Delete offer</button>}</div>
     </form>
     <h3>Card preview</h3><OfferPreview offer={previewOffer} />
     <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><label>Show <select aria-label="Preview state" value={previewState} onChange={e => setPreviewState(e.target.value as ReservationPreview)}><option value="normal">Normal</option><option value="open">Reserve open</option><option value="reserved">Reserved</option></select></label><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview previewReservation={previewState} /></dialog>

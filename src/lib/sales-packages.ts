@@ -13,7 +13,9 @@ export type SalesPackage = {
 };
 export type SalesOffer = import("./offers").Offer & { resolvedTerms: string[]; quoteKey: string };
 export type QuotedPackage = SalesPackage & { quoteKey: string; quote: { regularPrice: number; discountAmount: number; finalPrice: number; offer: SalesOffer | null; terms: string[] } };
-export type SalesCatalogue = { packages: QuotedPackage[]; offers?: SalesOffer[]; plans?: { _id: string; serviceName: string; servicePlan?: { purchaseType?: string; capability?: string } }[]; categories?: ProjectCategory[] };
+/** A package's working copy (backend helpers/packageDrafts.js): the form as typed, checked only when published. */
+export type PackageDraft = { packageId: string; name: string; data: { item: Record<string, unknown>; offer?: Record<string, unknown> | null }; version: number; updatedAt?: string };
+export type SalesCatalogue = { packages: QuotedPackage[]; offers?: SalesOffer[]; plans?: { _id: string; serviceName: string; servicePlan?: { purchaseType?: string; capability?: string } }[]; categories?: ProjectCategory[]; drafts?: PackageDraft[] };
 
 export const categoryLabel = (categories: ProjectCategory[] | undefined, key: string) =>
   categories?.find(entry => entry.category === key)?.label ?? key;

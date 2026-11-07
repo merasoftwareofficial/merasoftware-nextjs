@@ -26,13 +26,33 @@ const catalogueSource = `
 import {requireRole, AuthError} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {resolvedOffers} from '@/lib/offers';
-export const store = { packages: {}, linkCalls: [], saves: [], failLink: false };
+export const store = { packages: {}, drafts: {}, linkCalls: [], saves: [], failLink: false };
 export const requireSalesAdmin = () => requireRole('admin');
 const quoted = item => ({ ...item, quoteKey: 'k-' + item.id, quote: { regularPrice: item.regularPrice, discountAmount: 0, finalPrice: item.discountedPrice, offer: null, terms: item.terms } });
 export async function readSalesCatalogue(admin) {
   if (admin) await requireSalesAdmin();
   const settings = await settingsRepo.get();
-  return { packages: Object.values(store.packages).map(quoted), offers: resolvedOffers(settings.offers), plans: [], categories: [{ category: 'standard_websites', label: 'Standard Websites', status: 'active', sortOrder: 1 }] };
+  return { packages: Object.values(store.packages).map(quoted), offers: resolvedOffers(settings.offers), plans: [], categories: [{ category: 'standard_websites', label: 'Standard Websites', status: 'active', sortOrder: 1 }], drafts: Object.values(store.drafts) };
+}
+const idBase = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'package';
+const taken = id => !!store.packages[id] || !!store.drafts[id];
+// Package working copies, as backend helpers/packageDrafts.js keeps them.
+function draftAction(body) {
+  const conflict = () => { throw new AuthError('Someone else saved this draft meanwhile. Reload the package to see their changes.', 409); };
+  if (body.action === 'save') {
+    const name = String(body.data?.item?.name ?? '').trim();
+    if (!name) throw new AuthError('Enter the package name to save a draft', 400);
+    let id = body.packageId;
+    if (!id) { const base = idBase(name); id = base; for (let n = 2; taken(id); n++) id = base + '-' + n; }
+    else if (body.version === 0) { if (!store.packages[id]) throw new AuthError('Package not found', 404); if (store.drafts[id]) conflict(); }
+    else if (store.drafts[id]?.version !== body.version) conflict();
+    const version = (store.drafts[id]?.version ?? 0) + 1;
+    store.drafts[id] = { packageId: id, name, data: { ...body.data, item: { ...body.data.item, id } }, version };
+    return store.drafts[id];
+  }
+  if (body.action === 'delete') { if (store.drafts[body.packageId] && store.drafts[body.packageId].version !== body.version) conflict(); const deleted = !!store.drafts[body.packageId]; delete store.drafts[body.packageId]; return { packageId: body.packageId, deleted }; }
+  if (body.action === 'clearOffer') { const row = store.drafts[body.packageId]; const cleared = !!row && row.data.offer?.base?.slug === body.offerSlug; if (cleared) { row.data.offer = null; row.version++; } return { packageId: body.packageId, cleared }; }
+  throw new AuthError('Choose a draft action', 400);
 }
 export async function salesBackend(admin, body, path = 'sales-packages') {
   await requireSalesAdmin();
@@ -41,8 +61,8 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
     // A new package without an ID gets one from its name, the next number while taken (as the backend does).
     const item = { ...body.item };
     if (body.creating && !item.id) {
-      const base = item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'package';
-      for (let n = 1; ; n++) { const id = n === 1 ? base : base + '-' + n; if (!store.packages[id]) { item.id = id; break; } }
+      const base = idBase(item.name);
+      for (let n = 1; ; n++) { const id = n === 1 ? base : base + '-' + n; if (!taken(id)) { item.id = id; break; } }
     }
     const exists = !!store.packages[item.id];
     if (body.creating === exists) throw new AuthError(body.creating ? 'This package ID already exists' : 'Package not found', 409);
@@ -50,6 +70,7 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
     store.packages[item.id] = item;
     return store.packages[item.id];
   }
+  if (path === 'sales-packages/drafts') return draftAction(body);
   if (path === 'sales-packages/offer-links') {
     store.linkCalls.push(body);
     if (store.failLink) throw new AuthError('Portal unavailable', 503);
@@ -66,11 +87,12 @@ const serverEntry = `
 import {PATCH as offers} from '${src('src/app/api/offers/route.ts')}';
 import {GET as packagesGet, PATCH as packagesPatch} from '${src('src/app/api/packages/route.ts')}';
 import {PATCH as links} from '${src('src/app/api/packages/offer-links/route.ts')}';
+import {PATCH as drafts} from '${src('src/app/api/packages/drafts/route.ts')}';
 import {identity} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {store, readSalesCatalogue} from '@/lib/sales-catalogue-server';
 import {resolvedOffers,publishedOffers,DEFAULT_UNIVERSAL_TERMS,DEFAULT_OFFER_LISTING} from '@/lib/offers';
-const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links };
+const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts };
 export const handle = (key, request, role) => identity.run(role, () => routes[key](request));
 export const seedOffer = offer => settingsRepo.saveOffer(offer, true);
 export {store};
@@ -102,7 +124,7 @@ fetch('/state').then(r=>r.json()).then(s=>{const q=new URLSearchParams(location.
 const offer=s.published.find(o=>o.slug===slug);const item=kind==='package'&&s.catalogue.packages.find(p=>p.id===slug&&p.status==='published');
 const own=item?s.offers.filter(o=>o.packageId===item.id&&o.status!=='draft'):[];const running=own.find(o=>o.status==='published'&&Date.parse(o.endsAt)>Date.now());
 const packageTerms=item?[...new Set([...s.terms,...item.terms])]:[];
-createRoot(document.getElementById('app')).render(location.pathname==='/admin/offers'?<main style={{padding:24,maxWidth:1100,margin:'auto'}}><OffersManager key={location.search} initialOffers={s.offers} initialTerms={s.terms} initialListing={s.listing} section={q.get('section')||'settings'} initialOfferSlug={q.get('offer')||undefined} createNew={q.get('new')==='1'}/></main>
+createRoot(document.getElementById('app')).render(location.pathname==='/admin/offers'?<main style={{padding:24,maxWidth:1100,margin:'auto'}}><OffersManager key={location.search} initialOffers={s.offers} initialTerms={s.terms} initialListing={s.listing} section={q.get('section')||'settings'} initialOfferSlug={q.get('offer')||undefined}/></main>
 :location.pathname==='/admin/packages'?<main style={{padding:24,maxWidth:1400,margin:'auto'}}><PackagesManager key={location.search} initial={s.catalogue} initialPages={[]} initialOffers={s.offers} universalTerms={s.terms} openPackageId={q.get('package')||undefined}/></main>
 :item?<PublicInteraction offer={running?offerView(running,item):packageView(item,own[0])} terms={running?resolvedTerms(running,s.terms):packageTerms} pkg={{id:item.id,name:item.name,live:!!running,back:{href:'/',label:'Packages'},packageTerms,start:{signedIn:false}}}/>
 :offer?<PublicInteraction offer={offerView(offer)} terms={resolvedTerms(offer,s.terms)}/>:<main>Not found</main>);});
@@ -156,6 +178,50 @@ try {
   const form = page.locator('form').first();
   const editor = async name => { await page.goto(origin + '/admin/packages'); await page.locator('article').filter({ hasText: name }).getByRole('button', { name: 'Edit package →' }).click(); };
 
+  const draftCall = async label => {
+    const pending = page.waitForResponse(r => r.url().endsWith('/api/packages/drafts') && r.request().method() === 'PATCH');
+    await page.getByRole('button', { name: label, exact: true }).click();
+    const response = await pending; return { status: response.status(), body: await response.json() };
+  };
+
+  // 0. Save draft needs only the package name (and the offer name); wrong values are kept; nothing goes live.
+  // Publish checks every field and sends nothing while one is wrong.
+  await page.goto(origin + '/admin/packages');
+  await page.getByRole('button', { name: 'New package +', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await page.getByText('Enter the package name to save a draft.', { exact: true }).waitFor();
+  await form.getByLabel('Package name', { exact: true }).fill('Draft Only');
+  await form.getByLabel('Main price (₹)', { exact: true }).fill('-5');
+  await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await page.getByText('Enter the offer name to save the offer in the draft.', { exact: true }).waitFor();
+  await form.getByLabel('Offer name', { exact: true }).fill('Half offer');
+  const firstDraft = await draftCall('Save draft');
+  assert.equal(firstDraft.status, 200, JSON.stringify(firstDraft.body)); assert.equal(firstDraft.body.packageId, 'draft-only');
+  assert.equal(api.store.drafts['draft-only'].data.item.regularPrice, -5, 'a wrong value is kept in the draft');
+  assert.equal(api.store.drafts['draft-only'].data.offer.title, 'Half offer');
+  assert.equal(api.store.packages['draft-only'], undefined, 'nothing is live');
+  await page.getByText('Draft saved. Its link /package/draft-only goes live when you publish.', { exact: true }).waitFor();
+  const beforePublish = packageSaves;
+  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
+  for (const text of ['Enter a description.', 'Enter a main price above ₹0.', 'Enter the offer price.']) await page.getByText(text, { exact: true }).waitFor();
+  assert.equal(packageSaves, beforePublish, 'nothing is sent while a field is wrong');
+  await page.screenshot({ path: path.join(folder, 'admin-draft-refused-publish.png'), fullPage: true });
+  await form.getByLabel('Offer status', { exact: true }).selectOption('draft');
+  await page.getByRole('button', { name: '← All packages' }).click();
+  await page.locator('article').filter({ hasText: 'Draft Only' }).getByRole('button', { name: 'Edit draft →' }).click();
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).inputValue(), '-5', 'the draft opens as typed');
+  assert.equal(await form.getByLabel('Offer name', { exact: true }).inputValue(), 'Half offer');
+  const stale = await context.request.patch(origin + '/api/packages/drafts', { data: { action: 'save', packageId: 'draft-only', version: 5, data: { item: { name: 'Old copy' } } } });
+  assert.equal(stale.status(), 409, 'a save from an older copy is refused');
+  const nameless = await context.request.patch(origin + '/api/packages/drafts', { data: { action: 'save', data: { item: { name: ' ' } } } });
+  assert.equal(nameless.status(), 400);
+  await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
+  await page.getByText('Draft deleted.', { exact: true }).waitFor();
+  assert.equal(api.store.drafts['draft-only'], undefined);
+
   // 1. A package alone: no ID field (made from the name), page design pre-filled, offer optional.
   await page.goto(origin + '/admin/packages');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
@@ -170,22 +236,23 @@ try {
   assert.equal(await form.getByLabel('Main heading', { exact: true }).inputValue(), 'Business Starter', 'design pre-filled from the name');
   await page.getByRole('button', { name: '+ Add offer', exact: true }).waitFor();
   await page.screenshot({ path: path.join(folder, 'admin-new-package.png'), fullPage: true });
-  const first = await save('Save package');
+  const first = await save('Publish');
   assert.equal(first.package.id, 'business-starter'); assert.equal(first.offer, null);
   assert.equal(api.store.packages['business-starter'].design.heading, 'Business Starter');
-  await page.getByText('Package saved. Its page is /package/business-starter. No offer: customers see 2 prices.', { exact: true }).waitFor();
+  await page.getByText('Package published. Its page is /package/business-starter. No offer: customers see 2 prices.', { exact: true }).waitFor();
   await page.getByText('fixed', { exact: true }).waitFor();
   assert.equal((await state()).offers.filter(row => row.packageId).length, 0, 'no offer was made');
 
   // 2. Add offer makes every offer field the system needs required; nothing is sent until they are right.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
+  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
   const before = packageSaves;
-  await page.getByRole('button', { name: 'Save package & offer', exact: true }).click();
-  await page.getByText('Nothing was saved. Fix the marked fields first.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
+  await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
   for (const text of ['Enter the offer name.', 'Enter the offer price.', 'Choose how the project is paid.']) await page.getByText(text, { exact: true }).waitFor();
   await form.getByLabel('Offer name', { exact: true }).fill('Diwali Launch Offer');
   await form.getByLabel('Offer price (₹)', { exact: true }).fill('9999');
-  await page.getByRole('button', { name: 'Save package & offer', exact: true }).click();
+  await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
   await page.getByText('Must be below the normal price (₹9,999).', { exact: true }).waitFor();
   assert.equal(packageSaves, before, 'nothing was sent');
   await form.getByLabel('Offer price (₹)', { exact: true }).fill('2999');
@@ -196,9 +263,9 @@ try {
   await form.getByLabel('Reserve opens (hours before the offer ends)', { exact: true }).fill('48');
   await form.getByLabel('Offer status', { exact: true }).selectOption('published');
   await page.getByText('/offer/diwali-launch-offer', { exact: true }).waitFor();
-  assert.equal(await page.getByText('Nothing was saved. Fix the marked fields first.', { exact: true }).count(), 0, 'fixed fields clear their marks before saving');
+  assert.equal(await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).count(), 0, 'fixed fields clear their marks before saving');
   await page.screenshot({ path: path.join(folder, 'admin-package-with-offer.png'), fullPage: true });
-  const second = await save('Save package & offer');
+  const second = await save('Publish changes');
   assert.equal(second.offer.slug, 'diwali-launch-offer'); assert.equal(second.offer.packageId, 'business-starter');
   for (const key of ['eyebrow', 'heading', 'description', 'ctaLabel', 'contactHref']) assert.equal(key in second.offer, false, `a new offer stores no ${key}`);
   assert.equal(second.offer.mainPrice, 15000); assert.equal(second.offer.discountPrice, 9999); assert.equal(second.offer.reserveWindowHours, 48);
@@ -231,6 +298,27 @@ try {
     await publicPage.screenshot({ path: path.join(folder, `package-${width}.png`), fullPage: true });
   }
 
+  // 3b. A published package's draft: the live page stays as it is until Publish changes; Discard draft goes back.
+  await form.getByLabel('Description', { exact: true }).fill('Changed in the draft.');
+  const copy = await draftCall('Save draft');
+  assert.equal(copy.status, 200, JSON.stringify(copy.body)); assert.equal(copy.body.version, 1);
+  assert.equal(api.store.packages['business-starter'].description, 'A ready-to-launch business website.', 'live package unchanged');
+  await page.getByText('Draft saved. The live page stays as it is until you publish the changes.', { exact: true }).waitFor();
+  await page.goto(origin + '/admin/packages');
+  await page.locator('article').filter({ hasText: 'Business Starter' }).getByText('Unpublished changes (draft)', { exact: true }).waitFor();
+  await editor('Business Starter');
+  assert.equal(await form.getByLabel('Description', { exact: true }).inputValue(), 'Changed in the draft.', 'the package opens its draft');
+  await page.getByText('Running', { exact: true }).first().waitFor();
+  await save('Publish changes');
+  assert.equal(api.store.packages['business-starter'].description, 'Changed in the draft.');
+  assert.equal(api.store.drafts['business-starter'], undefined, 'the draft is removed once published');
+  await form.getByLabel('Description', { exact: true }).fill('Throw this away.');
+  await draftCall('Save draft');
+  await page.getByRole('button', { name: 'Discard draft', exact: true }).click();
+  await page.getByText('Draft discarded. The form shows the live package.', { exact: true }).waitFor();
+  assert.equal(await form.getByLabel('Description', { exact: true }).inputValue(), 'Changed in the draft.');
+  assert.equal(api.store.drafts['business-starter'], undefined);
+
   // 4. A package change updates its offer; changes that would break the running offer are refused.
   const saved = api.store.packages['business-starter'];
   const changed = await packageApi({ ...saved, regularPrice: 20000 });
@@ -247,13 +335,16 @@ try {
 
   // 5. One running offer per package; a new package offer needs a package; editors cannot change offers.
   const offer = (await state()).offers.find(row => row.slug === 'diwali-launch-offer');
-  const busy = await offerApi({ ...offer, slug: 'diwali-two', title: 'Two' }, true); assert.equal(busy.status(), 409); assert.match((await busy.json()).error, /already has a running offer/);
+  // Offers are created, edited and linked only in the package form.
+  const elsewhere = await offerApi({ ...offer, slug: 'diwali-two', title: 'Two' }, true); assert.equal(elsewhere.status(), 400); assert.match((await elsewhere.json()).error, /Offers are created in Packages/);
   const withoutPackage = { ...legacy, slug: 'no-package' };
-  assert.equal((await offerApi(withoutPackage, true)).status(), 400, 'a new offer needs a package');
+  assert.equal((await offerApi(withoutPackage, true)).status(), 400, 'no offer is created outside Packages');
+  const packageEdit = await offerApi({ ...offer, title: 'Edited outside' }); assert.equal(packageEdit.status(), 400); assert.match((await packageEdit.json()).error, /Edit it in Packages/);
   assert.equal((await offerApi({ ...offer, packageId: 'gbp' })).status(), 400, 'the package is fixed after creation');
   assert.equal((await offerApi(offer, false, 'editor')).status(), 403);
   const tick = data => context.request.patch(origin + '/api/packages/offer-links', { data });
-  assert.equal((await tick({ offerSlug: 'diwali-launch-offer', packageIds: ['gbp'] })).status(), 400, 'a package offer is never linked by ticks');
+  assert.equal((await tick({ offerSlug: 'diwali-launch-offer', packageIds: ['gbp'] })).status(), 410, 'ticks no longer link offers');
+  assert.equal((await tick({ offerSlug: 'legacy', packageIds: ['gbp'] })).status(), 410, 'not even older offers');
 
   // 6. A second package with the same name gets the next number.
   const twin = await context.request.patch(origin + '/api/packages', { data: { item: { ...pkg(''), name: 'Business Starter', design: saved.design }, creating: true } });
@@ -263,8 +354,10 @@ try {
   await page.goto(origin + '/admin/offers?section=settings');
   assert.equal(await page.locator('article').filter({ hasText: 'Diwali Launch Offer' }).getByRole('link', { name: 'Edit →' }).getAttribute('href'), '/admin/packages?package=business-starter');
   assert.equal(await page.getByRole('link', { name: 'New offer +' }).count(), 0, 'offers are made on a package');
+  assert.equal(await page.getByRole('link', { name: 'Add an offer on a package →' }).count(), 0, 'no second way to make an offer');
   await page.goto(origin + '/admin/offers?section=settings&offer=legacy');
   await page.getByText('Pricing rule', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Packages with this offer', { exact: true }).count(), 0, 'older offers have no package ticks');
   await page.getByLabel('Short description', { exact: true }).fill('Still an older offer.');
   const legacyPending = page.waitForResponse(r => r.url().endsWith('/api/offers') && r.request().method() === 'PATCH');
   await page.getByRole('button', { name: 'Save & publish', exact: true }).click();
@@ -273,7 +366,10 @@ try {
   assert.equal(legacySaved.heading, 'Old heading', 'an older offer keeps its own design');
 
   // 8. End offer = archive: the package is back to 2 prices, the offer moves to past offers, a new one can start.
+  // A working copy keeps its other changes and forgets the ended offer.
   await page.goto(origin + '/admin/packages?package=business-starter');
+  await form.getByLabel('Description', { exact: true }).fill('Draft kept while the offer ends.');
+  await draftCall('Save draft');
   await page.getByRole('button', { name: 'End offer', exact: true }).click();
   const ending = page.waitForResponse(r => r.url().endsWith('/api/packages') && r.request().method() === 'PATCH');
   await page.locator('p').getByRole('button', { name: 'End offer', exact: true }).click();
@@ -283,6 +379,9 @@ try {
   assert.equal((await state()).offers.find(row => row.slug === 'diwali-launch-offer').status, 'archived');
   await page.getByRole('button', { name: '+ Start new offer', exact: true }).waitFor();
   await page.getByText('Past offers (read only)', { exact: true }).waitFor();
+  assert.equal(api.store.drafts['business-starter'].data.offer, null, 'the draft forgets the ended offer');
+  assert.equal(api.store.packages['business-starter'].description, 'Changed in the draft.', 'End offer sends the live package');
+  assert.equal(await form.getByLabel('Description', { exact: true }).inputValue(), 'Draft kept while the offer ends.');
   await publicPage.setViewportSize({ width: 1440, height: 950 });
   await publicPage.goto(origin + '/package/business-starter'); await publicPage.getByText('PRICE', { exact: true }).waitFor();
   assert.equal(await publicPage.getByRole('timer').count(), 0);
@@ -295,8 +394,20 @@ try {
   assert.equal(api.store.packages['extra-pkg'].offerExtraPrice, 0);
   assert.equal((await extra.json()).offer.slug, 'extra-package-offer');
 
+  // 10. Publishing a package whose new offer is still a draft: the package goes live, the offer stays in the copy.
+  const later = await packageApi({ ...pkg(''), name: 'Later Offer Pack', design: saved.design }, { creating: true, draft: { version: 0, keepOffer: { title: 'Later offer', status: 'draft' } } });
+  assert.equal(later.status(), 200, await later.text());
+  const laterBody = await later.json();
+  assert.equal(laterBody.package.id, 'later-offer-pack'); assert.equal(laterBody.offer, null);
+  assert.equal(laterBody.draft.data.offer.title, 'Later offer');
+  assert.equal((await state()).offers.some(row => row.packageId === 'later-offer-pack'), false, 'no live offer');
+  // Publishing from an older copy is refused before anything is written.
+  const stalePublish = await packageApi({ ...api.store.packages['later-offer-pack'], description: 'Old copy' }, { draft: { version: 9 } });
+  assert.equal(stalePublish.status(), 409);
+  assert.equal(api.store.packages['later-offer-pack'].description, 'Package description');
+
   assert.deepEqual(errors, []);
-  console.log('PASS: one package form — automatic IDs and offer links, page design, optional offer with required fields, package page in offer and package mode, sync and guards, end offer, older offers unchanged, desktop/mobile layout.');
+  console.log('PASS: one package form — drafts (name only, kept as typed, refused publish, published-package copy, discard, end offer), automatic IDs and offer links, page design, optional offer with required fields, package page in offer and package mode, sync and guards, offers only from Packages, older offers unchanged, desktop/mobile layout.');
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve));

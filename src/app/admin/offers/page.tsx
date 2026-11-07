@@ -29,6 +29,6 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
     <nav className={s.tabs} aria-label="Offer management sections">{OFFER_SECTIONS.map(item => <Link key={item.id} href={`/admin/offers?section=${item.id}`} aria-current={section === item.id ? "page" : undefined}>{item.label}</Link>)}</nav>
     <div className={s.actions}><Link className="admin-action" href="/admin/packages">Manage linked packages →</Link></div>
     <p className="admin-subtitle">{OFFER_SECTIONS.find(item => item.id === section)!.description}</p>
-    <OffersManager key={`${section}:${query.offer || ""}:${query.new || ""}`} section={section} initialOfferSlug={query.offer} createNew={section === "settings" && query.new === "1"} initialOffers={offers} initialTerms={settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS} initialListing={settings.offerListing ?? DEFAULT_OFFER_LISTING} />
+    <OffersManager key={`${section}:${query.offer || ""}:${query.new || ""}`} section={section} initialOfferSlug={query.offer} initialOffers={offers} initialTerms={settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS} initialListing={settings.offerListing ?? DEFAULT_OFFER_LISTING} />
   </main>;
 }

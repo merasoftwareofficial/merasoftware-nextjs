@@ -16,6 +16,10 @@ export async function GET() {
 // made from its name), an existing one names its link.
 // The offer itself is checked by offerSchema once its package values are applied (below).
 const offerPart = z.object({ creating: z.boolean(), offer: z.record(z.string(), z.unknown()) }).strict();
+// Publishing from a working copy (api/packages/drafts): the copy is removed once published, only if nobody saved
+// a newer one. An offer still marked draft is not published; it stays in the copy (keepOffer) with the package.
+const draftPart = z.object({ version: z.number().int().min(0), keepOffer: z.record(z.string(), z.unknown()).optional() }).strict();
+const draftsPath = "sales-packages/drafts";
 
 // The one package form: a package, optionally with its offer. A package owns its offer's struck prices,
 // included work, terms and page design (lib/offer-packages.ts, lib/package-design.ts). Everything is
@@ -34,11 +38,17 @@ export async function PATCH(request: Request) {
     }
     const part = body.offer === undefined ? null : offerPart.safeParse(body.offer);
     if (part && !part.success) return NextResponse.json({ error: `Offer: ${part.error.issues[0]?.message ?? "check the fields"}` }, { status: 400 });
+    const draftInput = body.draft === undefined ? null : draftPart.safeParse(body.draft);
+    if (draftInput && !draftInput.success) return NextResponse.json({ error: "Reload the package and try again." }, { status: 400 });
+    const draft = draftInput?.success ? draftInput.data : null;
     // The extra scope charge belonged to older shared offers; an offer made here must show the price paid.
     if (part) item.offerExtraPrice = 0;
     const offers = resolvedOffers((await settingsRepo.get()).offers);
-    const previous = body.creating ? undefined : (await readSalesCatalogue(true)).packages.find(row => row.id === item.id);
+    const catalogue = body.creating && !draft ? undefined : await readSalesCatalogue(true);
+    const previous = body.creating ? undefined : catalogue!.packages.find(row => row.id === item.id);
     if (!body.creating && !previous) return NextResponse.json({ error: "Package not found. Refresh and try again." }, { status: 404 });
+    // Publishing an older copy would overwrite a newer draft someone else saved.
+    if (draft && (catalogue!.drafts ?? []).find(row => row.packageId === item.id)?.version !== (draft.version || undefined)) return NextResponse.json({ error: "Someone else saved this draft meanwhile. Reload the package to see their changes." }, { status: 409 });
     const now = Date.now();
     // Check the offer against the package as it will be saved, before anything is written.
     let offerInput: Offer | null = null;
@@ -84,8 +94,24 @@ export async function PATCH(request: Request) {
         ? await createPackageOffer({ ...offerInput, packageId: saved.id, slug: undefined } as Omit<Offer, "slug">)
         : await saveOfferRecord({ ...offerInput, packageId: saved.id }, false);
     }
+    // The working copy: kept as it was when the offer was not saved, so nothing typed is lost.
+    let savedDraft: unknown = null;
+    let draftError = "";
+    if (draft && !(offerResult && !offerResult.ok)) {
+      try {
+        if (draft.keepOffer) savedDraft = await salesBackend(true, { action: "save", packageId: saved.id, version: draft.version, data: { item: saved, offer: draft.keepOffer } }, draftsPath);
+        else if (draft.version > 0) await salesBackend(true, { action: "delete", packageId: saved.id, version: draft.version }, draftsPath);
+      } catch (error) { draftError = error instanceof Error ? error.message : "The draft could not be updated."; }
+    }
+    // An ended offer leaves the copy too, so it is never published again from there.
+    if (offerResult?.ok && offerResult.offer.status === "archived") {
+      try { await salesBackend(true, { action: "clearOffer", packageId: saved.id, offerSlug: offerResult.offer.slug }, draftsPath); }
+      catch (error) { draftError = error instanceof Error ? error.message : "The draft could not be updated."; }
+    }
     return NextResponse.json({
       package: saved,
+      draft: savedDraft,
+      ...(draftError ? { draftError } : {}),
       offer: offerResult?.ok ? offerResult.offer : null,
       ...(offerResult && !offerResult.ok ? { offerError: offerResult.error } : {}),
       ...(offerResult?.ok && offerResult.linkError ? { linkError: offerResult.linkError } : {}),
