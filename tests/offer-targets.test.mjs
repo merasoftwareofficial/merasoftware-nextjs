@@ -46,7 +46,7 @@ before(async () => {
   await Target.init();
   [admin, member, rajan] = await User.create([{ name: 'Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Member', email: 'member@example.test', roles: ['member'] }, { name: 'Rajan Client', email: 'rajan@example.test', phone: '9876500000', roles: ['customer'] }]);
   await Lead.create([
-    { name: 'Rajan Client', email: 'rajan@example.test', phone: '9876500000', status: 'Won', convertedToUserId: rajan._id, clientBehaviour: 'Tough' },
+    { name: 'Rajan Client', email: 'rajan@example.test', phone: '9876500000', status: 'Won', convertedToUserId: rajan._id, clientBehaviour: 'NotNow' },
     { name: 'Lazy Lead', phone: '9000000001', status: 'Lazy' },
     { name: 'Unhappy Lead', phone: '9000000002', status: 'Unhappy' },
     { name: 'Dead Lead', phone: '9000000003', status: 'Dead' },
@@ -90,7 +90,7 @@ test('browser: choose a client by behaviour and leads one by one; stage, behavio
     await page.getByRole('button', { name: 'Add people' }).click();
     const add = page.getByRole('region', { name: 'Add people' });
     await add.getByText('Rajan Client').waitFor();
-    await add.getByRole('checkbox', { name: /^Tough/ }).check();
+    await add.getByRole('checkbox', { name: /^Not Now/ }).check();
     await add.getByRole('button', { name: 'Select all (1)' }).click();
     await add.getByRole('button', { name: 'Leads' }).click();
     const dead = add.getByRole('listitem').filter({ hasText: 'Dead Lead' });

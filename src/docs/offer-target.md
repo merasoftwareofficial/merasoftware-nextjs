@@ -34,6 +34,7 @@ Sell again to existing clients and to leads, offer by offer. Each person stays o
 | Active | `Active` | Yes | Yes | Yes |
 | Lazy | `Lazy` | Yes | Yes | Yes |
 | Tough | `Tough` | Yes | Yes | Yes |
+| Not Now | `NotNow` | Yes | Yes | Yes |
 | Negative | `Negative` | Yes | Yes | Yes |
 | Unhappy | `Unhappy` | Yes | Yes | Yes, with a warning when chosen |
 | Dead | `Dead` | Yes | Yes | No |
@@ -43,6 +44,7 @@ Sell again to existing clients and to leads, offer by offer. Each person stays o
 - `Contacted` is only relabelled, as `Won` is shown as Matured. No production migration.
 - Existing clients stay as they are: nothing is changed or backfilled. A client with no `clientBehaviour` counts as Neutral, and the team moves clients into categories, such as Unhappy, as the work goes on.
 - Each person has one category at a time, chosen by the admin. Every change appears on the timeline.
+- Local Not Now change: Lazy and Tough are no longer selectable. Existing values remain readable pending migration; see `not-now-stage-plan.md` for the no-countdown review, rollout and test results.
 
 ## Rules
 
@@ -69,7 +71,7 @@ Sell again to existing clients and to leads, offer by offer. Each person stays o
 
 **Becoming a client:** the lead's category carries over as behaviour. Dead or Wrong can't use Convert until the admin changes the stage. Sign-in and role paths that make a client never block: they set Neutral.
 
-**Open requests:** a new request joins a Neutral, Positive, Active, Lazy, Tough or Unhappy lead instead of creating a second lead.
+**Open requests:** a new request joins a Neutral, Positive, Active, Not Now, legacy Lazy/Tough or Unhappy lead instead of creating a second lead.
 
 **Proposal Sent group:** badge plus Neutral, Positive, Active, Lazy or Tough.
 

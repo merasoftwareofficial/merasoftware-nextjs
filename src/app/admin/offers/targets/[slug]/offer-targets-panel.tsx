@@ -9,13 +9,13 @@ type Counts = { total: number; clients: number; leads: number; stages: Record<st
 type Candidate = { type: "client" | "lead"; id: string; name: string; phone: string; email: string; category: string; inOffer: boolean; block?: string; blockLabel?: string };
 type AddResult = { added: number; already: number; skipped: { name: string; reason: string }[] };
 
-const LABELS: Record<string, string> = { Contacted: "Neutral", Won: "Matured" };
+const LABELS: Record<string, string> = { Contacted: "Neutral", Won: "Matured", NotNow: "Not Now" };
 const label = (value: string) => LABELS[value] || value;
 const STAGES: Stage[] = ["Contacted", "Positive", "Negative"];
-const BEHAVIOURS = ["Contacted", "Positive", "Active", "Lazy", "Tough", "Negative", "Unhappy", "Dead"];
+const BEHAVIOURS = ["Contacted", "Positive", "Active", "NotNow", "Negative", "Unhappy", "Dead"];
 // Inquiry is set only by the system (a Dead client who wrote after the closure message): filtered and shown, never chosen.
 const CLIENT_CATEGORIES = ["Inquiry", ...BEHAVIOURS];
-const LEAD_CATEGORIES = ["Inquiry", "Contacted", "Positive", "Active", "Lazy", "Tough", "Negative", "Unhappy", "Dead", "Wrong"];
+const LEAD_CATEGORIES = ["Inquiry", "Contacted", "Positive", "Active", "NotNow", "Negative", "Unhappy", "Dead", "Wrong"];
 const personKey = (row: { type: string; id: string }) => `${row.type}:${row.id}`;
 
 async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
