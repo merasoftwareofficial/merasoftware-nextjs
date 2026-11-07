@@ -1,7 +1,7 @@
-// Lightweight browser + API integration for package offers (src/docs/dynamic-offers.md).
-// Actual offer/package forms, offer card and the real /api/offers, /api/packages and
-// /api/packages/offer-links handlers with JSON storage. Only the signed-in identity and the
-// portal package catalogue are test fixtures; nothing touches a real database or network.
+// Lightweight browser + API integration for the one package form (src/docs/package-offers.md) and package
+// offers (src/docs/dynamic-offers.md). Actual package/offer forms, the package page card and the real
+// /api/offers, /api/packages and /api/packages/offer-links handlers with JSON storage. Only the signed-in
+// identity and the portal package catalogue are test fixtures; nothing touches a real database or network.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { createRequire } from 'node:module';
@@ -26,7 +26,7 @@ const catalogueSource = `
 import {requireRole, AuthError} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {resolvedOffers} from '@/lib/offers';
-export const store = { packages: {}, linkCalls: [], failLink: false };
+export const store = { packages: {}, linkCalls: [], saves: [], failLink: false };
 export const requireSalesAdmin = () => requireRole('admin');
 const quoted = item => ({ ...item, quoteKey: 'k-' + item.id, quote: { regularPrice: item.regularPrice, discountAmount: 0, finalPrice: item.discountedPrice, offer: null, terms: item.terms } });
 export async function readSalesCatalogue(admin) {
@@ -38,10 +38,17 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
   await requireSalesAdmin();
   if (!body) return readSalesCatalogue(admin);
   if (path === 'sales-packages') {
-    const exists = !!store.packages[body.item.id];
+    // A new package without an ID gets one from its name, the next number while taken (as the backend does).
+    const item = { ...body.item };
+    if (body.creating && !item.id) {
+      const base = item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'package';
+      for (let n = 1; ; n++) { const id = n === 1 ? base : base + '-' + n; if (!store.packages[id]) { item.id = id; break; } }
+    }
+    const exists = !!store.packages[item.id];
     if (body.creating === exists) throw new AuthError(body.creating ? 'This package ID already exists' : 'Package not found', 409);
-    store.packages[body.item.id] = { ...body.item };
-    return store.packages[body.item.id];
+    store.saves.push(item);
+    store.packages[item.id] = item;
+    return store.packages[item.id];
   }
   if (path === 'sales-packages/offer-links') {
     store.linkCalls.push(body);
@@ -82,17 +89,23 @@ await build({ stdin: { contents: serverEntry, resolveDir: root, sourcefile: 'off
   virtual(builder, 'sales', /^@\/lib\/sales-catalogue-server$/, catalogueSource);
   virtual(builder, 'repo', /^@\/lib\/repo$/, `import {jsonDriver} from '${src('src/lib/repo/json-driver.ts')}';export const settingsRepo=jsonDriver.settings;`);
 } }] });
+// The package page mirrors app/package/[id]/page.tsx: running offer → offer mode, else package mode.
 const clientEntry = `
 import React from 'react';import{createRoot}from'react-dom/client';
 import{OffersManager}from'@/app/admin/offers/offers-manager';
 import{PackagesManager}from'@/app/admin/packages/packages-manager';
 import{PublicInteraction}from'@/components/campaign/public-interaction/page-content';
 import{resolvedTerms}from'@/lib/offers';
+import{offerView,packageView}from'@/lib/package-design';
 import '${src('src/app/globals.css')}';
-fetch('/state').then(r=>r.json()).then(s=>{const q=new URLSearchParams(location.search);const slug=location.pathname.split('/')[2];const offer=s.published.find(o=>o.slug===slug);
+fetch('/state').then(r=>r.json()).then(s=>{const q=new URLSearchParams(location.search);const [,kind,slug]=location.pathname.split('/');
+const offer=s.published.find(o=>o.slug===slug);const item=kind==='package'&&s.catalogue.packages.find(p=>p.id===slug&&p.status==='published');
+const own=item?s.offers.filter(o=>o.packageId===item.id&&o.status!=='draft'):[];const running=own.find(o=>o.status==='published'&&Date.parse(o.endsAt)>Date.now());
+const packageTerms=item?[...new Set([...s.terms,...item.terms])]:[];
 createRoot(document.getElementById('app')).render(location.pathname==='/admin/offers'?<main style={{padding:24,maxWidth:1100,margin:'auto'}}><OffersManager key={location.search} initialOffers={s.offers} initialTerms={s.terms} initialListing={s.listing} section={q.get('section')||'settings'} initialOfferSlug={q.get('offer')||undefined} createNew={q.get('new')==='1'}/></main>
-:location.pathname==='/admin/packages'?<main style={{padding:24,maxWidth:1100,margin:'auto'}}><PackagesManager initial={s.catalogue} initialPages={[]}/></main>
-:offer?<PublicInteraction offer={offer} terms={resolvedTerms(offer,s.terms)}/>:<main>Not found</main>);});
+:location.pathname==='/admin/packages'?<main style={{padding:24,maxWidth:1400,margin:'auto'}}><PackagesManager key={location.search} initial={s.catalogue} initialPages={[]} initialOffers={s.offers} universalTerms={s.terms} openPackageId={q.get('package')||undefined}/></main>
+:item?<PublicInteraction offer={running?offerView(running,item):packageView(item,own[0])} terms={running?resolvedTerms(running,s.terms):packageTerms} pkg={{id:item.id,name:item.name,live:!!running,back:{href:'/',label:'Packages'},packageTerms,start:{signedIn:false}}}/>
+:offer?<PublicInteraction offer={offerView(offer)} terms={resolvedTerms(offer,s.terms)}/>:<main>Not found</main>);});
 `;
 await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'offer-ui-fixture.tsx', loader: 'tsx' }, outfile: path.join(folder, 'client.js'), bundle: true, platform: 'browser', conditions: ['style', 'browser'], jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'browser-fixtures', setup(builder) {
   virtual(builder, 'link', /^@\/components\/link$/, `import React from 'react';export default function Link(props){return <a {...props}/>}`, 'tsx');
@@ -101,8 +114,8 @@ await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'off
 const previous = process.cwd();
 process.chdir(folder);
 const api = createRequire(import.meta.url)(path.join(folder, 'server.cjs'));
-const pkg = (id, patch = {}) => ({ id, name: id === 'starter' ? 'Google Starter' : id, description: 'Package description', status: 'published', category: 'standard_websites', regularPrice: 4000, discountedPrice: 3500, offerExtraPrice: 0, offerSlug: '', inclusions: ['Business profile setup', 'Search and Maps listing'], terms: ['Package term: one revision.'], linkedPlanIds: [], order: 0, pages: [], ...patch });
-for (const item of [pkg('starter'), pkg('plus', { offerExtraPrice: 2000 }), pkg('gbp'), pkg('old-pkg', { offerSlug: 'legacy' })]) api.store.packages[item.id] = item;
+const pkg = (id, patch = {}) => ({ id, name: id, description: 'Package description', status: 'published', category: 'standard_websites', regularPrice: 4000, discountedPrice: 3500, offerExtraPrice: 0, offerSlug: '', inclusions: ['Business profile setup', 'Search and Maps listing'], terms: ['Package term: one revision.'], linkedPlanIds: [], order: 0, pages: [], ...patch });
+for (const item of [pkg('gbp', { name: 'GBP Setup' }), pkg('old-pkg', { offerSlug: 'legacy' })]) api.store.packages[item.id] = item;
 const legacy = { slug: 'legacy', status: 'published', title: 'Legacy offer', eyebrow: 'OLD', heading: 'Old heading', headingHighlight: '', description: 'An offer saved before package offers.', supportingLine: '', subheading: 'Included', tagline: 'Tagline', badge: 'Badge', mainPrice: 4000, discountPrice: 3500, offerPrice: 3000, priceDescription: 'One-time', endsAt: '2030-12-31T23:59:59+05:30', inclusions: ['Hand-written point'], termsMode: 'combined', terms: ['Legacy term'], ctaLabel: 'Enquire', contactHref: 'mailto:hello@example.com', order: 9, applicableCategories: ['standard_websites'], packageIds: [], pricingRule: 'percentage', benefitValue: 25 };
 await api.seedOffer(legacy);
 const server = http.createServer(async (request, response) => {
@@ -127,147 +140,163 @@ try {
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ timezoneId: 'America/New_York', extraHTTPHeaders: { 'x-test-role': 'admin' } });
   const page = await context.newPage();
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('Browser error:', error.message); });
   page.on('dialog', dialog => dialog.accept());
+  let packageSaves = 0; page.on('request', request => { if (request.url().endsWith('/api/packages') && request.method() === 'PATCH') packageSaves++; });
   const offerApi = (offer, creating = false, role) => context.request.patch(origin + '/api/offers', { data: { kind: 'offer', offer, creating }, ...(role ? { headers: { 'x-test-role': role } } : {}) });
-  const packageApi = item => context.request.patch(origin + '/api/packages', { data: { item, creating: false } });
+  const packageApi = (item, extra = {}) => context.request.patch(origin + '/api/packages', { data: { item, creating: false, ...extra } });
   const state = async () => (await context.request.get(origin + '/state')).json();
   async function save(label) {
-    const pending = page.waitForResponse(r => r.url().endsWith('/api/offers') && r.request().method() === 'PATCH');
+    const pending = page.waitForResponse(r => r.url().endsWith('/api/packages') && r.request().method() === 'PATCH');
     await page.getByRole('button', { name: label, exact: true }).click();
-    const response = await pending; assert.equal(response.status(), 200, await response.text().catch(() => '')); return response;
+    const response = await pending; assert.equal(response.status(), 200, await response.text().catch(() => '')); return response.json();
   }
+  // The admin form (the closed full-page preview dialog repeats some labels).
+  const form = page.locator('form').first();
+  const editor = async name => { await page.goto(origin + '/admin/packages'); await page.locator('article').filter({ hasText: name }).getByRole('button', { name: 'Edit package →' }).click(); };
 
-  // 1. A new offer starts from its package: struck prices, included work and terms are locked.
-  await page.goto(origin + '/admin/offers?section=settings&new=1');
-  const packageSelect = page.getByLabel('Package', { exact: true });
-  await packageSelect.locator('option[value="starter"]').waitFor({ state: 'attached' });
-  assert.equal(await packageSelect.locator('option[value="plus"]').evaluate(option => option.disabled), true, 'a package with an extra scope price cannot back an offer');
-  await packageSelect.selectOption('starter');
-  await page.locator('[class*="locked"]').getByText('Business profile setup', { exact: true }).waitFor();
-  assert.equal(await page.getByLabel("What's included", { exact: true }).count(), 0, 'no hand-written included work');
-  assert.equal(await page.getByLabel('Main price (₹)', { exact: true }).count(), 0, 'no hand-written struck prices');
-  assert.equal(await page.getByText('Pricing rule', { exact: true }).count(), 0, 'fixed offer price only');
-  await page.getByLabel('Offer name', { exact: true }).fill('Mega offer');
-  await page.getByLabel('URL slug', { exact: true }).fill('mega');
-  await page.getByLabel('Main heading', { exact: true }).fill('Get found on Google');
-  await page.getByLabel('Short description', { exact: true }).fill('Your business on Google Search and Maps.');
-  await page.getByLabel('Offer price (₹)', { exact: true }).fill('699');
-  await page.getByText('Shown as 82% OFF the main price.', { exact: true }).waitFor();
-  await page.screenshot({ path: path.join(folder, 'admin-new-offer.png'), fullPage: true });
-  await page.getByLabel('Expires at (India time / IST)', { exact: true }).fill('2030-10-20T23:59');
-  // Reserve window per offer, and a preview of each reservation state without any request.
-  await page.getByLabel('Reserve opens (hours before the offer ends)', { exact: true }).fill('48');
-  await page.getByRole('button', { name: 'Preview changes ↗', exact: true }).click();
-  const previewDialog = page.getByRole('dialog', { name: 'Offer preview' });
-  const previewMain = previewDialog.locator('section[aria-label] [class*="claim"]');
-  assert.equal(await previewMain.innerText(), 'Enquire about this offer');
-  await page.getByLabel('Preview state', { exact: true }).selectOption('open');
-  await previewMain.filter({ hasText: 'Reserve price for 72 hours' }).waitFor();
-  await page.getByLabel('Preview state', { exact: true }).selectOption('reserved');
-  await previewMain.filter({ hasText: /^Reserved · 71h/ }).waitFor();
-  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
-  await save('Save offer'); await page.waitForURL(/offer=mega/);
-  const draft = (await state()).offers.find(row => row.slug === 'mega');
-  assert.equal(draft.reserveWindowHours, 48);
-  assert.equal(draft.packageId, 'starter'); assert.equal(draft.mainPrice, 4000); assert.equal(draft.discountPrice, 3500);
-  assert.deepEqual(draft.inclusions, ['Business profile setup', 'Search and Maps listing']); assert.deepEqual(draft.terms, ['Package term: one revision.']);
-  assert.equal(api.store.linkCalls.length, 0, 'a draft does not take the package');
-
-  // 2. Publishing links the package through the existing offer-links route.
-  await page.goto(origin + '/admin/offers?section=settings&offer=mega');
-  await page.getByLabel('Status', { exact: true }).selectOption('published');
-  await save('Save & publish');
-  assert.deepEqual(api.store.linkCalls.at(-1), { offerSlug: 'mega', packageIds: ['starter'] });
-  assert.equal(api.store.packages.starter.offerSlug, 'mega');
-
-  // 3. One running offer per package; drafts may wait; the package and creation rules hold.
-  const second = { ...draft, slug: 'mega-two', title: 'Mega two', status: 'published' };
-  const busy = await offerApi(second, true); assert.equal(busy.status(), 409); assert.match((await busy.json()).error, /already has a running offer: "Mega offer"/);
-  assert.equal((await offerApi({ ...second, status: 'draft' }, true)).status(), 200, 'a draft for a busy package is allowed');
-  const withoutPackage = { ...draft }; delete withoutPackage.packageId;
-  assert.equal((await offerApi({ ...withoutPackage, slug: 'no-package' }, true)).status(), 400, 'a new offer needs a package');
-  assert.equal((await offerApi({ ...draft, status: 'published', packageId: 'gbp' })).status(), 400, 'the package is fixed after creation');
-  assert.equal((await offerApi({ ...draft, status: 'published' }, false, 'editor')).status(), 403);
-
-  // 4. Public card: % badge from the main price, package points and terms; the card keeps its height.
-  const publicPage = await context.newPage(); publicPage.on('pageerror', error => errors.push(error.message));
-  const cardHeight = async slug => { await publicPage.goto(origin + '/offer/' + slug); await publicPage.getByRole('timer').waitFor(); return publicPage.locator('section[aria-label]').filter({ has: publicPage.getByRole('timer') }).evaluate(node => node.querySelector('[class*="deal"]').getBoundingClientRect().height); };
-  const legacyDeal = await cardHeight('legacy');
-  assert.equal(await publicPage.getByText(/% OFF/).count(), 0, 'older offers keep their card unchanged');
-  const megaDeal = await cardHeight('mega');
-  await publicPage.getByText('82% OFF', { exact: true }).waitFor();
-  assert.equal(megaDeal, legacyDeal, 'the badge sits in the label line');
-  assert(await publicPage.getByText('Search and Maps listing', { exact: true }).isVisible());
-  await publicPage.getByRole('button', { name: 'T&C', exact: true }).click();
-  assert((await publicPage.getByRole('dialog').innerText()).includes('Package term: one revision.')); await publicPage.keyboard.press('Escape');
-  for (const width of [1440, 390, 320]) {
-    await publicPage.setViewportSize({ width, height: 950 }); await publicPage.goto(origin + '/offer/mega'); await publicPage.getByRole('timer').waitFor();
-    assert(await publicPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll at ${width}`);
-    await publicPage.screenshot({ path: path.join(folder, `offer-${width}.png`), fullPage: true });
-  }
-
-  // 5. A package change updates its running offer and its drafts.
-  const changed = await packageApi({ ...api.store.packages.starter, regularPrice: 5000, inclusions: ['Business profile setup', 'Search and Maps listing', 'Review link'] });
-  assert.equal(changed.status(), 200, await changed.text());
-  let offers = (await state()).offers;
-  for (const slug of ['mega', 'mega-two']) { const offer = offers.find(row => row.slug === slug); assert.equal(offer.mainPrice, 5000, slug); assert.equal(offer.inclusions.length, 3, slug); }
-  await publicPage.goto(origin + '/offer/mega'); await publicPage.getByText('86% OFF', { exact: true }).waitFor();
-
-  // 6. Package changes that would break the running offer are refused.
-  const starter = api.store.packages.starter;
-  for (const [patch, status, message] of [
-    [{ discountedPrice: 500 }, 400, /must not be more than the discounted price/],
-    [{ status: 'archived' }, 409, /cannot be archived/],
-    [{ offerSlug: '' }, 409, /running offer/],
-    [{ offerExtraPrice: 2000 }, 400, /extra scope/],
-  ]) { const response = await packageApi({ ...starter, ...patch }); assert.equal(response.status(), status, JSON.stringify(patch)); assert.match((await response.json()).error, message); }
+  // 1. A package alone: no ID field (made from the name), page design pre-filled, offer optional.
   await page.goto(origin + '/admin/packages');
-  await page.locator('article').filter({ hasText: 'Google Starter' }).getByRole('button', { name: 'Edit package →' }).click();
-  await page.getByText(/Running offer:/).waitFor();
-  assert.equal(await page.getByLabel('Linked offer', { exact: true }).isDisabled(), true);
-  assert.equal(await page.getByLabel('Project category', { exact: true }).isDisabled(), true);
-  await page.screenshot({ path: path.join(folder, 'admin-package-running-offer.png'), fullPage: true });
+  await page.getByRole('button', { name: 'New package +', exact: true }).click();
+  assert.equal(await form.getByLabel('Permanent ID', { exact: true }).count(), 0, 'no ID field');
+  await form.getByLabel('Package name', { exact: true }).fill('Business Starter');
+  await form.getByText('/package/business-starter', { exact: true }).waitFor();
+  await form.getByLabel('Status', { exact: true }).selectOption('published');
+  await form.getByLabel('Description', { exact: true }).fill('A ready-to-launch business website.');
+  await form.getByLabel('Included work (one item per line)', { exact: true }).fill('5-page business website\nMobile-friendly design');
+  await form.getByLabel('Main price (₹)', { exact: true }).fill('15000');
+  await form.getByLabel('Normal price (₹)', { exact: true }).fill('9999');
+  assert.equal(await form.getByLabel('Main heading', { exact: true }).inputValue(), 'Business Starter', 'design pre-filled from the name');
+  await page.getByRole('button', { name: '+ Add offer', exact: true }).waitFor();
+  await page.screenshot({ path: path.join(folder, 'admin-new-package.png'), fullPage: true });
+  const first = await save('Save package');
+  assert.equal(first.package.id, 'business-starter'); assert.equal(first.offer, null);
+  assert.equal(api.store.packages['business-starter'].design.heading, 'Business Starter');
+  await page.getByText('Package saved. Its page is /package/business-starter. No offer: customers see 2 prices.', { exact: true }).waitFor();
+  await page.getByText('fixed', { exact: true }).waitFor();
+  assert.equal((await state()).offers.filter(row => row.packageId).length, 0, 'no offer was made');
 
-  // 7. Older offers' package ticks cannot take a busy package, nor link a package offer.
+  // 2. Add offer makes every offer field the system needs required; nothing is sent until they are right.
+  await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
+  const before = packageSaves;
+  await page.getByRole('button', { name: 'Save package & offer', exact: true }).click();
+  await page.getByText('Nothing was saved. Fix the marked fields first.', { exact: true }).waitFor();
+  for (const text of ['Enter the offer name.', 'Enter the offer price.', 'Choose how the project is paid.']) await page.getByText(text, { exact: true }).waitFor();
+  await form.getByLabel('Offer name', { exact: true }).fill('Diwali Launch Offer');
+  await form.getByLabel('Offer price (₹)', { exact: true }).fill('9999');
+  await page.getByRole('button', { name: 'Save package & offer', exact: true }).click();
+  await page.getByText('Must be below the normal price (₹9,999).', { exact: true }).waitFor();
+  assert.equal(packageSaves, before, 'nothing was sent');
+  await form.getByLabel('Offer price (₹)', { exact: true }).fill('2999');
+  await page.getByText('Shown as 80% OFF the main price.', { exact: true }).waitFor();
+  await form.getByLabel('Payment rule', { exact: true }).selectOption('limited_uploads');
+  await form.getByLabel('Pre-payment upload allowance', { exact: true }).fill('2');
+  await form.getByLabel('Expires at (India time / IST)', { exact: true }).fill('2030-10-20T23:59');
+  await form.getByLabel('Reserve opens (hours before the offer ends)', { exact: true }).fill('48');
+  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  await page.getByText('/offer/diwali-launch-offer', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Nothing was saved. Fix the marked fields first.', { exact: true }).count(), 0, 'fixed fields clear their marks before saving');
+  await page.screenshot({ path: path.join(folder, 'admin-package-with-offer.png'), fullPage: true });
+  const second = await save('Save package & offer');
+  assert.equal(second.offer.slug, 'diwali-launch-offer'); assert.equal(second.offer.packageId, 'business-starter');
+  for (const key of ['eyebrow', 'heading', 'description', 'ctaLabel', 'contactHref']) assert.equal(key in second.offer, false, `a new offer stores no ${key}`);
+  assert.equal(second.offer.mainPrice, 15000); assert.equal(second.offer.discountPrice, 9999); assert.equal(second.offer.reserveWindowHours, 48);
+  assert.deepEqual(second.offer.paymentPolicy, { mode: 'limited_uploads', uploadAllowance: 2, dueDays: 7, cycleScope: 'first_purchase', reminderOffsets: [-1, 0, 3] });
+  assert.deepEqual(api.store.linkCalls.at(-1), { offerSlug: 'diwali-launch-offer', packageIds: ['business-starter'] });
+  await page.getByText('Running', { exact: true }).first().waitFor();
+  assert.equal(await form.getByLabel('Project category', { exact: true }).isDisabled(), true, 'fixed while its offer runs');
+
+  // 3. The package page: offer mode (3 prices, % OFF, countdown) and package mode (2 prices, Start my project).
+  const publicPage = await context.newPage(); publicPage.on('pageerror', error => errors.push(error.message));
+  await publicPage.goto(origin + '/package/business-starter'); await publicPage.getByRole('timer').waitFor();
+  await publicPage.getByText('80% OFF', { exact: true }).waitFor();
+  assert.equal(await publicPage.locator('section[aria-label] h2').first().innerText(), 'Diwali Launch Offer');
+  await publicPage.getByRole('button', { name: 'T&C', exact: true }).click();
+  assert((await publicPage.getByRole('dialog').innerText()).includes('Offer valid until')); await publicPage.keyboard.press('Escape');
+  await publicPage.goto(origin + '/package/gbp');
+  await publicPage.getByText('PRICE', { exact: true }).waitFor();
+  assert.equal(await publicPage.getByRole('timer').count(), 0, 'no countdown without an offer');
+  assert.equal(await publicPage.locator('del').count(), 1, 'only the main price is crossed out');
+  await publicPage.locator('section[aria-label]').getByText('Have a question? Enquire', { exact: true }).waitFor();
+  await publicPage.locator('section[aria-label] [class*="claim"]').filter({ hasText: 'Start my project' }).click();
+  await publicPage.getByRole('button', { name: 'Continue to sign in' }).waitFor();
+  await publicPage.keyboard.press('Escape');
+  for (const width of [1440, 390, 320]) {
+    await publicPage.setViewportSize({ width, height: 950 });
+    for (const id of ['business-starter', 'gbp']) {
+      await publicPage.goto(origin + '/package/' + id); await publicPage.locator('section[aria-label]').first().waitFor();
+      assert(await publicPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll at ${width} on ${id}`);
+    }
+    await publicPage.screenshot({ path: path.join(folder, `package-${width}.png`), fullPage: true });
+  }
+
+  // 4. A package change updates its offer; changes that would break the running offer are refused.
+  const saved = api.store.packages['business-starter'];
+  const changed = await packageApi({ ...saved, regularPrice: 20000 });
+  assert.equal(changed.status(), 200, await changed.text());
+  assert.equal((await state()).offers.find(row => row.slug === 'diwali-launch-offer').mainPrice, 20000);
+  for (const [patch, status, message] of [
+    [{ discountedPrice: 2000 }, 400, /must be below the normal price/],
+    [{ status: 'archived' }, 409, /cannot be archived/],
+    [{ status: 'draft' }, 400, /Publish "Business Starter" before publishing its offer/],
+    [{ offerSlug: '' }, 409, /running offer/],
+  ]) { const response = await packageApi({ ...api.store.packages['business-starter'], ...patch }); assert.equal(response.status(), status, JSON.stringify(patch)); assert.match((await response.json()).error, message); }
+  const design = await packageApi({ ...api.store.packages['business-starter'], design: { ...saved.design, contactHref: 'http://insecure.example' } });
+  assert.equal(design.status(), 400); assert.match((await design.json()).error, /Page design/);
+
+  // 5. One running offer per package; a new package offer needs a package; editors cannot change offers.
+  const offer = (await state()).offers.find(row => row.slug === 'diwali-launch-offer');
+  const busy = await offerApi({ ...offer, slug: 'diwali-two', title: 'Two' }, true); assert.equal(busy.status(), 409); assert.match((await busy.json()).error, /already has a running offer/);
+  const withoutPackage = { ...legacy, slug: 'no-package' };
+  assert.equal((await offerApi(withoutPackage, true)).status(), 400, 'a new offer needs a package');
+  assert.equal((await offerApi({ ...offer, packageId: 'gbp' })).status(), 400, 'the package is fixed after creation');
+  assert.equal((await offerApi(offer, false, 'editor')).status(), 403);
   const tick = data => context.request.patch(origin + '/api/packages/offer-links', { data });
-  assert.equal((await tick({ offerSlug: 'legacy', packageIds: ['old-pkg', 'starter'] })).status(), 409);
-  assert.equal((await tick({ offerSlug: 'mega', packageIds: ['gbp'] })).status(), 400);
+  assert.equal((await tick({ offerSlug: 'diwali-launch-offer', packageIds: ['gbp'] })).status(), 400, 'a package offer is never linked by ticks');
 
-  // 8. A failed link is reported, shown in the list and repaired by saving again.
-  api.store.failLink = true;
-  const gbp = await offerApi({ ...draft, slug: 'gbp-offer', title: 'GBP offer', packageId: 'gbp', status: 'published' }, true);
-  assert.equal(gbp.status(), 200); assert.match(decodeURIComponent(gbp.headers()['x-package-link-error'] || ''), /package link was not updated/);
+  // 6. A second package with the same name gets the next number.
+  const twin = await context.request.patch(origin + '/api/packages', { data: { item: { ...pkg(''), name: 'Business Starter', design: saved.design }, creating: true } });
+  assert.equal((await twin.json()).package.id, 'business-starter-2');
+
+  // 7. Offers lists package offers with a link to their package form; older offers keep their own form.
   await page.goto(origin + '/admin/offers?section=settings');
-  await page.getByText('Not linked to its package yet. Open and save the offer to link it.', { exact: true }).waitFor();
-  api.store.failLink = false;
-  assert.equal((await offerApi({ ...(await gbp.json()) })).status(), 200);
-  assert.equal(api.store.packages.gbp.offerSlug, 'gbp-offer');
-
-  // 9. A package changed outside its offer is flagged in the list.
-  api.store.packages.gbp.inclusions = ['Changed in the portal'];
-  await page.goto(origin + '/admin/offers?section=settings');
-  await page.getByText('Package changed since this offer was saved. Open and save the offer to update it.', { exact: true }).waitFor();
-
-  // 10. Delete = archive: the offer leaves the website and frees its package for the waiting draft.
-  await page.goto(origin + '/admin/offers?section=settings&offer=mega');
-  await save('Delete offer');
-  assert.deepEqual(api.store.linkCalls.at(-1), { offerSlug: 'mega', packageIds: [] });
-  assert.equal(api.store.packages.starter.offerSlug, '');
-  assert.equal((await state()).published.some(row => row.slug === 'mega'), false);
-  offers = (await state()).offers;
-  assert.equal((await offerApi({ ...offers.find(row => row.slug === 'mega-two'), status: 'published' })).status(), 200, 'the freed package takes the next offer');
-  assert.equal(api.store.packages.starter.offerSlug, 'mega-two');
-
-  // 11. An older offer keeps its full form and saves unchanged.
+  assert.equal(await page.locator('article').filter({ hasText: 'Diwali Launch Offer' }).getByRole('link', { name: 'Edit →' }).getAttribute('href'), '/admin/packages?package=business-starter');
+  assert.equal(await page.getByRole('link', { name: 'New offer +' }).count(), 0, 'offers are made on a package');
   await page.goto(origin + '/admin/offers?section=settings&offer=legacy');
   await page.getByText('Pricing rule', { exact: true }).waitFor();
   await page.getByLabel('Short description', { exact: true }).fill('Still an older offer.');
-  const legacySaved = await (await save('Save & publish')).json();
+  const legacyPending = page.waitForResponse(r => r.url().endsWith('/api/offers') && r.request().method() === 'PATCH');
+  await page.getByRole('button', { name: 'Save & publish', exact: true }).click();
+  const legacySaved = await (await legacyPending).json();
   assert.equal('packageId' in legacySaved, false); assert.equal(legacySaved.pricingRule, 'percentage'); assert.deepEqual(legacySaved.inclusions, ['Hand-written point']);
+  assert.equal(legacySaved.heading, 'Old heading', 'an older offer keeps its own design');
+
+  // 8. End offer = archive: the package is back to 2 prices, the offer moves to past offers, a new one can start.
+  await page.goto(origin + '/admin/packages?package=business-starter');
+  await page.getByRole('button', { name: 'End offer', exact: true }).click();
+  const ending = page.waitForResponse(r => r.url().endsWith('/api/packages') && r.request().method() === 'PATCH');
+  await page.locator('p').getByRole('button', { name: 'End offer', exact: true }).click();
+  assert.equal((await ending).status(), 200);
+  await page.getByText('Offer ended. The package page shows 2 prices again.', { exact: true }).waitFor();
+  assert.deepEqual(api.store.linkCalls.at(-1), { offerSlug: 'diwali-launch-offer', packageIds: [] });
+  assert.equal((await state()).offers.find(row => row.slug === 'diwali-launch-offer').status, 'archived');
+  await page.getByRole('button', { name: '+ Start new offer', exact: true }).waitFor();
+  await page.getByText('Past offers (read only)', { exact: true }).waitFor();
+  await publicPage.setViewportSize({ width: 1440, height: 950 });
+  await publicPage.goto(origin + '/package/business-starter'); await publicPage.getByText('PRICE', { exact: true }).waitFor();
+  assert.equal(await publicPage.getByRole('timer').count(), 0);
+  await page.screenshot({ path: path.join(folder, 'admin-package-offer-ended.png'), fullPage: true });
+
+  // 9. A package with an older extra-scope charge: adding an offer here clears it, so the page shows the price paid.
+  api.store.packages['extra-pkg'] = pkg('extra-pkg', { offerExtraPrice: 2000 });
+  const extra = await packageApi({ ...api.store.packages['extra-pkg'], design: saved.design }, { offer: { creating: true, offer: { title: 'Extra package offer', status: 'draft', offerPrice: 1000, endsAt: '2030-10-20T18:29:59.999Z', order: 0 } } });
+  assert.equal(extra.status(), 200, await extra.text());
+  assert.equal(api.store.packages['extra-pkg'].offerExtraPrice, 0);
+  assert.equal((await extra.json()).offer.slug, 'extra-package-offer');
 
   assert.deepEqual(errors, []);
-  console.log('PASS: package offers — locked package fields, % badge, one running offer per package, drafts, package sync and guards, link failure/retry, delete = archive, older offers unchanged, desktop/mobile layout.');
+  console.log('PASS: one package form — automatic IDs and offer links, page design, optional offer with required fields, package page in offer and package mode, sync and guards, end offer, older offers unchanged, desktop/mobile layout.');
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve));

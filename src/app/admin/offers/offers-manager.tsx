@@ -12,6 +12,7 @@ import s from "./offers-manager.module.css";
 import { categoryChoices, type ProjectCategory, type QuotedPackage, type SalesCatalogue } from "@/lib/sales-packages";
 import { offerState, type OfferState } from "@/lib/admin-offers";
 import { useServerTime } from "@/components/use-server-time";
+import { offerView } from "@/lib/package-design";
 
 function Lines({ label, value, change }: { label: string; value: string[]; change: (value: string[]) => void }) {
   return <label className="admin-field"><span>{label}</span><textarea aria-label={label} rows={6} value={value.join("\n")} onChange={event => change(event.target.value.split("\n"))} /><small>One item per line.</small></label>;
@@ -85,6 +86,8 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     finally { setBusy(false); }
   }
   const notices = <>{error && <p role="alert" className="form-error">{error}</p>}{message && <p role="status">{message}</p>}</>;
+  // An offer on a package is edited in its package form; an older offer keeps this form.
+  const editHref = (offer: Offer) => offer.packageId ? `/admin/packages?package=${encodeURIComponent(offer.packageId)}` : `/admin/offers?section=settings&offer=${encodeURIComponent(offer.slug)}`;
   // A package offer whose copy or backend link no longer matches its package (lib/offer-packages.ts).
   function packageNotice(offer: Offer) {
     const source = offer.packageId ? packages.find(item => item.id === offer.packageId) : undefined;
@@ -103,13 +106,14 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     <label className="admin-field"><span>Message when no offers are published</span><input required maxLength={300} value={listing.emptyMessage} onChange={e => setListing({ ...listing, emptyMessage: e.target.value })} /></label>
     <p>Offer cards and previews update automatically from published offers.</p>{notices}
     <button className="admin-button" disabled={busy || !dirty}>{busy ? "Saving…" : "Save listing"}</button>
-  </form><div className={s.cards}>{offers.map(offer => <article key={offer.slug}><h3>{offer.title}</h3><OfferPreview offer={offer} /><Link className="admin-action" href={`/admin/offers?section=settings&offer=${encodeURIComponent(offer.slug)}`}>Edit content & settings →</Link></article>)}</div></>;
+  </form><div className={s.cards}>{offers.map(offer => <article key={offer.slug}><h3>{offer.title}</h3><OfferPreview offer={offerView(offer, packages.find(item => item.id === offer.packageId))} /><Link className="admin-action" href={editHref(offer)}>Edit content & settings →</Link></article>)}</div></>;
   if (!selected) return <div>
     {section === "settings" && <p>Select an offer below to open its settings.</p>}
-    <div className={s.actions}><Link className="admin-button" href="/admin/offers?section=settings&new=1">New offer +</Link><label>Filter offers <select aria-label="Filter offers" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
+    {/* Offers are made on a package, in the package form (src/docs/package-offers.md, owner decision 7 Nov 2026). */}
+    <div className={s.actions}><Link className="admin-button" href="/admin/packages">Add an offer on a package →</Link><label>Filter offers <select aria-label="Filter offers" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">All</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div>
     <div className={s.list}>{offers.filter(offer => filter === "all" || offerState(offer, now) === filter).map(offer => <article className={s.row} key={offer.slug}>
       <div><h3>{offer.title}</h3><p>{offerState(offer, now)} · ₹{offer.offerPrice.toLocaleString("en-IN")} · /offer/{offer.slug}{offer.packageId && <> · Package: {packages.find(item => item.id === offer.packageId)?.name ?? offer.packageId}</>}</p>{packageNotice(offer) && <p className={s.warn}>{packageNotice(offer)}</p>}</div>
-      <div className={s.actions}><Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(offer.slug)}`}>Target people →</Link><Link className="admin-action" href={`/admin/offers?section=settings&offer=${encodeURIComponent(offer.slug)}`}>Edit →</Link>{offer.status === "published" && <Link className="admin-action" href={`/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
+      <div className={s.actions}><Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(offer.slug)}`}>Target people →</Link><Link className="admin-action" href={editHref(offer)}>Edit →</Link>{offer.status === "published" && <Link className="admin-action" href={offer.packageId ? `/package/${encodeURIComponent(offer.packageId)}` : `/offer/${offer.slug}`} target="_blank" rel="noreferrer">View ↗</Link>}</div>
     </article>)}</div>{!offers.some(offer => filter === "all" || offerState(offer, now) === filter) && <p>No offers match this filter.</p>}{notices}
   </div>;
   function update<K extends keyof Offer>(key: K, value: Offer[K]) {
@@ -136,8 +140,8 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const projectsEnabled = targets.includes("projects");
   const plansEnabled = targets.includes("service_plans");
   const policyUpdate = (value: Partial<NonNullable<Offer["paymentPolicy"]>>) => update("paymentPolicy", { ...policy, ...value });
-  const field = (label: string, key: keyof Pick<Offer, "title" | "slug" | "eyebrow" | "heading" | "headingHighlight" | "description" | "supportingLine" | "subheading" | "tagline" | "badge" | "priceDescription" | "ctaLabel" | "contactHref">, required = true) => <label className="admin-field"><span>{label}</span><input required={required} maxLength={key === "contactHref" ? 500 : key === "slug" ? 80 : 300} disabled={key === "slug" && !creating} value={selected[key]} onChange={e => update(key, e.target.value)} /></label>;
-  const previewOffer = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms), endsAt: selected.endsAt || DEFAULT_OFFER.endsAt };
+  const field = (label: string, key: keyof Pick<Offer, "title" | "slug" | "eyebrow" | "heading" | "headingHighlight" | "description" | "supportingLine" | "subheading" | "tagline" | "badge" | "priceDescription" | "ctaLabel" | "contactHref">, required = true) => <label className="admin-field"><span>{label}</span><input required={required} maxLength={key === "contactHref" ? 500 : key === "slug" ? 80 : 300} disabled={key === "slug" && !creating} value={selected[key] ?? ""} onChange={e => update(key, e.target.value)} /></label>;
+  const previewOffer = offerView({ ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms), endsAt: selected.endsAt || DEFAULT_OFFER.endsAt }, packages.find(item => item.id === selected.packageId));
   // Package offers (lib/offer-packages.ts): every new offer, and any offer saved with a package.
   // Offers saved before package offers keep the full form below.
   const packageOffer = creating || !!selected.packageId;

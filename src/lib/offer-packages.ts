@@ -1,4 +1,4 @@
-import { offerSchema, type Offer } from "@/lib/offers";
+import { offerSchema, offerSlugSchema, type Offer } from "@/lib/offers";
 import type { SalesPackage } from "@/lib/sales-packages";
 
 // Package offers (owner decisions, 25 October 2026; src/docs/dynamic-offers.md):
@@ -6,7 +6,9 @@ import type { SalesPackage } from "@/lib/sales-packages";
 // - The package owns the two struck prices, the included work and the terms. The offer keeps a
 //   synced copy, written only by syncOfferWithPackage, because the public page and the backend
 //   read offers from website settings without calling the package catalogue.
-// - The admin sets only the offer price (fixed) and the page design.
+// - The admin sets only what makes it an offer: name, fixed price, expiry, payment and reserve rules.
+//   Since 7 Nov 2026 the package also owns the page design (lib/package-design.ts) and offers are made
+//   and edited only inside the package form (app/admin/packages); new offers store no design fields.
 // - A package has at most one running offer: published and not yet expired. Drafts do not count.
 // Offers saved before package offers existed have no packageId and are left exactly as they are.
 
@@ -62,6 +64,9 @@ export const busyPackageMessage = (item: Pick<PackageSource, "name">, offer: Pic
 export function packageOfferProblem(offer: Offer, item: PackageSource): string | null {
   if (item.status === "archived") return `"${item.name}" is archived. Choose an available package.`;
   // A fixed offer price plus a hidden extra would show one price and charge another.
+  // Owner decision 7 Nov 2026: an offer is shown only on a published package, and must cost less than its normal price.
+  if (offer.status === "published" && item.status !== "published") return `Publish "${item.name}" before publishing its offer.`;
+  if (offer.offerPrice >= (item.discountedPrice ?? item.regularPrice)) return `The offer price (₹${offer.offerPrice.toLocaleString("en-IN")}) must be below the normal price of "${item.name}" (₹${(item.discountedPrice ?? item.regularPrice).toLocaleString("en-IN")}).`;
   if (item.offerExtraPrice) return `"${item.name}" adds ₹${item.offerExtraPrice.toLocaleString("en-IN")} extra scope to its offer price. Set its extra scope to ₹0 in the package editor; the offer page must show the price the customer pays.`;
   const parsed = offerSchema.safeParse(syncOfferWithPackage(offer, item));
   if (parsed.success) return null;
@@ -70,4 +75,11 @@ export function packageOfferProblem(offer: Offer, item: PackageSource): string |
   if (!issue) return null;
   if (issue?.message.startsWith("Prices must")) return `The offer price (₹${offer.offerPrice.toLocaleString("en-IN")}) must not be more than the discounted price of "${item.name}" (₹${(item.discountedPrice ?? item.regularPrice).toLocaleString("en-IN")}).`;
   return issue?.message ?? `"${item.name}" does not fit this offer.`;
+}
+
+/** A new offer's permanent link from its name: the next number while taken (archived offers too, never reused). */
+export function offerSlugFor(title: string, taken: Set<string>) {
+  const made = title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70).replace(/-+$/, "");
+  const base = offerSlugSchema.safeParse(made).success ? made : "offer";
+  for (let n = 1; ; n++) { const slug = n === 1 ? base : `${base}-${n}`; if (!taken.has(slug)) return slug; }
 }

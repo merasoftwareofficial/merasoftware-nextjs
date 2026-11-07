@@ -1,8 +1,8 @@
 "use client";
 import { useServerTime } from "@/components/use-server-time";
-import type { Offer } from "@/lib/offers";
+import type { OfferView } from "@/lib/package-design";
 import s from "./offer-preview.module.css";
-export function OfferPreview({ offer }: { offer: Offer }) {
+export function OfferPreview({ offer }: { offer: OfferView }) {
   const now = useServerTime();
   const expired = !Number.isFinite(Date.parse(offer.endsAt)) || (now !== null && now >= Date.parse(offer.endsAt));
   return <div className={s.preview} aria-hidden="true">
@@ -10,7 +10,7 @@ export function OfferPreview({ offer }: { offer: Offer }) {
     <div className={s.priceCard}><span>{offer.tagline}</span><strong>{offer.title}</strong>{now === null ? <p>Checking availability</p> : expired ? <p className={s.ended}>Offer ended</p> : <><div className={s.old}><del>₹{offer.mainPrice.toLocaleString("en-IN")}</del><span>→</span><del>₹{offer.discountPrice.toLocaleString("en-IN")}</del></div><small>OFFER PRICE</small><b>₹{offer.offerPrice.toLocaleString("en-IN")}</b><p>{offer.priceDescription}</p></>}<div className={s.cta}>{now === null || expired ? "Check availability" : offer.ctaLabel} →</div></div>
   </div>;
 }
-export function OfferBadge({ offer }: { offer: Offer }) {
+export function OfferBadge({ offer }: { offer: OfferView }) {
   const now = useServerTime();
   return <>{now === null ? "Checking availability" : !Number.isFinite(Date.parse(offer.endsAt)) || now >= Date.parse(offer.endsAt) ? "Offer ended" : offer.badge}</>;
 }

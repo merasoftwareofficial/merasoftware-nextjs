@@ -15,33 +15,37 @@ export const offerSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "U
   .refine(value => !["new", "preview", "__proto__", "constructor", "prototype"].includes(value), "Choose another URL slug.");
 // The backend's package ID rule (helpers/salesPackages.js safeId), not the offer slug rule.
 export const packageIdSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80).refine(value => !["constructor", "prototype", "__proto__"].includes(value));
+// An offer without a package draws its own page, so it keeps every design field required.
+const LEGACY_DESIGN_REQUIRED = ["eyebrow", "heading", "description", "subheading", "tagline", "badge", "priceDescription", "ctaLabel", "contactHref"] as const;
 export const offerSchema = z.object({
   slug: offerSlugSchema,
   status: z.enum(["draft", "published", "archived"]),
   title: short(120),
-  eyebrow: short(100),
-  heading: short(160),
-  headingHighlight: z.string().trim().max(120),
-  description: short(300),
-  supportingLine: z.string().trim().max(200),
-  subheading: short(160),
-  tagline: short(100),
-  badge: short(60),
+  // Page design. An offer on a package (packageId) never stores these: its package owns the page design
+  // (lib/package-design.ts, owner decision 7 Nov 2026). Every other offer must have them (refine below).
+  eyebrow: short(100).optional(),
+  heading: short(160).optional(),
+  headingHighlight: z.string().trim().max(120).optional(),
+  description: short(300).optional(),
+  supportingLine: z.string().trim().max(200).optional(),
+  subheading: short(160).optional(),
+  tagline: short(100).optional(),
+  badge: short(60).optional(),
   mainPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
   discountPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
   offerPrice: z.number().finite().min(0).max(10000000).multipleOf(0.01),
-  priceDescription: short(200),
+  priceDescription: short(200).optional(),
   endsAt: z.string().datetime({ offset: true }),
   // Same limits as a package's included work (backend validatePackage), so a package always fits its offer.
   inclusions: z.array(short(1500)).min(1).max(50),
   termsMode: z.enum(["universal", "offer", "combined"]),
   terms: z.array(short(1500)).max(50),
-  ctaLabel: short(80),
+  ctaLabel: short(80).optional(),
   contactHref: z.string().trim().max(500).refine(value => {
     if (/^mailto:[^\s?]+@[^\s?]+(?:\?.*)?$/.test(value)) return true;
     if (/^tel:\+?[\d\s()-]{5,30}$/.test(value)) return true;
     try { return new URL(value).protocol === "https:"; } catch { return false; }
-  }, "Use an HTTPS, email (mailto:) or telephone (tel:) link."),
+  }, "Use an HTTPS, email (mailto:) or telephone (tel:) link.").optional(),
   order: z.number().int().min(0).max(9999),
   // Portal-owned category keys (lib/sales-packages.ts); the publish route checks they exist and are active.
   applicableCategories: z.array(z.string().regex(PROJECT_CATEGORY_KEY)).min(1).max(100).refine(keys => new Set(keys).size === keys.length, "Select each category once.").optional(),
@@ -68,7 +72,8 @@ export const offerSchema = z.object({
     if (!value.pricingRule || value.pricingRule === "fixed_price") return true;
     return Math.round(offerFinalPrice(value.mainPrice, value) * 100) === Math.round(value.offerPrice * 100);
   }, { message: "Offer display price must match the configured discount rule.", path: ["offerPrice"] })
-  .refine(value => !value.packageId || value.pricingRule === "fixed_price", { message: "A package offer uses a fixed offer price.", path: ["pricingRule"] });
+  .refine(value => !value.packageId || value.pricingRule === "fixed_price", { message: "A package offer uses a fixed offer price.", path: ["pricingRule"] })
+  .refine(value => !!value.packageId || LEGACY_DESIGN_REQUIRED.every(key => !!value[key]?.trim()), { message: "Fill in the page heading, texts and enquiry link.", path: ["heading"] });
 export type Offer = z.infer<typeof offerSchema>;
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 /**

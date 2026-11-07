@@ -6,6 +6,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { settingsRepo } from "@/lib/repo";
 import { publishedOffers, DEFAULT_OFFER_LISTING } from "@/lib/offers";
 import { OfferBadge, OfferPreview } from "@/components/campaign/offer-preview";
+import { offerView } from "@/lib/package-design";
+import { packagePath, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 import s from "./offers.module.css";
 
 export const metadata: Metadata = {
@@ -17,7 +19,13 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 export default async function OffersPage() {
   const settings = await settingsRepo.get();
-  const offers = publishedOffers(settings.offers);
+  // An offer on a package shows that package's design and opens its package page (src/docs/package-offers.md).
+  const packages = await readPublicPackagesOrNone();
+  const offers = publishedOffers(settings.offers).flatMap(offer => {
+    const item = offer.packageId ? packages.find(row => row.id === offer.packageId) : undefined;
+    if (offer.packageId && !item) return [];
+    return [{ view: offerView(offer, item), href: item ? packagePath(item.id) : `/offer/${offer.slug}` }];
+  });
   const listing = settings.offerListing ?? DEFAULT_OFFER_LISTING;
   return <>
     <SiteHeader />
@@ -27,7 +35,7 @@ export default async function OffersPage() {
         <h1>{listing.title}</h1>
         {!offers.length && <p>{listing.emptyMessage}</p>}
         <div className={s.grid}>
-          {offers.map(offer => <Link className={s.card} href={`/offer/${offer.slug}`} key={offer.slug}>
+          {offers.map(({ view: offer, href }) => <Link className={s.card} href={href} key={offer.slug}>
             <OfferPreview offer={offer} />
             <div className={s.content}>
               <span className={s.label}><OfferBadge offer={offer} /></span>

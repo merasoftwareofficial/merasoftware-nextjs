@@ -8,7 +8,7 @@ import { userRepo, type BlogCard } from "@/lib/repo";
 import { SITE_URL as SITE } from "@/lib/structured-data";
 import { packagePagePath } from "@/lib/package-pages";
 import { PLANS_PAGE_PATH, planPagePath } from "@/lib/public-plans";
-import { readPackagePages } from "@/lib/package-pages-server";
+import { packagePath, readPackagePages, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 import { readPublicPlansOrNone } from "@/lib/public-plans-server";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Filtered in memory, not with a `noIndex: false` query: posts saved before
   // that field existed lack it, and the query would silently drop them.
-  const [posts, portfolio, packagePages, plans] = await Promise.all([indexablePosts(), portfolioRepo.list(true), readPackagePages(), readPublicPlansOrNone()]);
+  const [posts, portfolio, packagePages, plans, packages] = await Promise.all([indexablePosts(), portfolioRepo.list(true), readPackagePages(), readPublicPlansOrNone(), readPublicPackagesOrNone()]);
 
   // lastmod is only worth sending when it is true: a crawler that sees every
   // page "changed today" on every fetch stops trusting the field, and then a
@@ -118,10 +118,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pricing & Packages menu pages (lib/package-pages.ts); a deleted page leaves with its menu entry.
   const packagePageEntries: MetadataRoute.Sitemap = packagePages.map(page => ({ url: `${SITE}${packagePagePath(page.slug)}`, changeFrequency: "weekly", priority: 0.8 }));
 
+  // Each published package has its own page (app/package/[id]); a draft or archived one leaves with it.
+  const packageEntries: MetadataRoute.Sitemap = packages.map(item => ({ url: `${SITE}${packagePath(item.id)}`, changeFrequency: "weekly", priority: 0.8 }));
+
   // Each plan on sale has its own page (app/plans/[plan]); a plan taken off sale leaves with it.
   const planPageEntries: MetadataRoute.Sitemap = plans.map(plan => ({ url: `${SITE}${planPagePath(plan)}`, changeFrequency: "weekly", priority: 0.7 }));
 
-  return [...staticPages, ...packagePageEntries, ...planPageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
+  return [...staticPages, ...packagePageEntries, ...packageEntries, ...planPageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
 }
 
 /** The most recent edit among these posts, or undefined when there are none. */

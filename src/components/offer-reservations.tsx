@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@/components/loading/navigation";
-import type { OfferReservation, ReservationList } from "@/lib/offer-reservations";
+import type { OfferReservation, PackageStartList, PackageStartRequest, ReservationList } from "@/lib/offer-reservations";
 import { useServerTime } from "@/components/use-server-time";
 import { type PhoneCountry, type PhoneValue } from "@/components/phone-field";
 import type { Offer } from "@/lib/offers";
@@ -149,5 +149,76 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
     /** The dialog's confirm when the card shows Start my project. */
     start() { if (row) void startProject(row.id); },
     retry() { setError(""); setRetry(value => value + 1); },
+  };
+}
+
+/** What a package page passes for Start my project without an offer; undefined while the feature is off. */
+export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[] };
+const packageIntentKey = "pending-package-start";
+/**
+ * "Start my project" on a package without a running offer (backend helpers/packageStart.js): load the
+ * person's open request, send one, continue after sign-in, ask for a missing phone (HTTP 428). It renders
+ * nothing; the package card shows it as its main button and confirms in a dialog.
+ */
+export function usePackageStart(config: PackageStartConfig | undefined) {
+  const enabled = !!config, packageId = config?.packageId ?? "", signedIn = !!config?.signedIn;
+  const countries = config?.countries ?? INDIA;
+  const router = useNavigate();
+  const [request, setRequest] = useState<PackageStartRequest | null>(null);
+  const [loaded, setLoaded] = useState(!signedIn);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [needsPhone, setNeedsPhone] = useState(false);
+  const [phone, setPhoneState] = useState<PhoneValue>({ countryCode: countries[0].code, phone: "" });
+  const phoneRef = useRef<PhoneValue | null>(null);
+  const attempted = useRef(false);
+  const send = useCallback(async () => {
+    setBusy(true); setError("");
+    try {
+      const contact = phoneRef.current ? { countryCode: phoneRef.current.countryCode, phone: phoneRef.current.phone.trim() } : {};
+      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, ...contact }) });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 428) setNeedsPhone(true);
+        else sessionStorage.removeItem(packageIntentKey);
+        throw new Error(data.error || "Could not send your request");
+      }
+      setRequest(data.request); sessionStorage.removeItem(packageIntentKey);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not send your request"); }
+    finally { setBusy(false); }
+  }, [packageId]);
+  useEffect(() => {
+    if (!enabled || !signedIn) return;
+    let active = true;
+    async function load() {
+      try {
+        const response = await fetch("/api/package-starts", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not check your request");
+        if (!active) return;
+        const open = (data as PackageStartList).requests.find(row => row.packageId === packageId && row.status === "requested");
+        setRequest(open || null); setLoaded(true);
+        // Back from sign-in with a pending Start: send it once (15 minutes at most).
+        let intent;
+        try { intent = JSON.parse(sessionStorage.getItem(packageIntentKey) || "null"); } catch { sessionStorage.removeItem(packageIntentKey); }
+        if (intent?.packageId !== packageId || attempted.current) return;
+        attempted.current = true;
+        if (open || !Number.isFinite(intent.createdAt) || Date.now() - intent.createdAt > 15 * 60000 || Date.now() < intent.createdAt) { sessionStorage.removeItem(packageIntentKey); return; }
+        await send();
+      } catch (err) { if (active) setError(err instanceof Error ? err.message : "Could not check your request"); }
+    }
+    void load();
+    return () => { active = false; };
+  }, [enabled, signedIn, packageId, send]);
+  return {
+    enabled, request, loaded, busy, error, signedIn, needsPhone, phone, countries,
+    setPhone(value: PhoneValue) { setPhoneState(value); phoneRef.current = value; },
+    /** The dialog's confirm: send now, or keep the intent and sign in first (it sends on return). */
+    confirm() {
+      if (signedIn) { void send(); return; }
+      try { sessionStorage.setItem(packageIntentKey, JSON.stringify({ packageId, createdAt: Date.now() })); }
+      catch { setError("Allow browser session storage to return here after signing in."); return; }
+      router.push(`/login?next=${encodeURIComponent(`/package/${packageId}`)}`);
+    },
   };
 }

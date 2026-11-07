@@ -49,12 +49,16 @@ test("one price formula: fixed price adds a package extra, discounts start from 
   assert.equal(offerFinalPrice(3333.33, { pricingRule: "percentage", offerPrice: 0, benefitValue: 33.33 }), 2222.33);
 });
 
-test("package rules: archived, extra scope and an offer price above the discounted price are refused", () => {
+test("package rules: archived, extra scope and an offer price not below the normal price are refused", () => {
   const offer = packageOffer();
   assert.equal(packageOfferProblem(offer, pkg), null);
   assert.match(packageOfferProblem(offer, { ...pkg, status: "archived" }) ?? "", /archived/);
   assert.match(packageOfferProblem(offer, { ...pkg, offerExtraPrice: 2000 }) ?? "", /extra scope/);
-  assert.match(packageOfferProblem(offer, { ...pkg, discountedPrice: 2000, regularPrice: 2500 }) ?? "", /must not be more than the discounted price/);
+  assert.match(packageOfferProblem(offer, { ...pkg, discountedPrice: 2000, regularPrice: 2500 }) ?? "", /must be below the normal price/);
+  // Owner decision 7 Nov 2026: equal to the normal price is no offer, and an offer runs only on a published package.
+  assert.match(packageOfferProblem({ ...offer, offerPrice: pkg.discountedPrice }, pkg) ?? "", /must be below the normal price/);
+  assert.match(packageOfferProblem({ ...offer, status: "published" }, { ...pkg, status: "draft" }) ?? "", /Publish "All-in-One Startup" before publishing its offer/);
+  assert.equal(packageOfferProblem({ ...offer, status: "draft" }, { ...pkg, status: "draft" }), null, "a draft offer may wait on a draft package");
   // Form errors that have nothing to do with the package are not reported as package problems.
   assert.equal(packageOfferProblem({ ...offer, slug: "" as string }, pkg), null);
 });

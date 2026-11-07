@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
 import { requireStaffPage } from "@/lib/auth";
@@ -19,6 +20,10 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
   const section = offerSection(query.section);
   const settings = await settingsRepo.get();
   const offers = resolvedOffers(settings.offers);
+  // Offers on a package are made and edited in the package form (src/docs/package-offers.md).
+  if (section === "settings" && query.new === "1") redirect("/admin/packages");
+  const packageOffer = query.offer ? offers.find(offer => offer.slug === query.offer && offer.packageId) : undefined;
+  if (packageOffer) redirect(`/admin/packages?package=${encodeURIComponent(packageOffer.packageId!)}`);
   return <main className="admin-main">
     <AdminHeader eyebrow="OFFERS" title="Offer management" description="Manage your offers, their agreed rules, public content and terms in one place." action={<Link className="admin-button" href="/offer" target="_blank" rel="noreferrer">View public offers ↗</Link>} />
     <nav className={s.tabs} aria-label="Offer management sections">{OFFER_SECTIONS.map(item => <Link key={item.id} href={`/admin/offers?section=${item.id}`} aria-current={section === item.id ? "page" : undefined}>{item.label}</Link>)}</nav>
