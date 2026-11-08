@@ -107,11 +107,14 @@ test('browser: choose a client by behaviour and leads one by one; stage, behavio
     assert.match(await counts.innerText(), /2\s*Leads/);
 
     const client = page.getByRole('listitem').filter({ hasText: 'Rajan Client' });
-    await client.getByLabel('Current status').selectOption('Active');
+    // The client statuses come from the backend's one list (owner, 8 Nov 2026): Positive and Active are gone.
+    const statusChoices = await client.getByLabel('Current status').locator('option').allTextContents();
+    assert.deepEqual(statusChoices, ['Neutral', 'Not Now', 'Negative', 'Unhappy', 'Dead']);
+    await client.getByLabel('Current status').selectOption('Unhappy');
     await page.waitForFunction(() => document.querySelector('select:not([disabled])'));
     const won = await Lead.findOne({ convertedToUserId: rajan._id }).lean();
-    for (let i = 0; i < 40 && (await Lead.findById(won._id).lean()).clientBehaviour !== 'Active'; i++) await new Promise(resolve => setTimeout(resolve, 100));
-    assert.equal((await Lead.findById(won._id).lean()).clientBehaviour, 'Active');
+    for (let i = 0; i < 40 && (await Lead.findById(won._id).lean()).clientBehaviour !== 'Unhappy'; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal((await Lead.findById(won._id).lean()).clientBehaviour, 'Unhappy');
 
     const lazy = page.getByRole('listitem').filter({ hasText: 'Lazy Lead' });
     await lazy.getByLabel('Offer stage').selectOption('Positive');

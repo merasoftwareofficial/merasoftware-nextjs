@@ -9,13 +9,10 @@ type Counts = { total: number; clients: number; leads: number; stages: Record<st
 type Candidate = { type: "client" | "lead"; id: string; name: string; phone: string; email: string; category: string; inOffer: boolean; block?: string; blockLabel?: string };
 type AddResult = { added: number; already: number; skipped: { name: string; reason: string }[] };
 
-const LABELS: Record<string, string> = { Contacted: "Neutral", Won: "Matured", NotNow: "Not Now" };
-const label = (value: string) => LABELS[value] || value;
-const STAGES: Stage[] = ["Contacted", "Positive", "Negative"];
-const BEHAVIOURS = ["Contacted", "Positive", "Active", "NotNow", "Negative", "Unhappy", "Dead"];
-// Inquiry is set only by the system (a Dead client who wrote after the closure message): filtered and shown, never chosen.
-const CLIENT_CATEGORIES = ["Inquiry", ...BEHAVIOURS];
-const LEAD_CATEGORIES = ["Inquiry", "Contacted", "Positive", "Active", "NotNow", "Negative", "Unhappy", "Dead", "Wrong"];
+type Option = { value: string; label: string };
+// The stages, client statuses and their names come from the backend's one list (helpers/leadStatuses.js offerPanelOptions).
+type Options = { labels: Record<string, string>; stages: Option[]; behaviours: Option[]; leadCategories: Option[] };
+type Targets = { rows: Row[]; counts: Counts; options: Options };
 const personKey = (row: { type: string; id: string }) => `${row.type}:${row.id}`;
 
 async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
@@ -30,6 +27,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
   const offerPath = `offers/${encodeURIComponent(slug)}`;
   const [rows, setRows] = useState<Row[] | null>(null);
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [options, setOptions] = useState<Options | null>(null);
   const [stageFilter, setStageFilter] = useState("all");
   const [adding, setAdding] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
@@ -43,17 +41,19 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const data = await api<{ rows: Row[]; counts: Counts }>(offerPath);
-    setRows(data.rows);
-    setCounts(data.counts);
+    const data = await api<Targets>(offerPath);
+    setRows(data.rows); setCounts(data.counts); setOptions(data.options);
   }, [offerPath]);
   useEffect(() => {
     let live = true;
-    api<{ rows: Row[]; counts: Counts }>(offerPath)
-      .then((data) => { if (live) { setRows(data.rows); setCounts(data.counts); } })
+    api<Targets>(offerPath)
+      .then((data) => { if (live) { setRows(data.rows); setCounts(data.counts); setOptions(data.options); } })
       .catch((failure) => { if (live) setError(errorText(failure)); });
     return () => { live = false; };
   }, [offerPath]);
+  const label = (value: string) => options?.labels[value] || value;
+  const stages = options?.stages || [];
+  const behaviours = options?.behaviours || [];
 
   const openAdd = async () => {
     setAdding(true); setNotice(""); setSkipped([]); setError(""); setChosen(new Set());
@@ -124,7 +124,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
       <label className={s.field}>Stage
         <select value={stageFilter} onChange={event => setStageFilter(event.target.value)}>
           <option value="all">All</option>
-          {[...STAGES, "Won"].map(stage => <option key={stage} value={stage}>{label(stage)}</option>)}
+          {[...stages.map(stage => stage.value), "Won"].map(stage => <option key={stage} value={stage}>{label(stage)}</option>)}
         </select>
       </label>
       {running && <button type="button" className={s.primary} onClick={() => adding ? setAdding(false) : void openAdd()}>{adding ? "Close" : "Add people"}</button>}
@@ -135,7 +135,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
         {([["client", "Matured Clients"], ["lead", "Leads"]] as const).map(([id, name]) => <button key={id} type="button" aria-pressed={kind === id} onClick={() => { setKind(id); setCategories([]); }}>{name}</button>)}
       </div>
       <fieldset className={s.categories}><legend>{kind === "client" ? "Client current status" : "Lead stage"}</legend>
-        {(kind === "client" ? CLIENT_CATEGORIES : LEAD_CATEGORIES).map(category => <label key={category}><input type="checkbox" checked={categories.includes(category)} onChange={() => setCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category])} /> {label(category)} <small>{categoryCounts[category] || 0}</small></label>)}
+        {(kind === "client" ? behaviours : options?.leadCategories || []).map(option => option.value).map(category => <label key={category}><input type="checkbox" checked={categories.includes(category)} onChange={() => setCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category])} /> {label(category)} <small>{categoryCounts[category] || 0}</small></label>)}
       </fieldset>
       <label className={s.field}>Search by name, phone or email<input value={search} onChange={event => setSearch(event.target.value)} /></label>
       <div className={s.bar}>
@@ -159,12 +159,12 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
     {shown.length > 0 && <ul className={s.list}>{shown.map(row => <li key={row.id}>
       <div className={s.who}><b>{row.name || row.phone || "Unnamed"}</b><small>{row.type === "client" ? "Existing client" : "Lead"}{row.phone ? ` · ${row.phone}` : ""}</small>{row.blockLabel && <span className={s.reason}>{row.blockLabel}</span>}</div>
       <div className={s.cell}>{row.type === "client"
-        ? <div><label className={s.field}>Current status<select value={row.category} disabled={busy} onChange={event => void changeStatus(row, event.target.value)}>{BEHAVIOURS.includes(row.category) ? null : <option value={row.category} disabled>{label(row.category)}</option>}{BEHAVIOURS.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
+        ? <div><label className={s.field}>Current status<select value={row.category} disabled={busy} onChange={event => void changeStatus(row, event.target.value)}>{behaviours.some(option => option.value === row.category) ? null : <option value={row.category} disabled>{label(row.category)}</option>}{behaviours.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
         : <div className={s.field}>Lead stage<span className={s.tag}>{label(row.category)}</span></div>}
       </div>
       <div className={s.cell}>{row.stage === "Won"
         ? <div className={s.field}>Offer stage<span className={s.tag}>Matured</span></div>
-        : <label className={s.field}>Offer stage<select value={row.stage} disabled={busy} onChange={event => void act(() => api(`people/${row.id}/stage`, "PATCH", { stage: event.target.value }))}>{STAGES.map(stage => <option key={stage} value={stage}>{label(stage)}</option>)}</select></label>}
+        : <label className={s.field}>Offer stage<select value={row.stage} disabled={busy} onChange={event => void act(() => api(`people/${row.id}/stage`, "PATCH", { stage: event.target.value }))}>{stages.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label>}
       </div>
       <div className={s.cell}>{row.stage !== "Won" && <button type="button" disabled={busy} onClick={() => void act(() => api(`people/${row.id}/bought`, "POST", {}))}>Bought this offer</button>}</div>
     </li>)}</ul>}
