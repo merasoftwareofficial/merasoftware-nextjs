@@ -10,7 +10,7 @@
 |---|---|
 | Lead status correction | Badge code is on `main` (`lead system correction 3`) and in the live portal. `New` merge, `Won` backfill and badge migration done (30 Oct). Owner's portal check of the filter is pending |
 | Website Leads page | On hold (owner) until the correction is finished |
-| Broadcast | Manual core implemented locally; verification below. Not committed, pushed, deployed or tested on a real phone |
+| Broadcast | Existing flow upgraded for live lead/client groups, channels and media; implementation/verification below. Real-phone media delivery is not tested |
 
 ## Final Message (first part committed; ignore list and Needs decision built 31 Oct, tests pass, not committed; real-phone test pending)
 
@@ -70,44 +70,48 @@
 - Also needs `/admin/customers/search`. Multipart file upload needs its own forwarding; check Vercel's body limit with a real file. Backend limit is 5 MB, website media uses 4 MB.
 - Menu currently shows it to editors; lead routes are admin only.
 
-## Broadcast: confirmed scope and order
+## Broadcast: confirmed scope (8 Nov 2026)
 
-- Communication → Broadcast, one compact panel: group dropdown → recent/saved-message dropdown → formatted message editor with Recipient name insertion → Save Draft/Update, Preview, Send → progress/history. UI/code/docs English; replies Hinglish.
-- Contacted, Positive, Negative and Won (label Matured) groups include that stage regardless of proposal badge. Proposal Sent = badge + Contacted/Positive only. Group membership comes from live leads, never copied groups.
-- New typed/pasted composition auto-saves once on accepted Send. Selecting a saved template never creates another template, even if edited for that send. Only explicit Update changes the reusable template. Deleting/editing it never changes send history. Save Draft does not send. Recent ordering uses lastUsedAt.
-- Owner confirmed: NO extra marketing daily limit or one-per-person/day limit now. Existing WhatsApp gaps, retries, pause, quiet hours and age limits remain.
-- Every message MUST enter the existing WhatsApp Q via enqueueWhatsApp; sender.js is the only transport. No direct-send path, second sender, email copy, or bulk queue insertion.
-- Owner tests manual core first → owner's calendar schedule (group/message/date/repeat) → owner tests → agent additions individually, asking before each: per-lead date-based series; inactivity targeting; Interested/Call me tracking. Calendar late joiners miss earlier runs; per-lead series gives each lead its whole series. Calendar scheduling and these additions are NOT implemented.
+- Upgrade the existing Communication/Broadcast flow; all WhatsApp messages still use `enqueueWhatsApp`, the existing queue, dispatcher and sole sender. The owner's working 23:00–08:00 quiet hours, gaps, pause, retries and age limits are unchanged. No new daily cap.
+- Audience → Leads only / Clients only → stage/badge or client behaviour. Catalog comes from backend `leadStatuses.js` (`LEAD_CATEGORIES`, `CLIENT_BEHAVIOURS`, labels and marketing eligibility). Proposal Sent stays a badge. Dead/Wrong and non-Neutral client behaviours are visible with counts but cannot be marketed to. Only active, non-guest customer accounts linked to canonical Won leads qualify as clients; customer project-request leads are excluded from the new groups. Legacy audience IDs remain readable for existing runs.
+- Send via → WhatsApp only / Email only / Both. Initial default WhatsApp; an accepted send persists its choice in the existing `EmailPolicy` for `broadcast.manual`, shared by admins. Preview/failed validation do not change it. Accepted runs lock channels/content; later preference changes affect new runs only.
+- Both uses every available selected destination; a valid email without a phone is eligible for email. Phone/email dedupe are independent. Counts show people, destinations and exclusions. Normal marketing blocks apply to both channels. No automatic switch to an unselected channel.
+- Compose text, one library image/video, optional caption, optional separate text before/after media, and an email subject for Email/Both. Supports text-only and media-only. Reuses ImageChooser/upload, EmailEditor and the canonical Broadcast renderer. Preview shows ordered WhatsApp parts and the email representation (video thumbnail/link). Conservative Broadcast limits: JPG/PNG 5 MB, MP4 16 MB, caption 1024 characters; the library's larger upload limits do not promise send compatibility.
+- New compositions auto-save on accepted Send; template reuse never makes another template or silently updates the original. Explicit Update changes the reusable template, never accepted history.
+- Audience is finalized when preparation completes. Later joiners wait for the next broadcast; changed eligibility/contact details are checked before release and again at WhatsApp handoff. Already handed-off messages cannot be recalled.
+- Calendar scheduling, per-lead series, inactivity targeting and reply tracking are outside this upgrade.
 
 ## Broadcast: current code / SSOT
 
 Backend:
-- helpers/broadcastAudience.js imports helpers/leadStatuses.js and normalizePhone from whatsappQueue.js. Owns catalog, count, stage/badge query and release-time recheck. Excludes trash/unusable phones, dedupes normalized phone; lowest lead ID wins within the group. Current phase includes requestedByUserId leads. Counts are previews, not delivery promises.
-- models/messageTemplateModel.js is the reusable store: purpose=broadcast; missing/legacy purpose stays legacy. Broadcast service scopes CRUD to broadcast; legacy list/update/delete exclude it. No second template collection.
-- helpers/broadcastContent.js owns canonical JSON document validation, field catalog, encode/decode, text/HTML preview and WhatsApp rendering. Same renderer/field values for preview/send; names are literal. EmailEditor reused with WhatsApp capabilities; email formatting unchanged. Do NOT add another frontend converter. Canonical document is serialized in message; generated output is derived.
-- models/broadcastModel.js: Broadcast (immutable send body/request fingerprint, preparing/ready/finished), BroadcastRecipient (phone-unique per broadcast, persistent outcomes), BroadcastGate (one globally held recipient). helpers/broadcastService.js: idempotent send acceptance, recoverable auto-save, templates and recent 30 broadcasts; paginated recipient reasons.
-- helpers/broadcastJobs.js prepares/reconciles and incrementally releases one recipient through enqueueWhatsApp. Global renewable lease plus persistent recipient gate and deterministic queue ID/unique broadcastRecipientId prevent duplicate release. Every pending/sending Broadcast Q row holds further Broadcast release. Due service rows take precedence at release; existing oldest-due sender order remains, not strict priority.
-- whatsapp/src/models.js owns the actual Q schema/index; arbitrary enqueue fields otherwise get dropped. Queue TTL is 30 days; recipient outcomes survive separately. Pending rows are cancelled when recheck sees changed stage/phone; an already sending message cannot be recalled, and a change between dispatcher checks and sender claim can still send.
-- helpers/whatsappReadiness.js shares heartbeat/off/pause/connection policy; settings.js owns quiet hours. middleware/communicationAdmin.js shares current-account admin checks for WhatsApp/Broadcast.
-- routes/broadcast.js mounted at /api/broadcast. index.js minute dispatcher is gated by BROADCAST_JOBS_ENABLED=true, independent of ENABLE_CRONS. Missing switch is OFF. A failed Broadcast row has no generic Q Send again action (would bypass release gating); automatic sender retries still work. Service-message retry is unchanged.
+- `helpers/broadcastAudience.js`: one resolver for catalog counts, channel destinations, preparation and eligibility checks. `helpers/leadContactBlock.js` remains the contact-block source; a catalog request shares one block snapshot across groups.
+- `models/messageTemplateModel.js`: the existing reusable store, purpose=broadcast. `helpers/broadcastContent.js`: version-2 composition wrapping the existing text codec; old templates/runs and Auto Reply keep their text-only contract. Canonical content supplies both previews and delivered text/HTML; names stay literal. Per-recipient invalid personalization is skipped without blocking other broadcasts.
+- `models/broadcastModel.js`: immutable run, channel/destination/message-part outcomes, existing global gate. `helpers/broadcastJobs.js` incrementally releases one WhatsApp part through the existing enqueue; the next part requires the earlier part to be sent. Existing queue IDs and per-part outcomes survive restart/reconciliation. Preparation exclusions are also snapshotted into send history. Service rows retain release precedence.
+- Recipient uniqueness is now `(broadcastId, channel, phone, email, part)`. Before preparation, the existing dispatcher backfills legacy recipient defaults, builds the replacement index, then drops only `broadcastId_1_phone_1`. Queue uniqueness and existing IDs are unchanged. Do not roll back to the old dispatcher with unfinished media/multi-channel runs.
+- Email parts use existing `EmailDraft`, `emailController.decide`, `reviewDelivery`, the sole provider call and EmailHistory. Drafts are locked to email delivery; the Broadcast owns its separate WhatsApp release, preventing an automatic extra copy. `broadcast.manual` is an internal delivery/audit event, not another editable action template. Email-only works while WhatsApp is paused/offline.
+- Failed emails can be retried from Broadcast with the same draft/provider key within a conservative 23-hour window. Successful parts are retained; interrupted/older uncertain deliveries require review. Generic Email Review cannot change/send Broadcast drafts; generic WhatsApp Send again still cannot bypass Broadcast gating. Normal sender retries remain unchanged.
+- `helpers/broadcastMedia.js`: validates short-lived website-signed immutable library metadata. The existing Lock collection serializes save/send against asset retirement. Website deletion first checks its normal usage, then obtains authenticated backend retirement; referenced Broadcast/template assets cannot be deleted, and retired assets cannot be newly accepted. Historical runs retain their media reference. Backend errors fail deletion closed.
+- `whatsapp/src/models.js`, `sender.js`, `whatsapp.js`: optional validated media payload through the existing queue and transport. No second sender, provider call or queue collection. Existing readiness/quiet-hour settings remain authoritative.
+- `/api/broadcast` keeps current-account admin authorization. Dispatcher remains behind `BROADCAST_JOBS_ENABLED=true`; this work does not enable it or change any production sending setting.
 
 Website:
-- src/app/api/broadcast/[[...path]]/route.ts: dual website/portal-admin guard, allow-listed operations, backend forwarding.
-- communication-hub.tsx: Broadcast navigation and mounted panel. broadcast-panel.tsx + broadcast.module.css: manual flow, safe server-rendered preview, progress/recipient reasons. No Scheduled tab yet.
-- email-editor.tsx: WhatsApp mode enables italic/disables headings/sections; labelled chips. setEditable(..., false) is essential: changing disabled state must NOT emit content edits or it clears previews.
+- `src/app/api/broadcast/[[...path]]/route.ts`: existing dual-admin proxy; resolves selected media from `mediaRepo`, then attests its trusted metadata. Browser-supplied delivery URLs are not accepted as authority.
+- `broadcast-panel.tsx`: audience/channel/composition, saved messages, both previews and delivery-part history. Failed-email retry stays inside Broadcast. Existing WhatsApp queue/history now also show image/video and caption through `WhatsappText`.
+- `communication-live.tsx`: one shared SSE feed with explicit resource subscriptions. Broadcast listens to communication/leads/clients/users; other panels keep their own subscriptions. Active-only coalescing, reconnect and fallback remain; events do not replace unsaved composition. Open recipient results refresh from the shared feed.
+- `src/app/api/media/[id]/route.ts`: existing deletion flow with Broadcast retirement protection; reuses the existing website request-assertion helper.
 
-## Broadcast: verification and next action
+## Broadcast: verification and rollout
 
-- Tests use isolated MongoDB and real backend routes, website proxy/editor and real queue sender with only phone transport mocked. No production data or real phone messages used.
-- Backend: npm run test:broadcast (10 cases), included in npm run test:whatsapp. Covers group/badge matrix, normalized-phone dedupe, literal fields/HTML escaping, template purpose isolation, idempotency/crash recovery, concurrent dispatchers, real sender gap/service ordering, eligibility cancellation and readiness.
-- Passed: backend WhatsApp suite 65/65 (includes Broadcast 10/10), backend email 40/40; website Broadcast 2/2 (real proxy + browser/manual flow and mobile), email 21/21, WhatsApp 10/10. TypeScript and targeted ESLint passed. Real-phone delivery and production deployment remain untested.
-- Backups: E:\Allprojects\backup\backend\work37-broadcast-manual and E:\Allprojects\backup\merasoftware\work-broadcast-manual-20261030-220404. New files have no pre-existing version. Next backend backup must use the next free work number.
-- Next: owner reviews manual flow; commit/push/deploy only on request, backend first. Deploy dispatcher switch OFF, then owner-authorized test with their own number before wider activation. Live lead/proposal checks above remain pending.
+- Owner authorized implementation and git push (8 Nov); no production messages/data mutations were used for verification. Tests use isolated MongoDB, actual routes/proxy/editor/dispatcher/sender, with phone transport and email provider mocked.
+- Backend final sequential regression: 217/217 across Broadcast (22), email/review/manual messages, queue, sender, connection, inbound and Auto Reply. Website Broadcast/email/WhatsApp: 36/36; scoped realtime browser check, TypeScript, targeted ESLint and production build passed. Final history/preview additions were rechecked with backend Broadcast 22/22 and website Broadcast 3/3.
+- Backups: `E:\Allprojects\backup\backend\broadcast-upgrade-20261108-165049` and `E:\Allprojects\backup\merasoftware\broadcast-upgrade-20261108-165049` (committed baseline archives and tracked pre-work diffs). Unrelated owner documentation is excluded from this work's commits.
+- Rollout order: backend/worker first, then website. No new secret is required: media attestation uses the existing shared `TOKEN_SECRET_KEY` with a separate derived signing domain. Real-phone media delivery and deployment status are not established by local tests; do not claim they are. No test broadcast is sent to real contacts without the owner authorizing it.
+
 ## Traps
 
 - **File upload and mail:** multer loses the mail scope's async context, so no review draft is made. Lead routes use `middleware/leadFileUpload.js`; `/admin/clients/:customerId/documents` and `/user-request-update` still use `upload.any()` and are unchecked.
 - **Never bulk-insert into the queue:** oldest goes first, so 500 rows block service messages for about 6 hours and can hit the 24h drop. `whatsappQueue.test.js` fails if another file writes `Queue.create`.
-- **WhatsApp otherwise only copies sent email,** so most leads, who have no email, need the direct queue path. Don't send Broadcast through email: it would duplicate.
+- **Do not let Broadcast email enqueue its own WhatsApp copy.** Its locked email-only draft and separate existing Broadcast dispatcher own the selected channels; otherwise Both would duplicate WhatsApp.
 - **`enqueueWhatsApp` doesn't check `ENABLE_WHATSAPP`.** The dispatcher must.
 - **Foreign numbers without `+` are unusable** (`normalizePhone` returns null). Never guess a country code.
 - **Manual phase has no extra daily cap.** Do not introduce the earlier proposed releasedDay/day-limit policy without a new owner decision.

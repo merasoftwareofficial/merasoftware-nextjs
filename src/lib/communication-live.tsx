@@ -3,18 +3,27 @@
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 
 function createFeed(url: string | null) {
-  const listeners = new Set<() => void>();
+  const listeners = new Map<() => void, string[]>();
+  const changedDomains = new Set<string>();
+  let refreshAll = false;
   let source: EventSource | null = null, retry: ReturnType<typeof setTimeout> | null = null;
   let batch: ReturnType<typeof setTimeout> | null = null;
   const feed = { connected: false, subscribe };
   function disconnect() {
     source?.close(); source = null; feed.connected = false;
     if (retry) clearTimeout(retry); retry = null;
-    if (batch) clearTimeout(batch); batch = null;
+    if (batch) clearTimeout(batch); batch = null; changedDomains.clear(); refreshAll = false;
   }
-  function notify() {
+  function notify(domains?: string[]) {
+    if (domains) for (const domain of domains) changedDomains.add(domain);
+    else refreshAll = true;
     if (batch) return;
-    batch = setTimeout(() => { batch = null; for (const listener of listeners) listener(); }, 200);
+    batch = setTimeout(() => {
+      batch = null;
+      const changed = [...changedDomains], all = refreshAll;
+      changedDomains.clear(); refreshAll = false;
+      for (const [listener, domains] of listeners) if (all || domains.some(domain => changed.includes(domain))) listener();
+    }, 200);
   }
   function connect() {
     if (!url || source || !listeners.size || document.hidden || typeof EventSource === "undefined") return;
@@ -25,7 +34,8 @@ function createFeed(url: string | null) {
       if (message.type === "denied") { disconnect(); return; }
       if (message.type === "unavailable") { failed(); return; }
       if (message.type === "ready") { feed.connected = true; notify(); }
-      else if (message.type === "resync" || message.resources?.some((entry: { domain: string }) => entry.domain === "communication")) notify();
+      else if (message.type === "resync") notify();
+      else if (message.resources?.length) notify(message.resources.map((entry: { domain: string }) => entry.domain));
     };
     current.onerror = () => { if (source === current) failed(); };
   }
@@ -39,8 +49,8 @@ function createFeed(url: string | null) {
       notify();
     }
   }
-  function subscribe(listener: () => void) {
-    listeners.add(listener);
+  function subscribe(listener: () => void, domains = ["communication"]) {
+    listeners.set(listener, domains);
     if (listeners.size === 1) { document.addEventListener("visibilitychange", visible); window.addEventListener("online", visible); }
     connect();
     return () => {
@@ -59,7 +69,7 @@ export function CommunicationLiveProvider({ url, children }: { url: string | nul
 
 // No response storage. One active read and one coalesced follow-up per mounted
 // panel. Old polling remains only when the authorized transport is unavailable.
-export function useCommunicationRefresh(load: (signal: AbortSignal) => Promise<unknown>, active: boolean, fallbackMs = 5000, identity = "") {
+export function useCommunicationRefresh(load: (signal: AbortSignal) => Promise<unknown>, active: boolean, fallbackMs = 5000, identity = "", resources = "communication") {
   const feed = useContext(FeedContext);
   const callback = useRef(load);
   useEffect(() => { callback.current = load; }, [load]);
@@ -76,9 +86,9 @@ export function useCommunicationRefresh(load: (signal: AbortSignal) => Promise<u
       } catch { /* each caller owns its visible read error */ }
       finally { pending = false; }
     };
-    const unsubscribe = feed.subscribe(() => { void refresh(); });
+    const unsubscribe = feed.subscribe(() => { void refresh(); }, resources.split(","));
     void refresh();
     const timer = fallbackMs ? setInterval(() => { if (!feed.connected) void refresh(); }, fallbackMs) : null;
     return () => { controller.abort(); unsubscribe(); if (timer) clearInterval(timer); };
-  }, [active, feed, fallbackMs, identity]);
+  }, [active, feed, fallbackMs, identity, resources]);
 }

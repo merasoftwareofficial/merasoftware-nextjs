@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 
 // Real proxy + backend routes + MongoDB + visual editor. No external messages are sent.
 const root = process.cwd();
+const libraryAsset = { _id: '507f1f77bcf86cd799439011', url: 'https://res.cloudinary.com/test/video/upload/v1/clip.mp4', publicId: 'clip', assetId: 'immutable-video', assetFolder: 'test', width: 640, height: 360, format: 'mp4', bytes: 1000, altText: 'Demo video', kind: 'video' };
 const backend = createRequire(path.resolve(root, '../backend/package.json'));
 const mongoose = backend('mongoose'), express = backend('express'), jwt = backend('jsonwebtoken');
 const { MongoMemoryServer } = backend('mongodb-memory-server');
@@ -29,9 +30,11 @@ before(async () => {
   const auth = path.join(qaDir, 'auth.ts'), headers = path.join(qaDir, 'headers.ts');
   writeFileSync(auth, `import {AsyncLocalStorage} from 'node:async_hooks';export const context=new AsyncLocalStorage<any>();export class AuthError extends Error{constructor(message:string,public status:number){super(message)}}export const getSession=async()=>context.getStore()?.session||null;`);
   writeFileSync(headers, `import {context} from './auth';export const cookies=async()=>({get:()=>context.getStore()?.token?{value:context.getStore().token}:undefined});`);
+  const mediaFixture = path.join(qaDir, 'media.ts');
+  writeFileSync(mediaFixture, `export const mediaRepo={findById:async(id:string)=>id===${JSON.stringify(libraryAsset._id)}?${JSON.stringify(libraryAsset)}:null};`);
   await build({ absWorkingDir: root, bundle: true, platform: 'node', format: 'cjs', packages: 'external', outfile: path.join(qaDir, 'server.cjs'), tsconfig: path.join(root, 'tsconfig.json'),
     stdin: { contents: `import * as routes from './src/app/api/broadcast/[[...path]]/route';export {routes};export {context} from ${JSON.stringify(auth)};`, resolveDir: root, loader: 'ts' },
-    plugins: [{ name: 'fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}' })); } }] });
+    plugins: [{ name: 'fixtures', setup(b) { b.onResolve({ filter: /^@\/lib\/repo$/ }, () => ({ path: mediaFixture })); b.onResolve({ filter: /^@\/lib\/auth$/ }, () => ({ path: auth })); b.onResolve({ filter: /^next\/headers$/ }, () => ({ path: headers })); b.onResolve({ filter: /^server-only$/ }, () => ({ path: 'empty', namespace: 'fixture' })); b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export {}' })); } }] });
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'panel.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
     stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {CommunicationHub} from './src/app/admin/communication/communication-hub';createRoot(document.getElementById('root')!).render(<CommunicationHub portalAdmin={true} initial={{panel:null,tab:null,app:null}}/>);`, resolveDir: root, loader: 'tsx' } });
   db = await MongoMemoryServer.create(); process.env.MONGODB_URI = db.getUri();
@@ -45,14 +48,16 @@ before(async () => {
   qa = createRequire(import.meta.url)(path.join(qaDir, 'server.cjs'));
   websiteServer = http.createServer(async (req, res) => {
     try {
+      if (req.url === '/globals.css') { res.setHeader('Content-Type', 'text/css'); return res.end(readFileSync(path.join(root, 'src/app/globals.css'))); }
       if (['/panel.js', '/panel.css'].includes(req.url)) { res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css'); return res.end(readFileSync(path.join(qaDir, req.url.slice(1)))); }
+      if (req.url === '/api/media') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify([libraryAsset])); }
       if (req.url.startsWith('/api/')) {
         if (!req.url.startsWith('/api/broadcast/')) { res.statusCode = 503; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ error: 'Other services unavailable in this fixture.' })); }
         let body = ''; for await (const chunk of req) body += chunk;
         const result = await request(req.url, req.method, admin, 'admin', body || undefined);
         res.statusCode = result.status; res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(result));
       }
-      res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><link rel="stylesheet" href="/panel.css"></head><body><div id="root"></div><script src="/panel.js"></script></body></html>');
+      res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><link rel="stylesheet" href="/globals.css"><link rel="stylesheet" href="/panel.css"></head><body><div id="root"></div><script src="/panel.js"></script></body></html>');
     } catch (error) { res.statusCode = 500; res.end(error.message); }
   });
   await new Promise(resolve => websiteServer.listen(0, '127.0.0.1', resolve));
@@ -75,9 +80,9 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: /^Broadcast Lead groups/ }).click();
+    await page.getByRole('button', { name: /^Broadcast Lead\/client groups/ }).click();
     await page.getByRole('dialog').getByRole('heading', { name: 'Broadcast', exact: true }).waitFor();
-    await page.getByRole('combobox', { name: 'Lead group' }).selectOption('Contacted');
+    await page.getByRole('combobox', { name: 'Lead group' }).selectOption('leads:Contacted');
     const editor = page.getByRole('textbox', { name: 'Message', exact: true });
     await editor.click();
     await editor.pressSequentially('Dear ');
@@ -111,7 +116,7 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     await page.getByRole('status').filter({ hasText: 'Saved message deleted' }).waitFor();
     assert.equal(await Template.countDocuments({ purpose: 'broadcast' }), 0);
     assert.equal(await Broadcast.countDocuments(), 2);
-    await page.getByRole('combobox', { name: 'Lead group' }).selectOption('Positive');
+    await page.getByRole('combobox', { name: 'Lead group' }).selectOption('leads:Positive');
     await editor.fill('New draft');
     assert.ok(await page.getByRole('button', { name: 'Send', exact: true }).isDisabled());
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
@@ -122,5 +127,55 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     await page.screenshot({ path: path.join(qaDir, 'broadcast-mobile.png'), fullPage: true });
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     assert.equal(await page.getByRole('dialog').count(), 0);
+  } finally { await browser.close(); }
+});
+
+
+test('browser: client behaviour, Both with caption and separate text, signed media, channel persistence and media-only', { timeout: 90000 }, async () => {
+  const client = await User.create({ name: 'Client', email: 'client@example.test', roles: ['customer'] });
+  await Lead.create({ name: 'Client', email: 'client@example.test', phone: '9876543211', status: 'Won', convertedToUserId: client._id });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+    page.setDefaultTimeout(10000);
+    await page.route('https://res.cloudinary.com/**', route => route.fulfill({ status: 200, body: '' }));
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: /^Broadcast Lead\/client/ }).click();
+    assert.equal(await page.getByLabel('Send via', { exact: true }).inputValue(), 'whatsapp');
+    await page.getByLabel('Audience', { exact: true }).selectOption('clients');
+    await page.getByLabel('Client behaviour', { exact: true }).selectOption('clients:Dead');
+    assert.ok(await page.getByRole('button', { name: 'Send', exact: true }).isDisabled());
+    await page.getByLabel('Client behaviour', { exact: true }).selectOption('clients:Contacted');
+    await page.getByLabel('Send via', { exact: true }).selectOption('both');
+    await page.getByLabel('Email subject', { exact: true }).fill('Client news');
+    await page.getByRole('button', { name: 'Add media', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog').getByRole('heading', { name: 'Broadcast', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Add media', exact: true }).click();
+    await page.getByRole('button', { name: /^Demo video/ }).click();
+    await page.getByRole('textbox', { name: 'Caption (optional)', exact: true }).fill('Video caption');
+    await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Introduction');
+    await page.getByLabel('Separate text position', { exact: true }).selectOption('before');
+    await page.getByRole('button', { name: 'Preview', exact: true }).click();
+    await page.getByLabel('WhatsApp preview', { exact: true }).waitFor();
+    assert.match(await page.getByLabel('Email preview', { exact: true }).textContent(), /Client news/);
+    const before = await Broadcast.countDocuments();
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Broadcast accepted' }).waitFor();
+    assert.equal(await Broadcast.countDocuments(), before + 1);
+    const sent = await Broadcast.findOne({ audience: 'clients:Contacted' });
+    assert.equal(sent.channel, 'both');
+    assert.equal(JSON.parse(sent.message).media.assetId, libraryAsset.assetId);
+    await page.reload();
+    await page.getByRole('button', { name: /^Broadcast Lead\/client/ }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Send via"]')?.value === 'both');
+    await page.getByLabel('Send via', { exact: true }).selectOption('whatsapp');
+    await page.getByRole('button', { name: 'Add media', exact: true }).click();
+    await page.getByRole('button', { name: /^Demo video/ }).click();
+    await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Saved message updated' }).waitFor();
+    const saved = await Template.findOne({ name: 'Media message' });
+    assert.equal(JSON.parse(saved.message).media.id, libraryAsset._id);
+    assert.deepEqual(await page.getByRole('alert').allTextContents(), []);
   } finally { await browser.close(); }
 });

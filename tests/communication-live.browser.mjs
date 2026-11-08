@@ -18,7 +18,7 @@ const result = await build({
     window.visible=value=>{Object.defineProperty(document,'hidden',{configurable:true,value:!value});document.dispatchEvent(new Event('visibilitychange'))};
     function Panel({id,active,fallback=100}){
       const [value,setValue]=useState(0),[draft,setDraft]=useState('');
-      useCommunicationRefresh(async signal=>{window.calls.push(id);const next=window.version;if(window.delay)await new Promise(resolve=>window.pending.push(resolve));if(!signal.aborted)setValue(next)},active,fallback);
+      useCommunicationRefresh(async signal=>{window.calls.push(id);const next=window.version;if(window.delay)await new Promise(resolve=>window.pending.push(resolve));if(!signal.aborted)setValue(next)},active,fallback,'',id==='a'?'communication,leads,clients,users':'communication');
       return <section><span data-testid={id}>{value}</span><input aria-label={'draft-'+id} value={draft} onChange={event=>setDraft(event.target.value)}/></section>
     }
     function App(){const [b,setB]=useState(true),[enabled,setEnabled]=useState(true);return <CommunicationLiveProvider url={enabled?'http://isolated.test/updates':null}>
@@ -58,6 +58,11 @@ try {
   before = await count();
   await page.evaluate(() => window.emit({ type: 'changed', resources: [{ domain: 'orders' }] }));
   await page.waitForTimeout(300); assert.equal(await count(), before, 'unrelated resource does not reload communication');
+  before = await count();
+  await page.evaluate(() => { window.version = 7; window.emit({ type: 'changed', resources: [{ domain: 'leads' }] }); });
+  await page.waitForFunction(() => document.querySelector('[data-testid=a]').textContent === '7');
+  assert.equal(await count(), before + 1, 'only the audience-dependent panel reloads on lead changes');
+  assert.equal(await page.getByLabel('draft-a').inputValue(), 'Unsaved message');
   await page.evaluate(() => { window.delay = true; window.emit({ type: 'resync' }); });
   await page.waitForFunction(() => window.pending.length === 2);
   await page.evaluate(() => window.emit({ type: 'resync' }));

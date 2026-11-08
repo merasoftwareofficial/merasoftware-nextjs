@@ -29,6 +29,7 @@ export type WhatsappMessage = {
   event?: string;
   application?: "website" | "portal";
   text: string;
+  media?: { kind: "image" | "video"; url: string };
   status: WhatsappQueueStatus;
   attempts: number;
   lastError?: string | null;

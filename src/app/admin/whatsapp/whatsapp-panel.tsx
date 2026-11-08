@@ -186,7 +186,7 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
         <thead><tr><th>To</th><th>Message</th><th>Status</th><th>Time (IST)</th><th>Action</th></tr></thead>
         <tbody>{queue.rows.map(row => <tr key={row._id}>
           <td><strong>{phoneLabel(row.to)}</strong><small>{row.event === "auto-reply" ? "Auto reply" : row.email || "—"}</small></td>
-          <td><details><summary>{row.text.split("\n")[0].replace(/\*/g, "") || "Message"}</summary><WhatsappText text={row.text} /></details></td>
+          <td><details><summary>{(row.media ? `${row.media.kind === "video" ? "Video" : "Image"}${row.text ? ": " : ""}` : "") + row.text.split("\n")[0].replace(/\*/g, "") || "Message"}</summary><WhatsappText text={row.text} media={row.media} /></details></td>
           <td><strong>{STATUS_LABEL[row.status]}</strong>{row.lastError && <small>{row.lastError}</small>}</td>
           <td>{row.sentAt ? <>Sent {formatIndiaDateTime(row.sentAt)}</> : <>Queued {formatIndiaDateTime(row.createdAt)}</>}</td>
           <td>{row.canRetry ? <button className="admin-action" disabled={busy} onClick={() => sendAgain(row)}>Send again</button> : "—"}</td>

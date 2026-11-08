@@ -9,6 +9,8 @@ import { errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
 import { deleteCloudinaryImage } from "@/lib/cloudinary";
 import { findMediaUsage } from "@/lib/media-usage";
+import { websiteAssertionHeaders } from "@/lib/email-control-server";
+import { portalApiRequest } from "@/lib/portal-api";
 import { mediaRepo } from "@/lib/repo";
 
 export const runtime = "nodejs";
@@ -42,6 +44,9 @@ export async function DELETE(_request: Request, { params }: Params) {
     if (uses.length) {
       return NextResponse.json({ error: "This image is in use. Remove it from these places first.", uses }, { status: 409 });
     }
+
+    const retirement = { id: asset._id };
+    await portalApiRequest("Broadcast media protection", "/api/broadcast/media/retire", "POST", await websiteAssertionHeaders("/media/retire", "POST", retirement, { access: "admin" }), retirement);
 
     // Record first: if Cloudinary then fails, only an unused file is left behind, never a broken image on the site.
     if (!(await mediaRepo.remove(asset._id))) return NextResponse.json({ error: "Image not found." }, { status: 404 });

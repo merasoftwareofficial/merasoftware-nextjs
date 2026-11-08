@@ -11,6 +11,14 @@ export async function emailControlRequest<T>(path: string, method = "GET", body?
   if (authorization && "cookie" in authorization) {
     headers.Cookie = `token=${authorization.cookie}`;
   } else {
+    if (!authorization) throw new PortalApiError("Email review service is not configured.");
+    Object.assign(headers, await websiteAssertionHeaders(path, method, body, authorization));
+  }
+  return portalApiRequest<T>("Email review", `/api/email-control${path}`, method, headers, body);
+}
+
+// Shared request-bound website assertion for authenticated server integrations.
+export async function websiteAssertionHeaders(path: string, method: string, body: unknown, authorization: WebsiteAccess): Promise<Record<string, string>> {
     const secret = process.env.TOKEN_SECRET_KEY;
     if (!secret || !authorization) throw new PortalApiError("Email review service is not configured.");
     // A separate signing key and audience prevent a login token from becoming
@@ -21,7 +29,5 @@ export async function emailControlRequest<T>(path: string, method = "GET", body?
       .setProtectedHeader({ alg: "HS256" }).setIssuer("merasoftware-website")
       .setAudience("email-control").setIssuedAt().setExpirationTime("60s");
     if (authorization.actorId) assertion = assertion.setSubject(authorization.actorId);
-    headers["x-website-email-assertion"] = await assertion.sign(new TextEncoder().encode(key));
-  }
-  return portalApiRequest<T>("Email review", `/api/email-control${path}`, method, headers, body);
+    return { "x-website-email-assertion": await assertion.sign(new TextEncoder().encode(key)) };
 }

@@ -31,7 +31,7 @@ type Tab = { id: string; label: string };
 type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; tabs: Tab[]; whatsapp: boolean };
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
 const PANELS: Record<PanelId, Panel> = {
-  "broadcast": { group: "WhatsApp", title: "Broadcast", whatsapp: true, tabs: [], description: "Choose a lead group, write or reuse a message, and send through the WhatsApp queue." },
+  "broadcast": { group: "WhatsApp", title: "Broadcast", whatsapp: true, tabs: [], description: "Choose leads or clients, compose text and media, and send via WhatsApp, Email or Both." },
   "auto-reply": { group: "WhatsApp", title: "Auto Reply", whatsapp: true, tabs: [], description: "Recognise the ad message, reply through the queue and add the number to Leads." },
   "final-message": { group: "WhatsApp", title: "Final Message", whatsapp: true, tabs: [], description: "The time limit for a Negative lead's last message, and the replies that came back." },
   "reservation": { group: "WhatsApp", title: "Reservation", whatsapp: true, tabs: [], description: "Offer reservations running now with their time left, and the expiry messages sent." },
@@ -125,7 +125,10 @@ export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolea
     drawer.current?.focus();
     const page = document.documentElement, overflow = page.style.overflow;
     page.style.overflow = "hidden";
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !document.querySelector("dialog[open]")) close(); };
+    const onKey = (event: KeyboardEvent) => {
+      const childModal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].some(element => element !== drawer.current);
+      if (event.key === "Escape" && !event.defaultPrevented && !childModal && !document.querySelector("dialog[open]")) close();
+    };
     document.addEventListener("keydown", onKey);
     return () => { page.style.overflow = overflow; document.removeEventListener("keydown", onKey); };
   }, [view.panel, close]);
@@ -175,7 +178,7 @@ export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolea
   const connected = !!status?.enabled && status.workerRunning && status.connection === "connected" && !status.paused;
   const waiting = status ? status.counts.pending + status.counts.sending : 0;
   const BOX_LINES: Record<PanelId, { line: string | null; tone?: "ok" | "warn" }> = {
-    "broadcast": { line: portalAdmin ? "Lead groups · saved messages" : "Portal admin only" },
+    "broadcast": { line: portalAdmin ? "Lead/client groups · saved messages" : "Portal admin only" },
     "auto-reply": { line: portalAdmin ? "Ad message · reply · leads" : "Portal admin only" },
     "final-message": { line: portalAdmin ? "Time limit · replies" : "Portal admin only" },
     "reservation": { line: portalAdmin ? "Running · time left · expired" : "Portal admin only" },
