@@ -1,64 +1,32 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { useServerTime } from "@/components/use-server-time";
 import { categoryLabel, type ProjectCategory, type QuotedPackage } from "@/lib/sales-packages";
-import { PackageCard, packageOfferRunning } from "./package-card";
+import { PackageCard, packageOfferRunning, timeLeft } from "./package-card";
 import Link from "@/components/link";
 import s from "./campaign.module.css";
-// Cards sit side by side above this width (campaign.module.css: one column at 540px and below).
-const SIDE_BY_SIDE = "(min-width: 541px)";
-
-/**
- * Gives every package card on the page the height of the tallest one. CSS already makes the rows of
- * one list equal (grid-auto-rows); this also lines up the offer list with the other packages. In one
- * column each card keeps its own height.
- */
-function useOneCardHeight(root: React.RefObject<HTMLDivElement | null>, layoutKey: string) {
-  useEffect(() => {
-    const element = root.current;
-    if (!element) return;
-    const equalize = () => {
-      const cards = [...element.querySelectorAll<HTMLElement>("[data-package-card]")];
-      cards.forEach(card => { card.style.minHeight = ""; });
-      if (!window.matchMedia(SIDE_BY_SIDE).matches) return;
-      const tallest = Math.max(0, ...cards.map(card => card.getBoundingClientRect().height));
-      cards.forEach(card => { card.style.minHeight = `${Math.ceil(tallest)}px`; });
-    };
-    equalize();
-    // Only a width change can change the text wrapping; the heights set here must not re-trigger it.
-    let width = element.clientWidth;
-    const observer = new ResizeObserver(() => { if (element.clientWidth !== width) { width = element.clientWidth; equalize(); } });
-    observer.observe(element);
-    let active = true;
-    void document.fonts?.ready.then(() => { if (active) equalize(); });
-    return () => { active = false; observer.disconnect(); };
-  }, [root, layoutKey]);
-}
 
 /**
  * One package page (lib/package-pages.ts): its own heading and introduction above its packages.
- * Packages with a running offer come first under "Offers running now"; when an offer ends its card
- * moves back to "All packages" in the admin's order.
+ * One grid: packages with a running offer first, then the rest in the admin's order, so an offer never
+ * leaves a half-empty row. While an offer runs, "All packages" / "Offers running" switch the list;
+ * without one the grid starts straight away. When an offer ends its card returns to its own place.
  */
 export function StaffPackages({ title, intro, items, categories }: { title: string; intro: string; items: QuotedPackage[]; categories?: ProjectCategory[] }) {
   const now = useServerTime();
-  const lists = useRef<HTMLDivElement>(null);
+  const [onlyOffers, setOnlyOffers] = useState(false);
   const offers = items.filter(item => packageOfferRunning(item, now));
-  const others = items.filter(item => !offers.includes(item));
-  useOneCardHeight(lists, offers.map(item => item.id).join());
-  const card = (item: QuotedPackage) => <PackageCard key={item.id} item={item} categoryLabel={categoryLabel(categories, item.category)} now={now} />;
+  const showOffers = onlyOffers && offers.length > 0;
+  const shown = showOffers ? offers : [...offers, ...items.filter(item => !offers.includes(item))];
+  // The offer that ends first, for the countdown on the tab.
+  const soonest = offers.map(item => item.quote.offer!.endsAt).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   return <div className={s.staff}>
     <section className={s.showcaseHero}><p className={s.kicker}>PRICING &amp; PACKAGES</p><h1>{title}</h1><p>{intro}</p><div className={s.pills}><span>{items.length} packages</span></div><div className={s.actions}><Link className={s.button} href="/offer">Explore offers →</Link></div></section>
     {!items.length && <p>No packages are available right now. Contact us for a quotation.</p>}
-    <div ref={lists}>
-      {offers.length > 0 && <section className={s.pkgGroup} aria-labelledby="packages-offers">
-        <div className={s.pkgGroupHead}><h2 id="packages-offers">Offers running now</h2><span className={s.pkgLive}><i />Limited time</span></div>
-        <div className={s.pkgGrid}>{offers.map(card)}</div>
-      </section>}
-      {others.length > 0 && <section className={s.pkgGroup} aria-labelledby="packages-all">
-        <div className={s.pkgGroupHead}><h2 id="packages-all">All packages</h2><span className={s.fine}>{others.length} packages</span></div>
-        <div className={s.pkgGrid}>{others.map(card)}</div>
-      </section>}
-    </div>
+    {offers.length > 0 && <div className={s.pkgTabs} role="group" aria-label="Show packages">
+      <button type="button" className={s.pkgTab} aria-pressed={!showOffers} onClick={() => setOnlyOffers(false)}>All packages <span className={s.pkgCount}>{items.length}</span></button>
+      <button type="button" className={`${s.pkgTab} ${s.pkgTabOffer}`} aria-pressed={showOffers} onClick={() => setOnlyOffers(true)}><i aria-hidden="true" />Offers running <span className={s.pkgCount}>{offers.length}</span><span className={s.pkgEnds}>· ends in {timeLeft(soonest, now)}</span></button>
+    </div>}
+    <div className={s.pkgGrid}>{shown.map(item => <PackageCard key={item.id} item={item} categoryLabel={categoryLabel(categories, item.category)} now={now} />)}</div>
   </div>;
 }
