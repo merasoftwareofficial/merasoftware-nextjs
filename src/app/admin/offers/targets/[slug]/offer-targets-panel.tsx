@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import s from "./offer-targets.module.css";
 
-type Stage = "Contacted" | "Positive" | "Negative" | "Won";
-type Row = { id: string; leadId: string; type: "client" | "lead"; name: string; phone: string; category: string; stage: Stage; blockLabel?: string };
+// An offer stage as stored by the backend (helpers/leadStatuses.js OFFER_STAGES), e.g. "Contacted", "Reservation" or "Won".
+type Row = { id: string; leadId: string; type: "client" | "lead"; name: string; phone: string; category: string; stage: string; blockLabel?: string };
 type Counts = { total: number; clients: number; leads: number; stages: Record<string, number>; categories: Record<string, number> };
 type Candidate = { type: "client" | "lead"; id: string; name: string; phone: string; email: string; category: string; inOffer: boolean; block?: string; blockLabel?: string };
 type AddResult = { added: number; already: number; skipped: { name: string; reason: string }[] };
 
 type Option = { value: string; label: string };
 // The stages, client statuses and their names come from the backend's one list (helpers/leadStatuses.js offerPanelOptions).
-type Options = { labels: Record<string, string>; stages: Option[]; behaviours: Option[]; leadCategories: Option[] };
+// stages can be chosen; allStages are every stage a person can be in, Reservation and Not Now included (filter, counts).
+type Options = { labels: Record<string, string>; stages: Option[]; allStages: Option[]; behaviours: Option[]; leadCategories: Option[] };
 type Targets = { rows: Row[]; counts: Counts; options: Options };
 const personKey = (row: { type: string; id: string }) => `${row.type}:${row.id}`;
 
@@ -53,6 +54,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
   }, [offerPath]);
   const label = (value: string) => options?.labels[value] || value;
   const stages = options?.stages || [];
+  const allStages = options?.allStages || [];
   const behaviours = options?.behaviours || [];
 
   const openAdd = async () => {
@@ -117,14 +119,14 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
     {skipped.length > 0 && <details className={s.skipped}><summary>Who was left out</summary><ul>{skipped.map((row, index) => <li key={index}><b>{row.name || "Unnamed"}</b>: {row.reason}</li>)}</ul></details>}
 
     <section className={s.counts} aria-label="Counts for this offer">
-      {[["People", counts?.total], ["Existing clients", counts?.clients], ["Leads", counts?.leads], ["Neutral", counts?.stages.Contacted], ["Positive", counts?.stages.Positive], ["Negative", counts?.stages.Negative], ["Matured", counts?.stages.Won]].map(([name, value]) => <div key={name as string}><strong>{rows ? value || 0 : "–"}</strong><span>{name}</span></div>)}
+      {[["People", counts?.total], ["Existing clients", counts?.clients], ["Leads", counts?.leads], ...allStages.map(stage => [stage.label, counts?.stages[stage.value]])].map(([name, value]) => <div key={name as string}><strong>{rows ? value || 0 : "–"}</strong><span>{name}</span></div>)}
     </section>
 
     <div className={s.bar}>
       <label className={s.field}>Stage
         <select value={stageFilter} onChange={event => setStageFilter(event.target.value)}>
           <option value="all">All</option>
-          {[...stages.map(stage => stage.value), "Won"].map(stage => <option key={stage} value={stage}>{label(stage)}</option>)}
+          {allStages.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
         </select>
       </label>
       {running && <button type="button" className={s.primary} onClick={() => adding ? setAdding(false) : void openAdd()}>{adding ? "Close" : "Add people"}</button>}
@@ -164,7 +166,7 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
       </div>
       <div className={s.cell}>{row.stage === "Won"
         ? <div className={s.field}>Offer stage<span className={s.tag}>Matured</span></div>
-        : <label className={s.field}>Offer stage<select value={row.stage} disabled={busy} onChange={event => void act(() => api(`people/${row.id}/stage`, "PATCH", { stage: event.target.value }))}>{stages.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label>}
+        : <label className={s.field}>Offer stage<select value={row.stage} disabled={busy} onChange={event => void act(() => api(`people/${row.id}/stage`, "PATCH", { stage: event.target.value }))}>{stages.some(stage => stage.value === row.stage) ? null : <option value={row.stage} disabled>{label(row.stage)}</option>}{stages.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label>}
       </div>
       <div className={s.cell}>{row.stage !== "Won" && <button type="button" disabled={busy} onClick={() => void act(() => api(`people/${row.id}/bought`, "POST", {}))}>Bought this offer</button>}</div>
     </li>)}</ul>}
