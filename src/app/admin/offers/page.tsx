@@ -6,6 +6,7 @@ import { requireSalesAdmin } from "@/lib/sales-catalogue-server";
 import { settingsRepo } from "@/lib/repo";
 import { resolvedOffers, DEFAULT_UNIVERSAL_TERMS, DEFAULT_OFFER_LISTING } from "@/lib/offers";
 import { OFFER_SECTIONS, offerSection } from "@/lib/admin-offers";
+import { packagesHref } from "@/lib/package-pages-server";
 import { OffersManager } from "./offers-manager";
 import s from "./offers-manager.module.css";
 
@@ -25,7 +26,7 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
   const packageOffer = query.offer ? offers.find(offer => offer.slug === query.offer && offer.packageId) : undefined;
   if (packageOffer) redirect(`/admin/packages?package=${encodeURIComponent(packageOffer.packageId!)}`);
   return <main className="admin-main">
-    <AdminHeader eyebrow="OFFERS" title="Offer management" description="Manage your offers, their agreed rules, public content and terms in one place." action={<Link className="admin-button" href="/offer" target="_blank" rel="noreferrer">View public offers ↗</Link>} />
+    <AdminHeader eyebrow="OFFERS" title="Offer management" description="Manage your offers, their agreed rules, public content and terms in one place." action={<Link className="admin-button" href={await packagesHref()} target="_blank" rel="noreferrer">View packages page ↗</Link>} />
     <nav className={s.tabs} aria-label="Offer management sections">{OFFER_SECTIONS.map(item => <Link key={item.id} href={`/admin/offers?section=${item.id}`} aria-current={section === item.id ? "page" : undefined}>{item.label}</Link>)}</nav>
     <div className={s.actions}><Link className="admin-action" href="/admin/packages">Manage linked packages →</Link></div>
     <p className="admin-subtitle">{OFFER_SECTIONS.find(item => item.id === section)!.description}</p>

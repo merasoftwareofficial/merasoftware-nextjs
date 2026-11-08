@@ -38,7 +38,7 @@ export type PackageMode = { id: string; name: string; live: boolean; back: { hre
  * (lib/offer-reservation-rules.ts reserveCta): Enquire, Reserve, Start my project or the reservation
  * status, the same in the sticky bar. Each is confirmed in a dialog, so the card never changes its size.
  */
-export function PublicInteraction({ offer, terms, preview = false, reservation, previewReservation, pkg }: { offer: OfferView; terms: string[]; preview?: boolean; reservation?: ReservationConfig; previewReservation?: ReservationPreview; pkg?: PackageMode }) {
+export function PublicInteraction({ offer, terms, preview = false, reservation, previewReservation, pkg, back }: { offer: OfferView; terms: string[]; preview?: boolean; reservation?: ReservationConfig; previewReservation?: ReservationPreview; pkg?: PackageMode; back?: { href: string; label: string } }) {
   const now = useServerTime();
   const dialog = useRef<HTMLDialogElement>(null);
   const reserveDialog = useRef<HTMLDialogElement>(null);
@@ -102,7 +102,8 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
 
   return <main className={`${s.page}${preview ? ` ${s.previewPage}` : ""}`} >
     <div className={s.shell}>
-      <Link className={s.back} href={pkg?.back.href ?? "/offer"}>← {pkg?.back.label ?? "All offers"}</Link>
+      {/* Back to the Pricing & Packages page (the offers list was removed on 8 Nov 2026). */}
+      <Link className={s.back} href={(pkg?.back ?? back)?.href ?? "/"}>← {(pkg?.back ?? back)?.label ?? "Home"}</Link>
       <section className={s.hero}>
         <div className={s.pitch}>
           <span className={s.local}><i /> {offer.eyebrow}</span>

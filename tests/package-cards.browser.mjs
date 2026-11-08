@@ -70,14 +70,15 @@ try {
   ];
   await load();
 
-  // Compact heading: no count pill, no offers button; the first row of cards fits a 1440x800 window under the 79px site header.
+  // Heading, top to bottom: PRICING & PACKAGES, the page name, its description, then the switch and the cards.
+  // No count pill, no offers button; no text on the page under 16px (owner, 8 Nov 2026).
   assert.equal(await page.getByText('Explore offers').count(), 0);
   assert.equal(await page.getByText(/^5 packages$/).count(), 0);
-  await page.setViewportSize({ width: 1440, height: 800 });
-  const firstRow = await page.$$eval('[data-package-card]', cards => Math.max(...cards.slice(0, 3).map(card => card.getBoundingClientRect().bottom)));
-  assert.ok(firstRow <= 800, `first row ends at ${Math.round(firstRow)}px`);
-  console.log(`first row of cards ends at ${Math.round(firstRow)}px of 800`);
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  const stack = await page.evaluate(() => ['main p:first-child', 'main h1', 'main h1 + p', '[aria-label="Show packages"]', '[data-package-card]'].map(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return { top: box.top, left: box.left }; }));
+  for (let i = 1; i < stack.length; i++) assert.ok(stack[i].top > stack[i - 1].top, `heading part ${i} is below part ${i - 1}`);
+  assert.equal(Math.round(stack[2].left), Math.round(stack[1].left), 'description under the page name');
+  const small = await page.evaluate(() => [...document.querySelectorAll('main *')].filter(el => [...el.childNodes].some(node => node.nodeType === 3 && node.textContent.trim()) && el.getClientRects().length && parseFloat(getComputedStyle(el).fontSize) < 16).map(el => `${el.tagName} "${el.textContent.trim().slice(0, 30)}" ${getComputedStyle(el).fontSize}`));
+  assert.deepEqual(small, [], 'text under 16px');
 
   // One grid: the offer first, then the others in the admin's order; the first row is full.
   assert.deepEqual(await order(page), ['all-in-one', ...ADMIN_ORDER.filter(id => id !== 'all-in-one')]);
@@ -115,12 +116,11 @@ try {
   for (const row of desc) { assert.ok(row.lines <= 2, JSON.stringify(row)); assert.equal(row.clamp, '2'); }
   assert.ok(desc.some(row => row.cut), 'a long description is cut');
 
-  // One height side by side (3 and 2 columns) by CSS alone, own height in one column, compact, no sideways scroll.
+  // One height side by side (3 and 2 columns) by CSS alone, own height in one column, no sideways scroll.
   for (const width of [1440, 1024, 800, 390, 320, 1440]) {
     await page.setViewportSize({ width, height: 1000 }); await page.waitForTimeout(300);
     const h = await heights(page);
     if (width > 540) assert.equal(new Set(h).size, 1, `${width}px: ${h}`);
-    assert.ok(Math.max(...h) < 600, `${width}px: cards too tall (${h})`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}px scrolls sideways`);
     const clipped = await page.$$eval('[data-package-card]', cards => cards.filter(card => card.scrollHeight > card.clientHeight + 1).length);
     assert.equal(clipped, 0, `${width}px: content cut off`);

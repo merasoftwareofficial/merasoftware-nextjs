@@ -8,7 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { offerWithQuote } from "@/lib/offer-quote";
 import { phoneCountries } from "@/lib/phone-countries";
 import { offerView } from "@/lib/package-design";
-import { packagePath, readPublicPackagesOrNone } from "@/lib/package-pages-server";
+import { packagePath, packagesHref, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -32,5 +32,5 @@ export default async function Page({ params }: Props) {
   // Only a signed-in owner can be asked for a missing phone, so only then load the country list.
   const countries = enabled && user ? await phoneCountries() : undefined;
   // The card renders the reservation state itself (lib/offer-reservation-rules.ts); remounted per account.
-  return <><SiteHeader /><PublicInteraction key={user?._id || 'anonymous'} offer={offerView(offer)} terms={resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS)} reservation={enabled ? { slug, quoteKey: quote.quoteKey, signedIn: !!user, serverNow: new Date().toISOString(), countries } : undefined} /></>;
+  return <><SiteHeader /><PublicInteraction key={user?._id || 'anonymous'} offer={offerView(offer)} terms={resolvedTerms(offer, settings.offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS)} reservation={enabled ? { slug, quoteKey: quote.quoteKey, signedIn: !!user, serverNow: new Date().toISOString(), countries } : undefined} back={{ href: await packagesHref(), label: "Packages" }} /></>;
 }
