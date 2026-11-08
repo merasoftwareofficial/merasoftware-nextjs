@@ -28,7 +28,7 @@ const clientEntry = `
 import React from 'react';import{createRoot}from'react-dom/client';
 import{StaffPackages}from'@/components/campaign/staff-packages';
 import '${src('src/app/globals.css')}';
-fetch('/catalogue').then(r=>r.json()).then(items=>createRoot(document.getElementById('app')).render(<main style={{padding:'0 16px',maxWidth:1180,margin:'auto'}}><StaffPackages title="One-Time Packages" intro="Compare one-time packages." items={items} categories={[{category:'standard_websites',label:'Standard Website',status:'active'}]}/></main>));
+fetch('/catalogue').then(r=>r.json()).then(items=>createRoot(document.getElementById('app')).render(<><div style={{height:79}} data-site-header/><main style={{padding:'0 16px',maxWidth:1180,margin:'auto'}}><StaffPackages title="One-Time Packages" intro="Compare one-time website and business setup packages. We confirm the scope, timeline and applicable taxes before payment. Our team prepares your project in the client portal." items={items} categories={[{category:'standard_websites',label:'Standard Website',status:'active'}]}/></main></>));
 `;
 await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'package-cards-fixture.tsx', loader: 'tsx' }, outfile: path.join(folder, 'client.js'), bundle: true, platform: 'browser', conditions: ['style', 'browser'], jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'browser-fixtures', setup(builder) {
   builder.onResolve({ filter: /^@\/components\/link$/ }, () => ({ path: 'link', namespace: 'test' }));
@@ -69,6 +69,15 @@ try {
     pkg('dynamic-website-with-content-management', 'Dynamic Website with Content Management', 'A special website that gives you full control of your website. You can manage content, images, and everything else on your site. You do not need to depend on your developer for any change.', 40000, 24999, lines(6, 'Dynamic'), 5),
   ];
   await load();
+
+  // Compact heading: no count pill, no offers button; the first row of cards fits a 1440x800 window under the 79px site header.
+  assert.equal(await page.getByText('Explore offers').count(), 0);
+  assert.equal(await page.getByText(/^5 packages$/).count(), 0);
+  await page.setViewportSize({ width: 1440, height: 800 });
+  const firstRow = await page.$$eval('[data-package-card]', cards => Math.max(...cards.slice(0, 3).map(card => card.getBoundingClientRect().bottom)));
+  assert.ok(firstRow <= 800, `first row ends at ${Math.round(firstRow)}px`);
+  console.log(`first row of cards ends at ${Math.round(firstRow)}px of 800`);
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   // One grid: the offer first, then the others in the admin's order; the first row is full.
   assert.deepEqual(await order(page), ['all-in-one', ...ADMIN_ORDER.filter(id => id !== 'all-in-one')]);

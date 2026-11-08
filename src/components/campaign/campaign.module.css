@@ -29,7 +29,8 @@
 @media(max-width:540px){.page{padding:0 16px 120px}.top{min-height:80px;margin-bottom:34px;gap:12px}.logo{width:178px}.badge{font-size:9px;letter-spacing:.7px;padding:8px}.card{padding:22px}.grid{grid-template-columns:1fr}.stick{gap:12px}.stick p{max-width:140px;font-size:12px}.stick .button{font-size:14px;padding:14px 18px}.hero h1,.showcaseHero h1{letter-spacing:-1.4px}.hero p,.showcaseHero>p{font-size:15px}.tabs button{font-size:13px;padding:12px}.showcaseHero .pills{gap:6px}.pills span{font-size:12px;padding:8px 10px}}
 @media(prefers-reduced-motion:reduce){.progress div,.option{transition:none}}
 /* Package cards (package-card.tsx, staff-packages.tsx): one grid, offers first; fixed slots and equal rows, so cards line up without a script. */
-.pkgTabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+.pkgHero{padding:22px 0 14px;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);column-gap:48px;align-items:end}.pkgHero .kicker{margin:0;grid-column:1}.pkgHero h1{grid-column:1;font-size:clamp(28px,3.4vw,40px);font-weight:650;line-height:1.15;letter-spacing:-1px;margin:6px 0 0;color:var(--brand-navy);white-space:nowrap}.pkgHero p:not(:first-child){grid-column:2;grid-row:1/3;max-width:640px;justify-self:end;color:var(--brand-muted);line-height:1.6;font-size:15px;margin:0}@media(max-width:900px){.pkgHero{grid-template-columns:1fr}.pkgHero h1{white-space:normal}.pkgHero p:not(:first-child){grid-column:1;grid-row:auto;justify-self:start;margin-top:8px}}
+.pkgTabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
 .pkgTab{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:14px;font-weight:600;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-muted);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
 .pkgTab[aria-pressed="true"]{background:var(--brand-navy);border-color:var(--brand-navy);color:var(--brand-white)}
 .pkgTab:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
@@ -74,5 +75,5 @@
 .pkgOffer .pkgAmount{color:#c94a1f}
 .pkgOffer .pkgButton{background:#ff794d;color:#172b34}.pkgOffer:hover .pkgButton{background:#e85a2c}
 @media(max-width:900px){.pkgGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:540px){.pkgGrid{grid-template-columns:1fr;grid-auto-rows:auto}.pkgName,.pkgCard>.pkgDesc{min-height:0}}
+@media(max-width:540px){.pkgHero{padding:20px 0 16px}.pkgHero p:not(:first-child){font-size:15px}.pkgGrid{grid-template-columns:1fr;grid-auto-rows:auto}.pkgName,.pkgCard>.pkgDesc{min-height:0}}
 @media(prefers-reduced-motion:reduce){.pkgCard,.pkgOffer,.pkgTabOffer i{animation:none;transition:none}}

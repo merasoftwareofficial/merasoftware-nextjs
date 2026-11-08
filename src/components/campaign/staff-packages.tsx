@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useServerTime } from "@/components/use-server-time";
 import { categoryLabel, type ProjectCategory, type QuotedPackage } from "@/lib/sales-packages";
 import { PackageCard, packageOfferRunning, timeLeft } from "./package-card";
-import Link from "@/components/link";
 import s from "./campaign.module.css";
 
 /**
@@ -21,7 +20,9 @@ export function StaffPackages({ title, intro, items, categories }: { title: stri
   // The offer that ends first, for the countdown on the tab.
   const soonest = offers.map(item => item.quote.offer!.endsAt).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   return <div className={s.staff}>
-    <section className={s.showcaseHero}><p className={s.kicker}>PRICING &amp; PACKAGES</p><h1>{title}</h1><p>{intro}</p><div className={s.pills}><span>{items.length} packages</span></div><div className={s.actions}><Link className={s.button} href="/offer">Explore offers →</Link></div></section>
+    {/* Compact heading, so the first row of packages shows without scrolling. The count is on the
+        All packages switch, and offers are on this page, so no count pill or offers button here. */}
+    <header className={s.pkgHero}><p className={s.kicker}>PRICING &amp; PACKAGES</p><h1>{title}</h1>{intro && <p>{intro}</p>}</header>
     {!items.length && <p>No packages are available right now. Contact us for a quotation.</p>}
     {offers.length > 0 && <div className={s.pkgTabs} role="group" aria-label="Show packages">
       <button type="button" className={s.pkgTab} aria-pressed={!showOffers} onClick={() => setOnlyOffers(false)}>All packages <span className={s.pkgCount}>{items.length}</span></button>
