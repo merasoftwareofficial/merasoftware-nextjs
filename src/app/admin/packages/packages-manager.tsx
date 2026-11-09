@@ -159,6 +159,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [catalogue, setCatalogue] = useState(initial);
   const [offers, setOffers] = useState(initialOffers);
   const [pages, setPages] = useState(initialPages);
+  const [listTab, setListTab] = useState<"live" | "drafts" | "archived">("live");
   const [pageDraft, setPageDraft] = useState<{ title: string; intro: string } | null>(null);
   const [pageBusy, setPageBusy] = useState(false);
   const [pageError, setPageError] = useState("");
@@ -392,54 +393,57 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     finally { setBusy(false); }
   }
 
-  // The list in three groups (owner, 9 Nov 2026): live first, then drafts, then archived. Every package has at
-  // most one draft (unique packageId in the backend); its row says so and opens that draft, never a new copy.
+  // The list (owner, 9 Nov 2026): three tabs, Live / Drafts / Archived, one line per package so the admin barely
+  // scrolls. Every package has at most one draft (unique packageId in the backend); its line says so and opens
+  // that draft, never a new copy.
   const liveRows = catalogue.packages.filter(row => row.status === "published");
-  const hiddenRows = catalogue.packages.filter(row => row.status === "draft"); // older hidden packages; one with a draft shows it on its row
+  const hiddenRows = catalogue.packages.filter(row => row.status === "draft"); // older hidden packages; one with a draft shows it on its line
   const archivedRows = catalogue.packages.filter(row => row.status === "archived");
   const newDrafts = drafts.filter(draft => !catalogue.packages.some(row => row.id === draft.packageId));
   const changeDrafts = drafts.filter(draft => catalogue.packages.some(row => row.id === draft.packageId && row.status !== "draft"));
-  const savedAt = (draft: PackageDraft) => draft.updatedAt ? ` · last saved ${formatIndiaDateTime(draft.updatedAt)}` : "";
-  const packageRow = (row: SalesPackage) => {
+  const draftCount = newDrafts.length + hiddenRows.length + changeDrafts.length;
+  const savedAt = (draft: PackageDraft) => draft.updatedAt ? `saved ${formatIndiaDateTime(draft.updatedAt)}` : "";
+  const packageLine = (row: SalesPackage, copyLine = false) => {
     const running = now === null ? undefined : ownOffers(row.id).find(offer => offerRunning(offer, now));
     const draftOffer = !running && ownOffers(row.id).some(offer => offer.status === "draft");
     const copy = drafts.find(draft => draft.packageId === row.id);
-    return <article className={`admin-form ${s.listRow}`} key={row.id}><h3>{row.name}</h3>
-      <p>{row.status === "published" ? "Live" : row.status === "archived" ? "Archived (hidden)" : "Hidden, never published"} · {categoryLabel(catalogue.categories, row.category)} · {rupee(row.discountedPrice ?? row.regularPrice)} normal price</p>
-      <div className={s.chips}>
-        {running ? <span className={s.ok}>Offer running: {running.title} · {rupee(running.offerPrice)} · ends {formatIndiaDateTime(running.endsAt)}</span> : draftOffer ? <span className={s.chip}>Offer not published</span> : <span className={s.chip}>No offer</span>}
-        {copy && <span className={s.warn}>Draft in progress{savedAt(copy)}</span>}
-        {shownOn(row).length ? shownOn(row).map(slug => <span className={s.chip} key={slug}>{pages.find(page => page.slug === slug)?.title}</span>) : <span className={s.warn}>No page assigned</span>}
-      </div>
-      <div className="form-actions"><button className="admin-action" onClick={() => choose(row)}>{copy ? "Continue draft →" : "Edit package →"}</button><button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>{row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View page ↗</Link>}</div>
-    </article>;
+    const onPages = shownOn(row);
+    return <li className={s.line} key={`${copyLine ? "copy-" : ""}${row.id}`}>
+      <div className={s.lineMain}><b>{copy && copyLine ? copy.name : row.name}</b>
+        <small>{copyLine ? `Changes to ${row.status === "published" ? "a live" : "an archived"} package · ${row.status === "published" ? "live page unchanged" : "stays hidden"} until you publish` : `${row.status === "draft" ? "Hidden, never published · " : ""}${categoryLabel(catalogue.categories, row.category)} · ${onPages.length ? onPages.map(slug => pages.find(page => page.slug === slug)?.title).join(", ") : "no page"}`}</small></div>
+      <span className={s.linePrice}>{rupee(row.discountedPrice ?? row.regularPrice)}</span>
+      <span className={s.lineTags}>
+        {running ? <span className={s.ok} title={`Ends ${formatIndiaDateTime(running.endsAt)}`}>Offer: {running.title} · {rupee(running.offerPrice)}</span> : draftOffer ? <span className={s.chip}>Offer not published</span> : <span className={s.chip}>No offer</span>}
+        {copy && <span className={s.warn} title={savedAt(copy)}>Draft in progress</span>}
+        {!onPages.length && !copyLine && <span className={s.warn}>No page</span>}
+      </span>
+      <span className={s.lineActions}><button className="admin-action" onClick={() => choose(row)}>{copy ? "Continue draft →" : "Edit →"}</button>
+        {!copyLine && <button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>}
+        {!copyLine && row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View ↗</Link>}</span>
+    </li>;
   };
+  const tabs = [["live", "Live", liveRows.length], ["drafts", "Drafts", draftCount], ["archived", "Archived", archivedRows.length]] as const;
 
   if (!item) return <div>
-    <p>Each package has its own page with 2 prices. Add an offer to a package to show 3 prices and a countdown. Packages have no checkout and never activate or purchase service plans.</p>
-    <button className="admin-button" onClick={() => choose({ ...blank, status: "published", order: catalogue.packages.length }, true)}>New package +</button>
+    <div className={s.listTop}><p>Each package has its own page with 2 prices; an offer adds a third price and a countdown. A package has only one draft, and editing it always opens that draft.</p>
+      <button className="admin-button" onClick={() => choose({ ...blank, status: "published", order: catalogue.packages.length }, true)}>New package +</button></div>
     {message && <p role="status">{message}</p>}
-    <section className={s.group} aria-labelledby="pk-live"><h2 id="pk-live" className={s.groupHead}>Live on the website <span className={s.count}>{liveRows.length}</span></h2>
-      {liveRows.length ? liveRows.map(packageRow) : <p className={s.note}>No package is live.</p>}
-    </section>
-    <section className={s.group} aria-labelledby="pk-drafts"><h2 id="pk-drafts" className={s.groupHead}>Drafts <span className={s.count}>{newDrafts.length + hiddenRows.length + changeDrafts.length}</span></h2>
-      <p className={s.note}>Work that is not on the website. A package has only one draft: editing a package that has one always opens it.</p>
-      {newDrafts.map(draft => <article className={`admin-form ${s.listRow}`} key={`draft-${draft.packageId}`}><h3>{draft.name}</h3>
-        <p>New package, not published yet · link /package/{draft.packageId} is reserved{savedAt(draft)}</p>
-        <div className={s.chips}><span className={s.warn}>Draft</span></div>
-        <div className="form-actions"><button className="admin-action" onClick={() => chooseDraft(draft)}>Edit draft →</button></div>
-      </article>)}
-      {hiddenRows.map(packageRow)}
-      {changeDrafts.map(draft => { const row = catalogue.packages.find(entry => entry.id === draft.packageId)!; return <article className={`admin-form ${s.listRow}`} key={`change-${draft.packageId}`}><h3>{draft.name}</h3>
-        <p>Changes to {row.status === "published" ? "a live" : "an archived"} package{row.name !== draft.name ? ` (now "${row.name}")` : ""} · the {row.status === "published" ? "live page stays as it is" : "package stays hidden"} until you publish{savedAt(draft)}</p>
-        <div className={s.chips}><span className={s.warn}>Draft in progress</span></div>
-        <div className="form-actions"><button className="admin-action" onClick={() => chooseDraft(draft)}>Continue draft →</button></div>
-      </article>; })}
-      {!newDrafts.length && !hiddenRows.length && !changeDrafts.length && <p className={s.note}>No drafts.</p>}
-    </section>
-    <section className={s.group} aria-labelledby="pk-archived"><h2 id="pk-archived" className={s.groupHead}>Archived (hidden) <span className={s.count}>{archivedRows.length}</span></h2>
-      {archivedRows.length ? archivedRows.map(packageRow) : <p className={s.note}>No archived packages.</p>}
-    </section>
+    <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
+    <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
+      {listTab === "live" && (liveRows.length ? liveRows.map(row => packageLine(row)) : <li className={s.empty}>No package is live.</li>)}
+      {listTab === "drafts" && <>
+        {newDrafts.map(draft => <li className={s.line} key={`draft-${draft.packageId}`}>
+          <div className={s.lineMain}><b>{draft.name}</b><small>New package, not published · link /package/{draft.packageId} is reserved</small></div>
+          <span className={s.linePrice}>—</span>
+          <span className={s.lineTags}><span className={s.warn} title={savedAt(draft)}>Draft</span></span>
+          <span className={s.lineActions}><button className="admin-action" onClick={() => chooseDraft(draft)}>Edit draft →</button></span>
+        </li>)}
+        {changeDrafts.map(draft => packageLine(catalogue.packages.find(row => row.id === draft.packageId)!, true))}
+        {hiddenRows.map(row => packageLine(row))}
+        {!draftCount && <li className={s.empty}>No drafts.</li>}
+      </>}
+      {listTab === "archived" && (archivedRows.length ? archivedRows.map(row => packageLine(row)) : <li className={s.empty}>No archived packages.</li>)}
+    </ul>
   </div>;
 
   const errors: Errors = tried && now !== null ? check(item, keptOffer(offerForm) ? null : offerForm, now) : {};
