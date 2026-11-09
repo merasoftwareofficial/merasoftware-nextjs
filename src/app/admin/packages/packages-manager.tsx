@@ -35,6 +35,21 @@ const blank: SalesPackage = { id: "", name: "", description: "", status: "draft"
 const blankMonthly: PackageMonthly = { pricing: "fixed", billingOptions: [{ billingCycle: "monthly", discountPercent: 0 }], maxTenureMonths: 12 };
 const CYCLES = Object.keys(CYCLE_MONTHS) as PackageCycle[];
 const KEYS = Object.keys(blank) as (keyof SalesPackage)[];
+// A price-per-file package has ONE price per file (owner decision 9 Nov 2026, like the plan system). The backend
+// still wants a main and a normal price, so both hold that price: nothing is crossed out until an offer runs, and
+// an offer then lowers the price per file. The normal price is what the customer pays, so it is the one price.
+const perFile = (item: Pick<SalesPackage, "billing" | "monthly">) => item.billing === "monthly" && item.monthly?.pricing === "per_file";
+const priced = <T extends SalesPackage>(item: T): T => (perFile(item) ? { ...item, regularPrice: item.discountedPrice } : item);
+// What one billing period costs at `rate` per file: the plan engine's own maths (backend helpers/servicePlanPricing.js
+// updatePriceForFiles, quoteServicePlan), shown to the admin only; the customer's price always comes from the backend quote.
+const periodPrice = (rate: number, files: number, updates: number, months: number, discountPercent: number) =>
+  Math.round(Math.round(files * rate) * updates * months * (1 - discountPercent / 100));
+function previewRows(rate: number, monthly: PackageMonthly | undefined) {
+  const f = monthly?.files, u = monthly?.updatesPerMonth;
+  if (!monthly || !(rate > 0) || !f || !u || !(f.min >= 1) || f.max < f.min || !(u.min >= 1) || u.max < u.min) return [];
+  return monthly.billingOptions.map(option => { const months = CYCLE_MONTHS[option.billingCycle]; return { key: option.billingCycle, label: PURCHASE_LABELS[option.billingCycle], discount: option.discountPercent,
+    low: periodPrice(rate, f.min, u.min, months, option.discountPercent), high: periodPrice(rate, f.max, u.max, months, option.discountPercent) }; });
+}
 const rupee = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
 const lines = (value: string[]) => value.map(line => line.trim()).filter(Boolean);
 const idFromName = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70).replace(/-+$/, "") || "package";
@@ -100,13 +115,17 @@ function offerPayload(form: OfferForm, item: Item): Partial<Offer> {
   return payload;
 }
 
-function check(item: Item, offer: OfferForm | null, now: number): Errors {
+function check(source: Item, offer: OfferForm | null, now: number): Errors {
+  const item = priced(source);
   const errors: Errors = {};
   if (!item.name.trim()) errors.name = "Enter the package name.";
   if (!item.description.trim()) errors.description = "Enter a description.";
   if (!lines(item.inclusions).length) errors.inclusions = "List at least one item.";
-  if (!(item.regularPrice > 0)) errors.regularPrice = "Enter a main price above ₹0.";
-  if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
+  if (perFile(item)) { if (!(item.discountedPrice > 0)) errors.rate = "Enter the price per file above ₹0."; }
+  else {
+    if (!(item.regularPrice > 0)) errors.regularPrice = "Enter a main price above ₹0.";
+    if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
+  }
   // How customers buy it: all three together (package.md decision 7). An older package without them may stay as it is.
   if (item.billing || item.portalUploads !== undefined || item.paymentOptions?.length) {
     if (!item.billing) errors.billing = "Choose how this package is billed.";
@@ -253,6 +272,16 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       ? { paymentOptions: undefined, monthly: current.monthly ?? { ...blankMonthly }, offerExtraPrice: 0 }
       : { paymentOptions: current.paymentOptions?.length ? current.paymentOptions : ["full"], monthly: undefined }) } : current);
   }
+  // Fixed monthly keeps two prices; price per file has one (the price the customer pays now), held in both.
+  function choosePricing(pricing: PackageMonthly["pricing"]) {
+    setItem(current => {
+      if (!current?.monthly) return current;
+      if (pricing !== "per_file") return { ...current, monthly: { ...current.monthly, pricing, files: undefined, updatesPerMonth: undefined } };
+      const rate = current.discountedPrice > 0 ? current.discountedPrice : current.regularPrice;
+      return { ...current, regularPrice: rate, discountedPrice: rate, monthly: { ...current.monthly, pricing, files: current.monthly.files ?? { min: 10, max: 100, step: 10 }, updatesPerMonth: current.monthly.updatesPerMonth ?? { min: 1, max: 4 } } };
+    });
+  }
+  function setRate(value: number) { setItem(current => current ? { ...current, regularPrice: value, discountedPrice: value } : current); }
   function setMonthly(part: Partial<PackageMonthly>) { setItem(current => current?.monthly ? { ...current, monthly: { ...current.monthly, ...part } } : current); }
   function design<K extends keyof PackageDesign>(key: K, value: string) { setItem(current => current ? { ...current, design: { ...current.design, [key]: value } } : current); }
   function offerField<K extends keyof OfferForm>(key: K, value: OfferForm[K]) { setOfferForm(current => current ? { ...current, [key]: value } : current); }
@@ -323,7 +352,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   async function send(next: Item, form: OfferForm | null, isNew: boolean, done: string, draft?: { version: number; keepOffer?: OfferForm }, reopen = false) {
     setBusy(true); setError(""); setMessage("");
     try {
-      const config = { ...next, inclusions: lines(next.inclusions), terms: lines(next.terms) };
+      const config = { ...priced(next), inclusions: lines(next.inclusions), terms: lines(next.terms) };
       const offerPart = form ? { creating: !form.base, offer: offerPayload(form, next) } : undefined;
       const response = await fetch("/api/packages", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: config, creating: isNew, ...(offerPart ? { offer: offerPart } : {}), ...(draft ? { draft } : {}) }) });
       const result = await response.json();
@@ -460,9 +489,10 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   let previewEnd = NaN;
   try { previewEnd = offerForm ? Date.parse(indiaInputToUtc(offerForm.endsAt, true)) : NaN; } catch { /* not a date yet */ }
   const showOffer = !!offerForm && offerForm.offerPrice !== "" && Number.isFinite(previewEnd);
-  const base = packageView({ ...item, inclusions: lines(item.inclusions), terms: lines(item.terms), id: id });
+  const shown = priced(item);
+  const base = packageView({ ...shown, inclusions: lines(item.inclusions), terms: lines(item.terms), id: id });
   const view = showOffer ? offerView({ ...base, title: offerForm!.title || "Offer name", offerPrice: Number(offerForm!.offerPrice), endsAt: new Date(previewEnd).toISOString(),
-    ...(hours(offerForm!.reservationHoldHours) ? { reservationHoldHours: hours(offerForm!.reservationHoldHours) } : {}) }, item) : base;
+    ...(hours(offerForm!.reservationHoldHours) ? { reservationHoldHours: hours(offerForm!.reservationHoldHours) } : {}) }, shown) : base;
   const packageTerms = [...new Set([...universalTerms, ...lines(item.terms)])];
   const percent = showOffer ? offerDiscountPercent(view) : 0;
   const leftMs = running ? Date.parse(savedOffer!.endsAt) - (now ?? 0) : 0;
@@ -498,8 +528,6 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             <label className="admin-field"><span>Terms &amp; exclusions (one per line)</span><textarea aria-label="Terms & exclusions" rows={6} value={item.terms.join("\n")} onChange={e => update("terms", e.target.value.split("\n"))} /></label>
           </div>
           <div className={s.cols3}>
-            <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Main price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.regularPrice} onChange={e => update("regularPrice", Number(e.target.value))} /><small>Shown crossed out.</small>{err("regularPrice")}</label>
-            <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Normal price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => update("discountedPrice", Number(e.target.value))} /><small>What the customer pays when no offer runs.</small>{err("discountedPrice")}</label>
             <label className="admin-field"><span>Display order</span><input aria-label="Display order" type="number" min={0} max={9999} value={item.order} onChange={e => update("order", Number(e.target.value))} /></label>
           </div>
           <label className="admin-field"><span>Related portal services (optional references)</span><select aria-label="Related portal services (optional references)" multiple size={4} value={item.linkedPlanIds} onChange={e => update("linkedPlanIds", Array.from(e.target.selectedOptions, option => option.value))}>{(catalogue.plans || []).map(plan => <option key={plan._id} value={plan._id}>{plan.serviceName} ({plan.servicePlan?.purchaseType || "service"})</option>)}</select><small>Reference only. These services are purchased separately through the portal plan flow.</small></label>
@@ -514,7 +542,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               {PACKAGE_PAYMENT_OPTIONS.map(option => <label key={option.value}><input type="checkbox" checked={!!item.paymentOptions?.includes(option.value)} onChange={e => update("paymentOptions", PACKAGE_PAYMENT_OPTIONS.map(row => row.value).filter(value => value === option.value ? e.target.checked : !!item.paymentOptions?.includes(value)))} /> {option.label}</label>)}
               {err("paymentOptions")}</div> : monthly && <>
               <div className={s.choices} role="radiogroup" aria-label="Monthly pricing"><span>Monthly pricing *</span>
-                {(Object.keys(MONTHLY_PRICING_LABELS) as PackageMonthly["pricing"][]).map(pricing => <label key={pricing}><input type="radio" name="monthlyPricing" checked={monthly.pricing === pricing} onChange={() => setMonthly(pricing === "per_file" ? { pricing, files: monthly.files ?? { min: 10, max: 100, step: 10 }, updatesPerMonth: monthly.updatesPerMonth ?? { min: 1, max: 4 } } : { pricing, files: undefined, updatesPerMonth: undefined })} /> {MONTHLY_PRICING_LABELS[pricing]}{pricing === "per_file" ? ": the prices above are per file; the client picks files per update and updates a month" : ": the prices above are per month; unlimited updates"}</label>)}
+                {(Object.keys(MONTHLY_PRICING_LABELS) as PackageMonthly["pricing"][]).map(pricing => <label key={pricing}><input type="radio" name="monthlyPricing" checked={monthly.pricing === pricing} onChange={() => choosePricing(pricing)} /> {MONTHLY_PRICING_LABELS[pricing]}{pricing === "per_file" ? ": one price per file below; the client picks files per update and updates a month" : ": the prices below are per month; unlimited updates"}</label>)}
               </div>
               <div className={`${s.choices} ${bad("monthlyCycles") ?? ""}`} role="group" aria-label="Billing cycles"><span>Billing cycles and discount *</span>
                 {CYCLES.map(cycle => { const option = monthly.billingOptions.find(row => row.billingCycle === cycle); return <label key={cycle}>
@@ -530,6 +558,16 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
                 {(["min", "max"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyUpdates") ?? ""}`}><span>Updates a month: {key === "min" ? "fewest" : "most"} *</span><input aria-label={`Updates per month ${key}`} type="number" min={1} max={31} value={monthly.updatesPerMonth?.[key] ?? ""} onChange={e => setMonthly({ updatesPerMonth: { ...(monthly.updatesPerMonth ?? { min: 1, max: 4 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyUpdates")}</label>)}
               </div>}
             </>}
+          <div className={s.priceBox} role="group" aria-label="Prices">
+            {perFile(item) && <label className={`admin-field ${bad("rate") ?? ""}`}><span>Price per file (₹) *</span><input aria-label="Price per file (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => setRate(Number(e.target.value))} /><small>One price per file. The client&apos;s monthly price is files × this price × updates a month, less the billing-cycle discount. An offer lowers this price.</small>{err("rate")}</label>}
+            <div className={s.cols3}>
+              <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Main price (₹)" type="number" min={0} max={10000000} step="0.01" disabled={perFile(item)} value={perFile(item) ? item.discountedPrice : item.regularPrice} onChange={e => update("regularPrice", Number(e.target.value))} /><small>{perFile(item) ? "Set by the price per file above." : "Shown crossed out."}</small>{err("regularPrice")}</label>
+              <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Normal price (₹)" type="number" min={0} max={10000000} step="0.01" disabled={perFile(item)} value={item.discountedPrice} onChange={e => update("discountedPrice", Number(e.target.value))} /><small>{perFile(item) ? "Set by the price per file above." : "What the customer pays when no offer runs."}</small>{err("discountedPrice")}</label>
+            </div>
+            {perFile(item) && (() => { const rows = previewRows(item.discountedPrice, monthly); return rows.length > 0 && <div className={s.priceSample} aria-label="Price preview"><b>What a client pays (preview, for you)</b>
+              <ul>{rows.map(row => <li key={row.key}>{row.label}{row.discount > 0 && ` (${row.discount}% off)`}: {rupee(row.low)} to {rupee(row.high)} for each billing period</li>)}</ul>
+              <small>From {monthly!.files!.min} files × {monthly!.updatesPerMonth!.min} update a month, to {monthly!.files!.max} files × {monthly!.updatesPerMonth!.max} updates. The client&apos;s real price always comes from the system.</small></div>; })()}
+          </div>
           </fieldset>
         </section>
 
@@ -557,7 +595,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               <label className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><select aria-label="Offer status" value={offerForm.status} onChange={e => offerField("status", e.target.value as OfferForm["status"])}><option value="draft">{savedOffer ? "Draft (not on the website)" : "Draft (kept in the package draft)"}</option><option value="published">Published</option></select>{!savedOffer && offerForm.status === "draft" && <small>Publish keeps this offer in the draft. Choose Published to make it live with the package.</small>}{err("offerStatus")}</label>
             </div>
             <p className={s.idline}>Offer link: <code>/offer/{offerLink}</code> <span className={s.lock}>auto</span> <span>Opens this package page. Made from the offer name; never reused.</span></p>
-            <p className={s.inherit}>From the package (not typed again): main price <b>{rupee(item.regularPrice)}</b> · normal price <b>{rupee(item.discountedPrice)}</b> · category, included work, terms and page design.</p>
+            <p className={s.inherit}>From the package (not typed again): {shown.regularPrice > shown.discountedPrice ? <>main price <b>{rupee(shown.regularPrice)}</b> · normal price <b>{rupee(shown.discountedPrice)}</b></> : <>{perFile(shown) ? "price per file" : "price"} <b>{rupee(shown.discountedPrice)}</b></>} · category, included work, terms and page design.</p>
             <div className="form-columns">
               <label className={`admin-field ${bad("offerPrice") ?? ""}`}><span>Offer price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Offer price (₹)" type="number" min={0} max={10000000} step="0.01" value={offerForm.offerPrice} onChange={e => offerField("offerPrice", e.target.value)} /><small>{percent ? `Shown as ${percent}% OFF the main price.` : "Must be below the normal price."}</small>{err("offerPrice")}</label>
               <label className={`admin-field ${bad("endsAt") ?? ""}`}><span>Expires at (India time / IST) *</span><input aria-label="Expires at (India time / IST)" type="datetime-local" value={offerForm.endsAt} onChange={e => offerField("endsAt", e.target.value)} /><small>One fixed deadline. Starts the countdown.</small>{err("endsAt")}</label>
@@ -598,8 +636,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <p className={s.h}>{item.design.heading}{item.design.headingHighlight && <em>{item.design.headingHighlight}</em>}</p>
           <div className={s.ptop}><span>{item.design.tagline}</span><b>{item.design.badge}</b></div>
           <p className={s.ptitle}>{showOffer ? offerForm!.title || "Offer name" : item.name || "Package name"}</p>
-          {showOffer ? <><p className={s.old}><del>{rupee(item.regularPrice)}</del> → <del>{rupee(item.discountedPrice)}</del></p><p className={s.deal}><small>OFFER PRICE {percent > 0 && <b>{percent}% OFF</b>}</small><strong>{rupee(Number(offerForm!.offerPrice))}</strong></p><p className={s.timer}>Countdown to {formatIndiaDateTime(new Date(previewEnd).toISOString())}</p></>
-            : <>{item.regularPrice > item.discountedPrice && <p className={s.old}><del>{rupee(item.regularPrice)}</del></p>}<p className={s.deal}><small>PRICE</small><strong>{rupee(item.discountedPrice)}</strong></p></>}
+          {showOffer ? <><p className={s.old}><del>{rupee(shown.regularPrice)}</del>{shown.regularPrice > shown.discountedPrice && <> → <del>{rupee(shown.discountedPrice)}</del></>}</p><p className={s.deal}><small>OFFER PRICE {percent > 0 && <b>{percent}% OFF</b>}</small><strong>{rupee(Number(offerForm!.offerPrice))}</strong></p><p className={s.timer}>Countdown to {formatIndiaDateTime(new Date(previewEnd).toISOString())}</p></>
+            : <>{shown.regularPrice > shown.discountedPrice && <p className={s.old}><del>{rupee(shown.regularPrice)}</del></p>}<p className={s.deal}><small>PRICE</small><strong>{rupee(shown.discountedPrice)}</strong></p></>}
           <p className={s.pd}>{item.design.priceDescription}</p>
           <p className={s.cta}>{showOffer ? (previewState === "open" ? `Reserve price for ${hours(offerForm!.reservationHoldHours) || DEFAULT_HOLD_HOURS} hours` : previewState === "reserved" ? "Start my project · time left" : item.design.ctaLabel) : "Start my project"} →</p>
         </div>

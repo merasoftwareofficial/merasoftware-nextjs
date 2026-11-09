@@ -176,7 +176,7 @@ try {
   }
   // The admin form (the closed full-page preview dialog repeats some labels).
   const form = page.locator('form').first();
-  const editor = async name => { await page.goto(origin + '/admin/packages'); await page.locator('article').filter({ hasText: name }).getByRole('button', { name: 'Edit package →' }).click(); };
+  const editor = async name => { await page.goto(origin + '/admin/packages'); await page.locator('li').filter({ hasText: name }).getByRole('button', { name: /^(Edit|Continue draft) →$/ }).click(); };
 
   const draftCall = async label => {
     const pending = page.waitForResponse(r => r.url().endsWith('/api/packages/drafts') && r.request().method() === 'PATCH');
@@ -211,7 +211,9 @@ try {
   await page.screenshot({ path: path.join(folder, 'admin-draft-refused-publish.png'), fullPage: true });
   await form.getByLabel('Offer status', { exact: true }).selectOption('draft');
   await page.getByRole('button', { name: '← All packages' }).click();
-  await page.locator('article').filter({ hasText: 'Draft Only' }).getByRole('button', { name: 'Edit draft →' }).click();
+  // The packages list has three tabs (Live / Drafts / Archived); a never-published draft is under Drafts.
+  await page.getByRole('tab', { name: /^Drafts/ }).click();
+  await page.locator('li').filter({ hasText: 'Draft Only' }).getByRole('button', { name: 'Edit draft →' }).click();
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).inputValue(), '-5', 'the draft opens as typed');
   assert.equal(await form.getByLabel('Offer name', { exact: true }).inputValue(), 'Half offer');
   const stale = await context.request.patch(origin + '/api/packages/drafts', { data: { action: 'save', packageId: 'draft-only', version: 5, data: { item: { name: 'Old copy' } } } });
@@ -310,7 +312,7 @@ try {
   assert.equal(api.store.packages['business-starter'].description, 'A ready-to-launch business website.', 'live package unchanged');
   await page.getByText('Draft saved. The live page stays as it is until you publish the changes.', { exact: true }).waitFor();
   await page.goto(origin + '/admin/packages');
-  await page.locator('article').filter({ hasText: 'Business Starter' }).getByText('Unpublished changes (draft)', { exact: true }).waitFor();
+  await page.locator('li').filter({ hasText: 'Business Starter' }).getByText('Draft in progress', { exact: true }).waitFor();
   await editor('Business Starter');
   assert.equal(await form.getByLabel('Description', { exact: true }).inputValue(), 'Changed in the draft.', 'the package opens its draft');
   await page.getByText('Running', { exact: true }).first().waitFor();
@@ -410,6 +412,55 @@ try {
   const stalePublish = await packageApi({ ...api.store.packages['later-offer-pack'], description: 'Old copy' }, { draft: { version: 9 } });
   assert.equal(stalePublish.status(), 409);
   assert.equal(api.store.packages['later-offer-pack'].description, 'Package description');
+
+  // 11. A price-per-file package has ONE price (owner decision 9 Nov 2026): the prices sit in "How customers buy",
+  // main and normal price are greyed and follow the price per file, and both are sent equal (the backend is unchanged).
+  await page.goto(origin + '/admin/packages');
+  await page.getByRole('button', { name: 'New package +', exact: true }).click();
+  await form.getByLabel('Package name', { exact: true }).fill('Data Entry Pack');
+  await form.getByLabel('Status', { exact: true }).selectOption('published');
+  await form.getByLabel('Description', { exact: true }).fill('Monthly data entry for your business.');
+  await form.getByLabel('Included work (one item per line)', { exact: true }).fill('Monthly data entry');
+  assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'one-time has no price per file');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).isDisabled(), false);
+  await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
+  await form.getByLabel('Yes: the client sends files in the portal').check();
+  assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'fixed monthly has two editable prices');
+  assert.equal(await form.getByLabel('Normal price (₹)', { exact: true }).isDisabled(), false);
+  await form.getByLabel('Main price (₹)', { exact: true }).fill('900');
+  await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
+  // The prices come after the purchase settings, inside "How customers buy this package".
+  const order = await form.evaluate(el => { const at = text => { const node = [...el.querySelectorAll('legend, label span, h2')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }; return { buy: at('How customers buy'), billing: at('Billing'), main: at('Main price'), design: at('2. Page design') }; });
+  assert.ok(order.buy < order.billing && order.billing < order.main && order.main < order.design, JSON.stringify(order));
+  // Price per file: one price; both old fields grey and equal to it; a preview of what a client pays.
+  await form.getByRole('radio', { name: /^Price per file:/ }).check();
+  const rate = form.getByLabel('Price per file (₹)', { exact: true });
+  assert.equal(await rate.inputValue(), '700', 'starts from the price the customer paid');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).isDisabled(), true);
+  assert.equal(await form.getByLabel('Normal price (₹)', { exact: true }).isDisabled(), true);
+  await rate.fill('50');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).inputValue(), '50');
+  assert.equal(await form.getByLabel('Normal price (₹)', { exact: true }).inputValue(), '50');
+  await form.getByLabel('Price preview').getByText('Monthly: ₹500 to ₹20,000 for each billing period', { exact: true }).waitFor();
+  await page.screenshot({ path: path.join(folder, 'admin-price-per-file.png'), fullPage: true });
+  const perFile = await save('Publish');
+  assert.deepEqual([perFile.package.billing, perFile.package.monthly.pricing, perFile.package.regularPrice, perFile.package.discountedPrice], ['monthly', 'per_file', 50, 50]);
+  // An offer lowers the one price: it must be below it.
+  await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
+  await form.getByLabel('Offer name', { exact: true }).fill('Per file launch');
+  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  await form.getByLabel('Offer price (₹)', { exact: true }).fill('50');
+  await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
+  await page.getByText('Must be below the normal price (₹50).', { exact: true }).waitFor();
+  // Back to fixed monthly: both prices editable again, keeping the value.
+  await form.getByRole('radio', { name: /^Fixed monthly price:/ }).check();
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).isDisabled(), false);
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).inputValue(), '50');
+  // A price of 0 is refused for a price per file.
+  await form.getByRole('radio', { name: /^Price per file:/ }).check();
+  await rate.fill('0');
+  await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
+  await page.getByText('Enter the price per file above ₹0.', { exact: true }).waitFor();
 
   assert.deepEqual(errors, []);
   console.log('PASS: one package form — drafts (name only, kept as typed, refused publish, published-package copy, discard, end offer), automatic IDs and offer links, page design, optional offer with required fields, package page in offer and package mode, sync and guards, offers only from Packages, older offers unchanged, desktop/mobile layout.');

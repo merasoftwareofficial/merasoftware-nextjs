@@ -126,10 +126,13 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
             <div className={s.deal}><span className={s.dealLabel}>PRICE</span><strong><small>₹</small>{offer.discountPrice.toLocaleString("en-IN")}</strong></div>
             <p className={s.priceDescription}>{offer.priceDescription}</p>
           </> : expired ? <div className={s.expired}><h3>This offer has ended.</h3><p>Ask us about current pricing and availability.</p></div> : <>
+            {/* A package with one price (a price per file) has the same main and normal price: one crossed-out price. */}
             <div className={s.oldPrices} aria-label="Price comparison">
-              <div><span>Main price</span><del>{money(offer.mainPrice)}</del></div>
-              <b aria-hidden="true">→</b>
-              <div><span>Normal discount price</span><del>{money(offer.discountPrice)}</del></div>
+              {offer.mainPrice > offer.discountPrice ? <>
+                <div><span>Main price</span><del>{money(offer.mainPrice)}</del></div>
+                <b aria-hidden="true">→</b>
+                <div><span>Normal discount price</span><del>{money(offer.discountPrice)}</del></div>
+              </> : <div><span>Price</span><del>{money(offer.discountPrice)}</del></div>}
             </div>
             <div className={s.deal}><span className={s.dealLabel}>OFFER PRICE{percent > 0 && <b className={s.dealPercent}>{percent}% OFF</b>}</span><strong><small>₹</small>{offer.offerPrice.toLocaleString("en-IN")}</strong></div>
             <p className={s.priceDescription}>{offer.priceDescription}</p>
