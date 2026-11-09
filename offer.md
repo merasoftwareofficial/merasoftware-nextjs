@@ -1,6 +1,6 @@
 # Offers system — conversation handoff
 
-Last updated: 6 November 2026, Asia/Calcutta. Latest task and current handoff: see sections 13–14. Sections 1–12 preserve the earlier conversation and its historical verification boundaries; their statements about the "current request" describe that earlier session, not the latest request.
+Last updated: 7 November 2026, Asia/Calcutta. **Latest status: section 21 — actual service pages checked; What We Do copy refined for natural language, distinct customer benefits and accurate support scope.** Sections 18–20 record preceding copy iterations. Earlier sections preserve history; historical pending-approval statements no longer block the authorized section revision.
 
 ## 1. Current state at a glance
 
@@ -483,3 +483,177 @@ The improved homepage adds exactly **one** section, Current Offers. Existing her
 Original production application files were not edited. Existing unrelated dirty repository changes were present at start (reservation components, rules, tests and API work); none were modified by this task. Only this handoff document was updated inside the project. All preview work is in the separate folder. No production writes, backend changes, deployment, account login, or server shutdown performed.
 
 Static preview inner-page links open the real website; real forms/login/pricing remain there. Local reactions do not submit votes. Maps remain external and need internet. New content is not wired into the production admin. Shared package/offer details remain a future separate task. Do not claim business conversion or every aspect of usability is proven by these checks. Next step is user comparison of the two homepage versions and any requested refinements within homepage scope.
+
+## 15. User's review: preserve persuasive positioning; documentation only
+
+### Active instruction — read before doing anything
+
+The user explicitly said: **“अभी वर्किंग मत करो, डॉक को अपडेट करो, मेरी समझ को समझकर ताँजो एजेंट अच्छे से समझ जाए समझ को.”** Do not revise the preview or production application on the basis of the previous proposed response. This turn is authorized to update this handoff only. Wait for a subsequent user instruction before implementing revisions. The broader preview scope remains homepage-only; inner pages are not in scope.
+
+Immediately before that instruction arrived, the assistant had read the preview files and made a backup at `E:/Websites/example website/backup/revision1` containing improved.html, improvements.css, prepare.cjs, preview.js, verification.md, index.html and the then-current offer.md. **No preview content, CSS, scripts or production code had been changed in response to this review.** The original.html SHA256 at that point was `7F76B4611C302D090C8BFEFD5C9A660F2C2582CB0FE5A715BE0F14DA13279028`. The first proposed preview remains available, but its messaging direction was rejected in the feedback below. Backup creation is not an implemented revision.
+
+### Central understanding: business outcome first, navigation in support
+
+The business goal is **digital presence**. The user wants visitors to feel the relevance of a stronger digital presence to their own business, see desirable outcomes and naturally explore the appropriate service. Navigation should help that progression. It should not replace the brand's persuasive message with a literal list of products, a questionnaire or commands telling visitors what they should do.
+
+The first preview overcorrected for clarity: it replaced emotionally engaging, outcome-led positioning with plain service labels and instructions. The user found that more generic, weaker and less professional, despite the links being easier to discover. **Passing layout/menu checks does not establish better copy or a better homepage.** Original content is often the stronger starting point and must be assessed on its intent, not rewritten simply to show that changes were made.
+
+### Specific feedback and its meaning
+
+| Area | User's assessment | Direction for future work when authorized |
+| --- | --- | --- |
+| Hero | Original **“Make your digital presence impossible to ignore.”** is stronger. It promises a desirable outcome and speaks broadly to potential customers. **“Websites, apps & software. Built for your business.”** is generic and weak. | Preserve the original hero positioning/headline as the preferred direction. Service clarity and discovery should support it through appropriate secondary copy/links, not replace it with a product inventory. |
+| What We Do heading | Original **“Built for the work that moves your business forward.”** connects the services to business progress. **“What does your business need next?”** is generic and too simple. | Keep the original business-outcome framing. Do not substitute a literal needs questionnaire for the main section message. |
+| Three service points | Original **“Websites built to earn attention”** is the strongest example. The other two original points about commercially relevant search visibility and outcome-focused campaigns are closer to the right approach than the rewritten first-person choices, but still have room for improvement. | Improve the weaker points with the same professional, benefit-led logic: recognize a business pain/desire and connect it to a valuable result. Do not treat every original line as untouchable, or assume all three already satisfy the user. No replacement wording has been approved yet. |
+| Rewritten service choices | **“I need a website, app or business software”** and similar literal choices feel less professional. The user prefers copy that connects with a visitor's needs without bluntly directing them. | Visitors should see themselves in the outcome and follow relevant hints voluntarily. Direct labels can serve navigation where useful, but should not become the persuasive headline/copy system. |
+| Offers section | Showing one current discounted package with a prominent price is not the professional homepage approach the user wants. Different visitors may value different offer conditions, including responsibility rather than a price concession. | The homepage should introduce the breadth/value of offers and let users explore relevant opportunities. Do not define “offer” as only “cheap package” or make one campaign stand for the whole business. User's example of responsibility is a conceptual requirement, **not proof that a particular guarantee, pay-later policy or responsibility-based offer currently exists**. Verify actual available terms before making claims. Exact section layout, categories and copy remain undecided. |
+| Point of view / system | Original **“Growth is not a lucky break. It's a system with intention.”** is stronger, engaging and easy to read. It communicates that growth follows thought and strategy. The replacement **“A clear scope. A visible way forward.”** and “How working with us works” lose that appeal. | Preserve the original strategic message. Any later explanation of actual systems/processes must complement it, not displace it with routine workflow language. The four-step expansion from the first preview has not been accepted. |
+| Later homepage sections | The user explicitly said they had **not yet read the remaining sections**. Their criticism suggests the assistant should reconsider the approach there too. | Do not mark later sections approved or rejected individually. Review them against this clarified direction when authorized; do not assume the revised contact/trust content is better merely because it was added. |
+
+### Editorial principles the next agent must retain
+
+1. Lead with the visitor's desired business outcome and the company's digital-presence promise. Services are how that outcome is delivered.
+2. Preserve the original's confident, aspirational, professional tone. Plain language should stay compelling; it must not become generic or mechanically instructional.
+3. The visitor journey should build interest: relevance to their business, a desirable result, a plausible service/strategy, then an easy next step. The user values this gradual build-up.
+4. Use small contextual hints and relevant links to solve discoverability problems. Do not overwhelm or flatten the main message with “I need…” options everywhere.
+5. Offers can be valuable for scope, conditions or responsibility as well as pricing. Describe only genuinely available benefits; never invent obligations or guarantees to satisfy this positioning.
+6. Reuse strong existing content and visuals. More new copy or more sections is not inherently an improvement.
+7. Explain proposed editorial changes in terms of the user's goals. Do not defend the first preview solely using technical verification, service coverage or navigation counts.
+
+These are derived from the user's review, not new approved copy or a finalized design. The user has not yet chosen the revised Offers layout, exact service-point wording, or how much supporting system information belongs on the homepage.
+
+### Status and handoff
+
+Completed now: recorded the user's understanding and correction in this document. **No revision implemented.** Preview files still show the first attempt; sections 14's descriptions/tests refer to that attempt. Do not represent it as accepted, or claim the original headline has already been restored in improved.html. Keep original.html and production unchanged. Await the user's next instruction before revising the separate homepage preview.
+
+## 16. Fresh verification and revision proposal — awaiting approval
+
+Latest user instruction: verify carefully, report, then begin revision **only after they say approve/proceed**. This replaces section 15's documentation-only task with authorization for verification/reporting, not implementation. Scope remains the separate homepage preview only.
+
+Detailed report: `E:/Websites/example website/revision-review.md`. Read it alongside section 15 before proposing or implementing the next version. Prior handoff backed up at `E:/Websites/example website/backup/review-before-approval/offer.md` before updating.
+
+### Fresh observations
+
+Both captured HTML pages inspected in Chromium at 1440px and 390px: all section text/headings, actual link destinations, mobile menu and image loading. No horizontal overflow or failed images; mobile menu opens and Escape closes. No product HTML/CSS/JS written during this review. No fresh live catalogue fetched, authenticated workflow tested or visitor study performed. Original hash remains `7F76B4611C302D090C8BFEFD5C9A660F2C2582CB0FE5A715BE0F14DA13279028`; improved.html still matches its revision1 backup.
+
+Additional issues beyond the user's copy critique:
+
+- First preview's first two service rows both lead to generic Services; original uses the relevant service-detail routes. The rewrite reduced navigation precision.
+- Hero has five actions; replacing the message and adding more choices made the introduction busier.
+- Original hero Explore our work points to Services; proposed correction should make label and actual Work destination agree.
+- First preview's View offer & full terms button goes to the offer listing, not the particular offer details. New discovery CTA should honestly say Explore current offers.
+- Added work/trust paragraph precedes the original section headline and adds clutter around existing genuine evidence.
+- Journal has two general-interest articles and one directly relevant website article. Report proposes leading with the existing website article, not fabricating posts or implementing production filtering.
+- Original closing invitation is stronger than the preview's uncertainty-led Not sure where to start heading.
+
+### Proposal submitted, not implemented
+
+Preserve original hero, What We Do heading, first website point, Point of View, work headline and closing invitation. Refine only the second/third service-point copy in a benefit-led tone; retain service-specific links and add restrained routes to all services/packages/ongoing plans. Restore compact Point of View with an optional relevant supporting link rather than four added steps.
+
+Replace the single-price campaign with one compact Offers & Opportunities discovery section. Draft headline: “Your next digital move. With more in your favour.” Draft supporting message: value goes beyond price; explore current offers, inclusions and conditions. No unverified responsibility/guarantee claims, invented offer categories or hardcoded campaign amount. This is proposed copy awaiting approval, not a settled user decision.
+
+Proposed order: original Hero → What We Do → Our Point of View → Selected Work → new Offers & Opportunities → Journal → Contact → Visit Us → Footer. Header offers link permits immediate discovery. Exactly one new main section; no separate workflow/trust/quiz section. Preserve genuine project facts and location; keep supporting hints small.
+
+### Pending
+
+Report to user, then wait for explicit approval/proceed. Do not run prepare.cjs or capture.cjs as part of reporting: the former rewrites original.html and is not currently idempotent; the latter refreshes original assets/HTML. If revision is approved, first make preparation safe for the immutable original, back up changed preview files and implement only the approved scope. Current first preview remains unchanged and unaccepted. Production application and inner pages remain untouched.
+
+## 17. Approved homepage revision 2 — implemented and checked
+
+User authorized: **“ठीक है फिर अब बनाओ इम्प्रूव वाले को बेहतर.”** Implemented the reviewed direction in `E:/Websites/example website/improved.html` only, plus local generation/styles, comparison description and documentation. No production application or inner-page changes. Original HTML snapshot was not modified.
+
+### Changes
+
+- Restored original digital-presence hero headline, description/video and two-action hierarchy. Corrected Explore our work to actual `/work`.
+- Restored original What We Do heading and website point. Revised other points to “Be found when customers are ready to choose.” and “Turn the right attention into meaningful enquiries.” Three original service-specific links retained. Restrained supporting routes to all services, packages and ongoing plans added below.
+- Restored original Point of View heading/description; removed four-step replacement. Added one About/approach link.
+- Preserved real portfolio content and headline, with small team/office links after the work.
+- Exactly one new main section, Offers & Opportunities, after Work. Uses approved broad-value invitation and matching line-art SVG, not a hardcoded discount campaign, price panel, invented benefit categories or guarantees.
+- Journal leads with the existing relevant website article while retaining the other real articles. Original Contact headline/CTA and location retained.
+- Offers links in homepage header/mobile/footer. No forced questionnaire or extra hero choices.
+
+Sequence: Hero → What We Do → Point of View → Work → Offers & Opportunities → Journal → Contact → Visit Us → Footer.
+
+### Files, backups and generation
+
+`backup/revision2/` contains pre-change improved.html, improvements.css, prepare.cjs, index.html, verification.md, revision-review.md, offer.md and manifest.json. Existing earlier backups retained.
+
+`revise.cjs` generates only improved.html from the immutable original; `prepare.cjs` now delegates to it. Running generation twice produces identical bytes; original snapshot hash unchanged. `improvements.css` contains only additions needed by revision 2. Shared preview.js and original.html were not changed.
+
+Original SHA256: `7F76B4611C302D090C8BFEFD5C9A660F2C2582CB0FE5A715BE0F14DA13279028`.
+
+Revised improved.html SHA256: `BA153CBD19E8DE95F32FA05494A88F0A69FD6453C5B1EB3469A33D7840C93939`.
+
+Comparison launcher remains `E:/Websites/example website/index.html`. `verification.md` now begins with current revision 2 evidence; older first-attempt report is explicitly historical. `revision-review.md` records that the proposal was approved and implemented.
+
+### Verification and limits
+
+`verify-revision.cjs` / `evidence/revision2/checks.json`: 390px, 768px, 1024px, 1440px all pass for no horizontal overflow, no failed images or uncaught JavaScript errors, hero video ready, valid local anchors, original two hero actions, correct work/service destinations, Offers navigation, menu open/Escape closure and visible keyboard focus on the offer CTA. On mobile, selecting Offers also closes the menu.
+
+Full-page/Offers screenshots retained per width, plus Point of View screenshot. Desktop full-page and desktop/mobile Offers visually inspected for typography, spacing and line-art continuity. Initial programmatic focus check did not activate focus-visible after pointer input; actual Shift+Tab/Tab check passed. This was corrected in verification, not by changing browser behavior through CSS.
+
+No new live catalogue fetch, authenticated workflow, backend test or production deployment. Static preview links continue to real inner pages; external maps need internet. New section is not wired into production admin. User review remains necessary for persuasive effectiveness; technical checks do not prove conversion improvements. Next: user comparison/refinement of homepage-only preview.
+
+## 18. Real business needs → revised What We Do — 7 November 2026
+
+### User's clarified understanding
+
+The user rejected revision 2 as still disconnected from actual business needs. Attractive wording alone is insufficient. A business owner wants to get online, have that presence professionally managed, attract business/enquiries and understand the benefit of the service. Updates/content/support are means toward those goals, not the primary customer motivation. Generic promises such as Grow your business / Stay in control do not explain the work and are too vague.
+
+The user says customers recognize Google, Facebook, Instagram, WhatsApp, SEO, keywords, local keyword optimisation and leads. Use these familiar names to make the service concrete. Especially include Instagram in the second headline. Demonstrate expertise by describing purposeful professional setup and connected management (branding, information, contact paths), not by asserting that other people lack knowledge. Do not equate account creation with a complete online business presence.
+
+Three points can sufficiently explain the core journey; no fourth is needed merely to list more tasks. Website support belongs with the website point. The second point should describe online platform setup and management; the third SEO and campaigns/discovery/enquiries. The user believes getting this post-hero section right will make the later journey more coherent. This is not permission to rewrite every later section unilaterally.
+
+### Latest authorization and implementation
+
+User: **“अब अपना वो HTML वाला जो पेज है उसे मॉडिफाई करो, देखते हैं अब वो कैसे दिखता है।”** Updated only the What We Do section in the separate improved.html, its generator and one small campaign-link style. Rest of homepage preserved. Original/live website untouched.
+
+Actual copy:
+
+1. **Websites built to earn attention** — A professional website that presents your business clearly, makes enquiries easy, and stays supported as your business evolves.
+2. **Your business, professionally connected across Google, Instagram, Facebook & WhatsApp.** — Give customers a clear reason to follow, trust and contact your business. We set up and manage your profiles with consistent branding, clear service information and connected enquiry links—so each platform supports the next step.
+3. **SEO & campaigns that bring your business closer to customers.** — Local keyword optimisation, search-focused content and targeted campaigns help people discover your business and take the next step towards an enquiry.
+
+Original What We Do heading retained. First row opens website-development detail; second opens actual Services catalogue for relevant profile/social services; third opens SEO detail. A small separate Explore paid campaigns link leads to performance-marketing detail. No new/nonexistent platform detail route invented. Existing all-services/packages/ongoing-plans links retained below the section.
+
+### Backups, checks and boundaries
+
+`E:/Websites/example website/backup/revision3/`: pre-change improved.html, revise.cjs, verification.md, improvements.css, offer.md and manifest.json. `prepare.cjs` still calls the generator, which reads but never writes original.html.
+
+`evidence/revision3/checks.json`: browser checks at 390px, 768px and 1440px; three service rows, no overflow or uncaught JS errors. Compared seven other main section HTML fragments with the pre-change backup: all exactly equal. Desktop/mobile section screenshots visually inspected; mobile screenshot refreshed with screenshot-only header visibility styling to remove sticky-header capture overlap, without changing actual navigation/page styles.
+
+Original SHA256 remains `7F76B4611C302D090C8BFEFD5C9A660F2C2582CB0FE5A715BE0F14DA13279028`. Earlier revision2 improved hash is historical and no longer identifies current improved.html. No new live fetch, production application edit, deployment, inner-page redesign or backend changes. Await user visual/content feedback on this section before assuming acceptance or redesigning the remaining chain.
+
+## 19. Shorter second headline — 7 November 2026
+
+User found the second headline too long and suggested Google plus social media setup in the headline, with Instagram/Facebook/WhatsApp in the short description. Updated the separate preview to **“Google & social media, professionally connected.”** Description now explicitly names Google, Instagram, Facebook and WhatsApp Business and retains professional setup/management, branding, clear information and enquiry links. Only second-point text changed in improved.html and revise.cjs; other copy/layout unchanged.
+
+Pre-change improved.html, revise.cjs, verification.md and offer.md saved under `E:/Websites/example website/backup/revision4/`. Regenerated through prepare.cjs; original snapshot hash unchanged. Browser checks at 390px and 1440px confirmed new heading/platform names and no horizontal overflow. No production edits or changes to other sections.
+
+## 20. Purpose-led short headlines — 7 November 2026
+
+User rejected “Google & social media, professionally connected” because it reads as a statement about our own connections and does not say what the customer's setup achieves. They want the service plus its purpose, following the logic of Websites built to earn attention. Third-point direction was acceptable but too long.
+
+Updated second headline: **Google & social profiles built to earn trust.** Updated third: **SEO & campaigns built to attract enquiries.** Professional setup/management and Google/Instagram/Facebook/WhatsApp names remain in the unchanged second description; local keywords and search/campaign explanation remain in the third. No other content/layout changed. These headlines express intended benefits, not guaranteed leads/results.
+
+Backups: `E:/Websites/example website/backup/revision5/` (improved.html, revise.cjs, verification.md, offer.md). Regenerated improved.html; original snapshot hash remains unchanged. Browser checks at 390px and 1440px confirm new headings and no horizontal overflow. Production untouched. Await user feedback; do not assume the rejected professionally-connected wording is accepted.
+
+## 21. Deeper service/copy verification and revision 6 — 7 November 2026
+
+The user requested a careful deeper verification followed by updating the preview. The preceding editorial assessment identified formulaic repetition of built to, ambiguous Google profiles and overlong descriptions. Do not treat the previous section's wording as accepted/final.
+
+Fresh read-only browser visits to actual public Services, website-development, seo and performance-marketing pages all returned HTTP 200. Actual content confirms professional profile setup, relevant social profiles, local search/content work, social management, paid advertising and ongoing website changes/support within agreed scope. This does not imply free/unlimited support is included with every website. The revised wording says support is tailored to needs rather than automatically bundled. Public service content does not guarantee rankings, customer choices or conversions; no guarantees added.
+
+Updated points in improved.html (via revise.cjs):
+
+1. **Websites built to earn attention** — We build websites that showcase your business and make enquiries easy, with ongoing support tailored to your needs.
+2. **Google & social media that help customers choose you.** — Professional setup and management of your Google Business Profile, Instagram, Facebook and WhatsApp Business—with clear services, consistent branding and easy ways to contact you.
+3. **SEO & campaigns focused on the right customers.** — Local keyword optimisation, search-focused content and targeted campaigns help people find your services and take the next step towards an enquiry.
+
+Rationale: presentation/contact/support → professional platform presence that supports customer choice → discovery and enquiry through targeted search/promotion. Distinct jobs, natural English and familiar platform names, without forcing identical headline grammar or promising business results. Existing links, section heading and original first-point headline retained.
+
+Backups: `E:/Websites/example website/backup/revision6/` with manifest (improved.html, revise.cjs, verification.md and offer.md). Original HTML untouched; generator confirmed its existing SHA256 unchanged.
+
+`evidence/revision6/checks.json` plus section screenshots: 390px, 768px, 1024px and 1440px; no horizontal overflow, broken local anchors or uncaught JavaScript errors; service links receive keyboard Tab focus. Seven other main section HTML fragments exactly match backup. Desktop/mobile section screenshots visually inspected: second/third headings each occupy two lines at 390px, descriptions remain readable. Screenshot-only style hides sticky header for the cropped captures; actual page unchanged.
+
+Only improved preview's service text/generator and documentation changed. No production files, deployments, inner-page edits or new sections. User preference/conversion still requires user review; this editorial/functional verification is not a user study.
