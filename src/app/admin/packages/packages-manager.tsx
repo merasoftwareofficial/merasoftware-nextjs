@@ -11,6 +11,7 @@ import { offerRunning } from "@/lib/offer-packages";
 import { defaultPackageDesign, inheritedDesign, offerView, packageDesignSchema, packageView, type PackageDesign } from "@/lib/package-design";
 import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime } from "@/lib/date-time";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
+import { perFileChoices, perFileQuote, perFileReady, updatePrice, type PerFileChoice } from "@/lib/package-per-file";
 import s from "./packages-manager.module.css";
 
 // The one package form (src/docs/package-offers.md, owner decisions 7 Nov 2026): 1. the package, 2. its page
@@ -40,17 +41,37 @@ const KEYS = Object.keys(blank) as (keyof SalesPackage)[];
 // an offer then lowers the price per file. The normal price is what the customer pays, so it is the one price.
 const perFile = (item: Pick<SalesPackage, "billing" | "monthly">) => item.billing === "monthly" && item.monthly?.pricing === "per_file";
 const priced = <T extends SalesPackage>(item: T): T => (perFile(item) ? { ...item, regularPrice: item.discountedPrice } : item);
-// What one billing period costs at `rate` per file: the plan engine's own maths (backend helpers/servicePlanPricing.js
-// updatePriceForFiles, quoteServicePlan), shown to the admin only; the customer's price always comes from the backend quote.
-const periodPrice = (rate: number, files: number, updates: number, months: number, discountPercent: number) =>
-  Math.round(Math.round(files * rate) * updates * months * (1 - discountPercent / 100));
-function previewRows(rate: number, monthly: PackageMonthly | undefined) {
-  const f = monthly?.files, u = monthly?.updatesPerMonth;
-  if (!monthly || !(rate > 0) || !f || !u || !(f.min >= 1) || f.max < f.min || !(u.min >= 1) || u.max < u.min) return [];
-  return monthly.billingOptions.map(option => { const months = CYCLE_MONTHS[option.billingCycle]; return { key: option.billingCycle, label: PURCHASE_LABELS[option.billingCycle], discount: option.discountPercent,
-    low: periodPrice(rate, f.min, u.min, months, option.discountPercent), high: periodPrice(rate, f.max, u.max, months, option.discountPercent) }; });
-}
 const rupee = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+// The admin's price check for a price-per-file package (lib/package-per-file.ts), like the plan form's: pick a
+// billing period, length, files and updates and see what that client pays. Display only.
+function PerFilePrice({ rate, monthly }: { rate: number; monthly: PackageMonthly }) {
+  const [pick, setPick] = useState<Partial<PerFileChoice>>({});
+  if (!perFileReady(rate, monthly)) return <p className={s.note}>Fill in the files, price per file and updates to see what a client pays.</p>;
+  const options = perFileChoices(monthly);
+  if (!options.cycles.length) return <p className={s.note}>Tick a billing cycle that fits the longest length to see what a client pays.</p>;
+  const cycle = pick.billingCycle && options.cycles.includes(pick.billingCycle) ? pick.billingCycle : options.cycles[0];
+  const lengths = options.lengths(cycle);
+  const choice: PerFileChoice = { billingCycle: cycle, tenureMonths: pick.tenureMonths && lengths.includes(pick.tenureMonths) ? pick.tenureMonths : lengths[0],
+    files: pick.files && options.files.includes(pick.files) ? pick.files : options.files[0], updates: pick.updates && options.updates.includes(pick.updates) ? pick.updates : options.updates[0] };
+  const q = perFileQuote(rate, monthly, choice);
+  const f = monthly.files, u = monthly.updatesPerMonth;
+  const choose = (key: keyof PerFileChoice) => (e: { target: { value: string } }) => setPick({ ...pick, [key]: key === "billingCycle" ? e.target.value : Number(e.target.value) });
+  return <div className={s.priceSample} aria-label="Price check">
+    <b>What a client pays</b>
+    <ul>
+      <li>One update: {rupee(updatePrice(rate, f.min))} ({f.min} files){f.max > f.min && <> to {rupee(updatePrice(rate, f.max))} ({f.max} files)</>}</li>
+      <li>Per month: {rupee(updatePrice(rate, f.min) * u.min)} ({f.min} files × {u.min} update{u.min > 1 ? "s" : ""}){(f.max > f.min || u.max > u.min) && <> to {rupee(updatePrice(rate, f.max) * u.max)} ({f.max} files × {u.max} updates)</>}</li>
+    </ul>
+    <div className={s.checkRow}>
+      <label>Billing <select aria-label="Check billing period" value={choice.billingCycle} onChange={choose("billingCycle")}>{options.cycles.map(c => <option key={c} value={c}>{PURCHASE_LABELS[c]}</option>)}</select></label>
+      <label>Length <select aria-label="Check length in months" value={choice.tenureMonths} onChange={choose("tenureMonths")}>{lengths.map(n => <option key={n} value={n}>{n} month{n > 1 ? "s" : ""}</option>)}</select></label>
+      <label>Files <select aria-label="Check files per update" value={choice.files} onChange={choose("files")}>{options.files.map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+      <label>Updates a month <select aria-label="Check updates per month" value={choice.updates} onChange={choose("updates")}>{options.updates.map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+    </div>
+    <p className={s.checkResult} aria-live="polite">One update {rupee(q.updatePrice)} · per month {rupee(q.perMonthPrice)} · each {PURCHASE_LABELS[cycle].toLowerCase()} payment <strong>{rupee(q.cyclePrice)}</strong>{q.discount > 0 && <> (after {q.discountPercent}% off, {rupee(q.discount)} saved)</>} · total <strong>{rupee(q.totalPrice)}</strong> for {choice.tenureMonths} month{choice.tenureMonths > 1 ? "s" : ""}</p>
+    <small>Before any offer. A running offer lowers the price per file. The client&apos;s price on the website always comes from the system.</small>
+  </div>;
+}
 const lines = (value: string[]) => value.map(line => line.trim()).filter(Boolean);
 const idFromName = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70).replace(/-+$/, "") || "package";
 const offerSlugFromName = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70).replace(/-+$/, "") || "offer";
@@ -542,8 +563,15 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               {PACKAGE_PAYMENT_OPTIONS.map(option => <label key={option.value}><input type="checkbox" checked={!!item.paymentOptions?.includes(option.value)} onChange={e => update("paymentOptions", PACKAGE_PAYMENT_OPTIONS.map(row => row.value).filter(value => value === option.value ? e.target.checked : !!item.paymentOptions?.includes(value)))} /> {option.label}</label>)}
               {err("paymentOptions")}</div> : monthly && <>
               <div className={s.choices} role="radiogroup" aria-label="Monthly pricing"><span>Monthly pricing *</span>
-                {(Object.keys(MONTHLY_PRICING_LABELS) as PackageMonthly["pricing"][]).map(pricing => <label key={pricing}><input type="radio" name="monthlyPricing" checked={monthly.pricing === pricing} onChange={() => choosePricing(pricing)} /> {MONTHLY_PRICING_LABELS[pricing]}{pricing === "per_file" ? ": one price per file below; the client picks files per update and updates a month" : ": the prices below are per month; unlimited updates"}</label>)}
+                {(Object.keys(MONTHLY_PRICING_LABELS) as PackageMonthly["pricing"][]).map(pricing => <label key={pricing}><input type="radio" name="monthlyPricing" checked={monthly.pricing === pricing} onChange={() => choosePricing(pricing)} /> {MONTHLY_PRICING_LABELS[pricing]}{pricing === "per_file" ? ": the client picks files per update and updates a month; one price per file" : ": the prices below are per month; unlimited updates"}</label>)}
               </div>
+              {monthly.pricing === "per_file" && <div className={s.cols3}>
+                {(["min", "max", "step"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyFiles") ?? ""}`}><span>Files per update: {key === "step" ? "step" : key === "min" ? "fewest" : "most"} *</span><input aria-label={`Files per update ${key}`} type="number" min={1} max={100} value={monthly.files?.[key] ?? ""} onChange={e => setMonthly({ files: { ...(monthly.files ?? { min: 10, max: 100, step: 10 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyFiles")}</label>)}
+              </div>}
+              {monthly.pricing === "per_file" && <label className={`admin-field ${bad("rate") ?? ""}`}><span>Price per file (₹) *</span><input aria-label="Price per file (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => setRate(Number(e.target.value))} /><small>One update costs files × this price. An offer lowers this price.</small>{err("rate")}</label>}
+              {monthly.pricing === "per_file" && <div className={s.cols3}>
+                {(["min", "max"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyUpdates") ?? ""}`}><span>Updates a month: {key === "min" ? "fewest" : "most"} *</span><input aria-label={`Updates per month ${key}`} type="number" min={1} max={31} value={monthly.updatesPerMonth?.[key] ?? ""} onChange={e => setMonthly({ updatesPerMonth: { ...(monthly.updatesPerMonth ?? { min: 1, max: 4 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyUpdates")}</label>)}
+              </div>}
               <div className={`${s.choices} ${bad("monthlyCycles") ?? ""}`} role="group" aria-label="Billing cycles"><span>Billing cycles and discount *</span>
                 {CYCLES.map(cycle => { const option = monthly.billingOptions.find(row => row.billingCycle === cycle); return <label key={cycle}>
                   <input type="checkbox" checked={!!option} onChange={e => setMonthly({ billingOptions: CYCLES.flatMap(value => value === cycle ? (e.target.checked ? [{ billingCycle: cycle, discountPercent: 0 }] : []) : monthly.billingOptions.filter(row => row.billingCycle === value)) })} /> {PURCHASE_LABELS[cycle]}
@@ -551,23 +579,11 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
                 </label>; })}
                 {err("monthlyCycles")}</div>
               <label className={`admin-field ${bad("monthlyLength") ?? ""}`}><span>Longest length (months) *</span><input aria-label="Longest length in months" type="number" min={1} max={12} value={monthly.maxTenureMonths} onChange={e => setMonthly({ maxTenureMonths: Number(e.target.value) })} /><small>The client buys 1 to 12 months; to continue after that, they buy it again.</small>{err("monthlyLength")}</label>
-              {monthly.pricing === "per_file" && <div className={s.cols3}>
-                {(["min", "max", "step"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyFiles") ?? ""}`}><span>Files per update: {key === "step" ? "step" : key === "min" ? "fewest" : "most"} *</span><input aria-label={`Files per update ${key}`} type="number" min={1} max={100} value={monthly.files?.[key] ?? ""} onChange={e => setMonthly({ files: { ...(monthly.files ?? { min: 10, max: 100, step: 10 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyFiles")}</label>)}
-              </div>}
-              {monthly.pricing === "per_file" && <div className={s.cols3}>
-                {(["min", "max"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyUpdates") ?? ""}`}><span>Updates a month: {key === "min" ? "fewest" : "most"} *</span><input aria-label={`Updates per month ${key}`} type="number" min={1} max={31} value={monthly.updatesPerMonth?.[key] ?? ""} onChange={e => setMonthly({ updatesPerMonth: { ...(monthly.updatesPerMonth ?? { min: 1, max: 4 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyUpdates")}</label>)}
-              </div>}
             </>}
-          <div className={s.priceBox} role="group" aria-label="Prices">
-            {perFile(item) && <label className={`admin-field ${bad("rate") ?? ""}`}><span>Price per file (₹) *</span><input aria-label="Price per file (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => setRate(Number(e.target.value))} /><small>One price per file. The client&apos;s monthly price is files × this price × updates a month, less the billing-cycle discount. An offer lowers this price.</small>{err("rate")}</label>}
-            <div className={s.cols3}>
-              <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Main price (₹)" type="number" min={0} max={10000000} step="0.01" disabled={perFile(item)} value={perFile(item) ? item.discountedPrice : item.regularPrice} onChange={e => update("regularPrice", Number(e.target.value))} /><small>{perFile(item) ? "Set by the price per file above." : "Shown crossed out."}</small>{err("regularPrice")}</label>
-              <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Normal price (₹)" type="number" min={0} max={10000000} step="0.01" disabled={perFile(item)} value={item.discountedPrice} onChange={e => update("discountedPrice", Number(e.target.value))} /><small>{perFile(item) ? "Set by the price per file above." : "What the customer pays when no offer runs."}</small>{err("discountedPrice")}</label>
-            </div>
-            {perFile(item) && (() => { const rows = previewRows(item.discountedPrice, monthly); return rows.length > 0 && <div className={s.priceSample} aria-label="Price preview"><b>What a client pays (preview, for you)</b>
-              <ul>{rows.map(row => <li key={row.key}>{row.label}{row.discount > 0 && ` (${row.discount}% off)`}: {rupee(row.low)} to {rupee(row.high)} for each billing period</li>)}</ul>
-              <small>From {monthly!.files!.min} files × {monthly!.updatesPerMonth!.min} update a month, to {monthly!.files!.max} files × {monthly!.updatesPerMonth!.max} updates. The client&apos;s real price always comes from the system.</small></div>; })()}
-          </div>
+          {perFile(item) ? <PerFilePrice rate={item.discountedPrice} monthly={item.monthly!} /> : <div className={s.cols3} role="group" aria-label="Prices">
+            <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Main price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.regularPrice} onChange={e => update("regularPrice", Number(e.target.value))} /><small>Shown crossed out.</small>{err("regularPrice")}</label>
+            <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Normal price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => update("discountedPrice", Number(e.target.value))} /><small>What the customer pays when no offer runs.</small>{err("discountedPrice")}</label>
+          </div>}
           </fieldset>
         </section>
 
