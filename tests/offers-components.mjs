@@ -26,13 +26,14 @@ const catalogueSource = `
 import {requireRole, AuthError} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {resolvedOffers} from '@/lib/offers';
-export const store = { packages: {}, drafts: {}, linkCalls: [], saves: [], failLink: false };
+export const store = { packages: {}, drafts: {}, linkCalls: [], saves: [], failLink: false, categorySaves: [],
+  categories: [{ category: 'standard_websites', label: 'Standard Websites', status: 'active', sortOrder: 1 }, { category: 'seo_services', label: 'SEO Services', status: 'active', sortOrder: 2 }] };
 export const requireSalesAdmin = () => requireRole('admin');
 const quoted = item => ({ ...item, quoteKey: 'k-' + item.id, quote: { regularPrice: item.regularPrice, discountAmount: 0, finalPrice: item.discountedPrice, offer: null, terms: item.terms } });
 export async function readSalesCatalogue(admin) {
   if (admin) await requireSalesAdmin();
   const settings = await settingsRepo.get();
-  return { packages: Object.values(store.packages).map(quoted), offers: resolvedOffers(settings.offers), plans: [], categories: [{ category: 'standard_websites', label: 'Standard Websites', status: 'active', sortOrder: 1 }], drafts: Object.values(store.drafts) };
+  return { packages: Object.values(store.packages).map(quoted), offers: resolvedOffers(settings.offers), plans: [], categories: [...store.categories], drafts: Object.values(store.drafts) };
 }
 const idBase = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'package';
 const taken = id => !!store.packages[id] || !!store.drafts[id];
@@ -80,6 +81,14 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
     }
     return body;
   }
+  // A new project category (backend savePlanCategoryController, save_project_category), as the plan form saves it.
+  if (path === 'plan-categories') {
+    store.categorySaves.push(body);
+    if (body.action !== 'save_project_category' || !body.creating || !/^[a-z][a-z0-9_]{2,39}$/.test(body.category)) throw new AuthError('Enter a valid category', 400);
+    const entry = { category: body.category, label: body.label, status: 'active', sortOrder: body.sortOrder };
+    store.categories.push(entry);
+    return entry;
+  }
   throw new AuthError('Unknown path', 404);
 }
 `;
@@ -88,11 +97,12 @@ import {PATCH as offers} from '${src('src/app/api/offers/route.ts')}';
 import {GET as packagesGet, PATCH as packagesPatch} from '${src('src/app/api/packages/route.ts')}';
 import {PATCH as links} from '${src('src/app/api/packages/offer-links/route.ts')}';
 import {PATCH as drafts} from '${src('src/app/api/packages/drafts/route.ts')}';
+import {PATCH as plans} from '${src('src/app/api/plans/route.ts')}';
 import {identity} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {store, readSalesCatalogue} from '@/lib/sales-catalogue-server';
 import {resolvedOffers,publishedOffers,DEFAULT_UNIVERSAL_TERMS,DEFAULT_OFFER_LISTING} from '@/lib/offers';
-const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts };
+const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts, 'PATCH /api/plans': plans };
 export const handle = (key, request, role) => identity.run(role, () => routes[key](request));
 export const seedOffer = offer => settingsRepo.saveOffer(offer, true);
 export {store};
@@ -109,6 +119,7 @@ await build({ stdin: { contents: serverEntry, resolveDir: root, sourcefile: 'off
   virtual(builder, 'server-only', /^server-only$/, 'export {};');
   virtual(builder, 'auth', /^@\/lib\/auth$/, authSource);
   virtual(builder, 'sales', /^@\/lib\/sales-catalogue-server$/, catalogueSource);
+  virtual(builder, 'plans-server', /^@\/lib\/service-plans-server$/, 'export const readPlanCatalogue = async () => ({});');
   virtual(builder, 'repo', /^@\/lib\/repo$/, `import {jsonDriver} from '${src('src/lib/repo/json-driver.ts')}';export const settingsRepo=jsonDriver.settings;`);
 } }] });
 // The package page mirrors app/package/[id]/page.tsx: running offer → offer mode, else package mode.
@@ -137,7 +148,8 @@ const previous = process.cwd();
 process.chdir(folder);
 const api = createRequire(import.meta.url)(path.join(folder, 'server.cjs'));
 const pkg = (id, patch = {}) => ({ id, name: id, description: 'Package description', status: 'published', category: 'standard_websites', regularPrice: 4000, discountedPrice: 3500, offerExtraPrice: 0, offerSlug: '', inclusions: ['Business profile setup', 'Search and Maps listing'], terms: ['Package term: one revision.'], linkedPlanIds: [], order: 0, pages: [], ...patch });
-for (const item of [pkg('gbp', { name: 'GBP Setup' }), pkg('old-pkg', { offerSlug: 'legacy' })]) api.store.packages[item.id] = item;
+const OLD_REF = '0123456789abcdef01234567';
+for (const item of [pkg('gbp', { name: 'GBP Setup', linkedPlanIds: [OLD_REF] }), pkg('old-pkg', { offerSlug: 'legacy' })]) api.store.packages[item.id] = item;
 const legacy = { slug: 'legacy', status: 'published', title: 'Legacy offer', eyebrow: 'OLD', heading: 'Old heading', headingHighlight: '', description: 'An offer saved before package offers.', supportingLine: '', subheading: 'Included', tagline: 'Tagline', badge: 'Badge', mainPrice: 4000, discountPrice: 3500, offerPrice: 3000, priceDescription: 'One-time', endsAt: '2030-12-31T23:59:59+05:30', inclusions: ['Hand-written point'], termsMode: 'combined', terms: ['Legacy term'], ctaLabel: 'Enquire', contactHref: 'mailto:hello@example.com', order: 9, applicableCategories: ['standard_websites'], packageIds: [], pricingRule: 'percentage', benefitValue: 25 };
 await api.seedOffer(legacy);
 const server = http.createServer(async (request, response) => {
@@ -206,7 +218,7 @@ try {
   await form.getByLabel('Offer status', { exact: true }).selectOption('published');
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
-  for (const text of ['Enter a description.', 'Enter a main price above ₹0.', 'Enter the offer price.', 'Choose whether the client sends files in the portal.']) await page.getByText(text, { exact: true }).waitFor();
+  for (const text of ['Choose a project category.', 'Enter a description.', 'Enter a main price above ₹0.', 'Enter the offer price.', 'Choose whether the client sends files in the portal.']) await page.getByText(text, { exact: true }).waitFor();
   assert.equal(packageSaves, beforePublish, 'nothing is sent while a field is wrong');
   await page.screenshot({ path: path.join(folder, 'admin-draft-refused-publish.png'), fullPage: true });
   await form.getByLabel('Offer status', { exact: true }).selectOption('draft');
@@ -228,6 +240,13 @@ try {
   await page.goto(origin + '/admin/packages');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
   assert.equal(await form.getByLabel('Permanent ID', { exact: true }).count(), 0, 'no ID field');
+  // Category (owner decision 4, 9 Nov 2026): the real list from the portal, nothing preselected; the removed
+  // "Related portal services" field is gone from the form while the save still sends linkedPlanIds.
+  const categorySelect = form.getByLabel('Project category', { exact: true });
+  assert.equal(await categorySelect.inputValue(), '', 'no category preselected');
+  assert.deepEqual(await categorySelect.locator('option').allInnerTexts(), ['Choose a category', 'Standard Websites', 'SEO Services']);
+  assert.equal(await form.getByLabel('Related portal services (optional references)').count(), 0, 'related services removed');
+  await categorySelect.selectOption('standard_websites');
   await form.getByLabel('Package name', { exact: true }).fill('Business Starter');
   await form.getByText('/package/business-starter', { exact: true }).waitFor();
   await form.getByLabel('Status', { exact: true }).selectOption('published');
@@ -245,6 +264,7 @@ try {
   const first = await save('Publish');
   assert.equal(first.package.id, 'business-starter'); assert.equal(first.offer, null);
   assert.deepEqual([first.package.billing, first.package.portalUploads, first.package.paymentOptions], ['one_time', true, ['full', 'installments_2']]);
+  assert.deepEqual([first.package.category, first.package.linkedPlanIds], ['standard_websites', []], 'chosen category; linkedPlanIds still sent');
   assert.equal(api.store.packages['business-starter'].design.heading, 'Business Starter');
   await page.getByText('Package published. Its page is /package/business-starter. No offer: customers see 2 prices.', { exact: true }).waitFor();
   await page.getByText('fixed', { exact: true }).waitFor();
@@ -419,6 +439,16 @@ try {
   await page.goto(origin + '/admin/packages');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
   await form.getByLabel('Package name', { exact: true }).fill('Data Entry Pack');
+  // + New category (the plan form's dialog, saved by the portal backend): the new category is listed and selected.
+  await form.getByRole('button', { name: '+ New category', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New project category' });
+  await dialog.getByLabel('Category name', { exact: true }).fill('Data Services');
+  assert.equal(await dialog.getByLabel('Permanent key', { exact: true }).inputValue(), 'data_services');
+  await dialog.getByRole('button', { name: 'Create category', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await form.getByLabel('Project category', { exact: true }).inputValue(), 'data_services', 'the new category is selected');
+  assert.deepEqual(await form.getByLabel('Project category', { exact: true }).locator('option').allInnerTexts(), ['Standard Websites', 'SEO Services', 'Data Services']);
+  assert.deepEqual([api.store.categorySaves.length, api.store.categorySaves[0].action, api.store.categorySaves[0].creating], [1, 'save_project_category', true]);
   await form.getByLabel('Status', { exact: true }).selectOption('published');
   await form.getByLabel('Description', { exact: true }).fill('Monthly data entry for your business.');
   await form.getByLabel('Included work (one item per line)', { exact: true }).fill('Monthly data entry');
@@ -429,8 +459,8 @@ try {
   await form.getByLabel('Main price (₹)', { exact: true }).fill('900');
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
   const top = async texts => form.evaluate((el, list) => list.map(text => { const node = [...el.querySelectorAll('legend, label span, h2, span')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }), texts);
-  const fixedOrder = await top(['How customers buy', 'Billing *', 'Main price', '2. Page design']);
-  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'prices come after the purchase settings: ' + fixedOrder);
+  const fixedOrder = await top(['Package name', 'Project category', 'How customers buy', 'Billing *', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
+  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, category, purchase settings, prices, included work, offer, website display, page design: ' + fixedOrder);
   // Price per file: the plan form's order, one price, no main / normal boxes.
   await form.getByRole('radio', { name: /^Price per file:/ }).check();
   const rate = form.getByLabel('Price per file (₹)', { exact: true });
@@ -459,6 +489,7 @@ try {
   await page.screenshot({ path: path.join(folder, 'admin-price-per-file.png'), fullPage: true });
   const perFile = await save('Publish');
   assert.deepEqual([perFile.package.billing, perFile.package.monthly.pricing, perFile.package.regularPrice, perFile.package.discountedPrice], ['monthly', 'per_file', 60, 60], 'saved as both prices');
+  assert.equal(perFile.package.category, 'data_services', 'saved with the new category');
   // An offer lowers the price per file: it must be below it.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
   await form.getByLabel('Offer name', { exact: true }).fill('Per file launch');
@@ -475,6 +506,25 @@ try {
   await rate.fill('0');
   await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
   await page.getByText('Enter the price per file above ₹0.', { exact: true }).waitFor();
+
+  // 12. An older package keeps its stored service references when saved: the field left the form only.
+  await editor('GBP Setup');
+  assert.equal(await form.getByLabel('Project category', { exact: true }).inputValue(), 'standard_websites', 'its own category, no empty choice');
+  await form.getByLabel('Description', { exact: true }).fill('GBP description updated.');
+  await save('Publish changes');
+  assert.deepEqual([api.store.packages.gbp.description, api.store.packages.gbp.linkedPlanIds], ['GBP description updated.', [OLD_REF]]);
+  // A category list that did not load says so instead of looking empty.
+  const savedCategories = api.store.categories.splice(0);
+  await page.goto(origin + '/admin/packages');
+  await page.getByRole('button', { name: 'New package +', exact: true }).click();
+  await form.getByText('The category list did not load from the portal. Reload the page; until then only a new category can be chosen.', { exact: true }).waitFor();
+  api.store.categories.push(...savedCategories);
+  // No sideways scroll in the admin form at any width.
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll in the package form at ${width}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   assert.deepEqual(errors, []);
   console.log('PASS: one package form — drafts (name only, kept as typed, refused publish, published-package copy, discard, end offer), automatic IDs and offer links, page design, optional offer with required fields, package page in offer and package mode, sync and guards, offers only from Packages, older offers unchanged, desktop/mobile layout.');

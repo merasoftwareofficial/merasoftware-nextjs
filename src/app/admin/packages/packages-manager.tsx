@@ -11,11 +11,13 @@ import { offerRunning } from "@/lib/offer-packages";
 import { defaultPackageDesign, inheritedDesign, offerView, packageDesignSchema, packageView, type PackageDesign } from "@/lib/package-design";
 import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime } from "@/lib/date-time";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
+import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import { perFileChoices, perFileQuote, perFileReady, updatePrice, type PerFileChoice } from "@/lib/package-per-file";
 import s from "./packages-manager.module.css";
 
-// The one package form (src/docs/package-offers.md, owner decisions 7 Nov 2026): 1. the package, 2. its page
-// design, 3. an optional offer. The package ID and the offer link are made from their names on first save.
+// The one package form (src/docs/project.md, owner decisions 9 Nov 2026): 1. the project it sells (name, category,
+// how it is bought, price, included work), 2. an optional offer, 3. where the website shows it, 4. its page design.
+// The package ID and the offer link are made from their names on first save.
 // Nothing about the offer is needed until "Add offer" is pressed; then every field the system needs is.
 // Save draft keeps the whole form as a working copy with only the package name (and the offer name) filled;
 // nothing in prices, pages or the portal sees it. Publish checks everything and makes it live. A published
@@ -28,9 +30,16 @@ type OfferForm = {
   uploadAllowance: string; dueDays: string; reminders: string; reserveWindowHours: string; reservationHoldHours: string;
 };
 type Errors = Record<string, string>;
+// A new project category is saved by the portal backend through the plan catalogue route, as the plan form does.
+async function sendCategory<T>(body: Record<string, unknown>): Promise<T> {
+  const response = await fetch("/api/plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "The portal did not accept this. Please try again.");
+  return result as T;
+}
 
-// A new package starts one-time and fully paid; whether it has portal uploads is always chosen.
-const blank: SalesPackage = { id: "", name: "", description: "", status: "draft", category: "standard_websites", regularPrice: 0, discountedPrice: 0, offerExtraPrice: 0, offerSlug: "", inclusions: [], terms: [], linkedPlanIds: [], order: 0, pages: [],
+// A new package starts one-time and fully paid; whether it has portal uploads and its category are always chosen.
+const blank: SalesPackage = { id: "", name: "", description: "", status: "draft", category: "", regularPrice: 0, discountedPrice: 0, offerExtraPrice: 0, offerSlug: "", inclusions: [], terms: [], linkedPlanIds: [], order: 0, pages: [],
   billing: "one_time", portalUploads: undefined, paymentOptions: ["full"], monthly: undefined };
 // A package switched to monthly starts billed every month, for up to a year, at a fixed monthly price.
 const blankMonthly: PackageMonthly = { pricing: "fixed", billingOptions: [{ billingCycle: "monthly", discountPercent: 0 }], maxTenureMonths: 12 };
@@ -140,6 +149,7 @@ function check(source: Item, offer: OfferForm | null, now: number): Errors {
   const item = priced(source);
   const errors: Errors = {};
   if (!item.name.trim()) errors.name = "Enter the package name.";
+  if (!item.category) errors.category = "Choose a project category.";
   if (!item.description.trim()) errors.description = "Enter a description.";
   if (!lines(item.inclusions).length) errors.inclusions = "List at least one item.";
   if (perFile(item)) { if (!(item.discountedPrice > 0)) errors.rate = "Enter the price per file above ₹0."; }
@@ -222,6 +232,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [message, setMessage] = useState("");
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [previewState, setPreviewState] = useState<ReservationPreview>("normal");
+  const [newCategory, setNewCategory] = useState(false);
+  const [categoryNote, setCategoryNote] = useState("");
   const preview = useRef<HTMLDialogElement>(null);
   const now = useServerTime();
   const snapshot = (next: Item | null, form: OfferForm | null) => JSON.stringify({ next, form });
@@ -314,6 +326,15 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     const next = await reload.json() as SalesCatalogue;
     setCatalogue(next); setDrafts(next.drafts ?? []);
     return next;
+  }
+  // A category made from the package form is selected at once and the list is read again from the portal.
+  async function categorySaved(saved: { category: string; label: string; status?: string; sortOrder?: number }) {
+    setNewCategory(false); setCategoryNote("");
+    update("category", saved.category);
+    const entry = { category: saved.category, label: saved.label, status: saved.status === "archived" ? "archived" as const : "active" as const, sortOrder: saved.sortOrder };
+    setCatalogue(current => ({ ...current, categories: [...(current.categories || []).filter(row => row.category !== saved.category), entry] }));
+    try { if (!await reloadCatalogue()) throw new Error(); }
+    catch { setCategoryNote("Category created and selected. Reload the page to refresh the category list."); }
   }
   // Page create/delete save at once, separately from the package form.
   async function createPage() {
@@ -523,35 +544,19 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     <button className="admin-action" disabled={busy} onClick={() => choose(null)}>← All packages</button>
     <div className={s.layout}>
       <form className={`admin-form ${s.form}`} onSubmit={save} noValidate><fieldset disabled={busy} className={s.fields}>
-        {/* 1. Package */}
+        {/* 1. Project */}
         {draftVersion > 0 && <p className={s.warnNote}>{creating ? "Draft: not published yet. Save draft keeps your work; Publish checks every field and makes it live." : "You are editing the draft of a published package. The live page stays as it is until you press Publish changes."}</p>}
-        <section className={s.sec}><div className={s.sechead}><h2>1. Package</h2><span className={s.tag}>Required to publish</span></div>
+        <section className={s.sec}><div className={s.sechead}><h2>1. Project</h2><span className={s.tag}>Required to publish</span></div>
+          <p className={s.note}>What the client gets. Every project made from this package starts with these settings; its starting step and project description come from the category.</p>
           <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name * <small>(needed to save a draft)</small></span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
           <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> :<><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
-          <div className="form-columns">
-            <label className="admin-field"><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => update("category", e.target.value)}>{categoryChoices(catalogue.categories, [item.category]).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>{running && <small>Fixed while its offer runs.</small>}</label>
-            <label className="admin-field"><span>When published *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="published">Show on the website</option>{!running && <option value="archived">Archived (hidden)</option>}</select><small>Archived hides the package; it can be shown again later.</small></label>
-          </div>
-          <fieldset className={s.pages} disabled={pageBusy}><legend>Show on pages</legend>
-            {!shownOn(item).length && <p><span className={s.warn}>No page assigned</span> This package is not listed on a Pricing &amp; Packages page until you tick one. Its own page still works.</p>}
-            {!pages.length && <p>No pages yet. Create one below; it appears under Pricing &amp; Packages in the website menu.</p>}
-            {pages.map(page => <div className={s.pageRow} key={page.slug}><label><input type="checkbox" checked={!!item.pages?.includes(page.slug)} onChange={e => update("pages", e.target.checked ? [...(item.pages || []), page.slug] : (item.pages || []).filter(slug => slug !== page.slug))} /><span>{page.title} <small>{packagePagePath(page.slug)}</small></span></label><button type="button" className="admin-action" aria-label={`Delete page ${page.title}`} onClick={() => deletePage(page)}>Delete page</button></div>)}
-            {pageDraft ? <div className={s.newPage}>
-              <label className="admin-field"><span>New page name</span><input aria-label="New page name" maxLength={80} value={pageDraft.title} onChange={e => setPageDraft({ ...pageDraft, title: e.target.value })} /><small>Becomes the menu entry and the link, e.g. Monthly Packages → /packages/monthly-packages. The link cannot be changed later.</small></label>
-              <label className="admin-field"><span>Page introduction</span><textarea aria-label="Page introduction" maxLength={500} rows={3} value={pageDraft.intro} onChange={e => setPageDraft({ ...pageDraft, intro: e.target.value })} /><small>Shown under the page heading and used as its search description.</small></label>
-              <div className="form-actions"><button type="button" className="admin-button" disabled={pageDraft.title.trim().length < 2 || pageDraft.intro.trim().length < 10} onClick={createPage}>{pageBusy ? "Creating…" : "Create page"}</button><button type="button" className="admin-action" onClick={() => { setPageDraft(null); setPageError(""); }}>Cancel</button></div>
-            </div> : <div><button type="button" className="admin-action" onClick={() => setPageDraft({ title: "", intro: "" })}>+ New page</button></div>}
-            {pageError && <p className="form-error" role="alert">{pageError}</p>}
-          </fieldset>
+          <label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => update("category", e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
+            {running && <small>Fixed while its offer runs.</small>}
+            {!catalogue.categories?.length && <span className={s.msg} role="alert">The category list did not load from the portal. Reload the page; until then only a new category can be chosen.</span>}
+            {categoryNote && <small role="status">{categoryNote}</small>}{err("category")}</label>
+          {!running && <div><button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setNewCategory(true); }}>+ New category</button></div>}
+          {newCategory && <ProjectCategoryDialog nextSortOrder={Math.min(9999, Math.max(0, ...(catalogue.categories || []).map(row => row.sortOrder || 0)) + 1)} onCancel={() => setNewCategory(false)} onSaved={categorySaved} send={sendCategory} />}
           <label className={`admin-field ${bad("description") ?? ""}`}><span>Description *</span><textarea aria-label="Description" maxLength={500} value={item.description} onChange={e => update("description", e.target.value)} /><small>Shown on the package card and under the page heading.</small>{err("description")}</label>
-          <div className="form-columns">
-            <label className={`admin-field ${bad("inclusions") ?? ""}`}><span>Included work (one per line) *</span><textarea aria-label="Included work (one item per line)" rows={6} value={item.inclusions.join("\n")} onChange={e => update("inclusions", e.target.value.split("\n"))} /><small>Saved with each client project.</small>{err("inclusions")}</label>
-            <label className="admin-field"><span>Terms &amp; exclusions (one per line)</span><textarea aria-label="Terms & exclusions" rows={6} value={item.terms.join("\n")} onChange={e => update("terms", e.target.value.split("\n"))} /></label>
-          </div>
-          <div className={s.cols3}>
-            <label className="admin-field"><span>Display order</span><input aria-label="Display order" type="number" min={0} max={9999} value={item.order} onChange={e => update("order", Number(e.target.value))} /></label>
-          </div>
-          <label className="admin-field"><span>Related portal services (optional references)</span><select aria-label="Related portal services (optional references)" multiple size={4} value={item.linkedPlanIds} onChange={e => update("linkedPlanIds", Array.from(e.target.selectedOptions, option => option.value))}>{(catalogue.plans || []).map(plan => <option key={plan._id} value={plan._id}>{plan.serviceName} ({plan.servicePlan?.purchaseType || "service"})</option>)}</select><small>Reference only. These services are purchased separately through the portal plan flow.</small></label>
           <fieldset className={s.pages}><legend>How customers buy this package</legend>
             {!item.billing && item.portalUploads === undefined && !item.paymentOptions?.length && <p><span className={s.warn}>Older settings</span> This package works as before. Choose these options to turn on its customize page.</p>}
             <label className={`admin-field ${bad("billing") ?? ""}`}><span>Billing *</span><select aria-label="Billing" value={item.billing ?? ""} onChange={e => chooseBilling((e.target.value || undefined) as SalesPackage["billing"])}>{!item.billing && <option value="">Not chosen yet</option>}<option value="one_time">One-time</option><option value="monthly">Monthly</option></select>{err("billing")}</label>
@@ -585,20 +590,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Normal price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => update("discountedPrice", Number(e.target.value))} /><small>What the customer pays when no offer runs.</small>{err("discountedPrice")}</label>
           </div>}
           </fieldset>
+          <div className="form-columns">
+            <label className={`admin-field ${bad("inclusions") ?? ""}`}><span>Included work (one per line) *</span><textarea aria-label="Included work (one item per line)" rows={6} value={item.inclusions.join("\n")} onChange={e => update("inclusions", e.target.value.split("\n"))} /><small>Saved with each client project.</small>{err("inclusions")}</label>
+            <label className="admin-field"><span>Terms &amp; exclusions (one per line)</span><textarea aria-label="Terms & exclusions" rows={6} value={item.terms.join("\n")} onChange={e => update("terms", e.target.value.split("\n"))} /></label>
+          </div>
         </section>
 
-        {/* 2. Page design */}
-        <section className={s.sec}><div className={s.sechead}><h2>2. Page design</h2><span className={s.tag}>Required to publish</span></div>
-          <p className={s.note}>The design of this package&apos;s page, with or without an offer. Pre-filled for a new package, so you only change what you want.</p>
-          <div className="form-columns">{field("eyebrow", "Eyebrow text", 100)}{field("badge", "Card badge", 60, true, "While an offer runs, a % OFF badge is added by itself.")}</div>
-          <div className="form-columns">{field("heading", "Main heading", 160)}{field("headingHighlight", "Highlighted heading text", 120, false)}</div>
-          <div className="form-columns">{field("supportingLine", "Supporting line", 200, false)}{field("subheading", "Benefits subheading", 160)}</div>
-          <div className="form-columns">{field("tagline", "Price-card tagline", 100)}{field("priceDescription", "Short price description", 200)}</div>
-          <div className="form-columns">{field("ctaLabel", "Enquiry button text", 80)}{field("contactHref", "Contact link", 500, true, "mailto:, tel: or an https link.")}</div>
-        </section>
-
-        {/* 3. Offer */}
-        <section className={s.sec}><div className={s.sechead}><h2>3. Offer</h2><span className={running ? s.tagRun : lastEnded ? s.tagEnd : s.tagOpt}>{running ? "Running" : offerForm ? (savedOffer ? "Draft" : "Being added") : lastEnded ? "Ended" : "Optional"}</span></div>
+        {/* 2. Offer */}
+        <section className={s.sec}><div className={s.sechead}><h2>2. Offer</h2><span className={running ? s.tagRun : lastEnded ? s.tagEnd : s.tagOpt}>{running ? "Running" : offerForm ? (savedOffer ? "Draft" : "Being added") : lastEnded ? "Ended" : "Optional"}</span></div>
           {!offerForm && !lastEnded && <div className={s.emptyOffer}><p><b>No offer on this package.</b> The package page shows 2 prices (main crossed out + normal price) and no countdown. You can save the package without touching anything here.</p><button type="button" className="admin-action" onClick={() => setOfferForm(blankOffer())}>+ Add offer</button></div>}
           {!offerForm && lastEnded && <>
             <p className={s.warnNote}>The last offer &quot;{lastEnded.title}&quot; {lastEnded.status === "archived" ? "was ended" : `ended on ${formatIndiaDateTime(lastEnded.endsAt)}`}. The page is back to 2 prices. Customers who reserved keep their price until their hold ends.</p>
@@ -624,10 +623,13 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               </div>
               <label className={`admin-field ${bad("reminders") ?? ""}`}><span>Reminder days around the due date</span><input aria-label="Reminder offsets" value={offerForm.reminders} onChange={e => offerField("reminders", e.target.value)} /><small>-1, 0, 3 = one day before, on the day, three days after. Empty = no reminders.</small>{err("reminders")}</label>
             </div>}
+            <fieldset className={s.pages}><legend>Reservation (optional)</legend>
+            <p className={s.note}>When customers may hold the offer price before it ends. Leave empty for the usual times.</p>
             <div className="form-columns">
               <label className={`admin-field ${bad("reserveWindowHours") ?? ""}`}><span>Reserve opens (hours before the end)</span><input aria-label="Reserve opens (hours before the offer ends)" type="number" min={1} max={720} placeholder={String(DEFAULT_RESERVE_WINDOW_HOURS)} value={offerForm.reserveWindowHours} onChange={e => offerField("reserveWindowHours", e.target.value)} /><small>Empty = {DEFAULT_RESERVE_WINDOW_HOURS} hours.</small>{err("reserveWindowHours")}</label>
               <label className={`admin-field ${bad("reservationHoldHours") ?? ""}`}><span>Reservation lasts (hours)</span><input aria-label="Reservation lasts (hours)" type="number" min={1} max={720} placeholder={String(DEFAULT_HOLD_HOURS)} value={offerForm.reservationHoldHours} onChange={e => offerField("reservationHoldHours", e.target.value)} /><small>Empty = {DEFAULT_HOLD_HOURS} hours. New reservations only.</small>{err("reservationHoldHours")}</label>
             </div>
+            </fieldset>
             <div className={s.row}>
               {!savedOffer && <button type="button" className="admin-action" onClick={() => setOfferForm(null)}>Remove offer</button>}
               {savedOffer && !confirmEnd && <button type="button" className="admin-action is-danger" disabled={dirty} title={dirty ? "Save or discard your changes first." : undefined} onClick={() => setConfirmEnd(true)}>{running ? "End offer" : "Delete draft offer"}</button>}
@@ -635,6 +637,36 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             {confirmEnd && savedOffer && <p className={s.warnNote}>{running ? `End "${savedOffer.title}" now? It leaves the website and the package goes back to 2 prices. People who reserved keep their price.` : `Delete the draft "${savedOffer.title}"? It stays under past offers.`} <button type="button" className="admin-button danger" onClick={endOffer}>{running ? "End offer" : "Delete draft"}</button> <button type="button" className="admin-action" onClick={() => setConfirmEnd(false)}>Keep it</button></p>}
           </div>}
           {past.length > 0 && <div className={s.past}><span>Past offers (read only)</span>{past.map(offer => <div key={offer.slug}><b>{offer.title}</b><small>{rupee(offer.offerPrice)} · {offer.status === "archived" ? "ended (archived)" : offer.status === "draft" ? "draft" : `ended ${formatIndiaDateTime(offer.endsAt)}`}</small></div>)}</div>}
+        </section>
+
+        {/* 3. Website display: where the package is shown. It never changes a client project. */}
+        <section className={s.sec}><div className={s.sechead}><h2>3. Website display</h2></div>
+          <p className={s.note}>Where this package appears on the website. None of this changes a client project.</p>
+          <div className="form-columns">
+            <label className="admin-field"><span>When published *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="published">Show on the website</option>{!running && <option value="archived">Archived (hidden)</option>}</select><small>Archived hides the package; it can be shown again later.</small></label>
+            <label className="admin-field"><span>Display order</span><input aria-label="Display order" type="number" min={0} max={9999} value={item.order} onChange={e => update("order", Number(e.target.value))} /></label>
+          </div>
+          <fieldset className={s.pages} disabled={pageBusy}><legend>Show on pages</legend>
+            {!shownOn(item).length && <p><span className={s.warn}>No page assigned</span> This package is not listed on a Pricing &amp; Packages page until you tick one. Its own page still works.</p>}
+            {!pages.length && <p>No pages yet. Create one below; it appears under Pricing &amp; Packages in the website menu.</p>}
+            {pages.map(page => <div className={s.pageRow} key={page.slug}><label><input type="checkbox" checked={!!item.pages?.includes(page.slug)} onChange={e => update("pages", e.target.checked ? [...(item.pages || []), page.slug] : (item.pages || []).filter(slug => slug !== page.slug))} /><span>{page.title} <small>{packagePagePath(page.slug)}</small></span></label><button type="button" className="admin-action" aria-label={`Delete page ${page.title}`} onClick={() => deletePage(page)}>Delete page</button></div>)}
+            {pageDraft ? <div className={s.newPage}>
+              <label className="admin-field"><span>New page name</span><input aria-label="New page name" maxLength={80} value={pageDraft.title} onChange={e => setPageDraft({ ...pageDraft, title: e.target.value })} /><small>Becomes the menu entry and the link, e.g. Monthly Packages → /packages/monthly-packages. The link cannot be changed later.</small></label>
+              <label className="admin-field"><span>Page introduction</span><textarea aria-label="Page introduction" maxLength={500} rows={3} value={pageDraft.intro} onChange={e => setPageDraft({ ...pageDraft, intro: e.target.value })} /><small>Shown under the page heading and used as its search description.</small></label>
+              <div className="form-actions"><button type="button" className="admin-button" disabled={pageDraft.title.trim().length < 2 || pageDraft.intro.trim().length < 10} onClick={createPage}>{pageBusy ? "Creating…" : "Create page"}</button><button type="button" className="admin-action" onClick={() => { setPageDraft(null); setPageError(""); }}>Cancel</button></div>
+            </div> : <div><button type="button" className="admin-action" onClick={() => setPageDraft({ title: "", intro: "" })}>+ New page</button></div>}
+            {pageError && <p className="form-error" role="alert">{pageError}</p>}
+          </fieldset>
+        </section>
+
+        {/* 4. Page design */}
+        <section className={s.sec}><div className={s.sechead}><h2>4. Page design</h2><span className={s.tag}>Required to publish</span></div>
+          <p className={s.note}>The design of this package&apos;s page, with or without an offer. Pre-filled for a new package, so you only change what you want.</p>
+          <div className="form-columns">{field("eyebrow", "Eyebrow text", 100)}{field("badge", "Card badge", 60, true, "While an offer runs, a % OFF badge is added by itself.")}</div>
+          <div className="form-columns">{field("heading", "Main heading", 160)}{field("headingHighlight", "Highlighted heading text", 120, false)}</div>
+          <div className="form-columns">{field("supportingLine", "Supporting line", 200, false)}{field("subheading", "Benefits subheading", 160)}</div>
+          <div className="form-columns">{field("tagline", "Price-card tagline", 100)}{field("priceDescription", "Short price description", 200)}</div>
+          <div className="form-columns">{field("ctaLabel", "Enquiry button text", 80)}{field("contactHref", "Contact link", 500, true, "mailto:, tel: or an https link.")}</div>
         </section>
       </fieldset>
       <div className={s.savebar}>
