@@ -37,6 +37,6 @@ export default async function CommunicationPage({ searchParams }: { searchParams
   }
   return <main className="admin-main">
     <AdminHeader eyebrow="COMMUNICATION" title="Communication" description="Every email and WhatsApp the site sends, in one place." />
-    <CommunicationLiveProvider url={feedUrl}><CommunicationHub portalAdmin={portalAdmin} initial={initial} /></CommunicationLiveProvider>
+    <CommunicationLiveProvider url={feedUrl}><CommunicationHub portalAdmin={portalAdmin} initial={initial} portalUrl={(process.env.PORTAL_URL || "").replace(/\/$/, "")} /></CommunicationLiveProvider>
   </main>;
 }

@@ -87,7 +87,7 @@ function when(at: string) {
   return indiaDayKey(at) === indiaDayKey() ? formatIndiaDate(at, { day: undefined, month: undefined, year: undefined, ...time }) : formatIndiaDate(at, { year: undefined, ...time });
 }
 
-export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolean; initial: HubState }) {
+export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { portalAdmin: boolean; initial: HubState; portalUrl?: string }) {
   const [view, setView] = useState(() => normalize(initial, portalAdmin));
   const [mounted, setMounted] = useState(() => new Set(view.panel ? [partOf(view)] : []));
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
@@ -228,7 +228,7 @@ export function CommunicationHub({ portalAdmin, initial }: { portalAdmin: boolea
       ["broadcast", <BroadcastPanel key="b" active={part("broadcast").shown} />],
       ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
-      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} />],
+      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} />],
       ["whatsapp-connection", <WhatsappPanel key="c" view="connection" active={part("whatsapp-connection").shown} />],
       ["whatsapp-queue:queue", <WhatsappPanel key="q" view="queue" active={part("whatsapp-queue:queue").shown} />],
       ["whatsapp-queue:rules", <WhatsappPanel key="r" view="rules" />],

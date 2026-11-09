@@ -19,7 +19,7 @@ import { cache } from "react";
 import { settingsRepo } from "@/lib/repo";
 import { packagePagePath } from "@/lib/package-pages";
 import { PLANS_PAGE_INTRO, PLANS_PAGE_PATH, PLANS_PAGE_TITLE, planPagePath, planSeoDescription } from "@/lib/public-plans";
-import { packagePath, readPackagePages, readPublicPackagesOrNone } from "@/lib/package-pages-server";
+import { packageCustomizePath, packagePath, readCustomizablePackages, readPackagePages, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 import { readPublicPlansOrNone } from "@/lib/public-plans-server";
 import { resolvePageSeo, type SeoPage } from "@/lib/seo-rules";
 import { services } from "@/lib/site-data";
@@ -69,12 +69,15 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
  * built-in title and description are their own. A plan's key is its id, so a rename keeps its SEO.
  */
 export const allPageSeoPages = cache(async (): Promise<SeoPage[]> => {
-  const [packagePages, plans, packages] = await Promise.all([readPackagePages(), readPublicPlansOrNone(), readPublicPackagesOrNone()]);
+  const [packagePages, plans, packages, customizable] = await Promise.all([readPackagePages(), readPublicPlansOrNone(), readPublicPackagesOrNone(), readCustomizablePackages()]);
   return [
     ...PAGE_SEO_PAGES,
     ...packagePages.map(page => ({ key: `packages-${page.slug}`, label: `Packages: ${page.title}`, path: packagePagePath(page.slug), title: page.title, description: page.intro })),
     // Each published package has its own page (app/package/[id]); its key is its permanent ID.
     ...packages.map(item => ({ key: `package-${item.id}`, label: `Package: ${item.name}`, path: packagePath(item.id), title: item.name, description: item.description })),
+    // Its customize page (app/package/[id]/customize), while package requests are on.
+    ...customizable.map(item => ({ key: `package-${item.id}-customize`, label: `Package: ${item.name} · customize`, path: packageCustomizePath(item.id),
+      title: `Customize ${item.name}`, description: `Choose how to buy ${item.name} and see the price. ${item.description}`.slice(0, 300) })),
     ...plans.map(plan => ({ key: `plans-${plan._id}`, label: `Plans: ${plan.serviceName}`, path: planPagePath(plan), title: plan.serviceName, description: planSeoDescription(plan) })),
   ];
 });

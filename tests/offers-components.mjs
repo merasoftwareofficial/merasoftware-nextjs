@@ -206,7 +206,7 @@ try {
   await form.getByLabel('Offer status', { exact: true }).selectOption('published');
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
-  for (const text of ['Enter a description.', 'Enter a main price above ₹0.', 'Enter the offer price.']) await page.getByText(text, { exact: true }).waitFor();
+  for (const text of ['Enter a description.', 'Enter a main price above ₹0.', 'Enter the offer price.', 'Choose whether the client sends files in the portal.']) await page.getByText(text, { exact: true }).waitFor();
   assert.equal(packageSaves, beforePublish, 'nothing is sent while a field is wrong');
   await page.screenshot({ path: path.join(folder, 'admin-draft-refused-publish.png'), fullPage: true });
   await form.getByLabel('Offer status', { exact: true }).selectOption('draft');
@@ -234,10 +234,15 @@ try {
   await form.getByLabel('Main price (₹)', { exact: true }).fill('15000');
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('9999');
   assert.equal(await form.getByLabel('Main heading', { exact: true }).inputValue(), 'Business Starter', 'design pre-filled from the name');
+  // How customers buy it (src/docs/package.md decision 7): one-time and full payment pre-chosen, uploads always chosen.
+  assert.equal(await form.getByLabel('Billing', { exact: true }).inputValue(), 'one_time');
+  await form.getByLabel('Yes: the client sends files in the portal').check();
+  await form.getByLabel('2 installments (50% + 50%)').check();
   await page.getByRole('button', { name: '+ Add offer', exact: true }).waitFor();
   await page.screenshot({ path: path.join(folder, 'admin-new-package.png'), fullPage: true });
   const first = await save('Publish');
   assert.equal(first.package.id, 'business-starter'); assert.equal(first.offer, null);
+  assert.deepEqual([first.package.billing, first.package.portalUploads, first.package.paymentOptions], ['one_time', true, ['full', 'installments_2']]);
   assert.equal(api.store.packages['business-starter'].design.heading, 'Business Starter');
   await page.getByText('Package published. Its page is /package/business-starter. No offer: customers see 2 prices.', { exact: true }).waitFor();
   await page.getByText('fixed', { exact: true }).waitFor();

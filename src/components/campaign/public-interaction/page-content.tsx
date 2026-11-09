@@ -31,7 +31,9 @@ function previewState(state: ReservationPreview, now: number, holdHours: number)
  * countdown, and its main button is Start my project (`start`, while that feature is on).
  */
 export type PackageMode = { id: string; name: string; live: boolean; back: { href: string; label: string }; packageTerms: string[];
-  start?: { signedIn: boolean; countries?: PhoneCountry[] } };
+  start?: { signedIn: boolean; countries?: PhoneCountry[] };
+  /** A package with its purchase settings (src/docs/package.md §3): the main button opens its customize page. */
+  customize?: string };
 
 /**
  * The offer page, and the package page. The card has one main button that follows the customer's state
@@ -78,7 +80,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   // the main button is Start my project (helpers/packageStart.js), or Enquire while that is switched off.
   const keepsReservation = offerCta.kind === "start" || offerCta.kind === "status";
   const packageCta = !packageMode || keepsReservation || (!pkg?.start && !preview) ? null
-    : packageStart.request ? { label: "Start requested · our team will contact you", sent: true } : { label: "Start my project", sent: false };
+    : packageStart.request ? { label: "Start requested · our team will contact you", sent: true } : { label: pkg?.customize ? "Get this package" : "Start my project", sent: false };
   const cta: ReserveCta = packageMode && !keepsReservation ? { kind: "enquire" } : offerCta;
   const { error, phase } = control;
   const title = packageMode && pkg ? pkg.name : offer.title;
@@ -93,7 +95,9 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   useEffect(() => { if (packageStart.request && !packageStart.error) startDialog.current?.close(); }, [packageStart.request, packageStart.error]);
   // Reserve and Start my project are confirmed in the same dialog; its words follow the button.
   const starting = control.cta.kind === "start";
-  const action = (className: string | undefined, enquireLabel: string) => packageCta
+  const action = (className: string | undefined, enquireLabel: string) => packageCta && !packageCta.sent && pkg?.customize
+    ? <Link className={className} href={pkg.customize}>{packageCta.label}<Arrow /></Link>
+    : packageCta
     ? <button type="button" className={className} disabled={packageCta.sent || (!packageStart.loaded && !preview)} onClick={() => { if (!preview) startDialog.current?.showModal(); }}>{packageCta.label}{!packageCta.sent && <Arrow />}</button>
     : cta.kind === "reserve" || cta.kind === "start"
     ? <button type="button" className={className} disabled={cta.kind === "reserve" && cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{cta.label}<Arrow /></button>

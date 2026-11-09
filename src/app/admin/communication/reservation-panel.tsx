@@ -6,13 +6,18 @@ import { Loader } from "@/app/admin/email-control/loader";
 import { phoneLabel } from "@/app/admin/whatsapp/whatsapp-panel";
 import { useServerTime } from "@/components/use-server-time";
 import { formatIndiaDate } from "@/lib/date-time";
+import { PAYMENT_OPTION_WORDS } from "@/lib/package-choice";
+import { PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
+import type { PackageChoice } from "@/lib/sales-packages";
 import s from "./broadcast.module.css";
 import a from "./auto-reply.module.css";
 
 // startRequestedAt: the customer pressed Start my project; the clock is paused until the team acts.
 type Running = { id: string; customer: string; phone: string; offer: string; reservedAt: string; deadline: string; extended: boolean; hours: number; startRequestedAt: string | null };
 // A Start my project request on a package without an offer (backend helpers/packageStart.js).
-type PackageStart = { id: string; customer: string; phone: string; package: string; price: number | null; requestedAt: string };
+// choice: what the customer picked on the package's customize page (src/docs/package.md §3), when it has one.
+type PackageStart = { id: string; customer: string; phone: string; package: string; price: number | null; requestedAt: string;
+  userId?: string; choice?: PackageChoice | null };
 type Overview = { serverNow: string; counts: { running: number; used: number; expired: number; closures: Record<string, number> }; running: Running[]; packageStarts?: PackageStart[] };
 async function load(signal?: AbortSignal): Promise<Overview> {
   const response = await fetch("/api/auto-reply/reservations", { signal, cache: "no-store" });
@@ -33,7 +38,13 @@ const when = (value: string) => formatIndiaDate(value, { year: undefined, hour: 
 
 // How offer reservations stand (merasoftware/src/docs/reservation-countdown.md). The hours are set on each offer
 // (Admin → Offers); the three messages are Email Templates actions, sent by their Send via.
-export function ReservationPanel({ active = true }: { active?: boolean }) {
+// "2 installments", or "Quarterly · 1 year · 20 files × 4 updates a month".
+function choiceText(choice: PackageChoice) {
+  if (choice.paymentOption) return PAYMENT_OPTION_WORDS[choice.paymentOption].title;
+  return [choice.billingCycle ? PURCHASE_LABELS[choice.billingCycle] : "", choice.tenureMonths ? tenureLabel(choice.tenureMonths) : "",
+    choice.files ? `${choice.files} files × ${choice.updates} updates a month` : ""].filter(Boolean).join(" · ");
+}
+export function ReservationPanel({ active = true, portalUrl = "" }: { active?: boolean; portalUrl?: string }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const serverNow = useServerTime();
@@ -68,7 +79,9 @@ export function ReservationPanel({ active = true }: { active?: boolean }) {
               {row.phone && <span>{phoneLabel(row.phone)}</span>}
               <span>waiting {waiting(Date.parse(row.requestedAt), now)}</span>
             </div>
-            <p>{row.package}{row.price !== null ? ` · ₹${row.price.toLocaleString("en-IN")}` : ""} · asked {when(row.requestedAt)}</p>
+            <p>{row.package}{row.price !== null ? ` · ₹${row.price.toLocaleString("en-IN")}` : ""}{row.choice ? ` · ${choiceText(row.choice)}` : ""} · asked {when(row.requestedAt)}</p>
+            {/* The project is made with the portal's own form, filled from this request (frontend AdminClientWorkspace.js). */}
+            {portalUrl && row.userId && <a href={`${portalUrl}/admin-panel/clients/${row.userId}?startRequest=${row.id}`} target="_blank" rel="noopener noreferrer">Create project ↗</a>}
           </li>)}</ul>}
       <p className={s.note}>Start my project on a package page without an offer. No price is held. Creating the project on that package closes the request; the team can also close it on the client&apos;s Reserved offers in the portal.</p>
     </div>

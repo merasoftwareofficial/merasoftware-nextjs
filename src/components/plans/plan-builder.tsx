@@ -22,7 +22,7 @@ import s from "./plans.module.css";
 
 export type PlanViewer = "visitor" | "member" | "client";
 
-function Step({ title, extra, children }: { title: string; extra?: ReactNode; children: ReactNode }) {
+export function Step({ title, extra, children }: { title: string; extra?: ReactNode; children: ReactNode }) {
   return (
     <div className={s.step}>
       <div className={s.stepHead}><h3>{title}</h3>{extra}</div>
@@ -52,7 +52,7 @@ function InfoBubble({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-const Row = ({ label, value, good }: { label: string; value: string; good?: boolean }) => (
+export const Row = ({ label, value, good }: { label: string; value: string; good?: boolean }) => (
   <div className={good ? `${s.row} ${s.good}` : s.row}><span>{label}</span><span>{value}</span></div>
 );
 

@@ -8,7 +8,7 @@ import { userRepo, type BlogCard } from "@/lib/repo";
 import { SITE_URL as SITE } from "@/lib/structured-data";
 import { packagePagePath } from "@/lib/package-pages";
 import { PLANS_PAGE_PATH, planPagePath } from "@/lib/public-plans";
-import { packagePath, readPackagePages, readPublicPackagesOrNone } from "@/lib/package-pages-server";
+import { packageCustomizePath, packagePath, readCustomizablePackages, readPackagePages, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 import { readPublicPlansOrNone } from "@/lib/public-plans-server";
 
 export const dynamic = "force-dynamic";
@@ -120,11 +120,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Each published package has its own page (app/package/[id]); a draft or archived one leaves with it.
   const packageEntries: MetadataRoute.Sitemap = packages.map(item => ({ url: `${SITE}${packagePath(item.id)}`, changeFrequency: "weekly", priority: 0.8 }));
+  // Its customize page (app/package/[id]/customize), while package requests are on.
+  const customizeEntries: MetadataRoute.Sitemap = (await readCustomizablePackages()).map(item => ({ url: `${SITE}${packageCustomizePath(item.id)}`, changeFrequency: "weekly", priority: 0.7 }));
 
   // Each plan on sale has its own page (app/plans/[plan]); a plan taken off sale leaves with it.
   const planPageEntries: MetadataRoute.Sitemap = plans.map(plan => ({ url: `${SITE}${planPagePath(plan)}`, changeFrequency: "weekly", priority: 0.7 }));
 
-  return [...staticPages, ...packagePageEntries, ...packageEntries, ...planPageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
+  return [...staticPages, ...packagePageEntries, ...packageEntries, ...customizeEntries, ...planPageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
 }
 
 /** The most recent edit among these posts, or undefined when there are none. */

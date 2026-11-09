@@ -3,7 +3,7 @@ import { cache } from "react";
 import { settingsRepo } from "@/lib/repo";
 import { packagePagePath, resolvedPackagePages } from "@/lib/package-pages";
 import { readSalesCatalogue } from "@/lib/sales-catalogue-server";
-import type { QuotedPackage } from "@/lib/sales-packages";
+import { customizable, packageCustomizePath, type QuotedPackage } from "@/lib/sales-packages";
 
 /** The package pages, read once per request (header nav, mobile menu and the page share it). */
 export const readPackagePages = cache(async () => resolvedPackagePages((await settingsRepo.get()).packagePages));
@@ -14,6 +14,12 @@ export const readPublicPackagesOrNone = cache(async (): Promise<QuotedPackage[]>
 });
 /** A package's own page (src/docs/package-offers.md). Its ID never changes, so the link never does. */
 export const packagePath = (id: string) => `/package/${encodeURIComponent(id)}`;
+
+/** Package start requests (backend helpers/packageStart.js) are switched on; until then no customize page exists. */
+export const packageStartsOn = () => process.env.PACKAGE_START_REQUESTS_ENABLED === "true";
+/** Packages with a customize page (src/docs/package.md §3): published, with purchase settings, while requests are on. */
+export const readCustomizablePackages = cache(async () => (packageStartsOn() ? (await readPublicPackagesOrNone()).filter(customizable) : []));
+export { packageCustomizePath };
 
 /** Where a general "packages" link goes: the first menu page, or contact when no page exists. */
 export async function packagesHref() {

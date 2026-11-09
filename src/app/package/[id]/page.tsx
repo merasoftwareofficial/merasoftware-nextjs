@@ -12,6 +12,7 @@ import { pageMetadata } from "@/lib/page-seo";
 import { getSessionUser } from "@/lib/auth";
 import { offerWithQuote } from "@/lib/offer-quote";
 import { phoneCountries } from "@/lib/phone-countries";
+import { customizable, packageCustomizePath } from "@/lib/sales-packages";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ id: string }> };
 
@@ -51,5 +52,7 @@ export default async function Page({ params }: Props) {
   const home = pages.find(page => item.pages?.includes(page.slug));
   const back = home ? { href: packagePagePath(home.slug), label: home.title } : { href: await packagesHref(), label: "Packages" };
   return <><SiteHeader /><PublicInteraction key={user?._id || "anonymous"} offer={view} terms={terms} reservation={reservation}
-    pkg={{ id: item.id, name: item.name, live: !!running, back, start: starts ? { signedIn: !!user, countries } : undefined, packageTerms: [...new Set([...universal, ...item.terms])] }} /></>;
+    pkg={{ id: item.id, name: item.name, live: !!running, back, start: starts ? { signedIn: !!user, countries } : undefined, packageTerms: [...new Set([...universal, ...item.terms])],
+      // A package with its purchase settings is bought on its customize page (src/docs/package.md §3).
+      customize: starts && customizable(item) ? packageCustomizePath(item.id) : undefined }} /></>;
 }

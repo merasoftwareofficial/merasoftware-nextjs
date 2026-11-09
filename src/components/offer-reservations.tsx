@@ -5,6 +5,7 @@ import type { OfferReservation, PackageStartList, PackageStartRequest, Reservati
 import { useServerTime } from "@/components/use-server-time";
 import { type PhoneCountry, type PhoneValue } from "@/components/phone-field";
 import type { Offer } from "@/lib/offers";
+import type { PackageChoice } from "@/lib/sales-packages";
 import { reservationHoldHours, reservationPhase, reserveCta } from "@/lib/offer-reservation-rules";
 
 const INDIA: PhoneCountry[] = [{ code: "+91", label: "India", digits: 10 }];
@@ -152,8 +153,9 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
   };
 }
 
-/** What a package page passes for Start my project without an offer; undefined while the feature is off. */
-export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[] };
+/** What a package page passes for Start my project without an offer; undefined while the feature is off.
+ * The customize page (src/docs/package.md §3) adds the customer's choice and comes back to itself after sign-in. */
+export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[]; choice?: PackageChoice; returnPath?: string };
 const packageIntentKey = "pending-package-start";
 /**
  * "Start my project" on a package without a running offer (backend helpers/packageStart.js): load the
@@ -162,6 +164,10 @@ const packageIntentKey = "pending-package-start";
  */
 export function usePackageStart(config: PackageStartConfig | undefined) {
   const enabled = !!config, packageId = config?.packageId ?? "", signedIn = !!config?.signedIn;
+  // The newest choice, read when sending, so changing it never reloads the open request.
+  const choiceRef = useRef(config?.choice);
+  useEffect(() => { choiceRef.current = config?.choice; });
+  const returnPath = config?.returnPath ?? `/package/${packageId}`;
   const countries = config?.countries ?? INDIA;
   const router = useNavigate();
   const [request, setRequest] = useState<PackageStartRequest | null>(null);
@@ -176,7 +182,7 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
     setBusy(true); setError("");
     try {
       const contact = phoneRef.current ? { countryCode: phoneRef.current.countryCode, phone: phoneRef.current.phone.trim() } : {};
-      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, ...contact }) });
+      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact }) });
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 428) setNeedsPhone(true);
@@ -218,7 +224,7 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
       if (signedIn) { void send(); return; }
       try { sessionStorage.setItem(packageIntentKey, JSON.stringify({ packageId, createdAt: Date.now() })); }
       catch { setError("Allow browser session storage to return here after signing in."); return; }
-      router.push(`/login?next=${encodeURIComponent(`/package/${packageId}`)}`);
+      router.push(`/login?next=${encodeURIComponent(returnPath)}`);
     },
   };
 }

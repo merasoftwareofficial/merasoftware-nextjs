@@ -1,6 +1,6 @@
 "use client";
 import { useRef } from "react";
-import type { QuotedPackage } from "@/lib/sales-packages";
+import { billingLabel, priceUnit, type QuotedPackage } from "@/lib/sales-packages";
 import { offerDiscountPercent } from "@/lib/offers";
 import Link from "@/components/link";
 import s from "./campaign.module.css";
@@ -42,12 +42,12 @@ export function PackageCard({ item, categoryLabel, now }: { item: QuotedPackage;
   const href = `/package/${encodeURIComponent(item.id)}`;
   return <article className={`${s.pkgCard}${offer ? ` ${s.pkgOffer}` : ""}`} data-package-card={item.id}>
     {offer && <div className={s.pkgBand}><b><small>Limited offer</small>{offer.title}</b>{percent > 0 && <span className={s.pkgPercent}>{percent}% OFF</span>}</div>}
-    <p className={s.pkgCategory}>{categoryLabel} · One-time</p>
+    <p className={s.pkgCategory}>{categoryLabel} · {billingLabel(item)}</p>
     {/* Every package has its own page, with its offer when one runs (app/package/[id]). */}
     <h3 className={s.pkgName}><Link href={href}>{item.name}</Link></h3>
     <p className={s.pkgDesc}>{item.description}</p>
     <div className={s.pkgPrice}>
-      <div className={s.pkgAmount}>{money(price)} <small>one-time</small></div>
+      <div className={s.pkgAmount}>{money(price)} <small>{priceUnit(item)}</small></div>
       {offer
         ? <p className={s.pkgWas}><del>{money(item.regularPrice)}</del>{discountedPrice < item.regularPrice && <> · <del>{money(discountedPrice)}</del></>} · <b>Save {money(item.regularPrice - price)}</b></p>
         : discountedPrice < item.regularPrice && <p className={s.pkgWas}><del>{money(item.regularPrice)}</del> · <b>Save {money(item.regularPrice - discountedPrice)}</b></p>}
