@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { PackageBuilder } from "@/components/packages/package-builder";
 import { getSessionUser } from "@/lib/auth";
+import { portalAddresses } from "@/lib/portal";
 import { pageMetadata } from "@/lib/page-seo";
 import { phoneCountries } from "@/lib/phone-countries";
 import { initialPackageChoice } from "@/lib/package-choice";
@@ -35,6 +36,9 @@ export default async function Page({ params, searchParams }: Props) {
   const initial = initialPackageChoice(item, await searchParams);
   const user = await getSessionUser();
   const countries = user ? await phoneCountries() : [];
+  // Where "Open my project" goes after paying; without it the popup still works and links to the site's own portal page.
+  let portalUrl = "";
+  try { portalUrl = portalAddresses().portalUrl; } catch { /* The success link then points to the portal root. */ }
   // The same terms as the package page without an offer (app/package/[id]): universal, then the package's own.
   const terms = [...new Set([...((await settingsRepo.get()).offerUniversalTerms ?? DEFAULT_UNIVERSAL_TERMS), ...item.terms])];
   return (
@@ -52,7 +56,7 @@ export default async function Page({ params, searchParams }: Props) {
           </header>
           {initial
             ? <PackageBuilder item={{ id: item.id, name: item.name, billing: item.billing, portalUploads: item.portalUploads, paymentOptions: item.paymentOptions, monthly: item.monthly, inclusions: item.inclusions }}
-                terms={terms} initial={initial} signedIn={!!user} countries={countries} path={packageCustomizePath(item.id)} />
+                terms={terms} initial={initial} signedIn={!!user} countries={countries} path={packageCustomizePath(item.id)} portalUrl={portalUrl} />
             : <p style={{ textAlign: "center" }}>This package cannot be bought right now. <a className="text-link" href="mailto:contact@merasoftware.com">Contact us →</a></p>}
         </div>
       </main>

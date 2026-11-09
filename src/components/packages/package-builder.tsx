@@ -4,13 +4,15 @@
  * A package's customize page (/package/<id>/customize, src/docs/package.md §3), built like the plan page
  * (components/plans/plan-builder.tsx, same steps and "Your package" card). The customer chooses how to buy
  * the package; every price is the portal backend's quote (helpers/salesPackages.js quoteChoice) through
- * /api/package-quote. Nothing is bought here: "Get this package" sends a package start request with this
- * choice (helpers/packageStart.js); the team creates the project and the client pays in the portal.
+ * /api/package-quote. "Get this package" sends a package start request with this choice (helpers/packageStart.js:
+ * the team is told at once), then opens the payment popup (package-payment.tsx): the first payment creates
+ * the customer's project (helpers/packagePurchase.js) and the portal runs it from there.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
+import { PackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
 import {
@@ -73,8 +75,8 @@ function QuoteBill({ item, quote, loading, error }: { item: BuilderPackage; quot
   );
 }
 
-export function PackageBuilder({ item, terms, initial, signedIn, countries, path }: {
-  item: BuilderPackage; terms: string[]; initial: PackageChoice; signedIn: boolean; countries: PhoneCountry[]; path: string;
+export function PackageBuilder({ item, terms, initial, signedIn, countries, path, portalUrl }: {
+  item: BuilderPackage; terms: string[]; initial: PackageChoice; signedIn: boolean; countries: PhoneCountry[]; path: string; portalUrl: string;
 }) {
   const monthly = item.billing === "monthly";
   const perFile = item.monthly?.pricing === "per_file";
@@ -114,16 +116,23 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   // The request carries this choice; after sign-in the customer comes back to this same choice.
   const query = packageChoiceQuery(clean);
   const start = usePackageStart({ packageId: item.id, signedIn, countries, choice: clean, returnPath: `${path}${query ? `?${query}` : ""}` });
-  const sent = Boolean(start.request);
+  const requested = Boolean(start.request);
+  const [paying, setPaying] = useState(false);
+  const [purchased, setPurchased] = useState<PurchaseResult | null>(null);
+  // "Get this package" sends the request first (the team is told), then opens the payment popup.
+  const wantsToPay = useRef(false);
+  useEffect(() => { if (wantsToPay.current && start.request) { wantsToPay.current = false; setPaying(true); } }, [start.request]);
   const sideRef = useRef<HTMLElement>(null);
   function get() {
+    if (signedIn && start.request) { setPaying(true); return; }
+    wantsToPay.current = true;
     start.confirm();
     if (start.needsPhone && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   // The phone bar has room for a short label only.
   const mainButton = (short = false) => (
-    <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || sent || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
-      {start.busy ? "Sending…" : signedIn ? (short ? "Get it →" : "Get this package →") : short ? "Sign in →" : "Sign in to get this package →"}
+    <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || !!purchased || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
+      {start.busy ? "Sending…" : signedIn ? (requested ? (short ? "Pay now →" : "Continue to payment →") : short ? "Get it →" : "Get this package →") : short ? "Sign in →" : "Sign in to get this package →"}
     </button>
   );
   const price = quote && !loading ? (quote.monthly ? `${money(quote.monthly.cyclePrice)} / ${PERIOD_WORDS[quote.monthly.billingCycle]}` : money(quote.dueNow)) : "…";
@@ -196,23 +205,28 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
       <aside ref={sideRef} className={s.side} aria-label="Your package">
         <div><p className={s.fine}>Your package</p><h2 className={s.choiceTitle}>{summary}</h2></div>
         <QuoteBill item={item} quote={quote} loading={loading} error={error} />
-        {sent ? (
+        {purchased ? (
           <div className={s.sent} role="status">
-            <b>✓ Request received</b>
-            <span>Our team will contact you soon to start this package. Nothing has been charged.</span>
+            <b>✓ {purchased.approved ? "Your project has started" : "Payment submitted"}</b>
+            <span>{purchased.approved ? "It is live in your client portal." : "It starts when our team confirms your UPI payment."}</span>
+            <a className="text-link" href={`${portalUrl}/order-detail/${purchased.orderId}`}>Open my project in the portal →</a>
           </div>
         ) : <>
-          {start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
+          {requested && <div className={s.sent} role="status"><b>✓ Request received</b><span>Complete the payment to start your project.</span></div>}
+          {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
           {mainButton()}
         </>}
         {start.error && <p className={s.error} role="alert">{start.error}</p>}
-        {!sent && <p className={s.note}>No payment now. Our team confirms your project, then you pay in your client portal.</p>}
+        {!purchased && <p className={s.note}>You pay the first payment now (wallet first, then UPI). Your project is created with it and runs in your client portal.</p>}
       </aside>
       {/* Phones: the price and the button stay in reach while the steps scroll. */}
       <div className={s.mobileBar}>
         <div><span>Your package</span><strong>{error ? "—" : price}</strong></div>
-        {sent ? <strong className={s.good}>✓ Sent</strong> : mainButton(true)}
+        {purchased ? <strong className={s.good}>✓ Paid</strong> : mainButton(true)}
       </div>
+      {signedIn && quote && !loading && !error && (
+        <PackagePayment open={paying} onClose={() => setPaying(false)} packageId={item.id} packageName={item.name} choice={clean} quote={quote} portalUrl={portalUrl} onPaid={setPurchased} />
+      )}
     </div>
   );
 }

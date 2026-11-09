@@ -110,3 +110,20 @@ button.button:disabled{opacity:.6;cursor:default}
   .step{padding:16px}
   .pills .pill{font-size:13px}
 }
+
+/* The package payment popup (components/packages/package-payment.tsx). */
+.payDialog{margin:auto;border:0;border-radius:16px;padding:0;width:min(480px,calc(100% - 32px));max-height:90vh;overflow:auto;color:var(--brand-navy);background:var(--brand-white);box-shadow:0 24px 80px #0005}
+.payDialog::backdrop{background:#001521bb}
+.payContent{padding:22px}
+.payHead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.payHead h2{font-size:21px;line-height:1.3;letter-spacing:-.3px;margin:0}
+.payHead button{width:44px;height:44px;background:var(--brand-ice);border:0;border-radius:8px;color:var(--brand-navy);font-size:26px;cursor:pointer;flex-shrink:0}
+.payBody{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.payName{font-weight:650;margin:0}
+.payUpi{display:flex;flex-direction:column;align-items:center;gap:10px;border:1px dashed var(--brand-line);border-radius:12px;padding:14px}
+.payUpi svg{max-width:100%;height:auto}
+.payLabel{display:flex;flex-direction:column;gap:6px;align-self:stretch;font-size:14px;color:var(--brand-muted)}
+.payLabel input{border:1px solid var(--brand-line);border-radius:8px;padding:12px;font:inherit;font-size:16px;color:var(--brand-navy);min-height:48px}
+.payLabel input[aria-invalid="true"]{border-color:#b42318}
+.payQuiet{background:none;border:0;color:var(--brand-blue);font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:center;text-decoration:underline;padding:8px}
+.payDialog a.button{text-decoration:none}

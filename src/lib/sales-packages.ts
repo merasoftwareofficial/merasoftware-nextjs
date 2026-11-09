@@ -26,7 +26,7 @@ export type PackageMonthly = {
 /** What a customer chooses on /package/<id>/customize (backend helpers/salesPackages.js quoteChoice). */
 export type PackageChoice = { paymentOption?: PackagePaymentOption; billingCycle?: PackageCycle; tenureMonths?: number; files?: number | null; updates?: number | null };
 export type PackageChoiceQuote = {
-  packageId: string; billing: PackageBilling; regularPrice: number; discountAmount: number; finalPrice: number; dueNow: number;
+  packageId: string; billing: PackageBilling; quoteKey: string; regularPrice: number; discountAmount: number; finalPrice: number; dueNow: number;
   offer: { slug: string; title: string; endsAt: string } | null;
   paymentOption?: PackagePaymentOption; installments?: { installmentNumber: number; percentage: number; amount: number; progressThreshold: number | null }[];
   monthly?: { billingCycle: PackageCycle; cycleMonths: number; tenureMonths: number; totalCycles: number; pricing: "fixed" | "per_file";
