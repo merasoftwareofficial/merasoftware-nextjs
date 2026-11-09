@@ -49,6 +49,13 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     description: PLANS_PAGE_INTRO,
   },
   {
+    key: "offers",
+    label: "Offers",
+    path: "/offers",
+    title: "Offers",
+    description: "Limited-time offers on Mera Software packages: the offer price, what is included and the time left on each offer.",
+  },
+  {
     key: "about",
     label: "About",
     path: "/about",

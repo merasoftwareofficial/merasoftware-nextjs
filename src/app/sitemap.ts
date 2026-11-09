@@ -10,6 +10,7 @@ import { packagePagePath } from "@/lib/package-pages";
 import { PLANS_PAGE_PATH, planPagePath } from "@/lib/public-plans";
 import { packageCustomizePath, packagePath, readCustomizablePackages, readPackagePages, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 import { readPublicPlansOrNone } from "@/lib/public-plans-server";
+import { readOffersPage } from "@/lib/offers-page-server";
 
 export const dynamic = "force-dynamic";
 
@@ -123,10 +124,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Its customize page (app/package/[id]/customize), while package requests are on.
   const customizeEntries: MetadataRoute.Sitemap = (await readCustomizablePackages()).map(item => ({ url: `${SITE}${packageCustomizePath(item.id)}`, changeFrequency: "weekly", priority: 0.7 }));
 
+  // The offers page (app/offers), while it shows at least one offer, running or expired (lib/offers-page.ts).
+  const offersEntries: MetadataRoute.Sitemap = (await readOffersPage()).cards.length ? [{ url: `${SITE}/offers`, changeFrequency: "daily", priority: 0.8 }] : [];
+
   // Each plan on sale has its own page (app/plans/[plan]); a plan taken off sale leaves with it.
   const planPageEntries: MetadataRoute.Sitemap = plans.map(plan => ({ url: `${SITE}${planPagePath(plan)}`, changeFrequency: "weekly", priority: 0.7 }));
 
-  return [...staticPages, ...packagePageEntries, ...packageEntries, ...customizeEntries, ...planPageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
+  return [...staticPages, ...offersEntries, ...packagePageEntries, ...packageEntries, ...customizeEntries, ...planPageEntries, ...listingPages, ...servicePages, ...postPages, ...topicPages, ...memberPages, ...portfolioPages];
 }
 
 /** The most recent edit among these posts, or undefined when there are none. */

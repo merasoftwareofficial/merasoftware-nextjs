@@ -2,6 +2,8 @@
 import { useRef } from "react";
 import { billingLabel, priceUnit, type QuotedPackage } from "@/lib/sales-packages";
 import { offerDiscountPercent } from "@/lib/offers";
+import { formatIndiaDate } from "@/lib/date-time";
+import type { EndedOffer } from "@/lib/offers-page";
 import Link from "@/components/link";
 import s from "./campaign.module.css";
 import d from "./public-interaction/variant.module.css";
@@ -30,18 +32,21 @@ export function timeLeft(endsAt: string, now: number | null) {
 /**
  * One package on a Pricing & Packages page (staff-packages.tsx). Every card has the same slots (name 2
  * lines, description 2 lines, price, inclusions one line each), so a row lines up; the whole card opens
- * /package/<id>. A running offer gets the highlighted card with its countdown.
+ * /package/<id>. A running offer gets the highlighted card with its countdown. On the /offers page
+ * (offers-grid.tsx) a package whose offer has ended gets `ended`: the expired card, normal price.
  */
-export function PackageCard({ item, categoryLabel, now }: { item: QuotedPackage; categoryLabel: string; now: number | null }) {
+export function PackageCard({ item, categoryLabel, now, ended }: { item: QuotedPackage; categoryLabel: string; now: number | null; ended?: EndedOffer | null }) {
   const terms = useRef<HTMLDialogElement>(null);
   const offer = packageOfferRunning(item, now) ? item.quote.offer : null;
+  const expired = offer ? null : ended ?? null;
   const discountedPrice = item.discountedPrice ?? item.regularPrice;
   const price = offer ? item.quote.finalPrice : discountedPrice;
   const percent = offer ? offerDiscountPercent({ mainPrice: item.regularPrice, offerPrice: price }) : 0;
   const more = item.inclusions.length - CARD_INCLUSIONS;
   const href = `/package/${encodeURIComponent(item.id)}`;
-  return <article className={`${s.pkgCard}${offer ? ` ${s.pkgOffer}` : ""}`} data-package-card={item.id}>
+  return <article className={`${s.pkgCard}${offer ? ` ${s.pkgOffer}` : expired ? ` ${s.pkgEnded}` : ""}`} data-package-card={item.id} data-offer-state={offer ? "running" : expired ? "expired" : undefined}>
     {offer && <div className={s.pkgBand}><b><small>Limited offer</small>{offer.title}</b>{percent > 0 && <span className={s.pkgPercent}>{percent}% OFF</span>}</div>}
+    {expired && <div className={s.pkgBand}><b><small>Offer ended</small>{expired.title}</b><span className={s.pkgPercent}>Expired</span></div>}
     <p className={s.pkgCategory}>{categoryLabel} · {billingLabel(item)}</p>
     {/* Every package has its own page, with its offer when one runs (app/package/[id]). */}
     <h3 className={s.pkgName}><Link href={href}>{item.name}</Link></h3>
@@ -51,6 +56,7 @@ export function PackageCard({ item, categoryLabel, now }: { item: QuotedPackage;
       {offer
         ? <p className={s.pkgWas}><del>{money(item.regularPrice)}</del>{discountedPrice < item.regularPrice && <> · <del>{money(discountedPrice)}</del></>} · <b>Save {money(item.regularPrice - price)}</b></p>
         : discountedPrice < item.regularPrice && <p className={s.pkgWas}><del>{money(item.regularPrice)}</del> · <b>Save {money(item.regularPrice - discountedPrice)}</b></p>}
+      {expired && <p className={s.pkgTimer}>Offer price <del>{money(expired.offerPrice)}</del> · ended {formatIndiaDate(expired.endsAt)}</p>}
       {offer && <p className={s.pkgTimer}>Offer ends in <b role="timer" aria-label="Time remaining">{timeLeft(offer.endsAt, now)}</b></p>}
     </div>
     <h4 className={s.pkgIncluded}>What&apos;s included</h4>

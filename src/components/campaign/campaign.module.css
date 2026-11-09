@@ -77,6 +77,11 @@
 .pkgPercent{flex:none;font-size:16px;line-height:1;font-weight:750;background:#ff794d;color:#172b34;padding:8px 10px;border-radius:8px}
 .pkgOffer .pkgAmount{color:#c94a1f}
 .pkgOffer .pkgButton{background:#ff794d;color:#172b34}.pkgOffer:hover .pkgButton{background:#e85a2c}
+/* An expired offer on the /offers page (offers-grid.tsx): greyed band and "Expired", the normal price, no countdown. */
+.pkgEnded{padding-top:0;background:var(--brand-paper)}
+.pkgEnded .pkgBand{background:var(--brand-muted)}.pkgEnded .pkgBand small{color:var(--brand-white);opacity:.85}
+.pkgEnded .pkgPercent{background:var(--brand-white);color:var(--brand-navy);text-transform:uppercase;letter-spacing:.5px}
+.pkgEnded .pkgTimer{color:var(--brand-muted);font-weight:600}.pkgEnded .pkgTimer del{color:var(--brand-navy)}
 @media(max-width:900px){.pkgGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.pkgHero{padding:24px 0 20px}.pkgTab{width:100%}.pkgEnds{flex-basis:100%;padding-left:16px}.pkgHero p:not(:first-child){font-size:17px}.pkgGrid{grid-template-columns:1fr;grid-auto-rows:auto}.pkgCard{padding:20px}.pkgBand{margin:0 -20px 14px;padding:10px 20px}.pkgName,.pkgCard>.pkgDesc{min-height:0}}
 @media(prefers-reduced-motion:reduce){.pkgCard,.pkgOffer,.pkgTabOffer i{animation:none;transition:none}}
