@@ -22,10 +22,10 @@ import s from "./plans.module.css";
 
 export type PlanViewer = "visitor" | "member" | "client";
 
-export function Step({ title, extra, children }: { title: string; extra?: ReactNode; children: ReactNode }) {
+export function Step({ title, extra, children, large }: { title: string; extra?: ReactNode; children: ReactNode; large?: boolean }) {
   return (
     <div className={s.step}>
-      <div className={s.stepHead}><h3>{title}</h3>{extra}</div>
+      <div className={s.stepHead}><h3 className={large ? s.stepTitleLarge : undefined}>{title}</h3>{extra}</div>
       {children}
     </div>
   );

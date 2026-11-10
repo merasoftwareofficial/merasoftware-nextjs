@@ -181,7 +181,7 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
     );
   }
   steps.push(
-    <Step key="included" title="What's included">
+    <Step key="included" title="What's included" large>
       <ul className={s.inclusions}>{item.inclusions.map((line, index) => <li key={index}>{line}</li>)}</ul>
       {terms.length > 0 && <PackageTermsButton className={s.termsLink} name={item.name} lines={terms} />}
     </Step>,
