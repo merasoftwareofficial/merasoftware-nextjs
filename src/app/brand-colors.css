@@ -38,7 +38,7 @@
   --paper: var(--section-bg);
   --surface: var(--brand-surface);
   --accent-surface: var(--section-accent-bg);
-  --muted: var(--brand-muted);
+  --muted: #2f4454;
   --line: var(--brand-line);
   --card: var(--brand-white);
   --inverse: var(--brand-navy);

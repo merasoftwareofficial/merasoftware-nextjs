@@ -1,7 +1,7 @@
 .packages {
   margin: 24px 0 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size:16px;
   line-height: 1.7;
 }
 .packages a {
@@ -13,7 +13,7 @@
 .offers {
   margin: 20px 0 0;
   color: var(--brand-navy);
-  font-size: 14px;
+  font-size:16px;
   line-height: 1.7;
 }
 .offers a {
@@ -30,6 +30,6 @@
   outline-offset: 4px;
 }
 @media (max-width: 640px) {
-  .packages { font-size: 14px; }
+  .packages { font-size:16px; }
   .packages a, .offers a { margin-left: 0; display: block; width: fit-content; }
 }
