@@ -17,7 +17,7 @@ async function handle(request: Request, method: "GET" | "POST") {
     const input = method === "POST" ? await request.json() : undefined;
     // Phone is forwarded only for older accounts the portal asked for one (HTTP 428).
     // The customize page's choice (src/docs/package.md §3) goes as it is; the backend checks and prices it.
-    // `kind` says what the person asked for (buy: the customize page's Get this package; callback: contact me).
+    // `kind` says what the person asked for (buy: the customize page's Proceed to pay; callback: contact me).
     const body = input ? { packageId: input.packageId, choice: input.choice, kind: input.kind, countryCode: input.countryCode, phone: input.phone } : undefined;
     const data = await portalApiRequest("Package start requests", "/api/package-starts", method, { Cookie: `${PORTAL_COOKIE}=${token}` }, body);
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });

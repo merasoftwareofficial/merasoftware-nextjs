@@ -93,14 +93,17 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   // Reserve and Start my project are confirmed in the same dialog; its words follow the button.
   const starting = control.cta.kind === "start";
   // The callback button (its dialog is the one in callback-dialog.tsx); once asked, it stays as the answer.
-  const callbackButton = (className: string | undefined) => <button type="button" className={className} disabled={callbackSent || (!packageStart.loaded && !preview)} onClick={() => { if (!preview) startDialog.current?.showModal(); }}>{callbackLabel(packageStart)}{!callbackSent && <Arrow />}</button>;
-  // `both`: the card shows the two buttons side by side (one above the other on a phone); the sticky bar keeps the main one.
-  const action = (className: string | undefined, enquireLabel: string, both = false) => packageButtons && pkg?.customize
-    ? (both
+  // The sticky bar has room for a short answer only ("short").
+  const callbackButton = (className: string | undefined, short = false) => <button type="button" className={className} disabled={callbackSent || (!packageStart.loaded && !preview)} onClick={() => { if (!preview) startDialog.current?.showModal(); }}>{short ? (callbackSent ? "Callback requested ✓" : "Arrange a callback") : callbackLabel(packageStart)}{!callbackSent && !short && <Arrow />}</button>;
+  // `place`: the card shows the two buttons one above the other; the sticky bar ("bar") shows them side by side.
+  const action = (className: string | undefined, enquireLabel: string, place: "card" | "bar" | "" = "") => packageButtons && pkg?.customize
+    ? (place === "card"
       ? <div className={s.ctaPair}><Link className={className} href={pkg.customize}>Get this package<Arrow /></Link>{callbackButton(`${s.claim} ${s.claimQuiet}`)}</div>
+      : place === "bar"
+      ? <div className={s.stickyActions}><Link href={pkg.customize}>Get this package</Link>{callbackButton(s.stickyQuiet, true)}</div>
       : <Link className={className} href={pkg.customize}>Get this package<Arrow /></Link>)
     : packageButtons
-    ? callbackButton(className)
+    ? callbackButton(className, place === "bar")
     : cta.kind === "reserve" || cta.kind === "start"
     ? <button type="button" className={className} disabled={cta.kind === "reserve" && cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{cta.label}<Arrow /></button>
     : cta.kind === "status" ? <Link className={className} href="/account/offers">{cta.label}<Arrow /></Link>
@@ -143,7 +146,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
               <div className={s.timer} role="timer" aria-label="Time remaining">{clock.map(([value, label]) => <div key={label}><b>{ready ? String(value).padStart(2, "0") : "—"}</b><span>{label}</span></div>)}</div>
             </div>
           </>}
-          {action(s.claim, expired && !packageMode ? "Ask about current offers" : offer.ctaLabel, true)}
+          {action(s.claim, expired && !packageMode ? "Ask about current offers" : offer.ctaLabel, "card")}
           <div className={s.cardFooter}>{cta.kind === "enquire" && !packageButtons ?<span>{channel}</span> : <a className={s.footerLink} href={href}>Have a question? Enquire</a>}<button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
         </section>
       </section>
@@ -181,6 +184,6 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
       </div>}
     </dialog>}
     {pkg?.start && !preview && <PackageCallbackDialog dialogRef={startDialog} start={packageStart} name={pkg.name} price={money(offer.discountPrice)} />}
-    {!preview && <div className={s.sticky}><div>{held !== null ? <><span>Your reserved price</span><strong>{money(held)}</strong></> : packageMode ? <><span>{title}</span><strong>{money(offer.discountPrice)}</strong></> : <><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></>}</div>{action(undefined, expired && !packageMode ? "Contact us" : offer.ctaLabel)}</div>}
+    {!preview && <div className={s.sticky}><div>{held !== null ? <><span>Your reserved price</span><strong>{money(held)}</strong></> : packageMode ? <><span>{title}</span><strong>{money(offer.discountPrice)}</strong></> : <><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></>}</div>{action(undefined, expired && !packageMode ? "Contact us" : offer.ctaLabel, "bar")}</div>}
   </main>;
 }

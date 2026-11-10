@@ -158,7 +158,7 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
 export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[]; choice?: PackageChoice; returnPath?: string };
 const packageIntentKey = "pending-package-start";
 /**
- * The two things a package page asks of the team (backend helpers/packageStart.js): "Get this package" (kind buy:
+ * The two things a package asks of the team (backend helpers/packageStart.js): "Proceed to pay" on the customize page (kind buy:
  * the team is told, the customer goes on to pay) and "Arrange a callback" (kind callback: the team and the customer
  * are told). Loads the person's open request, sends one, continues after sign-in (the intent keeps the kind), asks
  * for a missing phone (HTTP 428). It renders nothing; the buttons and the callback dialog use it.

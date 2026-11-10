@@ -11,7 +11,7 @@ export type OfferReservation = {
 };
 export type ReservationList = { reservations: OfferReservation[]; serverNow: string };
 /** What a customer asked of the team on a package page (backend helpers/packageStart.js): No price is held.
- * buy = "Get this package" (on to payment); callback = "Arrange a callback". */
+ * buy = "Proceed to pay" on the customize page (on to payment); callback = "Arrange a callback". */
 export type PackageStartKind = "buy" | "callback";
 export type PackageStartRequest = { id: string; packageId: string; kind: PackageStartKind; title: string; price: number | null; requestedAt: string;
   choice?: import("./sales-packages").PackageChoice | null;

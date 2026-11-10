@@ -88,7 +88,7 @@ try {
   assert.match(await side.innerText(), /₹2,999\.7[\s\S]*₹9,999 in total/);
   assert.match(await side.innerText(), /at 50% progress/);
   assert.deepEqual(quotes.at(-1), { packageId: 'business-starter', choice: { paymentOption: 'installments_3' } });
-  await side.getByRole('button', { name: 'Get this package →' }).click();
+  await side.getByRole('button', { name: 'Proceed to pay →' }).click();
   // While the request is sent the button shows the site's three-dot loader and "Processing…", never "Sending…".
   const working = side.getByRole('button', { name: /Processing…/ });
   await working.waitFor();
@@ -121,12 +121,12 @@ try {
   await popup.getByRole('button', { name: 'Stay on this website' }).click();
   await popup.waitFor({ state: 'hidden' });
   await side.getByText('✓ Payment submitted').waitFor();
-  assert.equal(await side.getByRole('button', { name: /payment|Get this package/ }).count(), 0, 'nothing left to buy again');
+  assert.equal(await side.getByRole('button', { name: /Proceed to pay|Sign in to proceed/ }).count(), 0, 'nothing left to buy again');
 
   // A wallet that covers the payment: no QR, no reference, and the project is created at once.
   balance = 20000; purchaseApproved = true;
   await open(ONE_TIME, '&signed=1');
-  await side.getByRole('button', { name: 'Continue to payment →' }).or(side.getByRole('button', { name: 'Get this package →' })).click();
+  await side.getByRole('button', { name: 'Proceed to pay →' }).click();
   await popup.waitFor();
   assert.match(await popup.innerText(), /From your wallet[\s\S]*− ₹9,999/);
   assert.equal(await popup.locator('svg').count() > 0, false, 'no QR when the wallet pays');
@@ -139,39 +139,20 @@ try {
   assert.equal(await sideways(), false);
   balance = 0; purchaseApproved = false;
 
-  // Arrange a callback: the same dialog as the package page. The request is a callback, the button stays as the answer,
-  // and Get this package still goes on to the payment without asking the team again.
+  // This page only buys: one button, "Proceed to pay", and no callback (a callback is asked for on the package page).
   const shots = process.env.SHOT_DIR;
   await open(ONE_TIME, '&signed=1');
-  const get = side.getByRole('button', { name: 'Get this package →' }), call = side.getByRole('button', { name: 'Arrange a callback' });
-  { const a = await get.boundingBox(), b = await call.boundingBox();
-    assert.ok(Math.abs(a.y - b.y) < 2 && b.x > a.x, 'on a desktop the two buttons are side by side, Get this package on the left'); }
+  const get = side.getByRole('button', { name: 'Proceed to pay →' });
+  await get.waitFor();
+  assert.equal(await page.getByRole('button', { name: /callback/i }).count(), 0, 'no callback button on the customize page');
+  assert.equal(await page.getByRole('dialog', { name: 'Arrange a callback for this package?' }).count(), 0, 'no callback dialog on the customize page');
+  assert.equal(await page.getByText(/Get this package/).count(), 0, 'the button is not called Get this package here');
   if (shots) await side.screenshot({ path: path.join(shots, 'side-1440.png') });
-  const asked = requests.length;
-  await call.click();
-  const callback = page.getByRole('dialog', { name: 'Arrange a callback for this package?' });
-  await callback.getByText(/Our team will call you to help you start your project/).waitFor();
-  await callback.getByText(/No payment now/).waitFor();
-  if (shots) await page.screenshot({ path: path.join(shots, 'callback-dialog-1440.png') });
-  await callback.getByRole('button', { name: 'Confirm' }).click();
-  await callback.getByRole('button', { name: /Processing…/ }).waitFor();
-  assert.equal(await callback.locator('.inline-loader').count(), 1, 'the three-dot loader is in the dialog button');
-  await callback.waitFor({ state: 'hidden' });
-  assert.equal(requests.length, asked + 1);
-  assert.deepEqual(requests.at(-1), { packageId: 'business-starter', kind: 'callback', choice: { paymentOption: 'full' } });
-  const answered = side.getByRole('button', { name: 'Callback requested · our team will contact you' });
-  await answered.waitFor();
-  assert.equal(await answered.isDisabled(), true, 'asked once, the button stays as the answer');
-  await get.click();
-  await popup.waitFor();
-  assert.equal(requests.length, asked + 1, 'Get this package after a callback does not ask the team again');
-  await popup.getByRole('button', { name: 'Close' }).click();
-  // A buy that failed for a missing phone shows its field and error beside Get this package, never in the callback dialog.
+  // A buy that failed for a missing phone shows its field and error beside Proceed to pay.
   needsPhone = true;
   await open(ONE_TIME, '&signed=1');
   await get.click();
   await side.getByRole('alert').getByText(/Add your mobile number/).waitFor();
-  assert.equal(await callback.isVisible(), false, 'a buy error never opens the callback dialog');
   needsPhone = false;
 
   // Monthly per file: files, updates, cycle and length; the visitor signs in and comes back to the same choice.
@@ -185,25 +166,17 @@ try {
   await page.waitForFunction(() => /₹1,620/.test(document.querySelector('[aria-label="Your package"]').innerText));
   assert.match(await side.innerText(), /30 files × 2 updates a month[\s\S]*₹600[\s\S]*10% period discount[\s\S]*₹1,620[\s\S]*2 payments, ₹3,240 in total/);
   assert.match(await side.innerText(), /You get 2 updates a month · 30 files each/);
-  await side.getByRole('button', { name: 'Sign in to get this package →' }).click();
+  await side.getByRole('button', { name: 'Sign in to proceed →' }).click();
   const back = decodeURIComponent((await page.evaluate(() => window.__pushed)).replace('/login?next=', ''));
   assert.equal(back, '/package/data-entry/customize?cycle=quarterly&months=6&files=30&updates=2');
   const intent = JSON.parse(await page.evaluate(() => sessionStorage.getItem('pending-package-start')));
   assert.equal(intent.packageId, 'data-entry'); assert.equal(intent.kind, 'buy');
   // Coming back signed in with that address: the same choice, sent once.
   await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1&cycle=quarterly&months=6&files=30&updates=2`);
-  await side.getByRole('button', { name: 'Continue to payment →' }).waitFor();
+  // The request goes out on return; the button then goes on to the payment (the same label before and after).
+  await side.getByRole('button', { name: 'Proceed to pay →' }).waitFor();
+  for (let i = 0; i < 50 && requests.at(-1)?.packageId !== 'data-entry'; i++) await page.waitForTimeout(100);
   assert.deepEqual(requests.at(-1), { packageId: 'data-entry', kind: 'buy', choice: { billingCycle: 'quarterly', tenureMonths: 6, files: 30, updates: 2 } });
-  // A visitor asks for a callback: the dialog sends them to sign in with the callback as the intent, and it is sent once on return.
-  await open(PER_FILE);
-  await side.getByRole('button', { name: 'Arrange a callback' }).click();
-  await callback.getByText(/A callback needs an account/).waitFor();
-  await callback.getByRole('button', { name: 'Continue to sign in' }).click();
-  assert.equal(JSON.parse(await page.evaluate(() => sessionStorage.getItem('pending-package-start'))).kind, 'callback');
-  const callbacks = requests.length;
-  await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1`);
-  await side.getByRole('button', { name: 'Callback requested · our team will contact you' }).waitFor();
-  assert.equal(requests.length, callbacks + 1); assert.equal(requests.at(-1).kind, 'callback');
 
   // Phones: the bar keeps the price and the button in reach; nothing scrolls sideways.
   for (const width of [390, 320]) {
@@ -211,18 +184,10 @@ try {
     await open(PER_FILE);
     await page.locator('[class*="mobileBar"]').getByText(/₹100 \/ month/).waitFor();
     assert.equal(await sideways(), false, `no sideways scroll at ${width}px`);
-    // On a phone the callback button sits below Get this package, not beside it.
-    const phoneMain = side.getByRole('button', { name: 'Sign in to get this package →' }), phoneCall = side.getByRole('button', { name: 'Arrange a callback' });
-    await phoneCall.scrollIntoViewIfNeeded();
-    const m = await phoneMain.boundingBox(), c = await phoneCall.boundingBox();
-    assert.ok(c.y >= m.y + m.height - 1 && Math.abs(c.x - m.x) < 2, `at ${width}px the two buttons are one above the other`);
+    // On a phone the page has one button in the package card and one in the bar, and no callback.
+    assert.equal(await page.getByRole('button', { name: /callback/i }).count(), 0, `no callback button at ${width}px`);
+    await side.getByRole('button', { name: 'Sign in to proceed →' }).scrollIntoViewIfNeeded();
     if (shots) await side.screenshot({ path: path.join(shots, `side-${width}.png`) });
-    await phoneCall.click();
-    { const box = await callback.boundingBox();
-      assert.ok(box.x >= 0 && box.x + box.width <= width, `the callback dialog fits a ${width}px screen`);
-      assert.equal(await sideways(), false, `no sideways scroll with the callback dialog at ${width}px`);
-      if (shots) await page.screenshot({ path: path.join(shots, `callback-dialog-${width}.png`) }); }
-    await callback.getByRole('button', { name: 'Close' }).click();
   }
   // The payment popup on a phone: inside the screen, QR and reference reachable, nothing scrolls sideways.
   for (const width of [390, 320]) {

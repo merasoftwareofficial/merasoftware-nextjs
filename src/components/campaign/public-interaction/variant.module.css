@@ -22,10 +22,18 @@
 @media(max-width:380px){.offer{padding:18px}.pitch h1{font-size:34px}.countdown{flex-direction:column;align-items:flex-start}.timer{width:100%;justify-content:space-between}.sticky small{display:block;margin-top:2px}.sticky>a,.sticky>button{padding:10px 12px}.oldPrices{gap:12px}}
 
 .previewPage{min-height:0;padding-bottom:24px}.previewPage .hero{gap:28px}.previewPage .shell{width:calc(100% - 40px)}
-/* Package page: Get this package and Arrange a callback, side by side, one above the other when narrow. */
-.ctaPair{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:16px}
+/* Package page: in the card Get this package and Arrange a callback sit one above the other; in the sticky bar side by side. */
+.ctaPair{display:grid;grid-template-columns:1fr;gap:10px;margin-top:16px}
 .ctaPair>.claim{margin-top:0}
 .claimQuiet{background:transparent;color:#06263c;box-shadow:inset 0 0 0 2px #06263c}
 .claimQuiet:hover{background:#06263c14}
 .claim :global(.inline-loader i){background:currentColor}
 .claim :global(.inline-loader){margin-right:0}
+/* Sticky bar of a package: the two buttons side by side; on a narrow screen their words may wrap onto two lines. */
+.stickyActions{display:flex;align-items:stretch;gap:10px;min-width:0}
+.stickyActions>a,.stickyActions>button{display:flex;align-items:center;justify-content:center;gap:15px;min-height:44px;padding:12px 22px;background:#ff794d;border:0;border-radius:9px;color:#172b34;font:inherit;font-size:13px;font-weight:750;line-height:1.2;text-align:center;cursor:pointer}
+.stickyActions>button.stickyQuiet{background:transparent;color:#fff;box-shadow:inset 0 0 0 2px #b9d1df}
+.stickyActions>button:disabled{opacity:.75;cursor:default}
+.stickyActions>a:focus-visible,.stickyActions>button:focus-visible{outline:3px solid #00b8cc;outline-offset:4px}
+@media(max-width:720px){.stickyActions{gap:8px}.stickyActions>a,.stickyActions>button{font-size:12px;padding:9px 12px}}
+@media(max-width:480px){.sticky:has(.stickyActions)>div:first-child>span{display:none}.stickyActions>a,.stickyActions>button{font-size:11px;padding:8px 9px}}
