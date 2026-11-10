@@ -2,7 +2,7 @@
 .page h1,.page h2,.page h3{font-weight:600;letter-spacing:-.04em}
 .intro{padding:48px 0 36px}
 .introGrid{display:grid;grid-template-columns:1.3fr 1fr;gap:64px;align-items:center}
-.eyebrow{font-size:13px;font-weight:700;letter-spacing:1.4px;color:var(--brand-link);margin:0}
+.eyebrow{font-size:16px;font-weight:700;letter-spacing:1.4px;color:var(--brand-link);margin:0}
 .page h1{font-size:clamp(38px,4.3vw,60px);line-height:1.05;margin:20px 0}
 .page h1 em{font-family:Georgia,serif;font-weight:400;color:var(--brand-link)}
 .intro p:last-child{max-width:560px;font-size:16px;line-height:1.75;color:var(--brand-muted);margin:0}
