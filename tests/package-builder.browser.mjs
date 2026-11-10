@@ -28,7 +28,7 @@ import{initialPackageChoice}from'@/lib/package-choice';
 import '${src('src/app/globals.css')}';
 const params=new URLSearchParams(location.search);const item=JSON.parse(params.get('pkg'));const signedIn=params.get('signed')==='1';
 const query=Object.fromEntries(params.entries());
-createRoot(document.getElementById('app')).render(<main style={{padding:'0 16px',maxWidth:1180,margin:'auto'}}><PackageBuilder item={item} terms={['Taxes extra.']} initial={initialPackageChoice(item,query)} signedIn={signedIn} countries={[{code:'+91',label:'India',digits:10}]} path={'/package/'+item.id+'/customize'} portalUrl="https://portal.example.test"/></main>);
+createRoot(document.getElementById('app')).render(<main style={{padding:'0 16px',maxWidth:1180,margin:'auto'}}><PackageBuilder item={item} terms={['Taxes extra.']} initial={initialPackageChoice(item,query)} signedIn={signedIn} countries={params.get('emptyCountries')==='1'?[]:[{code:'+91',label:'India',digits:10}]} path={'/package/'+item.id+'/customize'} portalUrl="https://portal.example.test"/></main>);
 `;
 await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'package-builder-fixture.tsx', loader: 'tsx' }, outfile: path.join(folder, 'client.js'), bundle: true, platform: 'browser', conditions: ['style', 'browser'], jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'browser-fixtures', setup(builder) {
   builder.onResolve({ filter: /^@\/components\/loading\/navigation$/ }, () => ({ path: 'navigation', namespace: 'test' }));
@@ -78,6 +78,11 @@ try {
   const open = async (item, extra = '') => { await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(item))}${extra}`); await page.waitForSelector('[aria-label="Your package"]'); };
   const side = page.getByRole('complementary', { name: 'Your package' });
   const sideways = async () => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+
+  // The actual signed-out page passes an empty country list until sign-in.
+  await open(ONE_TIME, '&emptyCountries=1');
+  await side.getByRole('button', { name: 'Sign in to proceed →' }).waitFor();
+  assert.deepEqual(errors, [], 'a visitor can customize a package without a country list');
 
   // One-time: only the offered ways to pay; the installments and due-now amount come from the quote.
   await open(ONE_TIME, '&signed=1');

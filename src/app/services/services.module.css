@@ -49,3 +49,6 @@
 .contact span{color:var(--brand-link);margin-left:8px}
 @media(max-width:1000px){.introGrid{gap:32px}.groupHeading,.serviceList{padding-left:22px;padding-right:22px}.groupHeading h2{font-size:25px}.nextInner{align-items:flex-start;flex-direction:column}}
 @media(max-width:600px){.intro{padding:32px 0 28px}.introGrid,.groups{grid-template-columns:1fr;gap:24px}.page h1{font-size:42px}.heroVisual{justify-self:start;max-width:none}.heroVisual img{aspect-ratio:2.8}.heroVisual a>span{padding:10px 14px}.groupHeading{padding-top:22px;padding-bottom:22px}.groupHeading h2{font-size:26px}.service summary{padding:20px 0}.service h3{font-size:18px}.catalogue{padding-bottom:32px}.actions{align-items:flex-start;flex-direction:column;gap:18px}.next{padding:28px 0}}
+
+@media(max-width:800px){.introGrid,.groups{grid-template-columns:minmax(0,1fr);gap:28px}.heroVisual{justify-self:center;max-width:450px}}
+@media(max-width:600px){.page h1{font-size:clamp(36px,9vw,42px)}}

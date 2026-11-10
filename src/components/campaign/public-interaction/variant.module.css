@@ -1,7 +1,7 @@
 .page{background:#041e31;color:#fff;min-height:calc(100vh - 78px);padding-bottom:100px;font-family:Arial,sans-serif}
 .shell{width:min(1122px,calc(100% - 48px));margin:auto}
 .back{display:inline-flex;align-items:center;min-height:44px;margin-top:16px;color:#b9d1df;font-size:13px}
-.hero{display:grid;grid-template-columns:1.08fr 1fr;gap:70px;align-items:center;padding:20px 0 48px}
+.hero{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);gap:70px;align-items:center;padding:20px 0 48px}
 .local{display:flex;align-items:center;gap:9px;font-size:10px;font-weight:700;letter-spacing:1.6px;color:#77dce5}.local i{width:7px;height:7px;border-radius:50%;background:#66e4ee}
 .pitch h1{font-size:clamp(42px,4.7vw,64px);line-height:1.08;letter-spacing:-2.7px;font-weight:750;margin:24px 0}.pitch em{font-style:normal;color:#66e4ee}.pitch>p{font-size:16px;line-height:1.8;color:#c0d3df;margin-bottom:26px}
 .benefitsHeading{font-size:18px;line-height:1.4;letter-spacing:-.3px;margin:0 0 14px}
@@ -37,3 +37,19 @@
 .stickyActions>a:focus-visible,.stickyActions>button:focus-visible{outline:3px solid #00b8cc;outline-offset:4px}
 @media(max-width:720px){.stickyActions{gap:8px}.stickyActions>a,.stickyActions>button{font-size:12px;padding:9px 12px}}
 @media(max-width:480px){.sticky:has(.stickyActions)>div:first-child>span{display:none}.stickyActions>a,.stickyActions>button{font-size:11px;padding:8px 9px}}
+
+/* Narrow cards and their fixed actions must fit independently of the price text. */
+.hero>*{min-width:0}
+@media(max-width:720px){
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .deal strong{font-size:clamp(36px,12vw,72px);overflow-wrap:anywhere}
+  .oldPrices{flex-wrap:wrap;gap:12px}
+  .offerTop,.cardFooter{flex-wrap:wrap}
+  .sticky>div:first-child{min-width:0}
+  .sticky strong{overflow-wrap:anywhere}
+  .stickyActions{flex:1;justify-content:flex-end;flex-wrap:wrap}
+  .stickyActions>a,.stickyActions>button{min-width:0;flex:1}
+  .termsDialog{max-height:85dvh;overflow:auto}
+  .dialogContent{padding:20px;overflow-wrap:anywhere}
+}
+@media(max-width:380px){.sticky{gap:10px}.sticky strong{font-size:20px}.stickyActions{gap:6px}}

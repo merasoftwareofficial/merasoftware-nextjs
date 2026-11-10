@@ -70,7 +70,7 @@ export type ReservationControl = ReturnType<typeof useOfferReservation>;
  */
 export function useOfferReservation(config: ReservationConfig | undefined, offer: Pick<Offer, "status" | "endsAt" | "targets" | "reserveWindowHours" | "reservationHoldHours">) {
   const enabled = !!config, slug = config?.slug ?? "", quoteKey = config?.quoteKey ?? "", signedIn = !!config?.signedIn, endsAt = offer.endsAt;
-  const countries = config?.countries ?? INDIA;
+  const countries = config?.countries?.length ? config.countries : INDIA;
   const router = useNavigate();
   const [row, setRow] = useState<OfferReservation | null>(null);
   const [loaded, setLoaded] = useState(!signedIn);
@@ -169,7 +169,7 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
   const choiceRef = useRef(config?.choice);
   useEffect(() => { choiceRef.current = config?.choice; });
   const returnPath = config?.returnPath ?? `/package/${packageId}`;
-  const countries = config?.countries ?? INDIA;
+  const countries = config?.countries?.length ? config.countries : INDIA;
   const router = useNavigate();
   const [request, setRequest] = useState<PackageStartRequest | null>(null);
   const [loaded, setLoaded] = useState(!signedIn);

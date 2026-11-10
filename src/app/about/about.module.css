@@ -62,3 +62,7 @@
 .projectImage:has(>:global(.section-visual-stack[data-custom-frame])){border:0;border-radius:0;background:transparent;overflow:visible}
 .projectImage>:global(.section-visual-stack[data-custom-frame])>:global(.section-visual){outline:1px solid var(--brand-line);outline-offset:-1px;background:var(--brand-paper)}
 @media(max-width:600px){.leadership article{display:block}.personFrame{width:100%;margin:0 0 20px}.personFrame>:global(.section-visual-stack[data-custom-frame]){margin-inline:auto}.leadership h3{font-size:22px}.role{margin-bottom:16px}}
+
+@media(min-width:601px) and (max-width:900px){.leadership{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.heroGrid,.split{grid-template-columns:minmax(0,1fr);gap:28px}.hero{padding:48px 0}.frame{width:100%}}
+@media(max-width:600px){.page h1{font-size:clamp(36px,9vw,44px)}.lead{font-size:18px}}
