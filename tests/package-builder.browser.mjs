@@ -4,8 +4,9 @@
 // quoteChoice, helpers/packageStart.js). Checks: the choices shown come from the package's settings, every
 // price comes from the quote, the request carries the choice, a visitor is sent to sign in and comes back to
 // the same choice, the phone bar, and no sideways scroll at 1440, 390 and 320 px. "Get this package" sends the
-// request and opens the payment popup: the wallet part, the UPI QR and reference for the rest, what the purchase
-// sends (the quote's key and amount, never a price of its own), and the choice to stay or open the portal.
+// request and goes on to the payment inside the "Your package" card (as the portal does): the wallet part shown before
+// paying, the UPI QR and reference for the rest, what the purchase sends (the quote's key and amount, never a price
+// of its own), and the link to open the project in the portal.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -100,7 +101,10 @@ try {
   assert.match(await side.innerText(), /at 50% progress/);
   await page.screenshot({ path: path.join(folder, 'one-time.png') });
   assert.deepEqual(quotes.at(-1), { packageId: 'business-starter', choice: { paymentOption: 'installments_3' } });
-  await side.getByRole('button', { name: 'Proceed to pay →' }).click();
+  // The wallet and what UPI will pay are in the card before paying; nothing in the wallet, so the button goes on to UPI.
+  await side.getByText('Wallet balance: ₹0').waitFor();
+  assert.match(await side.innerText(), /Paid from wallet[\s\S]*₹0[\s\S]*To pay by UPI[\s\S]*₹2,999\.7/);
+  await side.getByRole('button', { name: 'Continue to UPI' }).click();
   // While the request is sent the button shows the site's three-dot loader and "Processing…", never "Sending…".
   const working = side.getByRole('button', { name: /Processing…/ });
   await working.waitFor();
@@ -108,43 +112,43 @@ try {
   assert.equal(await side.getByRole('button', { name: /Sending/ }).count(), 0);
   assert.equal(await sideways(), false);
 
-  // The payment popup opens by itself: nothing in the wallet, so the whole first installment is paid by UPI.
+  // The UPI step opens in the same card (no popup): the QR, the payee and the reference.
   // The customer is not shown a "request received" note; the request carries kind buy (the team is told, the customer is not).
-  const popup = page.locator('dialog[class*="payDialog"]');
-  await popup.waitFor();
+  await side.getByRole('heading', { name: 'Pay ₹2,999.7 by UPI' }).waitFor();
+  assert.equal(await page.locator('dialog[open]').count(), 0, 'no payment popup');
   assert.deepEqual(requests.at(-1), { packageId: 'business-starter', kind: 'buy', choice: { paymentOption: 'installments_3' } });
   assert.doesNotMatch(await side.innerText(), /Request received/);
-  assert.match(await popup.innerText(), /Business Starter[\s\S]*Project price[\s\S]*₹9,999[\s\S]*first installment[\s\S]*₹2,999\.7[\s\S]*To pay by UPI[\s\S]*₹2,999\.7/);
-  assert.equal(await popup.locator('svg').count() > 0, true, 'the UPI QR is shown');
-  assert.match(await popup.innerText(), /shop@bank \(Test Shop\)/);
-  const payButton = popup.getByRole('button', { name: /I have paid ₹2,999\.7/ });
+  assert.equal(await side.locator('svg').count() > 0, true, 'the UPI QR is shown');
+  assert.match(await side.innerText(), /shop@bank \(Test Shop\)/);
+  const payButton = side.getByRole('button', { name: /I have paid ₹2,999\.7/ });
   assert.equal(await payButton.isDisabled(), true, 'a UPI payment needs its reference');
-  await popup.getByLabel(/UPI reference/).fill('12345');
+  await side.getByLabel(/UPI reference/).fill('12345');
   assert.equal(await payButton.isDisabled(), true, 'a short reference is refused');
-  await popup.getByLabel(/UPI reference/).fill('123456789012');
+  // Back returns to the choice and the bill; going on again asks for the UPI step.
+  await side.getByRole('button', { name: 'Back' }).click();
+  await side.getByText('Due at the start').waitFor();
+  await side.getByRole('button', { name: 'Continue to UPI' }).click();
+  await side.getByRole('heading', { name: 'Pay ₹2,999.7 by UPI' }).waitFor();
+  await side.getByLabel(/UPI reference/).fill('123456789012');
   await payButton.click();
-  await popup.getByText('Payment submitted').first().waitFor();
-  assert.match(await popup.innerText(), /Once our team confirms your UPI payment, your work will start within 4 to 24 hours/);
+  await side.getByText('✓ Payment submitted').waitFor();
+  assert.match(await side.innerText(), /Once our team confirms your UPI payment, your work will start within 4 to 24 hours/);
   assert.equal(purchases.length, 1);
   assert.deepEqual({ ...purchases[0], creationKey: typeof purchases[0].creationKey }, { packageId: 'business-starter', choice: { paymentOption: 'installments_3' },
     quoteKey: 'qk-business-starter', dueNow: 2999.7, creationKey: 'string', upiTransactionId: '123456789012' });
   assert.match(purchases[0].creationKey, /^[a-zA-Z0-9-]{16,80}$/);
-  assert.equal(await popup.getByRole('link', { name: /Open my project in the portal/ }).getAttribute('href'), 'https://portal.example.test/order-detail/o1');
-  await popup.getByRole('button', { name: 'Stay on this website' }).click();
-  await popup.waitFor({ state: 'hidden' });
-  await side.getByText('✓ Payment submitted').waitFor();
-  assert.equal(await side.getByRole('button', { name: /Proceed to pay|Sign in to proceed/ }).count(), 0, 'nothing left to buy again');
+  assert.equal(await side.getByRole('link', { name: /Open my project in the portal/ }).getAttribute('href'), 'https://portal.example.test/order-detail/o1');
+  assert.equal(await side.getByRole('button', { name: /Proceed to pay|Continue to UPI|Sign in to proceed/ }).count(), 0, 'nothing left to buy again');
 
   // A wallet that covers the payment: no QR, no reference, and the project is created at once.
   balance = 20000; purchaseApproved = true;
   await open(ONE_TIME, '&signed=1');
-  await side.getByRole('button', { name: 'Proceed to pay →' }).click();
-  await popup.waitFor();
-  assert.match(await popup.innerText(), /From your wallet[\s\S]*− ₹9,999/);
-  assert.equal(await popup.locator('svg').count() > 0, false, 'no QR when the wallet pays');
-  await popup.getByRole('button', { name: 'Pay ₹9,999 from wallet' }).click();
-  await popup.getByRole('heading', { name: 'Your project is created' }).waitFor();
-  assert.match(await popup.innerText(), /Your work will start within 4 to 24 hours/);
+  await side.getByText('Your wallet covers it').waitFor();
+  assert.match(await side.innerText(), /Paid from wallet[\s\S]*₹9,999/);
+  await side.getByRole('button', { name: 'Pay ₹9,999 from wallet' }).click();
+  await side.getByText('✓ Payment received').waitFor();
+  assert.equal(await side.locator('svg').count() > 0, false, 'no QR when the wallet pays');
+  assert.match(await side.innerText(), /Your work will start within 4 to 24 hours/);
   assert.equal(purchases.length, 2);
   assert.equal(purchases[1].upiTransactionId, undefined);
   assert.equal(purchases[1].dueNow, 9999);
@@ -154,7 +158,7 @@ try {
   // This page only buys: one button, "Proceed to pay", and no callback (a callback is asked for on the package page).
   const shots = process.env.SHOT_DIR;
   await open(ONE_TIME, '&signed=1');
-  const get = side.getByRole('button', { name: 'Proceed to pay →' });
+  const get = side.getByRole('button', { name: /Proceed to pay →|Continue to UPI/ });
   await get.waitFor();
   assert.equal(await page.getByRole('button', { name: /callback/i }).count(), 0, 'no callback button on the customize page');
   assert.equal(await page.getByRole('dialog', { name: 'Arrange a callback for this package?' }).count(), 0, 'no callback dialog on the customize page');
@@ -186,7 +190,7 @@ try {
   // Coming back signed in with that address: the same choice, sent once.
   await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1&cycle=quarterly&months=6&files=30&updates=2`);
   // The request goes out on return; the button then goes on to the payment (the same label before and after).
-  await side.getByRole('button', { name: 'Proceed to pay →' }).waitFor();
+  await side.getByRole('button', { name: /Proceed to pay →|Continue to UPI/ }).waitFor();
   for (let i = 0; i < 50 && requests.at(-1)?.packageId !== 'data-entry'; i++) await page.waitForTimeout(100);
   assert.deepEqual(requests.at(-1), { packageId: 'data-entry', kind: 'buy', choice: { billingCycle: 'quarterly', tenureMonths: 6, files: 30, updates: 2 } });
 
@@ -201,18 +205,19 @@ try {
     await side.getByRole('button', { name: 'Sign in to proceed →' }).scrollIntoViewIfNeeded();
     if (shots) await side.screenshot({ path: path.join(shots, `side-${width}.png`) });
   }
-  // The payment popup on a phone: inside the screen, QR and reference reachable, nothing scrolls sideways.
+  // The UPI step on a phone: inside the screen, QR and reference reachable, nothing scrolls sideways.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 700 });
     await open(ONE_TIME, '&signed=1');
+    await side.getByText('Wallet balance: ₹0').waitFor();
     await page.locator('[class*="mobileBar"]').getByRole('button').click();
-    await popup.waitFor();
-    const box = await popup.boundingBox();
-    assert.ok(box.x >= 0 && box.x + box.width <= width, `the popup fits a ${width}px screen`);
-    await popup.getByLabel(/UPI reference/).scrollIntoViewIfNeeded();
-    assert.equal(await sideways(), false, `no sideways scroll with the popup at ${width}px`);
-    await page.screenshot({ path: path.join(folder, `popup-${width}.png`) });
-    await popup.getByRole('button', { name: 'Close' }).click();
+    await side.getByRole('heading', { name: /by UPI/ }).waitFor();
+    const box = await side.boundingBox();
+    assert.ok(box.x >= 0 && box.x + box.width <= width, `the card fits a ${width}px screen`);
+    await side.getByLabel(/UPI reference/).scrollIntoViewIfNeeded();
+    assert.equal(await sideways(), false, `no sideways scroll with the UPI step at ${width}px`);
+    assert.equal(await page.locator('[class*="mobileBar"]').count(), 0, 'the bar steps aside while the UPI step is open');
+    await page.screenshot({ path: path.join(folder, `upi-${width}.png`) });
   }
   await page.screenshot({ path: path.join(folder, 'phone.png'), fullPage: true });
   assert.deepEqual(errors, []);

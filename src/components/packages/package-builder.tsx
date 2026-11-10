@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
 import { InlineLoader, quietFetch } from "@/components/loading/navigation";
-import { PackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
+import { UpiStep, WalletSplit, usePackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { PackageTermsButton } from "@/components/packages/package-terms-button";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
@@ -121,22 +121,26 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   const start = usePackageStart({ packageId: item.id, signedIn, countries, choice: clean, returnPath: `${path}${query ? `?${query}` : ""}` });
   // A buy that is open continues to the payment. This page only buys; a callback is asked for on the package page.
   const requested = start.request?.kind === "buy";
-  const [paying, setPaying] = useState(false);
   const [purchased, setPurchased] = useState<PurchaseResult | null>(null);
-  // "Proceed to pay" sends the request first (the team is told), then opens the payment popup.
+  const pay = usePackagePayment({ packageId: item.id, packageName: item.name, choice: clean, quote: ready ? quote : null, signedIn, onPaid: setPurchased });
+  const upiStep = !purchased && pay.step === "upi";
+  // "Proceed to pay" sends the request first (the team is told), then pays from the wallet or asks for the UPI remainder.
   const wantsToPay = useRef(false);
-  useEffect(() => { if (wantsToPay.current && start.request) { wantsToPay.current = false; setPaying(true); } }, [start.request]);
+  const { begin } = pay;
+  useEffect(() => { if (wantsToPay.current && start.request) { wantsToPay.current = false; void begin(); } }, [start.request, begin]);
   const sideRef = useRef<HTMLElement>(null);
+  // On a phone the card is below the steps: bring the UPI step into view when it opens.
+  useEffect(() => { if (upiStep && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [upiStep]);
   function get() {
-    if (signedIn && start.request) { setPaying(true); return; }
+    if (signedIn && start.request) { void pay.begin(); return; }
     wantsToPay.current = true;
     start.confirm("buy");
     if (start.needsPhone && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   // The phone bar has room for a short label only.
   const mainButton = (short = false) => (
-    <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || !!purchased || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
-      {start.busyKind === "buy" ? <><InlineLoader />Processing…</> : signedIn ? (short ? "Pay now →" : "Proceed to pay →") : short ? "Sign in →" : "Sign in to proceed →"}
+    <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || pay.busy || !!purchased || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
+      {start.busyKind === "buy" || pay.busy ? <><InlineLoader />Processing…</> : signedIn ? (short ? "Pay now →" : ready && pay.split ? (pay.split.upi === 0 ? `Pay ${money(pay.split.wallet)} from wallet` : "Continue to UPI") : "Proceed to pay →") : short ? "Sign in →" : "Sign in to proceed →"}
     </button>
   );
   const price = quote && !loading ? (quote.monthly ? `${money(quote.monthly.cyclePrice)} / ${PERIOD_WORDS[quote.monthly.billingCycle]}` : money(quote.dueNow)) : "…";
@@ -190,41 +194,47 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
     <div className={s.builder}>
       <div className={s.steps}>{steps}</div>
       <aside ref={sideRef} className={s.side} aria-label="Your package">
-        <div><p className={s.fine}>Your package</p><h2 className={s.choiceTitle}>{summary}</h2></div>
-        {!monthly && (
-          <div className={s.payChoice}>
-            <b>How do you want to pay?</b>
-            <div className={s.segsStack}>
-              {(item.paymentOptions ?? []).map(option => (
-                <button key={option} type="button" className={s.seg} aria-pressed={choice.paymentOption === option} onClick={() => set({ paymentOption: option })}>
-                  <b>{PAYMENT_OPTION_WORDS[option].title}</b><span>{PAYMENT_OPTION_WORDS[option].detail}</span>
-                </button>
-              ))}
+        {upiStep ? <>
+          <div><p className={s.fine}>Your package</p><h2 className={s.choiceTitle}>Pay {money(pay.split?.upi ?? 0)} by UPI</h2></div>
+          <UpiStep pay={pay} />
+        </> : <>
+          <div><p className={s.fine}>Your package</p><h2 className={s.choiceTitle}>{summary}</h2></div>
+          {!monthly && (
+            <div className={s.payChoice}>
+              <b>How do you want to pay?</b>
+              <div className={s.segsStack}>
+                {(item.paymentOptions ?? []).map(option => (
+                  <button key={option} type="button" className={s.seg} aria-pressed={choice.paymentOption === option} onClick={() => set({ paymentOption: option })}>
+                    <b>{PAYMENT_OPTION_WORDS[option].title}</b><span>{PAYMENT_OPTION_WORDS[option].detail}</span>
+                  </button>
+                ))}
+              </div>
+              {choice.paymentOption !== "full" && <p className={s.hint}>The first part starts your project; each next part is due as the work reaches its stage.</p>}
             </div>
-            {choice.paymentOption !== "full" && <p className={s.hint}>The first part starts your project; each next part is due as the work reaches its stage.</p>}
-          </div>
-        )}
-        <QuoteBill item={item} quote={quote} loading={loading} error={error} />
-        {purchased ? (
-          <div className={s.sent} role="status">
-            <b>✓ {purchased.approved ? "Payment received" : "Payment submitted"}</b>
-            <span>{purchased.approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours." : "Your project is created. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</span>
-            <a className="text-link" href={`${portalUrl}/order-detail/${purchased.orderId}`}>Open my project in the portal →</a>
-          </div>
-        ) : <>
-          {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
-          <div className={s.actions}>{mainButton()}</div>
+          )}
+          <QuoteBill item={item} quote={quote} loading={loading} error={error} />
+          {!purchased && ready && <WalletSplit pay={pay} />}
+          {purchased ? (
+            <div className={s.sent} role="status">
+              <b>✓ {purchased.approved ? "Payment received" : "Payment submitted"}</b>
+              <span>{purchased.approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours." : "Your project is created. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</span>
+              <a className="text-link" href={`${portalUrl}/order-detail/${purchased.orderId}`}>Open my project in the portal →</a>
+            </div>
+          ) : <>
+            {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
+            <div className={s.actions}>{mainButton()}</div>
+          </>}
+          {!purchased && <p className={s.note}>You pay the first payment now (wallet first, then UPI). Your project is created with it and runs in your client portal.</p>}
         </>}
         {start.error && <p className={s.error} role="alert">{start.error}</p>}
-        {!purchased && <p className={s.note}>You pay the first payment now (wallet first, then UPI). Your project is created with it and runs in your client portal.</p>}
+        {pay.error && <p className={s.error} role="alert">{pay.error}</p>}
       </aside>
       {/* Phones: the price and the button stay in reach while the steps scroll. */}
-      <div className={s.mobileBar}>
-        <div><span>Your package</span><strong>{error ? "—" : price}</strong></div>
-        {purchased ? <strong className={s.good}>✓ Paid</strong> : mainButton(true)}
-      </div>
-      {signedIn && quote && !loading && !error && (
-        <PackagePayment open={paying} onClose={() => setPaying(false)} packageId={item.id} packageName={item.name} choice={clean} quote={quote} portalUrl={portalUrl} onPaid={setPurchased} />
+      {!upiStep && (
+        <div className={s.mobileBar}>
+          <div><span>Your package</span><strong>{error ? "—" : price}</strong></div>
+          {purchased ? <strong className={s.good}>✓ Paid</strong> : mainButton(true)}
+        </div>
       )}
     </div>
   );
