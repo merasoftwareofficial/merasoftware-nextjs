@@ -14,6 +14,7 @@ import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
 import { InlineLoader, quietFetch } from "@/components/loading/navigation";
 import { PackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
+import { PackageTermsButton } from "@/components/packages/package-terms-button";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
 import {
@@ -174,28 +175,11 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
         <p className={s.hint}>The package ends after this time. To continue, you buy it again.</p>
       </Step>,
     );
-  } else {
-    steps.push(
-      <Step key="pay" title="How do you want to pay?">
-        <div className={(item.paymentOptions?.length ?? 0) <= 2 ? `${s.segs} ${s.two}` : s.segs}>
-          {(item.paymentOptions ?? []).map(option => (
-            <button key={option} type="button" className={s.seg} aria-pressed={choice.paymentOption === option} onClick={() => set({ paymentOption: option })}>
-              <b>{PAYMENT_OPTION_WORDS[option].title}</b><span>{PAYMENT_OPTION_WORDS[option].detail}</span>
-            </button>
-          ))}
-        </div>
-        {choice.paymentOption !== "full" && <p className={s.hint}>The first part starts your project; each next part is due as the work reaches its stage.</p>}
-      </Step>,
-    );
   }
   steps.push(
     <Step key="included" title="What's included">
       <ul className={s.hint}>{item.inclusions.map((line, index) => <li key={index}>{line}</li>)}</ul>
-    </Step>,
-  );
-  if (terms.length) steps.push(
-    <Step key="terms" title="Terms & exclusions">
-      <ul className={s.hint}>{terms.map((line, index) => <li key={index}>{line}</li>)}</ul>
+      {terms.length > 0 && <PackageTermsButton className={s.termsLink} name={item.name} lines={terms} />}
     </Step>,
   );
 
@@ -207,6 +191,19 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
       <div className={s.steps}>{steps}</div>
       <aside ref={sideRef} className={s.side} aria-label="Your package">
         <div><p className={s.fine}>Your package</p><h2 className={s.choiceTitle}>{summary}</h2></div>
+        {!monthly && (
+          <div className={s.payChoice}>
+            <b>How do you want to pay?</b>
+            <div className={s.segsStack}>
+              {(item.paymentOptions ?? []).map(option => (
+                <button key={option} type="button" className={s.seg} aria-pressed={choice.paymentOption === option} onClick={() => set({ paymentOption: option })}>
+                  <b>{PAYMENT_OPTION_WORDS[option].title}</b><span>{PAYMENT_OPTION_WORDS[option].detail}</span>
+                </button>
+              ))}
+            </div>
+            {choice.paymentOption !== "full" && <p className={s.hint}>The first part starts your project; each next part is due as the work reaches its stage.</p>}
+          </div>
+        )}
         <QuoteBill item={item} quote={quote} loading={loading} error={error} />
         {purchased ? (
           <div className={s.sent} role="status">

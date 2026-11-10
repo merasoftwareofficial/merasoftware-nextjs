@@ -1,12 +1,11 @@
 "use client";
-import { useRef } from "react";
 import { billingLabel, priceUnit, type QuotedPackage } from "@/lib/sales-packages";
 import { offerDiscountPercent } from "@/lib/offers";
 import { formatIndiaDate } from "@/lib/date-time";
 import type { EndedOffer } from "@/lib/offers-page";
 import Link from "@/components/link";
+import { PackageTermsButton } from "@/components/packages/package-terms-button";
 import s from "./campaign.module.css";
-import d from "./public-interaction/variant.module.css";
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 const pad = (value: number) => String(value).padStart(2, "0");
 // The card shows this many inclusions, one line each; the rest are counted and listed on the package page.
@@ -36,7 +35,6 @@ export function timeLeft(endsAt: string, now: number | null) {
  * (offers-grid.tsx) a package whose offer has ended gets `ended`: the expired card, normal price.
  */
 export function PackageCard({ item, categoryLabel, now, ended }: { item: QuotedPackage; categoryLabel: string; now: number | null; ended?: EndedOffer | null }) {
-  const terms = useRef<HTMLDialogElement>(null);
   const offer = packageOfferRunning(item, now) ? item.quote.offer : null;
   const expired = offer ? null : ended ?? null;
   const discountedPrice = item.discountedPrice ?? item.regularPrice;
@@ -63,15 +61,8 @@ export function PackageCard({ item, categoryLabel, now, ended }: { item: QuotedP
     <ul className={s.pkgList}>{item.inclusions.slice(0, CARD_INCLUSIONS).map((line, i) => <li key={i} title={line}>{line}</li>)}</ul>
     {more > 0 && <p className={s.pkgMore}>+ {more} more on the package page</p>}
     <div className={s.pkgFoot}>
-      <button type="button" className={s.pkgTerms} onClick={() => terms.current?.showModal()}>Terms &amp; exclusions</button>
+      <PackageTermsButton className={s.pkgTerms} name={item.name} lines={offer ? item.quote.terms : item.terms} />
       <span className={s.pkgButton} aria-hidden="true">{offer ? "View offer →" : "View package →"}</span>
     </div>
-    <dialog className={d.termsDialog} ref={terms} aria-labelledby={`terms-${item.id}`} onClick={event => { if (event.target === event.currentTarget) terms.current?.close(); }}>
-      <div className={d.dialogContent}>
-        <div className={d.dialogHeader}><h2 id={`terms-${item.id}`}>Terms &amp; exclusions</h2><button type="button" aria-label="Close terms and exclusions" onClick={() => terms.current?.close()}>×</button></div>
-        <p>{item.name}</p>
-        <ul>{(offer ? item.quote.terms : item.terms).map((line, i) => <li key={i}>{line}</li>)}</ul>
-      </div>
-    </dialog>
   </article>;
 }

@@ -87,11 +87,18 @@ try {
   // One-time: only the offered ways to pay; the installments and due-now amount come from the quote.
   await open(ONE_TIME, '&signed=1');
   await side.getByText('Pay once').waitFor();
+  // The ways to pay sit in the "Your package" card; the left holds what is included and a link to the terms.
+  assert.equal(await side.getByRole('button', { name: /3 installments/ }).count(), 1, 'the payment choice is in the side card');
+  assert.equal(await page.getByText('Taxes extra.').isVisible(), false, 'terms are not written out on the page');
+  await page.getByRole('button', { name: 'Terms & exclusions' }).click();
+  assert.match(await page.getByRole('dialog', { name: 'Terms & exclusions' }).innerText(), /Taxes extra./);
+  await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('button', { name: /2 installments/ }).count(), 0, 'not offered by this package');
   await page.getByRole('button', { name: /3 installments/ }).click();
   await side.getByText('Due at the start').waitFor();
   assert.match(await side.innerText(), /₹2,999\.7[\s\S]*₹9,999 in total/);
   assert.match(await side.innerText(), /at 50% progress/);
+  await page.screenshot({ path: path.join(folder, 'one-time.png') });
   assert.deepEqual(quotes.at(-1), { packageId: 'business-starter', choice: { paymentOption: 'installments_3' } });
   await side.getByRole('button', { name: 'Proceed to pay →' }).click();
   // While the request is sent the button shows the site's three-dot loader and "Processing…", never "Sending…".
