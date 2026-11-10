@@ -32,7 +32,7 @@ createRoot(document.getElementById('app')).render(<main style={{padding:'0 16px'
 `;
 await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'package-builder-fixture.tsx', loader: 'tsx' }, outfile: path.join(folder, 'client.js'), bundle: true, platform: 'browser', conditions: ['style', 'browser'], jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'browser-fixtures', setup(builder) {
   builder.onResolve({ filter: /^@\/components\/loading\/navigation$/ }, () => ({ path: 'navigation', namespace: 'test' }));
-  builder.onLoad({ filter: /^navigation$/, namespace: 'test' }, () => ({ contents: `export const useNavigate=()=>({push:href=>{window.__pushed=href}});export const onLeaveClick=()=>{};export const InlineLoader=()=><span className="inline-loader" aria-hidden="true"><i/><i/><i/></span>;`, loader: 'tsx', resolveDir: root }));
+  builder.onLoad({ filter: /^navigation$/, namespace: 'test' }, () => ({ contents: `export const useNavigate=()=>({push:href=>{window.__pushed=href}});export const onLeaveClick=()=>{};export const quietFetch=(...args)=>window.fetch(...args);export const InlineLoader=()=><span className="inline-loader" aria-hidden="true"><i/><i/><i/></span>;`, loader: 'tsx', resolveDir: root }));
 } }] });
 
 // The backend's own maths (servicePlanPricing.js / projectInstallments.js), for the two fixture packages.

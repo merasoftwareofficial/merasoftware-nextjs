@@ -167,10 +167,11 @@ try {
       const lineShown = await page.evaluate(async () => {
         [...document.querySelectorAll('main article a')].find(a => a.textContent === 'Open in portal →').click();
         await new Promise(resolve => setTimeout(resolve, 300));
-        const line = document.querySelector('.nav-progress.is-busy');
-        return Boolean(line) && Number(getComputedStyle(line).opacity) > 0;
+        const line = document.querySelector('.nav-progress.is-busy'), balls = document.querySelector('.page-loader.is-busy');
+        return { line: Boolean(line) && Number(getComputedStyle(line).opacity) > 0, balls: Boolean(balls) && Number(getComputedStyle(balls).opacity) > 0.9 && balls.matches(':popover-open') };
       });
-      assert.equal(lineShown, true, 'Open in portal shows the top line until the portal opens');
+      assert.equal(lineShown.line, true, 'Open in portal shows the top line until the portal opens');
+      assert.equal(lineShown.balls, true, 'and the three balls, in the top layer, with it');
       await page.waitForURL(`${portalUrl}/plan-details/**`);
       await page.goto(`${origin}/account`, { timeout: 120_000 });
       console.log('PASS client: My purchases tab, Overview live lines, purchase cards and portal links, phone width, loaders');

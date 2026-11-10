@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
-import { InlineLoader } from "@/components/loading/navigation";
+import { InlineLoader, quietFetch } from "@/components/loading/navigation";
 import { PackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
@@ -97,7 +97,8 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
     const mine = ++ticket.current;
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch("/api/package-quote", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: request });
+        // The live price while the customer chooses: a request nobody waits for on screen, so no balls.
+        const response = await quietFetch("/api/package-quote", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: request });
         const result = await response.json().catch(() => ({}));
         if (ticket.current !== mine) return;
         if (!response.ok || !result.quote) throw new Error(result.error || "The price could not be worked out right now.");

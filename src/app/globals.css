@@ -400,7 +400,9 @@ button.admin-action.is-danger:hover:not(:disabled){background:var(--pn-err-bg);b
 @keyframes nav-progress-grow{from{transform:scaleX(.1)}to{transform:scaleX(.92)}}
 @keyframes nav-progress-out{0%,50%{opacity:1}to{opacity:0}}
 @media(prefers-reduced-motion:reduce){.nav-progress.is-busy{transform:scaleX(1);animation:nav-progress-in .2s ease .12s forwards}.nav-progress.is-done{animation:none;opacity:0}}
-.page-loader{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--loader-dim);opacity:0;visibility:hidden;pointer-events:none}
+.page-loader{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--loader-dim);opacity:0;visibility:hidden;pointer-events:none;margin:0;padding:0;border:0;width:auto;height:auto;max-width:none;max-height:none;overflow:visible}
+/* Brought up again above a dialog that opened while the balls were showing: no second fade-in. */
+.page-loader.is-busy[data-raised]{animation:none;opacity:1}
 .page-loader i{display:block;width:14px;height:14px;border-radius:50%;background:var(--loader)}
 .page-loader.is-busy i,.page-loader.is-done i{animation:page-loader-bounce .6s ease-in-out infinite alternate}
 .page-loader i:nth-child(2){animation-delay:.2s}

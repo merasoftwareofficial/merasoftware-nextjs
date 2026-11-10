@@ -10,11 +10,16 @@
  *   for push and replace, and leavePage()/onLeaveClick for jumps to another
  *   document. ESLint blocks importing next/link or useRouter anywhere else, so
  *   a new page or panel tab is covered without extra work.
- * - The balls over a dimmed screen, for work the user waits for on the same
- *   page: a save, an upload, a sign-in (useTask() below), and the refresh()
- *   that reloads the page's data after it.
+ * - The balls over a dimmed screen, for every process the user starts: a page
+ *   change (together with the line), and any request that changes something
+ *   (see the request gate below), so a save, an upload, a purchase or a
+ *   sign-in shows them without the code asking. useTask() below is still
+ *   there for work that is not a request, and the refresh() that reloads the
+ *   page's data after a save.
  *
- * Only one shows at a time: while a page is changing, the line alone says so.
+ * The balls are drawn in the browser's top layer (a manual popover), so they
+ * show above a modal <dialog> too. They start when the process starts and go
+ * when it ends, however it ends.
  *
  * A third, <InlineLoader /> below, is the same balls small and in place, for a
  * part of a page whose data is still coming (a list, a live line). The site
@@ -24,7 +29,7 @@
  */
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import type { MouseEvent } from "react";
 
 /** Below this, a navigation or task counts as instant: no loader appears and none finishes. */
@@ -117,6 +122,60 @@ function startDetached() {
 function endDetached() {
   for (const finish of [...detached]) finish();
 }
+
+/**
+ * The request gate: the one rule for which requests show the balls, so no screen
+ * has to ask. Every fetch to this site that changes something (POST, PUT, PATCH,
+ * DELETE) counts on `tasks` from the moment it is sent until its answer arrives,
+ * whether it succeeds, fails or is cancelled. Reads (GET, HEAD) stay silent —
+ * a poll or a live line must not flash the screen — and so do reports sent with
+ * `keepalive` (they outlive the page and nobody waits for them).
+ *
+ * A request that changes something but runs in the background while the user
+ * types (a live price, for example) goes through quietFetch() instead.
+ */
+const CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+let quietDepth = 0;
+const gated = Symbol.for("merasoftware.loader.requestGate");
+
+function shownOnLoader(input: RequestInfo | URL, init?: RequestInit) {
+  if (quietDepth > 0) return false;
+  const request = typeof Request !== "undefined" && input instanceof Request ? input : null;
+  const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
+  if (!CHANGING.has(method) || (init?.keepalive ?? request?.keepalive)) return false;
+  try {
+    const url = new URL(request ? request.url : input instanceof URL ? input.href : String(input), window.location.href);
+    return url.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function installRequestGate() {
+  if (typeof window === "undefined" || (window.fetch as unknown as Record<symbol, boolean>)[gated]) return;
+  const send = window.fetch.bind(window);
+  const gate = (input: RequestInfo | URL, init?: RequestInit) => {
+    if (!shownOnLoader(input, init)) return send(input, init);
+    tasks.start();
+    return send(input, init).finally(tasks.stop);
+  };
+  (gate as unknown as Record<symbol, boolean>)[gated] = true;
+  window.fetch = gate as typeof window.fetch;
+}
+installRequestGate();
+
+/** fetch() for a request that changes something but that nobody waits for, so it never shows the balls. */
+export function quietFetch(input: RequestInfo | URL, init?: RequestInit) {
+  quietDepth++;
+  try {
+    return window.fetch(input, init);
+  } finally {
+    quietDepth--;
+  }
+}
+
+/** The balls show while either loader is busy; one that is finishing keeps them until it is done. */
+const merge = (a: Phase, b: Phase): Phase => (a === "busy" || b === "busy" ? "busy" : a === "done" || b === "done" ? "done" : "idle");
 
 const idleOnServer = (): Phase => "idle";
 const currentRoute = () => window.location.pathname + window.location.search;
@@ -250,18 +309,48 @@ function RouteWatcher() {
 
 /**
  * Both loaders, mounted once in the root layout: the line across the top for a
- * page change, and three bouncing balls over a dimmed screen for work on the
- * page. While a page is changing only the line shows, so a save that ends in a
- * page change (publish, sign-in, sign-out) hands over from balls to line.
+ * page change, and three bouncing balls over a dimmed screen for every process
+ * the user starts (a page change or a request that changes something). A page
+ * change shows both.
  *
  * Each fades in only after SHOW_AFTER_MS (the delay is in CSS), so fast work
  * never flashes it; when a visible one ends it fades out. The page behind
  * stays as it is and clickable.
+ *
+ * The balls live in the top layer (a manual popover) so a modal <dialog>
+ * cannot cover them. A dialog that opens while they are up would sit on top
+ * of them, so the balls are brought up again whenever a dialog opens. Browsers
+ * without popovers keep the balls in the page, as a fixed layer.
  */
 export function NavigationProgress() {
   const page = useSyncExternalStore(pages.subscribe, pages.current, idleOnServer);
   const task = useSyncExternalStore(tasks.subscribe, tasks.current, idleOnServer);
-  const balls = page === "idle" ? task : "idle";
+  const balls = merge(page, task);
+  const layer = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = layer.current;
+    if (!element || typeof element.showPopover !== "function") return;
+    const open = element.matches(":popover-open");
+    if (balls === "idle") {
+      if (open) element.hidePopover();
+      element.removeAttribute("data-raised");
+    } else if (!open) element.showPopover();
+  }, [balls]);
+
+  useEffect(() => {
+    const element = layer.current;
+    if (!element || typeof element.showPopover !== "function") return;
+    // `open` changes on a dialog when it is shown; raise the balls above it without fading in again.
+    const observer = new MutationObserver(records => {
+      if (!element.matches(":popover-open") || !records.some(record => record.target instanceof HTMLDialogElement && record.target.open)) return;
+      element.setAttribute("data-raised", "");
+      element.hidePopover();
+      element.showPopover();
+    });
+    observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["open"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     // A page left for another document can come back from the back/forward
@@ -274,7 +363,7 @@ export function NavigationProgress() {
   return (
     <>
       <div className={`nav-progress${page === "idle" ? "" : ` is-${page}`}`} aria-hidden="true" />
-      <div className={`page-loader${balls === "idle" ? "" : ` is-${balls}`}`} aria-hidden="true">
+      <div ref={layer} popover="manual" className={`page-loader${balls === "idle" ? "" : ` is-${balls}`}`} aria-hidden="true">
         <i />
         <i />
         <i />
