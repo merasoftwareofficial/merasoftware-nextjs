@@ -46,7 +46,7 @@
 .inclusions li{margin:0 0 12px;padding-left:4px}
 .inclusions li:last-child{margin-bottom:0}
 .inclusions li::marker{color:var(--brand-teal)}
-.stepTitleLarge{font-size:24px;font-weight:700;line-height:1.2;color:var(--brand-navy)}
+.stepHead h3.stepTitleLarge{font-size:24px;font-weight:700;line-height:1.2;letter-spacing:-.3px;color:var(--brand-navy)}
 .pills{display:flex;flex-wrap:wrap;gap:8px}
 .pill{font:inherit;font-size:16px;font-weight:600;border:1px solid var(--brand-line);background:var(--brand-white);color:var(--brand-navy);border-radius:999px;padding:7px 14px;cursor:pointer;min-height:36px}
 .pill[aria-pressed=true],.seg[aria-pressed=true]{border-color:var(--brand-teal);background:var(--brand-ice);box-shadow:inset 0 0 0 1px var(--brand-teal)}
