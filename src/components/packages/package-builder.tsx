@@ -4,14 +4,15 @@
  * A package's customize page (/package/<id>/customize, src/docs/package.md §3), built like the plan page
  * (components/plans/plan-builder.tsx, same steps and "Your package" card). The customer chooses how to buy
  * the package; every price is the portal backend's quote (helpers/salesPackages.js quoteChoice) through
- * /api/package-quote. "Get this package" sends a package start request with this choice (helpers/packageStart.js:
- * the team is told at once), then opens the payment popup (package-payment.tsx): the first payment creates
+ * /api/package-quote. "Get this package" sends a package start request of kind "buy" with this choice
+ * (helpers/packageStart.js: the team is told at once, the customer is not), then opens the payment popup (package-payment.tsx): the first payment creates
  * the customer's project (helpers/packagePurchase.js) and the portal runs it from there.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
+import { InlineLoader } from "@/components/loading/navigation";
 import { PackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
@@ -115,7 +116,7 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
 
   // The request carries this choice; after sign-in the customer comes back to this same choice.
   const query = packageChoiceQuery(clean);
-  const start = usePackageStart({ packageId: item.id, signedIn, countries, choice: clean, returnPath: `${path}${query ? `?${query}` : ""}` });
+  const start = usePackageStart({ packageId: item.id, signedIn, countries, choice: clean, kind: "buy", returnPath: `${path}${query ? `?${query}` : ""}` });
   const requested = Boolean(start.request);
   const [paying, setPaying] = useState(false);
   const [purchased, setPurchased] = useState<PurchaseResult | null>(null);
@@ -132,7 +133,7 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   // The phone bar has room for a short label only.
   const mainButton = (short = false) => (
     <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || !!purchased || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
-      {start.busy ? "Sending…" : signedIn ? (requested ? (short ? "Pay now →" : "Continue to payment →") : short ? "Get it →" : "Get this package →") : short ? "Sign in →" : "Sign in to get this package →"}
+      {start.busy ? <><InlineLoader />Processing…</> : signedIn ? (requested ? (short ? "Pay now →" : "Continue to payment →") : short ? "Get it →" : "Get this package →") : short ? "Sign in →" : "Sign in to get this package →"}
     </button>
   );
   const price = quote && !loading ? (quote.monthly ? `${money(quote.monthly.cyclePrice)} / ${PERIOD_WORDS[quote.monthly.billingCycle]}` : money(quote.dueNow)) : "…";
@@ -207,12 +208,11 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
         <QuoteBill item={item} quote={quote} loading={loading} error={error} />
         {purchased ? (
           <div className={s.sent} role="status">
-            <b>✓ {purchased.approved ? "Your project has started" : "Payment submitted"}</b>
-            <span>{purchased.approved ? "It is live in your client portal." : "It starts when our team confirms your UPI payment."}</span>
+            <b>✓ {purchased.approved ? "Payment received" : "Payment submitted"}</b>
+            <span>{purchased.approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours." : "Your project is created. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</span>
             <a className="text-link" href={`${portalUrl}/order-detail/${purchased.orderId}`}>Open my project in the portal →</a>
           </div>
         ) : <>
-          {requested && <div className={s.sent} role="status"><b>✓ Request received</b><span>Complete the payment to start your project.</span></div>}
           {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
           {mainButton()}
         </>}

@@ -11,6 +11,8 @@
 .benefit{font-size:14px;line-height:1.5;color:var(--brand-muted);margin:0 0 6px}
 .button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--brand-navy);color:var(--brand-white);border:1px solid var(--brand-navy);border-radius:8px;padding:13px 20px;font-weight:650;font-size:15px;min-height:48px;text-decoration:none;margin-top:auto;text-align:center}
 .button:hover{background:var(--brand-blue)}
+.button :global(.inline-loader i){background:currentColor}
+.button :global(.inline-loader){margin-right:0}
 .button:focus-visible,.pill:focus-visible,.seg:focus-visible,.select:focus-visible,.slider:focus-visible,.info button:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
 .category{margin-top:48px}
 .category>h2{font-size:28px;font-weight:650;margin:0 0 6px}

@@ -87,6 +87,6 @@ export function ReservationPanel({ active = true, portalUrl = "" }: { active?: b
     </div>
     <p className={s.note}>Each offer sets how long its reservation lasts (Admin → Offers → Reservation lasts). The countdown starts when the customer reserves. When a project is created on the reservation, the normal project message goes and nothing else. When the time ends with no project, the customer gets the offer-expired message once, with the offers page link. To give one customer more time, use Extend deadline on the client&apos;s page in the portal.</p>
     <p className={s.note}>The customer is reminded when 24 hours and when 1 hour are left. Start my project on the offer page pauses the countdown and tells the team; it stays paused until a project is created on it, or Extend deadline resumes it. The team is reminded once a day, up to 3 times.</p>
-    <p className={s.note}>Edit the words and choose Send via in Email Templates → Portal → Offers: Offer reservation confirmation, extended, expired, the two reminders, the two Start project request messages and the two Package start request messages.</p>
+    <p className={s.note}>Edit the words and choose Send via in Email Templates → Portal → Offers: Offer reservation confirmation, extended, expired, the two reminders, the two Start project request messages and the Package start request messages (to the team, to a customer who asked for a callback, when a customer buys a package project, and the customer&apos;s project-created message).</p>
   </section>;
 }

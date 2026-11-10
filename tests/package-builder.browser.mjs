@@ -32,7 +32,7 @@ createRoot(document.getElementById('app')).render(<main style={{padding:'0 16px'
 `;
 await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'package-builder-fixture.tsx', loader: 'tsx' }, outfile: path.join(folder, 'client.js'), bundle: true, platform: 'browser', conditions: ['style', 'browser'], jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'browser-fixtures', setup(builder) {
   builder.onResolve({ filter: /^@\/components\/loading\/navigation$/ }, () => ({ path: 'navigation', namespace: 'test' }));
-  builder.onLoad({ filter: /^navigation$/, namespace: 'test' }, () => ({ contents: `export const useNavigate=()=>({push:href=>{window.__pushed=href}});export const onLeaveClick=()=>{};`, loader: 'tsx', resolveDir: root }));
+  builder.onLoad({ filter: /^navigation$/, namespace: 'test' }, () => ({ contents: `export const useNavigate=()=>({push:href=>{window.__pushed=href}});export const onLeaveClick=()=>{};export const InlineLoader=()=><span className="inline-loader" aria-hidden="true"><i/><i/><i/></span>;`, loader: 'tsx', resolveDir: root }));
 } }] });
 
 // The backend's own maths (servicePlanPricing.js / projectInstallments.js), for the two fixture packages.
@@ -62,7 +62,8 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/api/package-purchase' && request.method === 'GET') return json({ walletBalance: balance, upiId: 'shop@bank', payeeName: 'Test Shop' });
   if (url.pathname === '/api/package-purchase') { const input = await body(); purchases.push(input); return json({ orderId: 'o1', approved: purchaseApproved }, 201); }
   if (url.pathname === '/api/package-starts' && request.method === 'GET') return json({ requests: [], enabled: true });
-  if (url.pathname === '/api/package-starts') { const input = await body(); requests.push(input); return json({ request: { id: 'r1', packageId: input.packageId, status: 'requested', choice: input.choice } }); }
+  // The request takes a moment, as the real one does, so the button's loader can be seen.
+  if (url.pathname === '/api/package-starts') { const input = await body(); requests.push(input); await new Promise(resolve => setTimeout(resolve, 400)); return json({ request: { id: 'r1', packageId: input.packageId, status: 'requested', choice: input.choice } }); }
   if (url.pathname === '/client.js' || url.pathname === '/client.css') { response.setHeader('Content-Type', url.pathname.endsWith('css') ? 'text/css' : 'text/javascript'); return response.end(readFileSync(path.join(folder, url.pathname.slice(1)))); }
   response.setHeader('Content-Type', 'text/html');
   response.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/client.css"></head><body><div id="app"></div><script src="/client.js"></script></body></html>');
@@ -88,13 +89,19 @@ try {
   assert.match(await side.innerText(), /at 50% progress/);
   assert.deepEqual(quotes.at(-1), { packageId: 'business-starter', choice: { paymentOption: 'installments_3' } });
   await side.getByRole('button', { name: 'Get this package →' }).click();
-  await side.getByText('✓ Request received').waitFor();
-  assert.deepEqual(requests.at(-1), { packageId: 'business-starter', choice: { paymentOption: 'installments_3' } });
+  // While the request is sent the button shows the site's three-dot loader and "Processing…", never "Sending…".
+  const working = side.getByRole('button', { name: /Processing…/ });
+  await working.waitFor();
+  assert.equal(await working.locator('.inline-loader').count(), 1, 'the three-dot loader is in the button');
+  assert.equal(await side.getByRole('button', { name: /Sending/ }).count(), 0);
   assert.equal(await sideways(), false);
 
   // The payment popup opens by itself: nothing in the wallet, so the whole first installment is paid by UPI.
+  // The customer is not shown a "request received" note; the request carries kind buy (the team is told, the customer is not).
   const popup = page.locator('dialog[class*="payDialog"]');
   await popup.waitFor();
+  assert.deepEqual(requests.at(-1), { packageId: 'business-starter', kind: 'buy', choice: { paymentOption: 'installments_3' } });
+  assert.doesNotMatch(await side.innerText(), /Request received/);
   assert.match(await popup.innerText(), /Business Starter[\s\S]*Project price[\s\S]*₹9,999[\s\S]*first installment[\s\S]*₹2,999\.7[\s\S]*To pay by UPI[\s\S]*₹2,999\.7/);
   assert.equal(await popup.locator('svg').count() > 0, true, 'the UPI QR is shown');
   assert.match(await popup.innerText(), /shop@bank \(Test Shop\)/);
@@ -105,6 +112,7 @@ try {
   await popup.getByLabel(/UPI reference/).fill('123456789012');
   await payButton.click();
   await popup.getByText('Payment submitted').first().waitFor();
+  assert.match(await popup.innerText(), /Once our team confirms your UPI payment, your work will start within 4 to 24 hours/);
   assert.equal(purchases.length, 1);
   assert.deepEqual({ ...purchases[0], creationKey: typeof purchases[0].creationKey }, { packageId: 'business-starter', choice: { paymentOption: 'installments_3' },
     quoteKey: 'qk-business-starter', dueNow: 2999.7, creationKey: 'string', upiTransactionId: '123456789012' });
@@ -115,7 +123,7 @@ try {
   await side.getByText('✓ Payment submitted').waitFor();
   assert.equal(await side.getByRole('button', { name: /payment|Get this package/ }).count(), 0, 'nothing left to buy again');
 
-  // A wallet that covers the payment: no QR, no reference, and the project starts at once.
+  // A wallet that covers the payment: no QR, no reference, and the project is created at once.
   balance = 20000; purchaseApproved = true;
   await open(ONE_TIME, '&signed=1');
   await side.getByRole('button', { name: 'Continue to payment →' }).or(side.getByRole('button', { name: 'Get this package →' })).click();
@@ -123,7 +131,8 @@ try {
   assert.match(await popup.innerText(), /From your wallet[\s\S]*− ₹9,999/);
   assert.equal(await popup.locator('svg').count() > 0, false, 'no QR when the wallet pays');
   await popup.getByRole('button', { name: 'Pay ₹9,999 from wallet' }).click();
-  await popup.getByText('Your project has started').first().waitFor();
+  await popup.getByRole('heading', { name: 'Your project is created' }).waitFor();
+  assert.match(await popup.innerText(), /Your work will start within 4 to 24 hours/);
   assert.equal(purchases.length, 2);
   assert.equal(purchases[1].upiTransactionId, undefined);
   assert.equal(purchases[1].dueNow, 9999);
@@ -148,8 +157,8 @@ try {
   assert.equal(intent.packageId, 'data-entry');
   // Coming back signed in with that address: the same choice, sent once.
   await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1&cycle=quarterly&months=6&files=30&updates=2`);
-  await side.getByText('✓ Request received').waitFor();
-  assert.deepEqual(requests.at(-1), { packageId: 'data-entry', choice: { billingCycle: 'quarterly', tenureMonths: 6, files: 30, updates: 2 } });
+  await side.getByRole('button', { name: 'Continue to payment →' }).waitFor();
+  assert.deepEqual(requests.at(-1), { packageId: 'data-entry', kind: 'buy', choice: { billingCycle: 'quarterly', tenureMonths: 6, files: 30, updates: 2 } });
 
   // Phones: the bar keeps the price and the button in reach; nothing scrolls sideways.
   for (const width of [390, 320]) {

@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { InlineLoader } from "@/components/loading/navigation";
 import type { PackageChoice, PackageChoiceQuote } from "@/lib/sales-packages";
 import s from "@/components/plans/plans.module.css";
 
@@ -78,15 +79,15 @@ export function PackagePayment({ open, onClose, packageId, packageName, choice, 
     <dialog ref={dialog} className={s.payDialog} aria-labelledby="package-pay-title" onClose={onClose}
       onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div className={s.payContent}>
-        <div className={s.payHead}><h2 id="package-pay-title">{done ? (done.approved ? "Your project has started" : "Payment submitted") : "Pay to start your project"}</h2>
+        <div className={s.payHead}><h2 id="package-pay-title">{done ? (done.approved ? "Your project is created" : "Payment submitted") : "Pay to start your project"}</h2>
           <button type="button" aria-label="Close" onClick={onClose}>×</button></div>
         {done ? (
           <div className={s.payBody}>
             <div className={s.sent} role="status">
               <b>✓ {done.approved ? "Payment received" : "Waiting for our team to confirm your payment"}</b>
               <span>{done.approved
-                ? "Your project is live in your client portal. Follow its progress, send files and see invoices there."
-                : "Your project is created in your client portal. It starts as soon as our team confirms your UPI payment."}</span>
+                ? "Your project is created in your client portal. Your work will start within 4 to 24 hours. Follow its progress, send files and see invoices there."
+                : "Your project is created in your client portal. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</span>
             </div>
             <a className={s.button} href={`${portalUrl}/order-detail/${done.orderId}`}>Open my project in the portal →</a>
             <button type="button" className={s.payQuiet} onClick={onClose}>Stay on this website</button>
@@ -101,7 +102,7 @@ export function PackagePayment({ open, onClose, packageId, packageName, choice, 
               {split && split.upi > 0 && <div className={s.row}><span>To pay by UPI</span><b>{money(split.upi)}</b></div>}
             </div>
             {!info && !error && <p className={s.muted}>Loading your payment details…</p>}
-            {split && split.upi === 0 && <p className={s.note}>Your wallet covers this payment. Your project starts at once.</p>}
+            {split && split.upi === 0 && <p className={s.note}>Your wallet covers this payment. Your project is created at once.</p>}
             {upiLink && info && (
               <div className={s.payUpi}>
                 <QRCodeSVG value={upiLink} size={168} marginSize={2} title={`UPI payment of ${money(split!.upi)}`} />
@@ -114,7 +115,7 @@ export function PackagePayment({ open, onClose, packageId, packageName, choice, 
             )}
             {error && <p className={s.error} role="alert">{error}</p>}
             <button type="button" className={s.button} onClick={pay} disabled={busy || !info || !referenceOk || (needsReference && !reference)}>
-              {busy ? "Processing…" : split && split.upi > 0 ? `I have paid ${money(split.upi)}` : `Pay ${money(quote.dueNow)} from wallet`}
+              {busy ? <><InlineLoader />Processing…</> : split && split.upi > 0 ? `I have paid ${money(split.upi)}` : `Pay ${money(quote.dueNow)} from wallet`}
             </button>
             <p className={s.note}>Your project is created with this payment. A UPI payment is checked by our team before work starts.</p>
           </div>

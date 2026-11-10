@@ -11,7 +11,8 @@ export type OfferReservation = {
 };
 export type ReservationList = { reservations: OfferReservation[]; serverNow: string };
 /** "Start my project" on a package without an offer (backend helpers/packageStart.js). No price is held. */
-export type PackageStartRequest = { id: string; packageId: string; title: string; price: number | null; requestedAt: string;
+export type PackageStartKind = "buy" | "callback";
+export type PackageStartRequest = { id: string; packageId: string; kind: PackageStartKind; title: string; price: number | null; requestedAt: string;
   choice?: import("./sales-packages").PackageChoice | null;
   closedAt: string | null; closedReason: "project_created" | "closed_by_team" | null; projectId: string | null; status: "requested" | "closed" };
 export type PackageStartList = { requests: PackageStartRequest[]; enabled: boolean };

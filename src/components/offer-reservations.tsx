@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@/components/loading/navigation";
-import type { OfferReservation, PackageStartList, PackageStartRequest, ReservationList } from "@/lib/offer-reservations";
+import type { OfferReservation, PackageStartKind, PackageStartList, PackageStartRequest, ReservationList } from "@/lib/offer-reservations";
 import { useServerTime } from "@/components/use-server-time";
 import { type PhoneCountry, type PhoneValue } from "@/components/phone-field";
 import type { Offer } from "@/lib/offers";
@@ -155,7 +155,9 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
 
 /** What a package page passes for Start my project without an offer; undefined while the feature is off.
  * The customize page (src/docs/package.md §3) adds the customer's choice and comes back to itself after sign-in. */
-export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[]; choice?: PackageChoice; returnPath?: string };
+export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[]; choice?: PackageChoice; returnPath?: string;
+  /** What the button asks for; the backend treats a missing one as a callback. */
+  kind?: PackageStartKind };
 const packageIntentKey = "pending-package-start";
 /**
  * "Start my project" on a package without a running offer (backend helpers/packageStart.js): load the
@@ -163,7 +165,7 @@ const packageIntentKey = "pending-package-start";
  * nothing; the package card shows it as its main button and confirms in a dialog.
  */
 export function usePackageStart(config: PackageStartConfig | undefined) {
-  const enabled = !!config, packageId = config?.packageId ?? "", signedIn = !!config?.signedIn;
+  const enabled = !!config, packageId = config?.packageId ?? "", signedIn = !!config?.signedIn, kind = config?.kind;
   // The newest choice, read when sending, so changing it never reloads the open request.
   const choiceRef = useRef(config?.choice);
   useEffect(() => { choiceRef.current = config?.choice; });
@@ -182,7 +184,7 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
     setBusy(true); setError("");
     try {
       const contact = phoneRef.current ? { countryCode: phoneRef.current.countryCode, phone: phoneRef.current.phone.trim() } : {};
-      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact }) });
+      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, ...(kind ? { kind } : {}), ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact }) });
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 428) setNeedsPhone(true);
@@ -192,7 +194,7 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
       setRequest(data.request); sessionStorage.removeItem(packageIntentKey);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not send your request"); }
     finally { setBusy(false); }
-  }, [packageId]);
+  }, [packageId, kind]);
   useEffect(() => {
     if (!enabled || !signedIn) return;
     let active = true;
