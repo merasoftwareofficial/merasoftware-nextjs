@@ -13,6 +13,10 @@
 .button:hover{background:var(--brand-blue)}
 .button :global(.inline-loader i){background:currentColor}
 .button :global(.inline-loader){margin-right:0}
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:auto}
+.actions .button{margin-top:0}
+.buttonQuiet{background:transparent;color:var(--brand-navy)}
+.buttonQuiet:hover{background:rgb(0 0 0/.06);color:var(--brand-navy)}
 .button:focus-visible,.pill:focus-visible,.seg:focus-visible,.select:focus-visible,.slider:focus-visible,.info button:focus-visible{outline:3px solid var(--brand-teal);outline-offset:3px}
 .category{margin-top:48px}
 .category>h2{font-size:28px;font-weight:650;margin:0 0 6px}

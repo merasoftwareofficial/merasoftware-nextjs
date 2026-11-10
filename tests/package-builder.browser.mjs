@@ -52,7 +52,7 @@ function quote(body) {
     monthly: { billingCycle: choice.billingCycle, cycleMonths: months, tenureMonths: choice.tenureMonths, totalCycles, pricing: 'per_file', files: choice.files, updatesPerMonth: choice.updates, perMonthPrice: perMonth, discountPercent: discount, cyclePrice, totalPrice: cyclePrice * totalCycles } };
 }
 const quotes = [], requests = [], purchases = [];
-let balance = 0, purchaseApproved = false;
+let balance = 0, purchaseApproved = false, needsPhone = false;
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const json = (body, status = 200) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(body)); };
@@ -63,7 +63,7 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/api/package-purchase') { const input = await body(); purchases.push(input); return json({ orderId: 'o1', approved: purchaseApproved }, 201); }
   if (url.pathname === '/api/package-starts' && request.method === 'GET') return json({ requests: [], enabled: true });
   // The request takes a moment, as the real one does, so the button's loader can be seen.
-  if (url.pathname === '/api/package-starts') { const input = await body(); requests.push(input); await new Promise(resolve => setTimeout(resolve, 400)); return json({ request: { id: 'r1', packageId: input.packageId, status: 'requested', choice: input.choice } }); }
+  if (url.pathname === '/api/package-starts') { const input = await body(); requests.push(input); await new Promise(resolve => setTimeout(resolve, 400)); if (needsPhone && !input.phone) return json({ error: 'Add your mobile number to start your project' }, 428); return json({ request: { id: 'r1', packageId: input.packageId, kind: input.kind, status: 'requested', choice: input.choice } }); }
   if (url.pathname === '/client.js' || url.pathname === '/client.css') { response.setHeader('Content-Type', url.pathname.endsWith('css') ? 'text/css' : 'text/javascript'); return response.end(readFileSync(path.join(folder, url.pathname.slice(1)))); }
   response.setHeader('Content-Type', 'text/html');
   response.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/client.css"></head><body><div id="app"></div><script src="/client.js"></script></body></html>');
@@ -139,6 +139,41 @@ try {
   assert.equal(await sideways(), false);
   balance = 0; purchaseApproved = false;
 
+  // Arrange a callback: the same dialog as the package page. The request is a callback, the button stays as the answer,
+  // and Get this package still goes on to the payment without asking the team again.
+  const shots = process.env.SHOT_DIR;
+  await open(ONE_TIME, '&signed=1');
+  const get = side.getByRole('button', { name: 'Get this package →' }), call = side.getByRole('button', { name: 'Arrange a callback' });
+  { const a = await get.boundingBox(), b = await call.boundingBox();
+    assert.ok(Math.abs(a.y - b.y) < 2 && b.x > a.x, 'on a desktop the two buttons are side by side, Get this package on the left'); }
+  if (shots) await side.screenshot({ path: path.join(shots, 'side-1440.png') });
+  const asked = requests.length;
+  await call.click();
+  const callback = page.getByRole('dialog', { name: 'Arrange a callback for this package?' });
+  await callback.getByText(/Our team will call you to help you start your project/).waitFor();
+  await callback.getByText(/No payment now/).waitFor();
+  if (shots) await page.screenshot({ path: path.join(shots, 'callback-dialog-1440.png') });
+  await callback.getByRole('button', { name: 'Confirm' }).click();
+  await callback.getByRole('button', { name: /Processing…/ }).waitFor();
+  assert.equal(await callback.locator('.inline-loader').count(), 1, 'the three-dot loader is in the dialog button');
+  await callback.waitFor({ state: 'hidden' });
+  assert.equal(requests.length, asked + 1);
+  assert.deepEqual(requests.at(-1), { packageId: 'business-starter', kind: 'callback', choice: { paymentOption: 'full' } });
+  const answered = side.getByRole('button', { name: 'Callback requested · our team will contact you' });
+  await answered.waitFor();
+  assert.equal(await answered.isDisabled(), true, 'asked once, the button stays as the answer');
+  await get.click();
+  await popup.waitFor();
+  assert.equal(requests.length, asked + 1, 'Get this package after a callback does not ask the team again');
+  await popup.getByRole('button', { name: 'Close' }).click();
+  // A buy that failed for a missing phone shows its field and error beside Get this package, never in the callback dialog.
+  needsPhone = true;
+  await open(ONE_TIME, '&signed=1');
+  await get.click();
+  await side.getByRole('alert').getByText(/Add your mobile number/).waitFor();
+  assert.equal(await callback.isVisible(), false, 'a buy error never opens the callback dialog');
+  needsPhone = false;
+
   // Monthly per file: files, updates, cycle and length; the visitor signs in and comes back to the same choice.
   await open(PER_FILE);
   await side.getByText('Per month').waitFor();
@@ -154,11 +189,21 @@ try {
   const back = decodeURIComponent((await page.evaluate(() => window.__pushed)).replace('/login?next=', ''));
   assert.equal(back, '/package/data-entry/customize?cycle=quarterly&months=6&files=30&updates=2');
   const intent = JSON.parse(await page.evaluate(() => sessionStorage.getItem('pending-package-start')));
-  assert.equal(intent.packageId, 'data-entry');
+  assert.equal(intent.packageId, 'data-entry'); assert.equal(intent.kind, 'buy');
   // Coming back signed in with that address: the same choice, sent once.
   await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1&cycle=quarterly&months=6&files=30&updates=2`);
   await side.getByRole('button', { name: 'Continue to payment →' }).waitFor();
   assert.deepEqual(requests.at(-1), { packageId: 'data-entry', kind: 'buy', choice: { billingCycle: 'quarterly', tenureMonths: 6, files: 30, updates: 2 } });
+  // A visitor asks for a callback: the dialog sends them to sign in with the callback as the intent, and it is sent once on return.
+  await open(PER_FILE);
+  await side.getByRole('button', { name: 'Arrange a callback' }).click();
+  await callback.getByText(/A callback needs an account/).waitFor();
+  await callback.getByRole('button', { name: 'Continue to sign in' }).click();
+  assert.equal(JSON.parse(await page.evaluate(() => sessionStorage.getItem('pending-package-start'))).kind, 'callback');
+  const callbacks = requests.length;
+  await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1`);
+  await side.getByRole('button', { name: 'Callback requested · our team will contact you' }).waitFor();
+  assert.equal(requests.length, callbacks + 1); assert.equal(requests.at(-1).kind, 'callback');
 
   // Phones: the bar keeps the price and the button in reach; nothing scrolls sideways.
   for (const width of [390, 320]) {
@@ -166,6 +211,18 @@ try {
     await open(PER_FILE);
     await page.locator('[class*="mobileBar"]').getByText(/₹100 \/ month/).waitFor();
     assert.equal(await sideways(), false, `no sideways scroll at ${width}px`);
+    // On a phone the callback button sits below Get this package, not beside it.
+    const phoneMain = side.getByRole('button', { name: 'Sign in to get this package →' }), phoneCall = side.getByRole('button', { name: 'Arrange a callback' });
+    await phoneCall.scrollIntoViewIfNeeded();
+    const m = await phoneMain.boundingBox(), c = await phoneCall.boundingBox();
+    assert.ok(c.y >= m.y + m.height - 1 && Math.abs(c.x - m.x) < 2, `at ${width}px the two buttons are one above the other`);
+    if (shots) await side.screenshot({ path: path.join(shots, `side-${width}.png`) });
+    await phoneCall.click();
+    { const box = await callback.boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= width, `the callback dialog fits a ${width}px screen`);
+      assert.equal(await sideways(), false, `no sideways scroll with the callback dialog at ${width}px`);
+      if (shots) await page.screenshot({ path: path.join(shots, `callback-dialog-${width}.png`) }); }
+    await callback.getByRole('button', { name: 'Close' }).click();
   }
   // The payment popup on a phone: inside the screen, QR and reference reachable, nothing scrolls sideways.
   for (const width of [390, 320]) {

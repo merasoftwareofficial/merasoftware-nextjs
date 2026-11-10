@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
 import { InlineLoader } from "@/components/loading/navigation";
+import { PackageCallbackDialog, callbackLabel } from "@/components/campaign/public-interaction/callback-dialog";
 import { PackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
@@ -116,8 +117,12 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
 
   // The request carries this choice; after sign-in the customer comes back to this same choice.
   const query = packageChoiceQuery(clean);
-  const start = usePackageStart({ packageId: item.id, signedIn, countries, choice: clean, kind: "buy", returnPath: `${path}${query ? `?${query}` : ""}` });
-  const requested = Boolean(start.request);
+  const start = usePackageStart({ packageId: item.id, signedIn, countries, choice: clean, returnPath: `${path}${query ? `?${query}` : ""}` });
+  // A buy that is open continues to the payment; a callback that is open leaves Get this package as it was.
+  const requested = start.request?.kind === "buy";
+  const callbackRef = useRef<HTMLDialogElement>(null);
+  // The phone field belongs to whichever button asked for it (a callback's own is in its dialog).
+  const buyNeedsPhone = start.needsPhone && start.errorKind !== "callback";
   const [paying, setPaying] = useState(false);
   const [purchased, setPurchased] = useState<PurchaseResult | null>(null);
   // "Get this package" sends the request first (the team is told), then opens the payment popup.
@@ -127,13 +132,13 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   function get() {
     if (signedIn && start.request) { setPaying(true); return; }
     wantsToPay.current = true;
-    start.confirm();
-    if (start.needsPhone && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    start.confirm("buy");
+    if (buyNeedsPhone && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   // The phone bar has room for a short label only.
   const mainButton = (short = false) => (
-    <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || !!purchased || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
-      {start.busy ? <><InlineLoader />Processing…</> : signedIn ? (requested ? (short ? "Pay now →" : "Continue to payment →") : short ? "Get it →" : "Get this package →") : short ? "Sign in →" : "Sign in to get this package →"}
+    <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || !!purchased || (signedIn && !start.loaded) || (buyNeedsPhone && !start.phone.phone.trim())}>
+      {start.busyKind === "buy" ? <><InlineLoader />Processing…</> : signedIn ? (requested ? (short ? "Pay now →" : "Continue to payment →") : short ? "Get it →" : "Get this package →") : short ? "Sign in →" : "Sign in to get this package →"}
     </button>
   );
   const price = quote && !loading ? (quote.monthly ? `${money(quote.monthly.cyclePrice)} / ${PERIOD_WORDS[quote.monthly.billingCycle]}` : money(quote.dueNow)) : "…";
@@ -213,10 +218,14 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
             <a className="text-link" href={`${portalUrl}/order-detail/${purchased.orderId}`}>Open my project in the portal →</a>
           </div>
         ) : <>
-          {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
-          {mainButton()}
+          {!requested && buyNeedsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
+          <div className={s.actions}>
+            {mainButton()}
+            {/* Arrange a callback: the same dialog as the package page; once asked, the button stays as the answer. */}
+            <button type="button" className={`${s.button} ${s.buttonQuiet}`} disabled={start.request?.kind === "callback" || (signedIn && !start.loaded)} onClick={() => callbackRef.current?.showModal()}>{callbackLabel(start)}</button>
+          </div>
         </>}
-        {start.error && <p className={s.error} role="alert">{start.error}</p>}
+        {start.error && start.errorKind !== "callback" && <p className={s.error} role="alert">{start.error}</p>}
         {!purchased && <p className={s.note}>You pay the first payment now (wallet first, then UPI). Your project is created with it and runs in your client portal.</p>}
       </aside>
       {/* Phones: the price and the button stay in reach while the steps scroll. */}
@@ -224,6 +233,7 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
         <div><span>Your package</span><strong>{error ? "—" : price}</strong></div>
         {purchased ? <strong className={s.good}>✓ Paid</strong> : mainButton(true)}
       </div>
+      <PackageCallbackDialog dialogRef={callbackRef} start={start} name={item.name} price={quote && !loading && !error ? money(quote.finalPrice) : undefined} />
       {signedIn && quote && !loading && !error && (
         <PackagePayment open={paying} onClose={() => setPaying(false)} packageId={item.id} packageName={item.name} choice={clean} quote={quote} portalUrl={portalUrl} onPaid={setPurchased} />
       )}

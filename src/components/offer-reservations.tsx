@@ -155,17 +155,16 @@ export function useOfferReservation(config: ReservationConfig | undefined, offer
 
 /** What a package page passes for Start my project without an offer; undefined while the feature is off.
  * The customize page (src/docs/package.md §3) adds the customer's choice and comes back to itself after sign-in. */
-export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[]; choice?: PackageChoice; returnPath?: string;
-  /** What the button asks for; the backend treats a missing one as a callback. */
-  kind?: PackageStartKind };
+export type PackageStartConfig = { packageId: string; signedIn: boolean; countries?: PhoneCountry[]; choice?: PackageChoice; returnPath?: string };
 const packageIntentKey = "pending-package-start";
 /**
- * "Start my project" on a package without a running offer (backend helpers/packageStart.js): load the
- * person's open request, send one, continue after sign-in, ask for a missing phone (HTTP 428). It renders
- * nothing; the package card shows it as its main button and confirms in a dialog.
+ * The two things a package page asks of the team (backend helpers/packageStart.js): "Get this package" (kind buy:
+ * the team is told, the customer goes on to pay) and "Arrange a callback" (kind callback: the team and the customer
+ * are told). Loads the person's open request, sends one, continues after sign-in (the intent keeps the kind), asks
+ * for a missing phone (HTTP 428). It renders nothing; the buttons and the callback dialog use it.
  */
 export function usePackageStart(config: PackageStartConfig | undefined) {
-  const enabled = !!config, packageId = config?.packageId ?? "", signedIn = !!config?.signedIn, kind = config?.kind;
+  const enabled = !!config, packageId = config?.packageId ?? "", signedIn = !!config?.signedIn;
   // The newest choice, read when sending, so changing it never reloads the open request.
   const choiceRef = useRef(config?.choice);
   useEffect(() => { choiceRef.current = config?.choice; });
@@ -174,17 +173,19 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
   const router = useNavigate();
   const [request, setRequest] = useState<PackageStartRequest | null>(null);
   const [loaded, setLoaded] = useState(!signedIn);
-  const [busy, setBusy] = useState(false);
+  const [busyKind, setBusyKind] = useState<PackageStartKind | null>(null);
   const [error, setError] = useState("");
+  // Which button's request failed, so only that button's own place shows the error (a buy's error never opens the callback dialog).
+  const [errorKind, setErrorKind] = useState<PackageStartKind | null>(null);
   const [needsPhone, setNeedsPhone] = useState(false);
   const [phone, setPhoneState] = useState<PhoneValue>({ countryCode: countries[0].code, phone: "" });
   const phoneRef = useRef<PhoneValue | null>(null);
   const attempted = useRef(false);
-  const send = useCallback(async () => {
-    setBusy(true); setError("");
+  const send = useCallback(async (kind: PackageStartKind) => {
+    setBusyKind(kind); setError(""); setErrorKind(null);
     try {
       const contact = phoneRef.current ? { countryCode: phoneRef.current.countryCode, phone: phoneRef.current.phone.trim() } : {};
-      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, ...(kind ? { kind } : {}), ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact }) });
+      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, kind, ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact }) });
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 428) setNeedsPhone(true);
@@ -192,9 +193,9 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
         throw new Error(data.error || "Could not send your request");
       }
       setRequest(data.request); sessionStorage.removeItem(packageIntentKey);
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not send your request"); }
-    finally { setBusy(false); }
-  }, [packageId, kind]);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not send your request"); setErrorKind(kind); }
+    finally { setBusyKind(null); }
+  }, [packageId]);
   useEffect(() => {
     if (!enabled || !signedIn) return;
     let active = true;
@@ -206,25 +207,29 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
         if (!active) return;
         const open = (data as PackageStartList).requests.find(row => row.packageId === packageId && row.status === "requested");
         setRequest(open || null); setLoaded(true);
-        // Back from sign-in with a pending Start: send it once (15 minutes at most).
+        // Back from sign-in with a pending request: send it once (15 minutes at most). An intent without a kind is the
+        // older "Start my project" dialog, which was a callback.
         let intent;
         try { intent = JSON.parse(sessionStorage.getItem(packageIntentKey) || "null"); } catch { sessionStorage.removeItem(packageIntentKey); }
         if (intent?.packageId !== packageId || attempted.current) return;
         attempted.current = true;
-        if (open || !Number.isFinite(intent.createdAt) || Date.now() - intent.createdAt > 15 * 60000 || Date.now() < intent.createdAt) { sessionStorage.removeItem(packageIntentKey); return; }
-        await send();
+        const wanted: PackageStartKind = intent.kind === "buy" ? "buy" : "callback";
+        // An open request is enough, except that a callback replaces an open buy.
+        const covered = open && !(open.kind === "buy" && wanted === "callback");
+        if (covered || !Number.isFinite(intent.createdAt) || Date.now() - intent.createdAt > 15 * 60000 || Date.now() < intent.createdAt) { sessionStorage.removeItem(packageIntentKey); return; }
+        await send(wanted);
       } catch (err) { if (active) setError(err instanceof Error ? err.message : "Could not check your request"); }
     }
     void load();
     return () => { active = false; };
   }, [enabled, signedIn, packageId, send]);
   return {
-    enabled, request, loaded, busy, error, signedIn, needsPhone, phone, countries,
+    enabled, request, loaded, busy: busyKind !== null, busyKind, error, errorKind, signedIn, needsPhone, phone, countries,
     setPhone(value: PhoneValue) { setPhoneState(value); phoneRef.current = value; },
-    /** The dialog's confirm: send now, or keep the intent and sign in first (it sends on return). */
-    confirm() {
-      if (signedIn) { void send(); return; }
-      try { sessionStorage.setItem(packageIntentKey, JSON.stringify({ packageId, createdAt: Date.now() })); }
+    /** A button's action: send now, or keep the intent and sign in first (it sends on return). */
+    confirm(kind: PackageStartKind) {
+      if (signedIn) { void send(kind); return; }
+      try { sessionStorage.setItem(packageIntentKey, JSON.stringify({ packageId, kind, createdAt: Date.now() })); }
       catch { setError("Allow browser session storage to return here after signing in."); return; }
       router.push(`/login?next=${encodeURIComponent(returnPath)}`);
     },

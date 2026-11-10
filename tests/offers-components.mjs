@@ -142,7 +142,7 @@ createRoot(document.getElementById('app')).render(location.pathname==='/admin/of
 `;
 await build({ stdin: { contents: clientEntry, resolveDir: root, sourcefile: 'offer-ui-fixture.tsx', loader: 'tsx' }, outfile: path.join(folder, 'client.js'), bundle: true, platform: 'browser', conditions: ['style', 'browser'], jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), plugins: [{ name: 'browser-fixtures', setup(builder) {
   virtual(builder, 'link', /^@\/components\/link$/, `import React from 'react';export default function Link(props){return <a {...props}/>}`, 'tsx');
-  virtual(builder, 'navigation', /^@\/components\/loading\/navigation$/, `export const useNavigate=()=>({pending:false,push:h=>location.assign(h),replace:h=>location.assign(h),refresh(){},assign:h=>location.assign(h)});`);
+  virtual(builder, 'navigation', /^@\/components\/loading\/navigation$/, `export const useNavigate=()=>({pending:false,push:h=>location.assign(h),replace:h=>location.assign(h),refresh(){},assign:h=>location.assign(h)});export const InlineLoader=()=>null;`);
 } }] });
 const previous = process.cwd();
 process.chdir(folder);
@@ -301,7 +301,7 @@ try {
   await page.getByText('Running', { exact: true }).first().waitFor();
   assert.equal(await form.getByLabel('Project category', { exact: true }).isDisabled(), true, 'fixed while its offer runs');
 
-  // 3. The package page: offer mode (3 prices, % OFF, countdown) and package mode (2 prices, Start my project).
+  // 3. The package page: offer mode (3 prices, % OFF, countdown) and package mode (2 prices, Arrange a callback).
   const publicPage = await context.newPage(); publicPage.on('pageerror', error => errors.push(error.message));
   await publicPage.goto(origin + '/package/business-starter'); await publicPage.getByRole('timer').waitFor();
   await publicPage.getByText('80% OFF', { exact: true }).waitFor();
@@ -313,7 +313,8 @@ try {
   assert.equal(await publicPage.getByRole('timer').count(), 0, 'no countdown without an offer');
   assert.equal(await publicPage.locator('del').count(), 1, 'only the main price is crossed out');
   await publicPage.locator('section[aria-label]').getByText('Have a question? Enquire', { exact: true }).waitFor();
-  await publicPage.locator('section[aria-label] [class*="claim"]').filter({ hasText: 'Start my project' }).click();
+  await publicPage.locator('section[aria-label] [class*="claim"]').filter({ hasText: 'Arrange a callback' }).click();
+  await publicPage.getByRole('dialog', { name: 'Arrange a callback for this package?' }).waitFor();
   await publicPage.getByRole('button', { name: 'Continue to sign in' }).waitFor();
   await publicPage.keyboard.press('Escape');
   for (const width of [1440, 390, 320]) {

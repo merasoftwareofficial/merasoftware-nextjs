@@ -10,9 +10,10 @@ export type OfferReservation = {
   confirmationStatus: "pending" | "sent" | "paused" | "failed" | "expired";
 };
 export type ReservationList = { reservations: OfferReservation[]; serverNow: string };
-/** "Start my project" on a package without an offer (backend helpers/packageStart.js). No price is held. */
+/** What a customer asked of the team on a package page (backend helpers/packageStart.js): No price is held.
+ * buy = "Get this package" (on to payment); callback = "Arrange a callback". */
 export type PackageStartKind = "buy" | "callback";
 export type PackageStartRequest = { id: string; packageId: string; kind: PackageStartKind; title: string; price: number | null; requestedAt: string;
   choice?: import("./sales-packages").PackageChoice | null;
-  closedAt: string | null; closedReason: "project_created" | "closed_by_team" | null; projectId: string | null; status: "requested" | "closed" };
+  closedAt: string | null; closedReason: "project_created" | "closed_by_team" | "callback_requested" | null; projectId: string | null; status: "requested" | "closed" };
 export type PackageStartList = { requests: PackageStartRequest[]; enabled: boolean };

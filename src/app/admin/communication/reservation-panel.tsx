@@ -14,10 +14,10 @@ import a from "./auto-reply.module.css";
 
 // startRequestedAt: the customer pressed Start my project; the clock is paused until the team acts.
 type Running = { id: string; customer: string; phone: string; offer: string; reservedAt: string; deadline: string; extended: boolean; hours: number; startRequestedAt: string | null };
-// A Start my project request on a package without an offer (backend helpers/packageStart.js).
+// An open request on a package (backend helpers/packageStart.js): the customer started buying it (buy) or asked for a callback.
 // choice: what the customer picked on the package's customize page (src/docs/package.md §3), when it has one.
 type PackageStart = { id: string; customer: string; phone: string; package: string; price: number | null; requestedAt: string;
-  userId?: string; choice?: PackageChoice | null };
+  userId?: string; choice?: PackageChoice | null; kind?: "buy" | "callback" };
 type Overview = { serverNow: string; counts: { running: number; used: number; expired: number; closures: Record<string, number> }; running: Running[]; packageStarts?: PackageStart[] };
 async function load(signal?: AbortSignal): Promise<Overview> {
   const response = await fetch("/api/auto-reply/reservations", { signal, cache: "no-store" });
@@ -77,13 +77,14 @@ export function ReservationPanel({ active = true, portalUrl = "" }: { active?: b
             <div className={a.who}>
               <strong>{row.customer || "Customer"}</strong>
               {row.phone && <span>{phoneLabel(row.phone)}</span>}
+              <span>{row.kind === "buy" ? "Started buying" : "Callback requested"}</span>
               <span>waiting {waiting(Date.parse(row.requestedAt), now)}</span>
             </div>
             <p>{row.package}{row.price !== null ? ` · ₹${row.price.toLocaleString("en-IN")}` : ""}{row.choice ? ` · ${choiceText(row.choice)}` : ""} · asked {when(row.requestedAt)}</p>
             {/* The project is made with the portal's own form, filled from this request (frontend AdminClientWorkspace.js). */}
             {portalUrl && row.userId && <a href={`${portalUrl}/admin-panel/clients/${row.userId}?startRequest=${row.id}`} target="_blank" rel="noopener noreferrer">Create project ↗</a>}
           </li>)}</ul>}
-      <p className={s.note}>Start my project on a package page without an offer. No price is held. Creating the project on that package closes the request; the team can also close it on the client&apos;s Reserved offers in the portal.</p>
+      <p className={s.note}>Get this package or Arrange a callback on a package page. No price is held. Creating the project on that package closes the request; the team can also close it on the client&apos;s Reserved offers in the portal.</p>
     </div>
     <p className={s.note}>Each offer sets how long its reservation lasts (Admin → Offers → Reservation lasts). The countdown starts when the customer reserves. When a project is created on the reservation, the normal project message goes and nothing else. When the time ends with no project, the customer gets the offer-expired message once, with the offers page link. To give one customer more time, use Extend deadline on the client&apos;s page in the portal.</p>
     <p className={s.note}>The customer is reminded when 24 hours and when 1 hour are left. Start my project on the offer page pauses the countdown and tells the team; it stays paused until a project is created on it, or Extend deadline resumes it. The team is reminded once a day, up to 3 times.</p>

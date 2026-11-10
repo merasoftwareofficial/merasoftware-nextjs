@@ -7,14 +7,12 @@ import type { OfferView } from "@/lib/package-design";
 import { useOfferReservation, usePackageStart, type ReservationConfig } from "@/components/offer-reservations";
 import type { PhoneCountry } from "@/components/phone-field";
 import { PhoneField } from "@/components/phone-field";
+import { Arrow, PackageCallbackDialog, callbackLabel } from "./callback-dialog";
 import type { OfferReservation } from "@/lib/offer-reservations";
 import { heldPrice, reservationHoldHours, reserveCta, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
-function Arrow() {
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>;
-}
 
 // Admin preview of the reservation states, without any request (admin/offers/offers-manager.tsx).
 export type ReservationPreview = "normal" | "open" | "reserved";
@@ -76,11 +74,12 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   const channel = offer.contactHref.startsWith("mailto:") ? "Opens email" : offer.contactHref.startsWith("tel:") ? "Opens phone" : "Contact us";
   // A saved reservation stays visible after the offer ends; Reserve itself never outlives the offer.
   const offerCta: ReserveCta = expired && (shown.cta.kind === "reserve" || shown.phase === "expired") ? { kind: "enquire" } : shown.cta;
-  // On a package without an offer, a running reservation of its last offer keeps its own button; otherwise
-  // the main button is Start my project (helpers/packageStart.js), or Enquire while that is switched off.
+  // On a package without an offer, a running reservation of its last offer keeps its own button; otherwise the
+  // buttons are Get this package (the customize page) and Arrange a callback (helpers/packageStart.js), or just the
+  // callback on a package that cannot be bought online, or Enquire while that is switched off.
   const keepsReservation = offerCta.kind === "start" || offerCta.kind === "status";
-  const packageCta = !packageMode || keepsReservation || (!pkg?.start && !preview) ? null
-    : packageStart.request ? { label: "Start requested · our team will contact you", sent: true } : { label: pkg?.customize ? "Get this package" : "Start my project", sent: false };
+  const packageButtons = packageMode && !keepsReservation && (!!pkg?.start || preview);
+  const callbackSent = packageStart.request?.kind === "callback";
   const cta: ReserveCta = packageMode && !keepsReservation ? { kind: "enquire" } : offerCta;
   const { error, phase } = control;
   const title = packageMode && pkg ? pkg.name : offer.title;
@@ -91,14 +90,17 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   // A refusal (e.g. after returning from sign-in) opens the dialog to explain it; success closes it.
   useEffect(() => { if (error && reserveDialog.current && !reserveDialog.current.open) reserveDialog.current.showModal(); }, [error]);
   useEffect(() => { if (phase !== "open" && phase !== "checking" && !error) reserveDialog.current?.close(); }, [phase, error]);
-  useEffect(() => { if (packageStart.error && startDialog.current && !startDialog.current.open) startDialog.current.showModal(); }, [packageStart.error]);
-  useEffect(() => { if (packageStart.request && !packageStart.error) startDialog.current?.close(); }, [packageStart.request, packageStart.error]);
   // Reserve and Start my project are confirmed in the same dialog; its words follow the button.
   const starting = control.cta.kind === "start";
-  const action = (className: string | undefined, enquireLabel: string) => packageCta && !packageCta.sent && pkg?.customize
-    ? <Link className={className} href={pkg.customize}>{packageCta.label}<Arrow /></Link>
-    : packageCta
-    ? <button type="button" className={className} disabled={packageCta.sent || (!packageStart.loaded && !preview)} onClick={() => { if (!preview) startDialog.current?.showModal(); }}>{packageCta.label}{!packageCta.sent && <Arrow />}</button>
+  // The callback button (its dialog is the one in callback-dialog.tsx); once asked, it stays as the answer.
+  const callbackButton = (className: string | undefined) => <button type="button" className={className} disabled={callbackSent || (!packageStart.loaded && !preview)} onClick={() => { if (!preview) startDialog.current?.showModal(); }}>{callbackLabel(packageStart)}{!callbackSent && <Arrow />}</button>;
+  // `both`: the card shows the two buttons side by side (one above the other on a phone); the sticky bar keeps the main one.
+  const action = (className: string | undefined, enquireLabel: string, both = false) => packageButtons && pkg?.customize
+    ? (both
+      ? <div className={s.ctaPair}><Link className={className} href={pkg.customize}>Get this package<Arrow /></Link>{callbackButton(`${s.claim} ${s.claimQuiet}`)}</div>
+      : <Link className={className} href={pkg.customize}>Get this package<Arrow /></Link>)
+    : packageButtons
+    ? callbackButton(className)
     : cta.kind === "reserve" || cta.kind === "start"
     ? <button type="button" className={className} disabled={cta.kind === "reserve" && cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{cta.label}<Arrow /></button>
     : cta.kind === "status" ? <Link className={className} href="/account/offers">{cta.label}<Arrow /></Link>
@@ -141,8 +143,8 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
               <div className={s.timer} role="timer" aria-label="Time remaining">{clock.map(([value, label]) => <div key={label}><b>{ready ? String(value).padStart(2, "0") : "—"}</b><span>{label}</span></div>)}</div>
             </div>
           </>}
-          {action(s.claim, expired && !packageMode ? "Ask about current offers" : offer.ctaLabel)}
-          <div className={s.cardFooter}>{cta.kind === "enquire" && !packageCta ? <span>{channel}</span> : <a className={s.footerLink} href={href}>Have a question? Enquire</a>}<button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
+          {action(s.claim, expired && !packageMode ? "Ask about current offers" : offer.ctaLabel, true)}
+          <div className={s.cardFooter}>{cta.kind === "enquire" && !packageButtons ?<span>{channel}</span> : <a className={s.footerLink} href={href}>Have a question? Enquire</a>}<button type="button" className={s.termsLink} onClick={() => dialog.current?.showModal()}>T&amp;C</button></div>
         </section>
       </section>
     </div>
@@ -178,20 +180,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
           : <button type="button" className={s.claim} disabled={control.busy || control.cta.kind !== "reserve" || control.cta.disabled || (control.needsPhone && !control.phone.phone.trim())} onClick={control.confirm}>{control.busy ? "Reserving…" : control.signedIn ? "Confirm reservation" : "Continue to sign in"}<Arrow /></button>}
       </div>}
     </dialog>}
-    {pkg?.start && !preview && <dialog className={s.termsDialog} ref={startDialog} aria-labelledby="start-title" onClick={event => { if (event.target === event.currentTarget) startDialog.current?.close(); }}>
-      <div className={s.dialogContent}>
-        <div className={s.dialogHeader}><h2 id="start-title">Start your project on this package?</h2><button type="button" aria-label="Close" onClick={() => startDialog.current?.close()}>×</button></div>
-        <p>{pkg.name} · {money(offer.discountPrice)}</p>
-        <ul>
-          <li>Our team will contact you to set up your project.</li>
-          <li>No payment now. The price and scope are confirmed with you before work starts.</li>
-          {!packageStart.signedIn && <li>Starting needs an account. Sign in, or create one in a minute; you come back here and your request is sent.</li>}
-        </ul>
-        {packageStart.error && <p role="alert" className={s.reserveError}>{packageStart.error}</p>}
-        {packageStart.needsPhone && <PhoneField className="auth-field" countries={packageStart.countries} value={packageStart.phone} onChange={packageStart.setPhone} />}
-        <button type="button" className={s.claim} disabled={packageStart.busy || !!packageStart.request || (packageStart.needsPhone && !packageStart.phone.phone.trim())} onClick={packageStart.confirm}>{packageStart.busy ? "Sending…" : packageStart.signedIn ? "Confirm" : "Continue to sign in"}<Arrow /></button>
-      </div>
-    </dialog>}
+    {pkg?.start && !preview && <PackageCallbackDialog dialogRef={startDialog} start={packageStart} name={pkg.name} price={money(offer.discountPrice)} />}
     {!preview && <div className={s.sticky}><div>{held !== null ? <><span>Your reserved price</span><strong>{money(held)}</strong></> : packageMode ? <><span>{title}</span><strong>{money(offer.discountPrice)}</strong></> : <><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></>}</div>{action(undefined, expired && !packageMode ? "Contact us" : offer.ctaLabel)}</div>}
   </main>;
 }

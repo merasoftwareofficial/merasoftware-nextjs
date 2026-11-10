@@ -687,9 +687,9 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           {showOffer ? <><p className={s.old}><del>{rupee(shown.regularPrice)}</del>{shown.regularPrice > shown.discountedPrice && <> → <del>{rupee(shown.discountedPrice)}</del></>}</p><p className={s.deal}><small>OFFER PRICE {percent > 0 && <b>{percent}% OFF</b>}</small><strong>{rupee(Number(offerForm!.offerPrice))}</strong></p><p className={s.timer}>Countdown to {formatIndiaDateTime(new Date(previewEnd).toISOString())}</p></>
             : <>{shown.regularPrice > shown.discountedPrice && <p className={s.old}><del>{rupee(shown.regularPrice)}</del></p>}<p className={s.deal}><small>PRICE</small><strong>{rupee(shown.discountedPrice)}</strong></p></>}
           <p className={s.pd}>{item.design.priceDescription}</p>
-          <p className={s.cta}>{showOffer ? (previewState === "open" ? `Reserve price for ${hours(offerForm!.reservationHoldHours) || DEFAULT_HOLD_HOURS} hours` : previewState === "reserved" ? "Start my project · time left" : item.design.ctaLabel) : "Start my project"} →</p>
+          <p className={s.cta}>{showOffer ? (previewState === "open" ? `Reserve price for ${hours(offerForm!.reservationHoldHours) || DEFAULT_HOLD_HOURS} hours` : previewState === "reserved" ? "Start my project · time left" : item.design.ctaLabel) : item.billing ? "Get this package · Arrange a callback" : "Arrange a callback"} →</p>
         </div>
-        <p className={s.note}>{showOffer ? "Offer mode: 3 prices and the countdown. When it ends the page shows 2 prices again without a reload." : "Package mode: 2 prices, no countdown. The main button is Start my project."}{offerForm?.status === "draft" && showOffer ? " This offer is a draft: customers still see package mode." : ""}</p>
+        <p className={s.note}>{showOffer ? "Offer mode: 3 prices and the countdown. When it ends the page shows 2 prices again without a reload." : "Package mode: 2 prices, no countdown. A package with purchase settings shows Get this package and Arrange a callback; any other shows Arrange a callback."}{offerForm?.status === "draft" && showOffer ? " This offer is a draft: customers still see package mode." : ""}</p>
         <button type="button" className="admin-action" onClick={() => preview.current?.showModal()}>Preview full page ↗</button>
       </aside>
     </div>
