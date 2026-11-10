@@ -27,6 +27,7 @@ const PAGES: LinkOption[] = [
   { label: "Discussions", href: "/discussions" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
+  { label: "Terms & Conditions", href: "/terms" },
   { label: "Privacy", href: "/privacy" },
 ];
 

@@ -43,6 +43,9 @@ export const CONTENT_PAGES: ContentPage[] = [
     { id: "intro", label: "Page introduction", description: "Eyebrow, heading and introduction." },
     { id: "projects", label: "Projects", description: "Published projects and service work.", editor: { href: "/admin/portfolio", label: "Manage projects" } },
   ] },
+  { id: "terms", label: "Terms & Conditions", href: "/terms", sections: [
+    { id: "general", label: "General terms", description: "The common terms shown on every package and offer page and on the Terms & Conditions page.", editor: { href: "/admin/offers?section=terms", label: "Edit terms" } },
+  ] },
   { id: "privacy", label: "Privacy", href: "/privacy", sections: [
     { id: "policy", label: "Privacy policy", description: "Privacy policy text and contact information." },
   ] },

@@ -69,6 +69,13 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     title: "Contact",
     description: "Tell us what your business needs. We help you understand your digital options and choose the right service or custom package.",
   },
+  {
+    key: "terms",
+    label: "Terms & Conditions",
+    path: "/terms",
+    title: "Terms & Conditions",
+    description: "The terms that apply to every Mera Software package and offer, and the terms and exclusions of each package.",
+  },
 ];
 
 /**
