@@ -26,14 +26,30 @@ const catalogueSource = `
 import {requireRole, AuthError} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {resolvedOffers} from '@/lib/offers';
-export const store = { packages: {}, drafts: {}, linkCalls: [], saves: [], failLink: false, categorySaves: [],
-  categories: [{ category: 'standard_websites', label: 'Standard Websites', status: 'active', sortOrder: 1 }, { category: 'seo_services', label: 'SEO Services', status: 'active', sortOrder: 2 }] };
+const hex = n => String(n).padStart(24, '0');
+export const store = { packages: {}, drafts: {}, linkCalls: [], saves: [], failLink: false, categorySaves: [], addOnCalls: [],
+  categories: [{ category: 'standard_websites', label: 'Standard Websites', status: 'active', sortOrder: 1, basePrice: 10000, description: '', startingNodeTitle: '', customerSelectable: true, locked: true, usage: { projects: 2, features: 2, packages: 1 } },
+    { category: 'seo_services', label: 'SEO Services', status: 'active', sortOrder: 2, basePrice: 5000, description: '', startingNodeTitle: '', customerSelectable: false, locked: false, usage: { projects: 0, features: 1, packages: 0 } }],
+  addOns: [
+    { id: hex(1), name: 'SEO setup', unitPrice: 3000, description: 'Basics', isHidden: false, isQuantityBased: false, compatibleWith: [] },
+    { id: hex(2), name: 'Extra page', unitPrice: 500, description: '', isHidden: false, isQuantityBased: true, compatibleWith: [] },
+    { id: hex(3), name: 'Hidden add-on', unitPrice: 100, description: '', isHidden: true, isQuantityBased: false, compatibleWith: [] },
+    { id: hex(4), name: 'SEO audit', unitPrice: 800, description: '', isHidden: false, isQuantityBased: false, compatibleWith: ['seo_services'] }] };
 export const requireSalesAdmin = () => requireRole('admin');
+export async function portalAddOnRequest(action, body) {
+  await requireSalesAdmin();
+  store.addOnCalls.push({ action, body });
+  if (action === 'create') { const id = hex(100 + store.addOns.length); store.addOns.push({ id, name: body.serviceName, unitPrice: body.sellingPrice, description: body.formattedDescriptions[0]?.content ?? '', isHidden: body.isHidden, isQuantityBased: body.isQuantityBased, compatibleWith: body.compatibleWith }); return { _id: id }; }
+  const index = store.addOns.findIndex(row => row.id === body._id);
+  if (action === 'remove') { if (store.addOns[index].name === 'Bought service') throw new AuthError('This product has 2 purchases and cannot be deleted. Retire it instead to keep the customer history intact.', 400); store.addOns.splice(index, 1); return { _id: body._id }; }
+  Object.assign(store.addOns[index], { name: body.serviceName, unitPrice: body.sellingPrice, description: body.formattedDescriptions[0]?.content ?? '', isHidden: body.isHidden, isQuantityBased: body.isQuantityBased, compatibleWith: body.compatibleWith });
+  return { _id: body._id };
+}
 const quoted = item => ({ ...item, quoteKey: 'k-' + item.id, quote: { regularPrice: item.regularPrice, discountAmount: 0, finalPrice: item.discountedPrice, offer: null, terms: item.terms } });
 export async function readSalesCatalogue(admin) {
   if (admin) await requireSalesAdmin();
   const settings = await settingsRepo.get();
-  return { packages: Object.values(store.packages).map(quoted), offers: resolvedOffers(settings.offers), plans: [], categories: [...store.categories], drafts: Object.values(store.drafts) };
+  return { packages: Object.values(store.packages).map(quoted), offers: resolvedOffers(settings.offers), plans: [], categories: store.categories.map(row => ({ ...row })), addOns: store.addOns.map(row => ({ ...row })), drafts: Object.values(store.drafts) };
 }
 const idBase = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'package';
 const taken = id => !!store.packages[id] || !!store.drafts[id];
@@ -67,6 +83,25 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
     }
     const exists = !!store.packages[item.id];
     if (body.creating === exists) throw new AuthError(body.creating ? 'This package ID already exists' : 'Package not found', 409);
+    if (Array.isArray(item.services)) {
+      const previous = store.packages[item.id];
+      const reuse = !!previous?.pricing && previous.category === item.category && item.repriceFromCurrent !== true;
+      const category = store.categories.find(row => row.category === item.category);
+      if (!reuse && (category?.basePrice === null || category?.basePrice === undefined)) throw new AuthError('This category has no base price yet. Set its base price first.', 400);
+      const frozen = new Map(reuse ? previous.pricing.services.map(row => [row.featureId, row]) : []);
+      const services = item.services.map(row => {
+        const kept = frozen.get(row.featureId);
+        const live = store.addOns.find(add => add.id === row.featureId && !add.isHidden && (!add.compatibleWith.length || add.compatibleWith.includes(item.category)));
+        const source = kept ?? (live && { name: live.name, unitPrice: live.unitPrice, isQuantityBased: live.isQuantityBased });
+        if (!source) throw new AuthError('An add-on service is unavailable for this category. Refresh the list.', 400);
+        return { featureId: row.featureId, name: source.name, unitPrice: source.unitPrice, isQuantityBased: !!source.isQuantityBased, quantity: source.isQuantityBased ? row.quantity : 1 };
+      });
+      const base = reuse ? previous.pricing.categoryBasePrice : category.basePrice;
+      const total = Math.round((base + services.reduce((sum, row) => sum + row.unitPrice * row.quantity, 0)) * 100) / 100;
+      if (total !== item.regularPrice) throw new AuthError('The main price changed. Review the current category and add-on prices.', 409);
+      item.pricing = { categoryBasePrice: base, services };
+      delete item.services; delete item.repriceFromCurrent;
+    }
     store.saves.push(item);
     store.packages[item.id] = item;
     return store.packages[item.id];
@@ -84,8 +119,15 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
   // A new project category (backend savePlanCategoryController, save_project_category), as the plan form saves it.
   if (path === 'plan-categories') {
     store.categorySaves.push(body);
-    if (body.action !== 'save_project_category' || !body.creating || !/^[a-z][a-z0-9_]{2,39}$/.test(body.category)) throw new AuthError('Enter a valid category', 400);
-    const entry = { category: body.category, label: body.label, status: 'active', sortOrder: body.sortOrder };
+    if (body.action !== 'save_project_category' || !/^[a-z][a-z0-9_]{2,39}$/.test(body.category)) throw new AuthError('Enter a valid category', 400);
+    if (!body.creating) {
+      const row = store.categories.find(entry => entry.category === body.category);
+      if (!row) throw new AuthError('Category not found', 404);
+      if (row.locked && body.status === 'archived') throw new AuthError('This category is used by the customer website questionnaire, so it must stay active, open to customers and priced.', 400);
+      for (const key of ['label', 'basePrice', 'description', 'startingNodeTitle', 'sortOrder', 'customerSelectable', 'status']) if (body[key] !== undefined) row[key] = body[key];
+      return { ...row };
+    }
+    const entry = { category: body.category, label: body.label, status: 'active', sortOrder: body.sortOrder, basePrice: body.basePrice, description: body.description, startingNodeTitle: body.startingNodeTitle, customerSelectable: body.customerSelectable, locked: false, usage: { projects: 0, features: 0, packages: 0 } };
     store.categories.push(entry);
     return entry;
   }
@@ -98,11 +140,12 @@ import {GET as packagesGet, PATCH as packagesPatch} from '${src('src/app/api/pac
 import {PATCH as links} from '${src('src/app/api/packages/offer-links/route.ts')}';
 import {PATCH as drafts} from '${src('src/app/api/packages/drafts/route.ts')}';
 import {PATCH as plans} from '${src('src/app/api/plans/route.ts')}';
+import {POST as addOnPost, DELETE as addOnDelete} from '${src('src/app/api/add-ons/route.ts')}';
 import {identity} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {store, readSalesCatalogue} from '@/lib/sales-catalogue-server';
 import {resolvedOffers,publishedOffers,DEFAULT_UNIVERSAL_TERMS,DEFAULT_OFFER_LISTING} from '@/lib/offers';
-const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts, 'PATCH /api/plans': plans };
+const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts, 'PATCH /api/plans': plans, 'POST /api/add-ons': addOnPost, 'DELETE /api/add-ons': addOnDelete };
 export const handle = (key, request, role) => identity.run(role, () => routes[key](request));
 export const seedOffer = offer => settingsRepo.saveOffer(offer, true);
 export {store};
@@ -203,14 +246,14 @@ try {
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByText('Enter the package name to save a draft.', { exact: true }).waitFor();
   await form.getByLabel('Package name', { exact: true }).fill('Draft Only');
-  await form.getByLabel('Main price (₹)', { exact: true }).fill('-5');
+  await form.getByLabel('Discount price (₹)', { exact: true }).fill('-5');
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByText('Enter the offer name to save the offer in the draft.', { exact: true }).waitFor();
   await form.getByLabel('Offer name', { exact: true }).fill('Half offer');
   const firstDraft = await draftCall('Save draft');
   assert.equal(firstDraft.status, 200, JSON.stringify(firstDraft.body)); assert.equal(firstDraft.body.packageId, 'draft-only');
-  assert.equal(api.store.drafts['draft-only'].data.item.regularPrice, -5, 'a wrong value is kept in the draft');
+  assert.equal(api.store.drafts['draft-only'].data.item.discountedPrice, -5, 'a wrong value is kept in the draft');
   assert.equal(api.store.drafts['draft-only'].data.offer.title, 'Half offer');
   assert.equal(api.store.packages['draft-only'], undefined, 'nothing is live');
   await page.getByText('Draft saved. Its link /package/draft-only goes live when you publish.', { exact: true }).waitFor();
@@ -218,7 +261,7 @@ try {
   await form.getByLabel('Offer status', { exact: true }).selectOption('published');
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
-  for (const text of ['Choose a project category.', 'Enter a description.', 'Enter a main price above ₹0.', 'Enter the offer price.', 'Choose whether the client sends files in the portal.']) await page.getByText(text, { exact: true }).waitFor();
+  for (const text of ['Choose a project category.', 'Enter a description.', "The main price must be above ₹0: set the category's base price or tick an add-on.", 'Enter the offer price.', 'Choose whether the client sends files in the portal.']) await page.getByText(text, { exact: true }).waitFor();
   assert.equal(packageSaves, beforePublish, 'nothing is sent while a field is wrong');
   await page.screenshot({ path: path.join(folder, 'admin-draft-refused-publish.png'), fullPage: true });
   await form.getByLabel('Offer status', { exact: true }).selectOption('draft');
@@ -226,7 +269,7 @@ try {
   // The packages list has three tabs (Live / Drafts / Archived); a never-published draft is under Drafts.
   await page.getByRole('tab', { name: /^Drafts/ }).click();
   await page.locator('li').filter({ hasText: 'Draft Only' }).getByRole('button', { name: 'Edit draft →' }).click();
-  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).inputValue(), '-5', 'the draft opens as typed');
+  assert.equal(await form.getByLabel('Discount price (₹)', { exact: true }).inputValue(), '-5', 'the draft opens as typed');
   assert.equal(await form.getByLabel('Offer name', { exact: true }).inputValue(), 'Half offer');
   const stale = await context.request.patch(origin + '/api/packages/drafts', { data: { action: 'save', packageId: 'draft-only', version: 5, data: { item: { name: 'Old copy' } } } });
   assert.equal(stale.status(), 409, 'a save from an older copy is refused');
@@ -252,8 +295,21 @@ try {
   await form.getByLabel('Status', { exact: true }).selectOption('published');
   await form.getByLabel('Description', { exact: true }).fill('A ready-to-launch business website.');
   await form.getByLabel('Included work (one item per line)', { exact: true }).fill('5-page business website\nMobile-friendly design');
-  await form.getByLabel('Main price (₹)', { exact: true }).fill('15000');
-  await form.getByLabel('Normal price (₹)', { exact: true }).fill('9999');
+  // The main price is made from the category base price and the ticked add-ons (owner decision 10 Nov 2026), never typed.
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).count(), 1);
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'P', 'the main price is shown, not typed');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).innerText(), '₹10,000', 'the category base price alone');
+  assert.equal(await form.getByLabel('Discount price (₹)', { exact: true }).inputValue(), '10000', 'no discount to start with');
+  const addOns = form.getByRole('group', { name: 'Add-on services', exact: true });
+  assert.deepEqual(await addOns.getByRole('checkbox').evaluateAll(boxes => boxes.map(box => box.closest('label').innerText.replace(/\s+/g, ' ').trim())), ['SEO setup · ₹3,000', 'Extra page · ₹500 each'], 'hidden and other-category add-ons are not offered');
+  await addOns.getByRole('checkbox', { name: /^SEO setup/ }).check();
+  await addOns.getByRole('checkbox', { name: /^Extra page/ }).check();
+  await form.getByLabel('Quantity of Extra page', { exact: true }).fill('4');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).innerText(), '₹15,000');
+  await form.getByText('Base ₹10,000', { exact: false }).first().waitFor();
+  assert.match(await form.getByLabel('Included work (one item per line)', { exact: true }).inputValue(), /SEO setup/, 'a ticked add-on is added to the included work');
+  await form.getByLabel('Discount price (₹)', { exact: true }).fill('9999');
+  await form.getByText('₹5,001 discount (33.3% off).', { exact: false }).waitFor();
   assert.equal(await form.getByLabel('Main heading', { exact: true }).inputValue(), 'Business Starter', 'design pre-filled from the name');
   // How customers buy it (src/docs/package.md decision 7): one-time and full payment pre-chosen, uploads always chosen.
   assert.equal(await form.getByLabel('Billing', { exact: true }).inputValue(), 'one_time');
@@ -349,7 +405,8 @@ try {
 
   // 4. A package change updates its offer; changes that would break the running offer are refused.
   const saved = api.store.packages['business-starter'];
-  const changed = await packageApi({ ...saved, regularPrice: 20000 });
+  // The main price follows the add-ons: 14 extra pages (₹500 each, the saved unit price) make base ₹10,000 + SEO ₹3,000 + ₹7,000 = ₹20,000.
+  const changed = await packageApi({ ...saved, regularPrice: 20000, services: [{ featureId: '0'.repeat(23) + '1', quantity: 1 }, { featureId: '0'.repeat(23) + '2', quantity: 14 }] });
   assert.equal(changed.status(), 200, await changed.text());
   assert.equal((await state()).offers.find(row => row.slug === 'diwali-launch-offer').mainPrice, 20000);
   for (const [patch, status, message] of [
@@ -514,6 +571,153 @@ try {
   await form.getByLabel('Description', { exact: true }).fill('GBP description updated.');
   await save('Publish changes');
   assert.deepEqual([api.store.packages.gbp.description, api.store.packages.gbp.linkedPlanIds], ['GBP description updated.', [OLD_REF]]);
+  // 13. Price from category and add-ons (owner decision 10 Nov 2026), with category and add-on changes made in popups
+  // from the package form. A saved package keeps its saved prices; only an add-on added later takes today's price.
+  const ONE = '0'.repeat(23) + '1';
+  const made = await context.request.patch(origin + '/api/packages', { data: { creating: true, item: { ...pkg(''), name: 'Frozen Pack', category: 'standard_websites', regularPrice: 13000, discountedPrice: 12000,
+    billing: 'one_time', portalUploads: true, paymentOptions: ['full'], design: api.store.packages['business-starter'].design, services: [{ featureId: ONE, quantity: 1 }] } } });
+  assert.equal(made.status(), 200, await made.text());
+  assert.deepEqual(api.store.packages['frozen-pack'].pricing, { categoryBasePrice: 10000, services: [{ featureId: ONE, name: 'SEO setup', unitPrice: 3000, isQuantityBased: false, quantity: 1 }] });
+  api.store.categories[0].basePrice = 99999; api.store.addOns[0].unitPrice = 7000; // the portal's prices change afterwards
+  await editor('Frozen Pack');
+  const parts = form.getByRole('group', { name: 'Add-on services', exact: true });
+  const mainPrice = () => form.getByLabel('Main price (₹)', { exact: true }).innerText();
+  assert.equal(await mainPrice(), '₹13,000', 'a saved package keeps the prices it was saved with');
+  await form.getByText('(saved price; today ₹7,000)', { exact: false }).waitFor();
+  await parts.getByRole('checkbox', { name: /^Extra page/ }).check();
+  assert.equal(await mainPrice(), '₹13,500', 'only the new add-on takes today\'s price');
+  // Edit category in a popup: the key is fixed, a questionnaire category cannot be archived, the base price is saved by the portal.
+  await form.getByRole('button', { name: 'Edit category', exact: true }).first().click();
+  const editCategory = page.getByRole('dialog', { name: 'Edit project category', exact: true });
+  assert.equal(await editCategory.getByRole('textbox', { name: /^Permanent key/ }).isEditable(), false, 'the key never changes');
+  assert.equal(await editCategory.getByRole('checkbox', { name: /^Archived/ }).isDisabled(), true, 'the questionnaire category stays active');
+  await editCategory.getByLabel('Base price (INR)', { exact: true }).fill('12000');
+  await editCategory.getByRole('button', { name: 'Save category', exact: true }).click();
+  await editCategory.waitFor({ state: 'detached' });
+  const categoryCall = api.store.categorySaves.at(-1);
+  assert.deepEqual([categoryCall.category, categoryCall.basePrice, categoryCall.status, 'creating' in categoryCall], ['standard_websites', 12000, 'active', false]);
+  assert.equal(api.store.categories[0].basePrice, 12000);
+  assert.equal(await mainPrice(), '₹13,500', 'the new base price does not reach the saved package');
+  // "Update to current prices" takes every price afresh, and can be undone before saving.
+  await form.getByRole('button', { name: 'Update to current prices', exact: true }).click();
+  assert.equal(await mainPrice(), '₹19,500', 'base 12,000 + SEO 7,000 + 1 extra page 500');
+  await form.getByText('On save, the base price and every add-on take today', { exact: false }).waitFor();
+  await form.getByRole('button', { name: 'Keep the saved prices', exact: true }).click();
+  assert.equal(await mainPrice(), '₹13,500');
+  // A package priced from its category and add-ons stays one-time.
+  await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
+  await page.getByText('A package priced from its category and add-ons stays one-time.', { exact: true }).waitFor();
+  assert.equal(await form.getByLabel('Billing', { exact: true }).inputValue(), 'one_time');
+  // No sideways scroll with the price builder filled, at any width.
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll in the price builder at ${width}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // A saved add-on deleted in the portal stays in the package as it was saved, marked as no longer offered.
+  await parts.getByRole('button', { name: 'Edit SEO setup', exact: true }).click();
+  const editAddOn = page.getByRole('dialog', { name: 'Edit add-on service', exact: true });
+  await editAddOn.getByRole('button', { name: 'Delete add-on', exact: true }).click();
+  await editAddOn.waitFor({ state: 'detached' });
+  assert.equal(api.store.addOns.some(row => row.name === 'SEO setup'), false);
+  await form.getByText('No longer offered; kept as saved.', { exact: false }).waitFor();
+  assert.equal(await mainPrice(), '₹13,500', 'a deleted add-on does not change a saved package');
+  api.store.addOns.unshift({ id: ONE, name: 'SEO setup', unitPrice: 7000, description: 'Basics', isHidden: false, isQuantityBased: false, compatibleWith: [] });
+
+  // A new package in another category: add-ons are made, changed and deleted from its popups.
+  await page.goto(origin + '/admin/packages');
+  await page.getByRole('button', { name: 'New package +', exact: true }).click();
+  await form.getByLabel('Project category', { exact: true }).selectOption('seo_services');
+  assert.equal(await mainPrice(), '₹5,000', 'the base price of the chosen category');
+  assert.deepEqual(await form.getByRole('group', { name: 'Add-on services', exact: true }).getByRole('checkbox').evaluateAll(boxes => boxes.map(box => box.closest('label').innerText.replace(/\s+/g, ' ').trim())),
+    ['SEO setup · ₹7,000', 'Extra page · ₹500 each', 'SEO audit · ₹800'], 'an add-on for one category is offered in that category');
+  await form.getByRole('button', { name: '+ New add-on', exact: true }).click();
+  const newAddOn = page.getByRole('dialog', { name: 'New add-on service', exact: true });
+  await newAddOn.getByLabel('Add-on name', { exact: false }).fill('Logo design');
+  await newAddOn.getByLabel('Price (₹)', { exact: false }).fill('2000');
+  await newAddOn.getByRole('button', { name: 'Create add-on', exact: true }).click();
+  await newAddOn.waitFor({ state: 'detached' });
+  const created = api.store.addOnCalls.at(-1);
+  assert.deepEqual([created.action, created.body.category, created.body.price, created.body.sellingPrice, created.body.compatibleWith, created.body.serviceName], ['create', 'feature_upgrades', 2000, 2000, [], 'Logo design']);
+  const partsNow = form.getByRole('group', { name: 'Add-on services', exact: true });
+  assert.equal(await partsNow.getByRole('checkbox', { name: /^Logo design/ }).isChecked(), true, 'a new add-on is ticked at once');
+  assert.equal(await mainPrice(), '₹7,000');
+  assert.match(await form.getByLabel('Included work (one item per line)', { exact: true }).inputValue(), /Logo design/);
+  await partsNow.getByRole('button', { name: 'Edit Logo design', exact: true }).click();
+  const changeAddOn = page.getByRole('dialog', { name: 'Edit add-on service', exact: true });
+  await changeAddOn.getByLabel('Price (₹)', { exact: false }).fill('2500');
+  await changeAddOn.getByRole('button', { name: 'Save add-on', exact: true }).click();
+  await changeAddOn.waitFor({ state: 'detached' });
+  assert.equal(api.store.addOnCalls.at(-1).action, 'update');
+  assert.equal(await mainPrice(), '₹7,500', 'an add-on not yet saved in a package takes its current price');
+  await partsNow.getByRole('button', { name: 'Edit Logo design', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Edit add-on service', exact: true }).getByRole('button', { name: 'Delete add-on', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Edit add-on service', exact: true }).waitFor({ state: 'detached' });
+  assert.equal(await mainPrice(), '₹5,000', 'a deleted add-on leaves the form');
+  assert.doesNotMatch(await form.getByLabel('Included work (one item per line)', { exact: true }).inputValue(), /Logo design/);
+  // The portal's refusal to delete a service customers already bought is shown as it is.
+  await form.getByRole('button', { name: '+ New add-on', exact: true }).click();
+  const bought = page.getByRole('dialog', { name: 'New add-on service', exact: true });
+  await bought.getByLabel('Add-on name', { exact: false }).fill('Bought service');
+  await bought.getByLabel('Price (₹)', { exact: false }).fill('100');
+  await bought.getByRole('button', { name: 'Create add-on', exact: true }).click();
+  await bought.waitFor({ state: 'detached' });
+  await form.getByRole('button', { name: 'Edit Bought service', exact: true }).click();
+  const refused = page.getByRole('dialog', { name: 'Edit add-on service', exact: true });
+  await refused.getByRole('button', { name: 'Delete add-on', exact: true }).click();
+  await refused.getByText('cannot be deleted. Retire it instead', { exact: false }).waitFor();
+  await refused.getByRole('button', { name: 'Cancel', exact: true }).click();
+  // A price that changed while the form was open is refused on publish, with the portal's message.
+  await form.getByRole('checkbox', { name: /^SEO audit/ }).check();
+  await form.getByLabel('Package name', { exact: true }).fill('Stale Pack');
+  await form.getByLabel('Status', { exact: true }).selectOption('published');
+  await form.getByLabel('Description', { exact: true }).fill('Priced from its parts.');
+  await form.getByLabel('Yes: the client sends files in the portal').check();
+  assert.equal(await mainPrice(), '₹5,900', 'base 5,000 + Bought service 100 (ticked when made) + SEO audit 800');
+  api.store.addOns.find(row => row.name === 'SEO audit').unitPrice = 900;
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  await page.getByText('The main price changed. Review the current category and add-on prices.', { exact: true }).waitFor();
+  assert.equal(api.store.packages['stale-pack'], undefined, 'nothing was published');
+  // 14. Price method (owner decision 10 Nov 2026): chosen when a package is made, remembered for the next new one, and kept by
+  // a saved package. A typed (manual) package is made as before; a copy of it may be priced the other way.
+  const typed = await context.request.patch(origin + '/api/packages', { data: { creating: true, item: { ...pkg(''), name: 'Typed Pack', category: 'standard_websites', regularPrice: 4000, discountedPrice: 3500,
+    billing: 'one_time', portalUploads: true, paymentOptions: ['full'], design: api.store.packages['business-starter'].design } } });
+  assert.equal(typed.status(), 200, await typed.text());
+  const method = () => form.getByRole('radiogroup', { name: 'Price method', exact: true });
+  const remembered = () => page.evaluate(() => localStorage.getItem('package-price-mode'));
+  await editor('Typed Pack');
+  await form.getByText('Manual (typed prices)', { exact: true }).waitFor();
+  assert.equal(await method().count(), 0, 'a saved package has no price-method choice');
+  assert.equal(await form.getByRole('button', { name: 'Price from category and add-ons', exact: true }).count(), 0, 'a saved typed package is not switched');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT', 'a typed package keeps its typed main price');
+  await editor('Frozen Pack');
+  await form.getByText('Automatic (from category and add-ons)', { exact: true }).waitFor();
+  assert.equal(await method().count(), 0);
+  // Duplicate a typed package: the copy is new, opens typed, and may be priced from its parts.
+  await page.goto(origin + '/admin/packages');
+  await page.locator('li').filter({ hasText: 'Typed Pack' }).getByRole('button', { name: 'Duplicate', exact: true }).click();
+  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'a copy of a typed package opens typed');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
+  await method().getByRole('radio', { name: /^Automatic/ }).check();
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'P');
+  assert.equal(await mainPrice(), '₹12,000', 'the category base price: this copy is priced from its parts');
+  await form.getByRole('group', { name: 'Add-on services', exact: true }).waitFor();
+  assert.equal(await remembered(), 'automatic');
+  // The way chosen last is the way the next new package opens, also after switching to monthly and back.
+  await method().getByRole('radio', { name: /^Manual/ }).check();
+  assert.equal(await remembered(), 'manual');
+  await page.goto(origin + '/admin/packages');
+  await page.getByRole('button', { name: 'New package +', exact: true }).click();
+  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'the next new package opens the way the last one was priced');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
+  await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
+  await form.getByText('A monthly package uses typed prices.', { exact: true }).waitFor();
+  await form.getByLabel('Billing', { exact: true }).selectOption('one_time');
+  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'billing back to one-time keeps the chosen way');
+  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
+  // Back to automatic for the steps that follow (blocked storage is covered by tests/package-price-mode.test.ts).
+  await method().getByRole('radio', { name: /^Automatic/ }).check();
+  assert.equal(await remembered(), 'automatic');
   // A category list that did not load says so instead of looking empty.
   const savedCategories = api.store.categories.splice(0);
   await page.goto(origin + '/admin/packages');
@@ -523,7 +727,8 @@ try {
   // No sideways scroll in the admin form at any width.
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll in the package form at ${width}`);
+            const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 6).map(el => el.tagName + '.' + String(el.className).slice(0, 40)));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll in the package form at ${width}: ${JSON.stringify(wide)}`);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
 
