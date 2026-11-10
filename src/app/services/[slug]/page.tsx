@@ -39,5 +39,5 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
       </div>
       <div className="hero-actions" style={{ flexWrap: "wrap" }}><Link className="button button-dark" href="/contact">Discuss your requirements <span aria-hidden="true">→</span></Link><Link className="text-link" href={packagesLink}>Explore packages <span aria-hidden="true">↗</span></Link></div>
     </div></section>
-  </main><SiteFooter /></>;
+  </main><SiteFooter whatsappSubject={service.title} /></>;
 }

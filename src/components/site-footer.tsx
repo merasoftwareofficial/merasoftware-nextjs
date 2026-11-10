@@ -11,6 +11,7 @@ import { packageMenuLinks } from "@/lib/package-pages-server";
 import { settingsRepo } from "@/lib/repo";
 import { socialLinks } from "@/lib/social-links";
 import { SocialIcon } from "@/components/social-icons";
+import { whatsAppChatUrl, whatsAppPageMessage } from "@/lib/whatsapp-link";
 
 /** "01 / WEBSITES & SOFTWARE" → "Websites & Software" (the service's own eyebrow, so no new copy). */
 function serviceLabel(eyebrow: string) {
@@ -43,16 +44,17 @@ async function PackageLinks() {
   return <>{links.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}</>;
 }
 
-export function SiteFooter() {
+/** `whatsappSubject` names the package or service on its page, so the chat message is about it. */
+export function SiteFooter({ whatsappSubject }: { whatsappSubject?: string } = {}) {
   const notify = notifyOffered();
   const year = new Date().getFullYear();
+  const chat = whatsAppChatUrl(BUSINESS_LOCATION.whatsapp, whatsAppPageMessage(whatsappSubject));
   return (
     <footer className="site-footer">
       <div className="container footer-cta">
         <p>Have a project in mind? Let&apos;s talk about it.</p>
         <div className="footer-cta-actions">
-          <Link className="button" href="/contact">Start a project <span>↗</span></Link>
-          <a className="footer-cta-whatsapp" href={`https://wa.me/${BUSINESS_LOCATION.whatsapp}`} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+          <a className="footer-cta-whatsapp" href={chat} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
         </div>
       </div>
 
@@ -98,6 +100,9 @@ export function SiteFooter() {
         <span>© {year} Mera Software</span>
         <Link href="/terms">Terms &amp; Conditions</Link>
         <Link href="/privacy">Privacy</Link>
+        <a className="whatsapp-float" href={chat} target="_blank" rel="noopener noreferrer" aria-label="Chat with us on WhatsApp" title="Chat on WhatsApp">
+          <SocialIcon platform="whatsapp" />
+        </a>
       </div>
     </footer>
   );
