@@ -770,7 +770,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           {showOffer ? <><p className={s.old}><del>{rupee(shown.regularPrice)}</del>{shown.regularPrice > shown.discountedPrice && <> → <del>{rupee(shown.discountedPrice)}</del></>}</p><p className={s.deal}><small>OFFER PRICE {percent > 0 && <b>{percent}% OFF</b>}</small><strong>{rupee(Number(offerForm!.offerPrice))}</strong></p><p className={s.timer}>Countdown to {formatIndiaDateTime(new Date(previewEnd).toISOString())}</p></>
             : <>{shown.regularPrice > shown.discountedPrice && <p className={s.old}><del>{rupee(shown.regularPrice)}</del></p>}<p className={s.deal}><small>PRICE</small><strong>{rupee(shown.discountedPrice)}</strong></p></>}
           <p className={s.pd}>{item.design.priceDescription}</p>
-          <p className={s.cta}>{showOffer ? (previewState === "open" ? `Reserve price for ${hours(offerForm!.reservationHoldHours) || DEFAULT_HOLD_HOURS} hours` : previewState === "reserved" ? "Start my project · time left" : item.design.ctaLabel) : item.billing ? "Get this package · Arrange a callback" : "Arrange a callback"} →</p>
+          <p className={s.cta}>{showOffer ? (previewState === "open" ? `Reserve price for ${hours(offerForm!.reservationHoldHours) || DEFAULT_HOLD_HOURS} hours${item.billing ? " · Get this package" : ""} · Arrange a callback` : previewState === "reserved" ? "Start my project · time left · Arrange a callback" : item.billing ? "Get this package · Arrange a callback" : "Arrange a callback") : item.billing ? "Get this package · Arrange a callback" : "Arrange a callback"} →</p>
         </div>
         <p className={s.note}>{showOffer ? "Offer mode: 3 prices and the countdown. When it ends the page shows 2 prices again without a reload." : "Package mode: 2 prices, no countdown. A package with purchase settings shows Get this package and Arrange a callback; any other shows Arrange a callback."}{offerForm?.status === "draft" && showOffer ? " This offer is a draft: customers still see package mode." : ""}</p>
         <button type="button" className="admin-action" onClick={() => preview.current?.showModal()}>Preview full page ↗</button>
@@ -779,7 +779,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     <dialog ref={preview} className={s.preview} aria-label="Package page preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}>
       <div className={s.previewBar}><strong>Unsaved page preview</strong><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div>
       <PublicInteraction offer={view} terms={showOffer ? resolvedTerms(view, universalTerms) : packageTerms} preview previewReservation={showOffer ? previewState : "normal"}
-        pkg={{ id, name: item.name || "Package name", live: showOffer, back: { href: "#", label: "Packages" }, packageTerms }} />
+        pkg={{ id, name: item.name || "Package name", live: showOffer, back: { href: "#", label: "Packages" }, packageTerms, customize: item.billing ? "#" : undefined }} />
     </dialog>
   </>;
 }

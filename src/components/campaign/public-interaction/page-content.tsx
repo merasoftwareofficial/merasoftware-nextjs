@@ -73,12 +73,15 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   const percent = offer.packageId ? offerDiscountPercent(offer) : 0;
   const channel = offer.contactHref.startsWith("mailto:") ? "Opens email" : offer.contactHref.startsWith("tel:") ? "Opens phone" : "Contact us";
   // A saved reservation stays visible after the offer ends; Reserve itself never outlives the offer.
-  const offerCta: ReserveCta = expired && (shown.cta.kind === "reserve" || shown.phase === "expired") ? { kind: "enquire" } : shown.cta;
-  // On a package without an offer, a running reservation of its last offer keeps its own button; otherwise the
-  // buttons are Get this package (the customize page) and Arrange a callback (helpers/packageStart.js), or just the
-  // callback on a package that cannot be bought online, or Enquire while that is switched off.
+  // On a package page, a reservation that ran out holds nothing: the customer gets the same buttons as anyone else.
+  const offerCta: ReserveCta = (expired && (shown.cta.kind === "reserve" || shown.phase === "expired")) || (!!pkg && shown.phase === "expired") ? { kind: "enquire" } : shown.cta;
+  // A package page keeps the package's own buttons while its offer runs (owner decision 10 Nov 2026): Get this package
+  // (the customize page, priced with the offer) and Arrange a callback (helpers/packageStart.js), or just the callback
+  // on a package that cannot be bought online, or Enquire while that is switched off. In the reserve window Reserve is
+  // added; a running reservation of the offer shows Start my project and the callback; its other states keep their status button.
   const keepsReservation = offerCta.kind === "start" || offerCta.kind === "status";
-  const packageButtons = packageMode && !keepsReservation && (!!pkg?.start || preview);
+  const pkgButtons = !!pkg && (!!pkg.start || preview);
+  const packageButtons = pkgButtons && !keepsReservation;
   const callbackSent = packageStart.request?.kind === "callback";
   const cta: ReserveCta = packageMode && !keepsReservation ? { kind: "enquire" } : offerCta;
   const { error, phase } = control;
@@ -96,7 +99,18 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
   // The sticky bar has room for a short answer only ("short").
   const callbackButton = (className: string | undefined, short = false) => <button type="button" className={className} disabled={callbackSent || (!packageStart.loaded && !preview)} onClick={() => { if (!preview) startDialog.current?.showModal(); }}>{short ? (callbackSent ? "Callback requested ✓" : "Arrange a callback") : callbackLabel(packageStart)}{!callbackSent && !short && <Arrow />}</button>;
   // `place`: the card shows the two buttons one above the other; the sticky bar ("bar") shows them side by side.
-  const action = (className: string | undefined, enquireLabel: string, place: "card" | "bar" | "" = "") => packageButtons && pkg?.customize
+  const mainButton = (className: string | undefined, label: string, arrow = true) => <button type="button" className={className} disabled={cta.kind === "reserve" && cta.disabled} onClick={() => { if (!preview) reserveDialog.current?.showModal(); }}>{label}{arrow && <Arrow />}</button>;
+  // Reserve (with Get this package) or Start my project (with the callback) beside the offer's own buttons.
+  const withOffer = (className: string | undefined, place: "card" | "bar" | "") => {
+    if (cta.kind !== "reserve" && cta.kind !== "start") return null;
+    const get = cta.kind === "reserve" && pkg?.customize;
+    return place === "bar"
+      ? <div className={s.stickyActions}>{mainButton(className, cta.kind === "reserve" ? "Reserve price" : "Start my project", false)}{get ? <Link className={s.stickyQuiet} href={pkg.customize!}>Get this package</Link> : callbackButton(s.stickyQuiet, true)}</div>
+      : <div className={s.ctaPair}>{mainButton(className, cta.label)}{get && <Link className={`${s.claim} ${s.claimQuiet}`} href={pkg.customize!}>Get this package<Arrow /></Link>}{callbackButton(`${s.claim} ${s.claimQuiet}`)}</div>;
+  };
+  const action = (className: string | undefined, enquireLabel: string, place: "card" | "bar" | "" = "") => pkgButtons && (cta.kind === "reserve" || cta.kind === "start")
+    ? withOffer(className, place)
+    : packageButtons && pkg?.customize
     ? (place === "card"
       ? <div className={s.ctaPair}><Link className={className} href={pkg.customize}>Get this package<Arrow /></Link>{callbackButton(`${s.claim} ${s.claimQuiet}`)}</div>
       : place === "bar"
@@ -183,7 +197,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
           : <button type="button" className={s.claim} disabled={control.busy || control.cta.kind !== "reserve" || control.cta.disabled || (control.needsPhone && !control.phone.phone.trim())} onClick={control.confirm}>{control.busy ? "Reserving…" : control.signedIn ? "Confirm reservation" : "Continue to sign in"}<Arrow /></button>}
       </div>}
     </dialog>}
-    {pkg?.start && !preview && <PackageCallbackDialog dialogRef={startDialog} start={packageStart} name={pkg.name} price={money(offer.discountPrice)} />}
+    {pkg?.start && !preview && <PackageCallbackDialog dialogRef={startDialog} start={packageStart} name={pkg.name} price={money(held ?? (packageMode ? offer.discountPrice : offer.offerPrice))} />}
     {!preview && <div className={s.sticky}><div>{held !== null ? <><span>Your reserved price</span><strong>{money(held)}</strong></> : packageMode ? <><span>{title}</span><strong>{money(offer.discountPrice)}</strong></> : <><span>{expired ? "OFFER ENDED" : offer.title}</span><strong>{expired ? "Check availability" : money(offer.offerPrice)}</strong></>}</div>{action(undefined, expired && !packageMode ? "Contact us" : offer.ctaLabel, "bar")}</div>}
   </main>;
 }

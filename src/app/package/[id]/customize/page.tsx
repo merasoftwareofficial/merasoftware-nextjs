@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "@/components/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -19,8 +19,8 @@ export const dynamic = "force-dynamic";
 
 // A package's customize page (src/docs/package.md §3): choose how to buy it, see the backend's price, and
 // send a package start request with that choice. Only a published package with purchase settings has
-// one, while package requests are on; others are a 404. While its offer runs the package page's Reserve
-// keeps the price (decision 5), so this page sends the customer back there.
+// one, while package requests are on; others are a 404. While its offer runs this page prices with the offer
+// (the backend quote includes it), so Get this package works the same with or without an offer.
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -32,7 +32,6 @@ export default async function Page({ params, searchParams }: Props) {
   const { id } = await params;
   const item = (await readCustomizablePackages()).find(row => row.id === id);
   if (!item) notFound();
-  if (item.quote.offer) redirect(packagePath(item.id));
   const initial = initialPackageChoice(item, await searchParams);
   const user = await getSessionUser();
   const countries = user ? await phoneCountries() : [];
