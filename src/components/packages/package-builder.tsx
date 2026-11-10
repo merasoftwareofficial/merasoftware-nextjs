@@ -70,9 +70,6 @@ function QuoteBill({ item, quote, loading, error }: { item: BuilderPackage; quot
         <strong>{money(quote.dueNow)}</strong>
         {parts.length > 0 && <span className={s.totalNote}>{money(quote.finalPrice)} in total</span>}
       </div>
-      <div className={s.gives}>
-        <b>{item.portalUploads ? "Send your files in your client portal while we build" : "Progress updates in your client portal"}</b>
-      </div>
     </div>
   );
 }
@@ -224,7 +221,6 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
             {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
             <div className={s.actions}>{mainButton()}</div>
           </>}
-          {!purchased && <p className={s.note}>You pay the first payment now (wallet first, then UPI). Your project is created with it and runs in your client portal.</p>}
         </>}
         {start.error && <p className={s.error} role="alert">{start.error}</p>}
         {pay.error && <p className={s.error} role="alert">{pay.error}</p>}
