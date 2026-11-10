@@ -5,9 +5,7 @@ import { getSession } from "@/lib/auth";
 import { portalAddresses, portalEntryFor } from "@/lib/portal";
 import { MobileMenu, type MenuEntry, type MenuLink } from "@/components/mobile-menu";
 import { NavDropdown } from "@/components/nav-dropdown";
-import { packagePagePath } from "@/lib/package-pages";
-import { readPackagePages } from "@/lib/package-pages-server";
-import { PLANS_PAGE_PATH, PLANS_PAGE_TITLE } from "@/lib/public-plans";
+import { packageMenuLinks } from "@/lib/package-pages-server";
 import { FEATURES } from "@/lib/features";
 import { SessionMenu } from "@/components/session-menu";
 import { HeaderScroll } from "@/components/header-scroll";
@@ -52,14 +50,8 @@ function navEntries(packageLinks: MenuLink[] | null): MenuEntry[] {
   return [services, { label: "Packages", links: packageLinks ?? [] }, ...rest];
 }
 
-async function packageLinks(): Promise<MenuLink[]> {
-  // The header is on every public page; a failed read hides the package sub-pages, never the page.
-  // The plans page (lib/public-plans.ts) is a fixed page, so it is always listed, last.
-  let pages: MenuLink[] = [];
-  try { pages = (await readPackagePages()).map(page => [page.title, packagePagePath(page.slug)]); }
-  catch { /* package pages hidden */ }
-  return [...pages, [PLANS_PAGE_TITLE, PLANS_PAGE_PATH]];
-}
+/** The header is on every public page; the list itself lives in lib/package-pages-server.ts (shared with the footer). */
+const packageLinks = packageMenuLinks;
 
 function NavLinks({ entries }: { entries: MenuEntry[] }) {
   return (
