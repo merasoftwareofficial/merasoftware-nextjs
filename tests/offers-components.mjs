@@ -510,60 +510,46 @@ try {
   await form.getByLabel('Status', { exact: true }).selectOption('published');
   await form.getByLabel('Description', { exact: true }).fill('Monthly data entry for your business.');
   await form.getByLabel('Included work (one item per line)', { exact: true }).fill('Monthly data entry');
-  assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'one-time has no price per file');
   await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
   await form.getByLabel('Yes: the client sends files in the portal').check();
-  assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'fixed monthly has two prices');
+  // One fixed monthly price (owner decision 11 Nov 2026): no price per file anywhere.
+  assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'no price per file');
+  assert.equal(await form.getByRole('radiogroup', { name: 'Monthly pricing' }).count(), 0, 'no fixed / per file choice');
+  // A monthly package has the same price methods as a one-time one; this one is typed by hand.
+  const priceMethod = form.getByRole('radiogroup', { name: 'Price method' });
+  assert.match(await priceMethod.innerText(), /Automatic: the main price \(a month\) comes from the category and add-ons/);
+  await priceMethod.getByRole('radio', { name: /^Manual/ }).check();
   await form.getByLabel('Main price (₹)', { exact: true }).fill('900');
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
   const top = async texts => form.evaluate((el, list) => list.map(text => { const node = [...el.querySelectorAll('legend, label span, h2, span')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }), texts);
-  const fixedOrder = await top(['Package name', 'How customers buy', 'Billing *', 'Project category', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
-  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, purchase settings, category, prices, included work, offer, website display, page design: ' + fixedOrder);
-  // Price per file: the plan form's order, one price, no main / normal boxes.
-  await form.getByRole('radio', { name: /^Price per file:/ }).check();
-  const rate = form.getByLabel('Price per file (₹)', { exact: true });
-  assert.equal(await rate.inputValue(), '700', 'starts from the price the customer paid');
-  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).count(), 0, 'no main price box');
-  assert.equal(await form.getByLabel('Normal price (₹)', { exact: true }).count(), 0, 'no normal price box');
-  const perFileOrder = await top(['Files per update: fewest', 'Price per file (₹)', 'Updates a month: fewest', 'Billing cycles and discount', 'Longest length']);
-  assert.ok(perFileOrder.every((y, i) => i === 0 || y > perFileOrder[i - 1]), 'files, price per file, updates, cycles, length: ' + perFileOrder);
-  await rate.fill('50');
-  const check = form.getByLabel('Price check');
-  await check.getByText('One update: ₹500 (10 files) to ₹5,000 (100 files)', { exact: true }).waitFor();
-  await check.getByText('Per month: ₹500 (10 files × 1 update) to ₹20,000 (100 files × 4 updates)', { exact: true }).waitFor();
-  // A quarterly cycle at 10% off, then the client's choice: 20 files × ₹50 × 2 updates = ₹2,000 a month,
-  // a quarter ₹5,400 after 10% off, 6 months ₹10,800 (the backend's own numbers).
+  // A typed (manual) package shows no category field; it keeps the category chosen above.
+  const fixedOrder = await top(['Package name', 'How customers buy', 'Billing *', 'Updates a month', 'Billing cycles and discount', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
+  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, purchase settings, updates, cycles, prices, included work, offer, website display, page design: ' + fixedOrder);
+  // Updates a month: unlimited by default, or a number that opens again every month.
+  const uploads = form.getByRole('radiogroup', { name: 'Updates a month' });
+  assert.equal(await uploads.getByRole('radio', { name: 'Unlimited' }).isChecked(), true);
+  await uploads.getByRole('radio', { name: /^Limited/ }).check();
+  await form.getByLabel('Number of updates a month', { exact: true }).fill('3');
   await form.getByRole('group', { name: 'Billing cycles' }).getByRole('checkbox').nth(1).check();
   await form.getByLabel('Quarterly discount %', { exact: true }).fill('10');
-  await check.getByLabel('Check billing period').selectOption('quarterly');
-  await check.getByLabel('Check length in months').selectOption('6');
-  await check.getByLabel('Check files per update').selectOption('20');
-  await check.getByLabel('Check updates per month').selectOption('2');
-  const result = check.locator('[aria-live]');
-  assert.equal((await result.innerText()).replace(/\s+/g, ' ').trim(), 'One update ₹1,000 · per month ₹2,000 · each quarterly payment ₹5,400 (after 10% off, ₹600 saved) · total ₹10,800 for 6 months');
-  // The price follows the price per file at once.
-  await rate.fill('60');
-  assert.match(await result.innerText(), /per month ₹2,400 · each quarterly payment ₹6,480 .* total ₹12,960 for 6 months/);
-  await page.screenshot({ path: path.join(folder, 'admin-price-per-file.png'), fullPage: true });
-  const perFile = await save('Publish');
-  assert.deepEqual([perFile.package.billing, perFile.package.monthly.pricing, perFile.package.regularPrice, perFile.package.discountedPrice], ['monthly', 'per_file', 60, 60], 'saved as both prices');
-  assert.equal(perFile.package.category, 'data_services', 'saved with the new category');
-  // An offer lowers the price per file: it must be below it.
+  await page.screenshot({ path: path.join(folder, 'admin-monthly-package.png'), fullPage: true });
+  const monthlySaved = await save('Publish');
+  assert.deepEqual([monthlySaved.package.billing, monthlySaved.package.monthly.uploadsPerMonth, monthlySaved.package.regularPrice, monthlySaved.package.discountedPrice], ['monthly', 3, 900, 700]);
+  assert.equal('pricing' in monthlySaved.package.monthly, false, 'no fixed / per file field');
+  assert.equal(monthlySaved.package.category, 'data_services', 'saved with the new category');
+  // Without portal uploads there is no updates count: the team posts work updates instead.
+  await form.getByLabel('No: progress updates only').check();
+  assert.equal(await form.getByRole('radiogroup', { name: 'Updates a month' }).count(), 0);
+  await form.getByLabel('Yes: the client sends files in the portal').check();
+  // An offer must be below the normal monthly price.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
-  await form.getByLabel('Offer name', { exact: true }).fill('Per file launch');
+  await form.getByLabel('Offer name', { exact: true }).fill('Monthly launch');
   await form.getByLabel('Offer status', { exact: true }).selectOption('published');
-  await form.getByLabel('Offer price (₹)', { exact: true }).fill('60');
+  await form.getByLabel('Offer price (₹)', { exact: true }).fill('700');
   await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
-  await page.getByText('Must be below the normal price (₹60).', { exact: true }).waitFor();
-  // Back to fixed monthly: two editable prices again, keeping the value.
-  await form.getByRole('radio', { name: /^Fixed monthly price:/ }).check();
-  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).inputValue(), '60');
-  assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).isDisabled(), false);
-  // A price per file of ₹0 is refused.
-  await form.getByRole('radio', { name: /^Price per file:/ }).check();
-  await rate.fill('0');
-  await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
-  await page.getByText('Enter the price per file above ₹0.', { exact: true }).waitFor();
+  await page.getByText('Must be below the normal price (₹700).', { exact: true }).waitFor();
+  // "Manual" above is remembered for the next new package; the steps below start from the default (automatic).
+  await page.evaluate(() => localStorage.removeItem('package-price-mode'));
 
   // 12. An older package keeps its stored service references when saved: the field left the form only.
   await editor('GBP Setup');
@@ -606,10 +592,11 @@ try {
   await form.getByText('On save, the base price and every add-on take today', { exact: false }).waitFor();
   await form.getByRole('button', { name: 'Keep the saved prices', exact: true }).click();
   assert.equal(await mainPrice(), '₹13,500');
-  // A package priced from its category and add-ons stays one-time.
+  // A package priced from its category and add-ons may be monthly too (owner decision 11 Nov 2026): its parts make the monthly price.
   await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
-  await page.getByText('A package priced from its category and add-ons stays one-time.', { exact: true }).waitFor();
-  assert.equal(await form.getByLabel('Billing', { exact: true }).inputValue(), 'one_time');
+  await form.getByText('The prices below are for one month; every billing period is worked out from them, with its discount.', { exact: true }).waitFor();
+  assert.equal(await mainPrice(), '₹13,500', 'the same parts, now the price of a month');
+  await form.getByLabel('Billing', { exact: true }).selectOption('one_time');
   // No sideways scroll with the price builder filled, at any width.
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -713,7 +700,7 @@ try {
   assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'the next new package opens the way the last one was priced');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
   await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
-  await form.getByText('A monthly package uses typed prices.', { exact: true }).waitFor();
+  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'a monthly package chooses its price method too');
   await form.getByLabel('Billing', { exact: true }).selectOption('one_time');
   assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'billing back to one-time keeps the chosen way');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');

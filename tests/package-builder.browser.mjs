@@ -20,8 +20,9 @@ const folder = path.join(root, 'test-results', `package-builder-${Date.now()}`);
 mkdirSync(folder, { recursive: true });
 
 const ONE_TIME = { id: 'business-starter', name: 'Business Starter', billing: 'one_time', portalUploads: true, paymentOptions: ['full', 'installments_3'], inclusions: ['Website', 'Hosting setup'] };
-const PER_FILE = { id: 'data-entry', name: 'Data Entry', billing: 'monthly', portalUploads: true, inclusions: ['Monthly data entry'],
-  monthly: { pricing: 'per_file', billingOptions: [{ billingCycle: 'monthly', discountPercent: 0 }, { billingCycle: 'quarterly', discountPercent: 10 }], maxTenureMonths: 6, files: { min: 10, max: 50, step: 10 }, updatesPerMonth: { min: 1, max: 4 } } };
+// A monthly package: one fixed monthly price (₹600), 2 updates a month in the portal (src/docs/monthlypackage.md).
+const MONTHLY = { id: 'data-entry', name: 'Data Entry', billing: 'monthly', portalUploads: true, inclusions: ['Monthly data entry'],
+  monthly: { billingOptions: [{ billingCycle: 'monthly', discountPercent: 0 }, { billingCycle: 'quarterly', discountPercent: 10 }], maxTenureMonths: 6, uploadsPerMonth: 2 } };
 const clientEntry = `
 import React from 'react';import{createRoot}from'react-dom/client';
 import{PackageBuilder}from'@/components/packages/package-builder';
@@ -46,11 +47,11 @@ function quote(body) {
   }
   const months = { monthly: 1, quarterly: 3 }[choice.billingCycle];
   const discount = choice.billingCycle === 'quarterly' ? 10 : 0;
-  const perMonth = 10 * choice.files * choice.updates;
+  const perMonth = 600;
   const cyclePrice = Math.round(perMonth * months * (1 - discount / 100));
   const totalCycles = choice.tenureMonths / months;
   return { packageId, quoteKey: 'qk-' + packageId, billing: 'monthly', regularPrice: cyclePrice * totalCycles, discountAmount: 0, finalPrice: cyclePrice * totalCycles, dueNow: cyclePrice, offer: null,
-    monthly: { billingCycle: choice.billingCycle, cycleMonths: months, tenureMonths: choice.tenureMonths, totalCycles, pricing: 'per_file', files: choice.files, updatesPerMonth: choice.updates, perMonthPrice: perMonth, discountPercent: discount, cyclePrice, totalPrice: cyclePrice * totalCycles } };
+    monthly: { billingCycle: choice.billingCycle, cycleMonths: months, tenureMonths: choice.tenureMonths, totalCycles, uploadsPerMonth: 2, perMonthPrice: perMonth, discountPercent: discount, cyclePrice, totalPrice: cyclePrice * totalCycles } };
 }
 const quotes = [], requests = [], purchases = [];
 let balance = 0, purchaseApproved = false, needsPhone = false;
@@ -171,34 +172,34 @@ try {
   await side.getByRole('alert').getByText(/Add your mobile number/).waitFor();
   needsPhone = false;
 
-  // Monthly per file: files, updates, cycle and length; the visitor signs in and comes back to the same choice.
-  await open(PER_FILE);
+  // Monthly: cycle and length (no files or updates to pick); the visitor signs in and comes back to the same choice.
+  await open(MONTHLY);
   await side.getByText('Per month').waitFor();
-  await page.getByLabel('Files per update').fill('30');
-  await page.getByLabel('Updates per month').selectOption('2');
+  assert.equal(await page.getByLabel('Files per update').count(), 0, 'no per file choices');
   await page.getByRole('button', { name: /Quarterly/ }).click();
   await page.getByRole('button', { name: '6 months' }).click();
   await side.getByText('Every 3 months').waitFor();
   await page.waitForFunction(() => /₹1,620/.test(document.querySelector('[aria-label="Your package"]').innerText));
-  assert.match(await side.innerText(), /30 files × 2 updates a month[\s\S]*₹600[\s\S]*10% period discount[\s\S]*₹1,620[\s\S]*2 payments, ₹3,240 in total/);
-  assert.match(await side.innerText(), /You get 2 updates a month · 30 files each/);
+  assert.match(await side.innerText(), /Monthly price[\s\S]*₹600[\s\S]*10% period discount[\s\S]*₹1,620[\s\S]*2 payments, ₹3,240 in total/);
+  assert.match(await side.innerText(), /2 updates a month in the portal/);
+  assert.match(await side.innerText(), /Stop any time/);
   await side.getByRole('button', { name: 'Sign in to proceed →' }).click();
   const back = decodeURIComponent((await page.evaluate(() => window.__pushed)).replace('/login?next=', ''));
-  assert.equal(back, '/package/data-entry/customize?cycle=quarterly&months=6&files=30&updates=2');
+  assert.equal(back, '/package/data-entry/customize?cycle=quarterly&months=6');
   const intent = JSON.parse(await page.evaluate(() => sessionStorage.getItem('pending-package-start')));
   assert.equal(intent.packageId, 'data-entry'); assert.equal(intent.kind, 'buy');
   // Coming back signed in with that address: the same choice, sent once.
-  await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(PER_FILE))}&signed=1&cycle=quarterly&months=6&files=30&updates=2`);
+  await page.goto(`${origin}/?pkg=${encodeURIComponent(JSON.stringify(MONTHLY))}&signed=1&cycle=quarterly&months=6`);
   // The request goes out on return; the button then goes on to the payment (the same label before and after).
   await side.getByRole('button', { name: /Proceed to pay →|Continue to UPI/ }).waitFor();
   for (let i = 0; i < 50 && requests.at(-1)?.packageId !== 'data-entry'; i++) await page.waitForTimeout(100);
-  assert.deepEqual(requests.at(-1), { packageId: 'data-entry', kind: 'buy', choice: { billingCycle: 'quarterly', tenureMonths: 6, files: 30, updates: 2 } });
+  assert.deepEqual(requests.at(-1), { packageId: 'data-entry', kind: 'buy', choice: { billingCycle: 'quarterly', tenureMonths: 6 } });
 
   // Phones: the bar keeps the price and the button in reach; nothing scrolls sideways.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 800 });
-    await open(PER_FILE);
-    await page.locator('[class*="mobileBar"]').getByText(/₹100 \/ month/).waitFor();
+    await open(MONTHLY);
+    await page.locator('[class*="mobileBar"]').getByText(/₹600 \/ month/).waitFor();
     assert.equal(await sideways(), false, `no sideways scroll at ${width}px`);
     // On a phone the page has one button in the package card and one in the bar, and no callback.
     assert.equal(await page.getByRole('button', { name: /callback/i }).count(), 0, `no callback button at ${width}px`);
@@ -221,7 +222,7 @@ try {
   }
   await page.screenshot({ path: path.join(folder, 'phone.png'), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: package customize page — one-time options and installments from the quote, request with the choice, monthly per-file cycle/length/files/updates, sign-in keeps the choice, phone bar, no sideways scroll at 1440/390/320.');
+  console.log('PASS: package customize page — one-time options and installments from the quote, request with the choice, monthly cycle/length, sign-in keeps the choice, phone bar, no sideways scroll at 1440/390/320.');
 } finally {
   await browser?.close();
   server.close();

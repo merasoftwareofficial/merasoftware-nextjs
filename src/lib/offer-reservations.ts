@@ -17,5 +17,6 @@ export type PackageStartRequest = { id: string; packageId: string; kind: Package
   choice?: import("./sales-packages").PackageChoice | null;
   closedAt: string | null; closedReason: "project_created" | "closed_by_team" | "callback_requested" | null; projectId: string | null; status: "requested" | "closed" };
 /** A package project of the customer that is still running (backend helpers/packagePurchase.js activePackageProjects). */
-export type ActivePackageProject = { orderId: string; packageId: string; name: string; boughtAt: string | null; approved: boolean };
+/** `plan`: a monthly package, which runs as a plan (its page is the portal plan page). */
+export type ActivePackageProject = { orderId: string; packageId: string; name: string; boughtAt: string | null; approved: boolean; plan?: boolean };
 export type PackageStartList = { requests: PackageStartRequest[]; activeProjects?: ActivePackageProject[]; enabled: boolean };

@@ -15,7 +15,8 @@ import d from "@/components/campaign/public-interaction/variant.module.css";
 import s from "@/components/plans/plans.module.css";
 
 const REDIRECT_SECONDS = 8;
-const projectHref = (portalUrl: string, orderId: string) => `${portalUrl}/order-detail/${orderId}`;
+// A monthly package runs as a plan: its page is the portal plan page (src/docs/monthlypackage.md).
+export const projectHref = (portalUrl: string, orderId: string, plan = false) => `${portalUrl}/${plan ? "plan-details" : "order-detail"}/${orderId}`;
 const dateWords = (value: string | null) => (value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "");
 
 function useModal(open: boolean) {
@@ -41,7 +42,7 @@ export function AlreadyBoughtDialog({ project, portalUrl, onBuyAnother, onClose 
         <p>You bought <b>{project.name}</b>{project.boughtAt ? ` on ${dateWords(project.boughtAt)}` : ""}. {project.approved ? "Your project is running in your client portal." : "Your payment is being checked by our team."}</p>
         <p>Paying again creates a <b>second project</b> and charges you again.</p>
         <div className={s.actions}>
-          <a className={s.button} href={projectHref(portalUrl, project.orderId)}>Open my project</a>
+          <a className={s.button} href={projectHref(portalUrl, project.orderId, project.plan)}>{project.plan ? "Open my plan" : "Open my project"}</a>
           <button type="button" className={s.payQuiet} onClick={onBuyAnother}>Yes, buy another one</button>
         </div>
       </div>}
@@ -49,7 +50,8 @@ export function AlreadyBoughtDialog({ project, portalUrl, onBuyAnother, onClose 
   );
 }
 
-export function PurchasedDialog({ orderId, approved, portalUrl, onStay }: { orderId: string | null; approved: boolean; portalUrl: string; onStay: () => void }) {
+export function PurchasedDialog({ orderId, approved, plan = false, portalUrl, onStay }: { orderId: string | null; approved: boolean; plan?: boolean; portalUrl: string; onStay: () => void }) {
+  const thing = plan ? "plan" : "project";
   const ref = useModal(Boolean(orderId));
   const titleId = useId();
   const [left, setLeft] = useState(REDIRECT_SECONDS);
@@ -60,17 +62,18 @@ export function PurchasedDialog({ orderId, approved, portalUrl, onStay }: { orde
     const timer = setInterval(() => setLeft(value => value - 1), 1000);
     return () => clearInterval(timer);
   }, [orderId, staying]);
-  useEffect(() => { if (orderId && !staying && left <= 0) window.location.assign(projectHref(portalUrl, orderId)); }, [left, orderId, staying, portalUrl]);
+  useEffect(() => { if (orderId && !staying && left <= 0) window.location.assign(projectHref(portalUrl, orderId, plan)); }, [left, orderId, staying, portalUrl, plan]);
   const stay = () => { setStaying(true); onStay(); };
   return (
     <dialog className={d.termsDialog} ref={ref} aria-labelledby={titleId} onClose={stay}>
       {orderId && <div className={d.dialogContent} role="status">
         <div className={d.dialogHeader}><h2 id={titleId}>✓ {approved ? "Payment received" : "Payment submitted"}</h2></div>
-        <p>{approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours."
+        <p>{plan ? (approved ? "Your plan is active in your client portal." : "Your plan is created. It starts once our team confirms your UPI payment.")
+          : approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours."
           : "Your project is created. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</p>
-        {!staying && <p>Taking you to your project in {Math.max(left, 0)} second{left === 1 ? "" : "s"}…</p>}
+        {!staying && <p>Taking you to your {thing} in {Math.max(left, 0)} second{left === 1 ? "" : "s"}…</p>}
         <div className={s.actions}>
-          <a className={s.button} href={projectHref(portalUrl, orderId)}>Go to my project</a>
+          <a className={s.button} href={projectHref(portalUrl, orderId, plan)}>Go to my {thing}</a>
           <button type="button" className={s.payQuiet} onClick={stay}>Stay on the website</button>
         </div>
       </div>}

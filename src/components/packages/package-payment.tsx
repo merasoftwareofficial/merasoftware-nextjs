@@ -21,7 +21,8 @@ import s from "@/components/plans/plans.module.css";
 const money = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const cents = (value: number) => Math.round(value * 100);
 type PayInfo = { walletBalance: number; upiId: string; payeeName: string };
-export type PurchaseResult = { orderId: string; approved: boolean; walletPaid?: number; upiPending?: number; reused?: boolean };
+/** `plan`: a monthly package bought as a plan (backend helpers/packagePlanOrder.js). */
+export type PurchaseResult = { orderId: string; approved: boolean; walletPaid?: number; upiPending?: number; reused?: boolean; plan?: boolean };
 
 // One purchase key per choice, kept in this tab (as the portal keeps it, frontend helpers/planCheckout.js) until the
 // purchase succeeds: a retry after a slow answer, a second click or a reload is the same purchase, never a second one.

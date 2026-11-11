@@ -11,8 +11,6 @@ export const packageChoiceSchema = z.object({
   paymentOption: z.enum(["full", "installments_2", "installments_3"]).optional(),
   billingCycle: z.enum(["monthly", "quarterly", "half_yearly", "yearly"]).optional(),
   tenureMonths: z.number().int().min(1).max(12).optional(),
-  files: z.number().int().min(1).max(100).nullable().optional(),
-  updates: z.number().int().min(1).max(31).nullable().optional(),
 }).strict();
 export const packageQuoteSchema = z.object({ packageId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80), choice: packageChoiceSchema }).strict();
 export type PackageQuoteRequest = z.infer<typeof packageQuoteSchema>;
@@ -36,21 +34,8 @@ export function lengthChoicesFor(item: Pkg, cycle: BillingCycle | undefined) {
   for (let value = months; months && value <= max; value += months) out.push(value);
   return out;
 }
-export function filesChoices(item: Pkg) {
-  const files = item.monthly?.files;
-  if (!files) return [];
-  const out: number[] = [];
-  for (let value = files.min; value <= files.max; value += files.step || 1) out.push(value);
-  return out;
-}
-export function updatesChoices(item: Pkg) {
-  const range = item.monthly?.updatesPerMonth;
-  if (!range) return [];
-  return Array.from({ length: range.max - range.min + 1 }, (_, index) => range.min + index);
-}
-
 const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-/** The first choice: from the address (?pay=… or ?cycle=…&months=…&files=…&updates=…) when valid, else the first option. */
+/** The first choice: from the address (?pay=… or ?cycle=…&months=…) when valid, else the first option. */
 export function initialPackageChoice(item: Pkg, query: Record<string, string | string[] | undefined> = {}): PackageChoice | null {
   if (item.billing === "one_time") {
     const options = item.paymentOptions ?? [];
@@ -63,13 +48,7 @@ export function initialPackageChoice(item: Pkg, query: Record<string, string | s
   const askedCycle = cycles.find(option => option.billingCycle === one(query.cycle))?.billingCycle ?? cycles[0].billingCycle;
   const lengths = lengthChoicesFor(item, askedCycle);
   const askedMonths = Number(one(query.months));
-  const files = filesChoices(item), updates = updatesChoices(item);
-  const pick = (list: number[], raw: string | undefined) => (list.includes(Number(raw)) ? Number(raw) : list[0] ?? null);
-  return {
-    billingCycle: askedCycle, tenureMonths: lengths.includes(askedMonths) ? askedMonths : lengths[lengths.length - 1],
-    files: item.monthly?.pricing === "per_file" ? pick(files, one(query.files)) : null,
-    updates: item.monthly?.pricing === "per_file" ? pick(updates, one(query.updates)) : null,
-  };
+  return { billingCycle: askedCycle, tenureMonths: lengths.includes(askedMonths) ? askedMonths : lengths[lengths.length - 1] };
 }
 /** The choice in the address, so sign-in brings the customer back to the same choice. */
 export function packageChoiceQuery(choice: PackageChoice) {
@@ -77,11 +56,9 @@ export function packageChoiceQuery(choice: PackageChoice) {
   if (choice.paymentOption) params.set("pay", choice.paymentOption);
   if (choice.billingCycle) params.set("cycle", choice.billingCycle);
   if (choice.tenureMonths) params.set("months", String(choice.tenureMonths));
-  if (choice.files) params.set("files", String(choice.files));
-  if (choice.updates) params.set("updates", String(choice.updates));
   return params.toString();
 }
 /** Only the fields the package's billing uses. */
 export const cleanPackageChoice = (item: Pkg, choice: PackageChoice): PackageChoice => item.billing === "monthly"
-  ? { billingCycle: choice.billingCycle, tenureMonths: choice.tenureMonths, ...(item.monthly?.pricing === "per_file" ? { files: choice.files, updates: choice.updates } : {}) }
+  ? { billingCycle: choice.billingCycle, tenureMonths: choice.tenureMonths }
   : { paymentOption: choice.paymentOption };

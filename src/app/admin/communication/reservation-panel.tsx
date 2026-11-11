@@ -38,11 +38,10 @@ const when = (value: string) => formatIndiaDate(value, { year: undefined, hour: 
 
 // How offer reservations stand (merasoftware/src/docs/reservation-countdown.md). The hours are set on each offer
 // (Admin → Offers); the three messages are Email Templates actions, sent by their Send via.
-// "2 installments", or "Quarterly · 1 year · 20 files × 4 updates a month".
+// "2 installments", or "Quarterly · 1 year".
 function choiceText(choice: PackageChoice) {
   if (choice.paymentOption) return PAYMENT_OPTION_WORDS[choice.paymentOption].title;
-  return [choice.billingCycle ? PURCHASE_LABELS[choice.billingCycle] : "", choice.tenureMonths ? tenureLabel(choice.tenureMonths) : "",
-    choice.files ? `${choice.files} files × ${choice.updates} updates a month` : ""].filter(Boolean).join(" · ");
+  return [choice.billingCycle ? PURCHASE_LABELS[choice.billingCycle] : "", choice.tenureMonths ? tenureLabel(choice.tenureMonths) : ""].filter(Boolean).join(" · ");
 }
 export function ReservationPanel({ active = true, portalUrl = "" }: { active?: boolean; portalUrl?: string }) {
   const [data, setData] = useState<Overview | null>(null);

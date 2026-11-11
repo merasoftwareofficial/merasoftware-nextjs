@@ -17,9 +17,9 @@ export type SalesPackage = {
   /** How a customer buys it (src/docs/package.md decision 7). All three or none: missing on packages saved
    * before 8 Nov 2026, which keep working as before until the admin chooses them. */
   billing?: PackageBilling; portalUploads?: boolean; paymentOptions?: PackagePaymentOption[];
-  /** A monthly package's pricing (package.md decision 9); its prices are then a monthly price or a rate per file. */
+  /** A monthly package's settings (src/docs/monthlypackage.md); its prices are then per month. It runs as a plan. */
   monthly?: PackageMonthly;
-  /** One-time packages priced from their category and add-ons (backend helpers/salesPackages.js, 10 Nov 2026): the add-ons chosen
+  /** Packages priced from their category and add-ons (backend helpers/salesPackages.js, 10 + 11 Nov 2026; monthly: the price of a month): the add-ons chosen
    * (what the form sends) and the prices frozen when it was saved (read only; the backend ignores a copy sent back).
    * Missing on packages priced by hand. */
   services?: ServiceChoice[]; pricing?: PricingSnapshot;
@@ -34,23 +34,26 @@ export type AddOn = { id: string; name: string; unitPrice: number; description: 
 export type PackageBilling = "one_time" | "monthly";
 export type PackagePaymentOption = "full" | "installments_2" | "installments_3";
 export type PackageCycle = import("./public-plans").BillingCycle;
+/** One fixed monthly price (no per file, owner decision 11 Nov 2026). With portal uploads: `uploadsPerMonth` updates a
+ * month, reset every month (null or missing = unlimited); without uploads the team posts work updates. */
 export type PackageMonthly = {
-  pricing: "fixed" | "per_file"; billingOptions: { billingCycle: PackageCycle; discountPercent: number }[]; maxTenureMonths: number;
-  files?: { min: number; max: number; step: number }; updatesPerMonth?: { min: number; max: number };
+  billingOptions: { billingCycle: PackageCycle; discountPercent: number }[]; maxTenureMonths: number; uploadsPerMonth?: number | null;
 };
 /** What a customer chooses on /package/<id>/customize (backend helpers/salesPackages.js quoteChoice). */
-export type PackageChoice = { paymentOption?: PackagePaymentOption; billingCycle?: PackageCycle; tenureMonths?: number; files?: number | null; updates?: number | null };
+export type PackageChoice = { paymentOption?: PackagePaymentOption; billingCycle?: PackageCycle; tenureMonths?: number };
 export type PackageChoiceQuote = {
   packageId: string; billing: PackageBilling; quoteKey: string; regularPrice: number; discountAmount: number; finalPrice: number; dueNow: number;
   offer: { slug: string; title: string; endsAt: string } | null;
   paymentOption?: PackagePaymentOption; installments?: { installmentNumber: number; percentage: number; amount: number; progressThreshold: number | null }[];
-  monthly?: { billingCycle: PackageCycle; cycleMonths: number; tenureMonths: number; totalCycles: number; pricing: "fixed" | "per_file";
-    files: number | null; updatesPerMonth: number | null; perMonthPrice: number; discountPercent: number; cyclePrice: number; totalPrice: number };
+  monthly?: { billingCycle: PackageCycle; cycleMonths: number; tenureMonths: number; totalCycles: number;
+    uploadsPerMonth: number | null; perMonthPrice: number; discountPercent: number; cyclePrice: number; totalPrice: number };
 };
-export const MONTHLY_PRICING_LABELS: Record<PackageMonthly["pricing"], string> = { fixed: "Fixed monthly price", per_file: "Price per file" };
-/** What the package's price means: a one-time price, a monthly price, or a rate per file. */
-export const priceUnit = (item: Pick<SalesPackage, "billing" | "monthly">) =>
-  item.billing !== "monthly" ? "one-time" : item.monthly?.pricing === "per_file" ? "per file" : "/ month";
+/** What the package's price means: a one-time price or a monthly price. */
+export const priceUnit = (item: Pick<SalesPackage, "billing">) => (item.billing !== "monthly" ? "one-time" : "/ month");
+/** What a monthly package gives each month, in words. */
+export const monthlyGets = (item: Pick<SalesPackage, "portalUploads" | "monthly">) => !item.portalUploads
+  ? "Progress updates from our team"
+  : item.monthly?.uploadsPerMonth ? `${item.monthly.uploadsPerMonth} update${item.monthly.uploadsPerMonth === 1 ? "" : "s"} a month in the portal` : "Unlimited updates in the portal";
 export const billingLabel = (item: Pick<SalesPackage, "billing">) => (item.billing === "monthly" ? "Monthly" : "One-time");
 /** A package with its purchase settings has a customize page (package.md decision 15). */
 export const customizable = (item: Pick<SalesPackage, "billing">) => !!item.billing;

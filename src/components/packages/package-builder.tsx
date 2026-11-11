@@ -15,14 +15,14 @@ import { usePackageStart } from "@/components/offer-reservations";
 import { InlineLoader, quietFetch } from "@/components/loading/navigation";
 import { UpiStep, WalletSplit, usePackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { PackageTermsButton } from "@/components/packages/package-terms-button";
-import { AlreadyBoughtDialog, PurchasedDialog } from "@/components/packages/package-purchase-dialogs";
+import { AlreadyBoughtDialog, PurchasedDialog, projectHref } from "@/components/packages/package-purchase-dialogs";
 import type { ActivePackageProject } from "@/lib/offer-reservations";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
 import {
-  cleanPackageChoice, cycleChoices, filesChoices, lengthChoicesFor, packageChoiceQuery, PAYMENT_OPTION_WORDS, updatesChoices,
+  cleanPackageChoice, cycleChoices, lengthChoicesFor, packageChoiceQuery, PAYMENT_OPTION_WORDS,
 } from "@/lib/package-choice";
-import type { PackageChoice, PackageChoiceQuote, PackageCycle, SalesPackage } from "@/lib/sales-packages";
+import { monthlyGets, type PackageChoice, type PackageChoiceQuote, type PackageCycle, type SalesPackage } from "@/lib/sales-packages";
 import s from "@/components/plans/plans.module.css";
 
 export type BuilderPackage = Pick<SalesPackage, "id" | "name" | "billing" | "portalUploads" | "paymentOptions" | "monthly" | "inclusions">;
@@ -38,9 +38,7 @@ function QuoteBill({ item, quote, loading, error }: { item: BuilderPackage; quot
     return (
       <div className={s.bill} data-loading={loading || undefined} aria-live="polite">
         <div className={s.rows}>
-          {m.pricing === "per_file"
-            ? <Row label={`${m.files} files × ${m.updatesPerMonth} update${m.updatesPerMonth === 1 ? "" : "s"} a month`} value={money(m.perMonthPrice)} />
-            : <Row label="Monthly price" value={money(m.perMonthPrice)} />}
+          <Row label="Monthly price" value={money(m.perMonthPrice)} />
           {months > 1 && <Row label={`× ${months} months`} value={money(m.perMonthPrice * months)} />}
           {m.discountPercent > 0 && <Row good label={`${m.discountPercent}% period discount`} value={`− ${money(m.perMonthPrice * months - m.cyclePrice)}`} />}
         </div>
@@ -51,10 +49,8 @@ function QuoteBill({ item, quote, loading, error }: { item: BuilderPackage; quot
         </div>
         {offerRow}
         <div className={s.gives}>
-          {m.pricing === "per_file"
-            ? <b>You get {m.updatesPerMonth} update{m.updatesPerMonth === 1 ? "" : "s"} a month · {m.files} files each</b>
-            : <b>{item.portalUploads ? "Send your files any time while the package runs" : "Progress updates in your client portal"}</b>}
-          <span>Runs for {tenureLabel(m.tenureMonths)}. You pay one {months === 1 ? "month" : "period"} at a time; work pauses while a payment is due.</span>
+          <b>{monthlyGets(item)}</b>
+          <span>Runs for {tenureLabel(m.tenureMonths)} at this price. You pay one {months === 1 ? "month" : "period"} at a time; work pauses while a payment is due. Stop any time: no bill after the period you paid for.</span>
         </div>
       </div>
     );
@@ -80,13 +76,10 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   item: BuilderPackage; terms: string[]; initial: PackageChoice; signedIn: boolean; countries: PhoneCountry[]; path: string; portalUrl: string;
 }) {
   const monthly = item.billing === "monthly";
-  const perFile = item.monthly?.pricing === "per_file";
   const [choice, setChoice] = useState<PackageChoice>(initial);
   const set = (part: Partial<PackageChoice>) => setChoice(current => ({ ...current, ...part }));
   const cycles = useMemo(() => cycleChoices(item), [item]);
   const lengths = useMemo(() => lengthChoicesFor(item, choice.billingCycle), [item, choice.billingCycle]);
-  const files = useMemo(() => filesChoices(item), [item]);
-  const updates = useMemo(() => updatesChoices(item), [item]);
   const clean = useMemo(() => cleanPackageChoice(item, choice), [item, choice]);
 
   // The quote; its JSON is also the key of the answer, so "loading" is "the last answer was for a different choice".
@@ -129,7 +122,7 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   const { setBoughtProject } = start;
   const onPaid = useCallback((result: PurchaseResult) => {
     setPurchased(result); setPurchasedOpen(true); setConfirmRepeat(false);
-    setBoughtProject({ orderId: result.orderId, packageId: item.id, name: item.name, boughtAt: new Date().toISOString(), approved: result.approved });
+    setBoughtProject({ orderId: result.orderId, packageId: item.id, name: item.name, boughtAt: new Date().toISOString(), approved: result.approved, plan: result.plan });
   }, [item.id, item.name, setBoughtProject]);
   const onAlreadyBought = useCallback((project: ActivePackageProject) => { setBoughtProject(project); setAsking(project); }, [setBoughtProject]);
   const pay = usePackagePayment({ packageId: item.id, packageName: item.name, choice: clean, quote: ready ? quote : null, signedIn, confirmRepeat, onPaid, onAlreadyBought });
@@ -166,21 +159,6 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   const price = quote && !loading ? (quote.monthly ? `${money(quote.monthly.cyclePrice)} / ${PERIOD_WORDS[quote.monthly.billingCycle]}` : money(quote.dueNow)) : "…";
 
   const steps = [];
-  if (perFile && files.length) {
-    steps.push(
-      <Step key="files" title="How many files in each update?">
-        <div className={s.bigNumber}><strong>{choice.files}</strong><span>files in each update</span></div>
-        <input type="range" aria-label="Files per update" className={s.slider} min={files[0]} max={files[files.length - 1]} step={item.monthly?.files?.step || 1} value={choice.files ?? files[0]} onChange={event => set({ files: Number(event.target.value) })} />
-        <div className={s.ends}><span>{files[0]}</span><span>{files[files.length - 1]}</span></div>
-      </Step>,
-      <Step key="updates" title="How many updates do you need each month?">
-        <select aria-label="Updates per month" className={s.select} value={choice.updates ?? ""} onChange={event => set({ updates: Number(event.target.value) })}>
-          {updates.map(value => <option key={value} value={value}>{value} update{value === 1 ? "" : "s"} per month</option>)}
-        </select>
-        <p className={s.hint}>Unused updates carry forward inside the billing period.</p>
-      </Step>,
-    );
-  }
   if (monthly) {
     steps.push(
       <Step key="cycle" title="How often do you want to pay?">
@@ -237,8 +215,9 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
           {purchased ? (
             <div className={s.sent} role="status">
               <b>✓ {purchased.approved ? "Payment received" : "Payment submitted"}</b>
-              <span>{purchased.approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours." : "Your project is created. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</span>
-              <a className="text-link" href={`${portalUrl}/order-detail/${purchased.orderId}`}>Open my project in the portal →</a>
+              <span>{purchased.plan ? (purchased.approved ? "Your plan is active in your client portal." : "Your plan is created. It starts once our team confirms your UPI payment.")
+                : purchased.approved ? "Your project is created in your client portal. Your work will start within 4 to 24 hours." : "Your project is created. Once our team confirms your UPI payment, your work will start within 4 to 24 hours."}</span>
+              <a className="text-link" href={projectHref(portalUrl, purchased.orderId, purchased.plan)}>Open my {purchased.plan ? "plan" : "project"} in the portal →</a>
             </div>
           ) : <>
             {!requested && start.needsPhone && <PhoneField className="auth-field" countries={start.countries} value={start.phone} onChange={start.setPhone} />}
@@ -249,7 +228,7 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
         {pay.error && <p className={s.error} role="alert">{pay.error}</p>}
       </aside>
       <AlreadyBoughtDialog project={asking} portalUrl={portalUrl} onBuyAnother={buyAnother} onClose={() => setAsking(null)} />
-      <PurchasedDialog orderId={purchasedOpen && purchased ? purchased.orderId : null} approved={!!purchased?.approved} portalUrl={portalUrl} onStay={() => setPurchasedOpen(false)} />
+      <PurchasedDialog orderId={purchasedOpen && purchased ? purchased.orderId : null} approved={!!purchased?.approved} plan={!!purchased?.plan} portalUrl={portalUrl} onStay={() => setPurchasedOpen(false)} />
       {/* Phones: the price and the button stay in reach while the steps scroll. */}
       {!upiStep && (
         <div className={s.mobileBar}>

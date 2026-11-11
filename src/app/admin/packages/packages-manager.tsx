@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
-import { categoryChoices, categoryLabel, MONTHLY_PRICING_LABELS, PACKAGE_PAYMENT_OPTIONS, priceUnit, type AddOn, type PackageCycle, type PackageDraft, type PackageMonthly, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
+import { categoryChoices, categoryLabel, PACKAGE_PAYMENT_OPTIONS, priceUnit, type AddOn, type PackageCycle, type PackageDraft, type PackageMonthly, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
 import { addOnOffered, choicesForCategory, previewPrice, termsBoxText, typedFromTermsBox, typedTermsOf, type SavedPricing } from "@/lib/package-pricing";
 import { PackagePriceBuilder } from "./package-price-builder";
 import { readPriceMode, rememberPriceMode, type PriceMode } from "@/lib/package-price-mode";
@@ -17,7 +17,6 @@ import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime } from "@/lib/date-t
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
 import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
-import { perFileChoices, perFileQuote, perFileReady, updatePrice, type PerFileChoice } from "@/lib/package-per-file";
 import s from "./packages-manager.module.css";
 
 // The one package form (src/docs/project.md, owner decisions 9 Nov 2026): 1. the project it sells (name, category,
@@ -49,46 +48,17 @@ const blank: SalesPackage = { id: "", name: "", description: "", status: "draft"
   billing: "one_time", portalUploads: undefined, paymentOptions: ["full"], monthly: undefined,
   // A new one-time package is priced from its category and add-ons (services: []); an older package has none and keeps its typed price.
   services: [], pricing: undefined };
-// A package switched to monthly starts billed every month, for up to a year, at a fixed monthly price.
-const blankMonthly: PackageMonthly = { pricing: "fixed", billingOptions: [{ billingCycle: "monthly", discountPercent: 0 }], maxTenureMonths: 12 };
+// A package switched to monthly starts billed every month, for up to a year, at one fixed monthly price, with
+// unlimited updates when it has portal uploads (src/docs/monthlypackage.md; no price per file).
+const blankMonthly: PackageMonthly = { billingOptions: [{ billingCycle: "monthly", discountPercent: 0 }], maxTenureMonths: 12, uploadsPerMonth: null };
+// Only today's monthly settings: a copy saved with the old price-per-file fields loses them (the portal refuses them).
+const cleanMonthly = (raw: Partial<PackageMonthly> & Record<string, unknown>): PackageMonthly => ({
+  billingOptions: Array.isArray(raw.billingOptions) ? raw.billingOptions : blankMonthly.billingOptions,
+  maxTenureMonths: Number.isInteger(raw.maxTenureMonths) ? Number(raw.maxTenureMonths) : 12,
+  uploadsPerMonth: Number.isInteger(raw.uploadsPerMonth) ? Number(raw.uploadsPerMonth) : null });
 const CYCLES = Object.keys(CYCLE_MONTHS) as PackageCycle[];
 const KEYS = Object.keys(blank) as (keyof SalesPackage)[];
-// A price-per-file package has ONE price per file (owner decision 9 Nov 2026, like the plan system). The backend
-// still wants a main and a normal price, so both hold that price: nothing is crossed out until an offer runs, and
-// an offer then lowers the price per file. The normal price is what the customer pays, so it is the one price.
-const perFile = (item: Pick<SalesPackage, "billing" | "monthly">) => item.billing === "monthly" && item.monthly?.pricing === "per_file";
-const priced = <T extends SalesPackage>(item: T): T => (perFile(item) ? { ...item, regularPrice: item.discountedPrice } : item);
 const rupee = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
-// The admin's price check for a price-per-file package (lib/package-per-file.ts), like the plan form's: pick a
-// billing period, length, files and updates and see what that client pays. Display only.
-function PerFilePrice({ rate, monthly }: { rate: number; monthly: PackageMonthly }) {
-  const [pick, setPick] = useState<Partial<PerFileChoice>>({});
-  if (!perFileReady(rate, monthly)) return <p className={s.note}>Fill in the files, price per file and updates to see what a client pays.</p>;
-  const options = perFileChoices(monthly);
-  if (!options.cycles.length) return <p className={s.note}>Tick a billing cycle that fits the longest length to see what a client pays.</p>;
-  const cycle = pick.billingCycle && options.cycles.includes(pick.billingCycle) ? pick.billingCycle : options.cycles[0];
-  const lengths = options.lengths(cycle);
-  const choice: PerFileChoice = { billingCycle: cycle, tenureMonths: pick.tenureMonths && lengths.includes(pick.tenureMonths) ? pick.tenureMonths : lengths[0],
-    files: pick.files && options.files.includes(pick.files) ? pick.files : options.files[0], updates: pick.updates && options.updates.includes(pick.updates) ? pick.updates : options.updates[0] };
-  const q = perFileQuote(rate, monthly, choice);
-  const f = monthly.files, u = monthly.updatesPerMonth;
-  const choose = (key: keyof PerFileChoice) => (e: { target: { value: string } }) => setPick({ ...pick, [key]: key === "billingCycle" ? e.target.value : Number(e.target.value) });
-  return <div className={s.priceSample} aria-label="Price check">
-    <b>What a client pays</b>
-    <ul>
-      <li>One update: {rupee(updatePrice(rate, f.min))} ({f.min} files){f.max > f.min && <> to {rupee(updatePrice(rate, f.max))} ({f.max} files)</>}</li>
-      <li>Per month: {rupee(updatePrice(rate, f.min) * u.min)} ({f.min} files × {u.min} update{u.min > 1 ? "s" : ""}){(f.max > f.min || u.max > u.min) && <> to {rupee(updatePrice(rate, f.max) * u.max)} ({f.max} files × {u.max} updates)</>}</li>
-    </ul>
-    <div className={s.checkRow}>
-      <label>Billing <select aria-label="Check billing period" value={choice.billingCycle} onChange={choose("billingCycle")}>{options.cycles.map(c => <option key={c} value={c}>{PURCHASE_LABELS[c]}</option>)}</select></label>
-      <label>Length <select aria-label="Check length in months" value={choice.tenureMonths} onChange={choose("tenureMonths")}>{lengths.map(n => <option key={n} value={n}>{n} month{n > 1 ? "s" : ""}</option>)}</select></label>
-      <label>Files <select aria-label="Check files per update" value={choice.files} onChange={choose("files")}>{options.files.map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-      <label>Updates a month <select aria-label="Check updates per month" value={choice.updates} onChange={choose("updates")}>{options.updates.map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-    </div>
-    <p className={s.checkResult} aria-live="polite">One update {rupee(q.updatePrice)} · per month {rupee(q.perMonthPrice)} · each {PURCHASE_LABELS[cycle].toLowerCase()} payment <strong>{rupee(q.cyclePrice)}</strong>{q.discount > 0 && <> (after {q.discountPercent}% off, {rupee(q.discount)} saved)</>} · total <strong>{rupee(q.totalPrice)}</strong> for {choice.tenureMonths} month{choice.tenureMonths > 1 ? "s" : ""}</p>
-    <small>Before any offer. A running offer lowers the price per file. The client&apos;s price on the website always comes from the system.</small>
-  </div>;
-}
 const lines = (value: string[]) => value.map(line => line.trim()).filter(Boolean);
 const idFromName = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70).replace(/-+$/, "") || "package";
 const offerSlugFromName = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 70).replace(/-+$/, "") || "offer";
@@ -119,7 +89,7 @@ function fromDraft(draft: PackageDraft, offers: Offer[]): { item: Item; form: Of
     inclusions: Array.isArray(raw.inclusions) ? raw.inclusions : [], terms: Array.isArray(raw.terms) ? raw.terms : [],
     linkedPlanIds: Array.isArray(raw.linkedPlanIds) ? raw.linkedPlanIds : [], pages: Array.isArray(raw.pages) ? raw.pages : [],
     // Only what the copy holds: an older package's copy gets no purchase settings it never had.
-    billing: raw.billing, portalUploads: raw.portalUploads, paymentOptions: raw.paymentOptions, monthly: raw.monthly,
+    billing: raw.billing, portalUploads: raw.portalUploads, paymentOptions: raw.paymentOptions, monthly: raw.monthly ? cleanMonthly(raw.monthly as PackageMonthly & Record<string, unknown>) : undefined,
     // A copy made before add-on pricing has no services and keeps its typed price; nothing is filled in for it.
     services: Array.isArray(raw.services) ? raw.services : undefined, pricing: raw.pricing, repriceFromCurrent: raw.repriceFromCurrent === true ? true : undefined,
     design: { ...defaultPackageDesign({ name: String(raw.name ?? draft.name) }), ...(raw.design ?? {}) } };
@@ -160,25 +130,21 @@ function offerPayload(form: OfferForm, item: Item): Partial<Offer> {
   return payload;
 }
 
-function check(source: Item, offer: OfferForm | null, now: number, extra: Errors = {}): Errors {
-  const item = priced(source);
+function check(item: Item, offer: OfferForm | null, now: number, extra: Errors = {}): Errors {
   const errors: Errors = {};
   if (!item.name.trim()) errors.name = "Enter the package name.";
   if (!item.category) errors.category = "Choose a project category.";
   if (!item.description.trim()) errors.description = "Enter a description.";
   if (!lines(item.inclusions).length) errors.inclusions = "List at least one item.";
-  if (perFile(item)) { if (!(item.discountedPrice > 0)) errors.rate = "Enter the price per file above ₹0."; }
-  else {
-    if (!(item.regularPrice > 0)) errors.regularPrice = item.billing === "one_time" && item.services !== undefined ? "The main price must be above ₹0: set the category's base price or tick an add-on." : "Enter a main price above ₹0.";
-    if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
-  }
+  if (!(item.regularPrice > 0)) errors.regularPrice = item.services !== undefined ? "The main price must be above ₹0: set the category's base price or tick an add-on." : "Enter a main price above ₹0.";
+  if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
   // How customers buy it: all three together (package.md decision 7). An older package without them may stay as it is.
   if (item.billing || item.portalUploads !== undefined || item.paymentOptions?.length) {
     if (!item.billing) errors.billing = "Choose how this package is billed.";
     if (item.portalUploads === undefined) errors.portalUploads = "Choose whether the client sends files in the portal.";
     if (item.billing !== "monthly" && !item.paymentOptions?.length) errors.paymentOptions = "Tick at least one way to pay.";
   }
-  // A monthly package (package.md decision 9); the portal backend checks the same rules again (servicePlanPricing.js).
+  // A monthly package (src/docs/monthlypackage.md); the portal backend checks the same rules again (servicePlanPricing.js).
   const m = item.billing === "monthly" ? item.monthly : undefined;
   if (m) {
     const whole = (value: unknown, min: number, max: number) => Number.isInteger(value) && Number(value) >= min && Number(value) <= max;
@@ -186,12 +152,7 @@ function check(source: Item, offer: OfferForm | null, now: number, extra: Errors
     else if (m.billingOptions.some(option => !(option.discountPercent >= 0 && option.discountPercent < 100))) errors.monthlyCycles = "Discounts are from 0 up to 99%.";
     if (!whole(m.maxTenureMonths, 1, 12)) errors.monthlyLength = "From 1 to 12 months.";
     else if (m.billingOptions.some(option => CYCLE_MONTHS[option.billingCycle] > m.maxTenureMonths)) errors.monthlyLength = "Must not be shorter than a ticked billing cycle.";
-    if (m.pricing === "per_file") {
-      if (item.portalUploads === false) errors.portalUploads = "A price per file needs portal uploads.";
-      const f = m.files, u = m.updatesPerMonth;
-      if (!f || !whole(f.min, 1, 100) || !whole(f.max, 1, 100) || !whole(f.step, 1, 100) || f.max < f.min || (f.max - f.min) % f.step !== 0) errors.monthlyFiles = "Files from 1 to 100; the step must divide the range.";
-      if (!u || !whole(u.min, 1, 31) || !whole(u.max, 1, 31) || u.max < u.min) errors.monthlyUpdates = "Updates from 1 to 31 a month.";
-    }
+    if (item.portalUploads && m.uploadsPerMonth !== null && m.uploadsPerMonth !== undefined && !whole(m.uploadsPerMonth, 1, 31)) errors.monthlyUploads = "From 1 to 31 updates a month, or unlimited.";
   }
   const design = packageDesignSchema.safeParse(item.design);
   if (!design.success) for (const issue of design.error.issues) errors[`design.${String(issue.path[0])}`] ??= issue.message;
@@ -256,12 +217,13 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const snapshot = (next: Item | null, form: OfferForm | null) => JSON.stringify({ next, form });
   const dirty = !!item && snapshot(item, offerForm) !== baseline;
 
-  // A one-time package is priced from its category and add-on services (package-price-builder.tsx, lib/package-pricing.ts); the
-  // portal backend reads the real prices and freezes them on save. A package saved before this, and a monthly one, keeps its typed price.
+  // A package is priced from its category and add-on services (package-price-builder.tsx, lib/package-pricing.ts); the portal
+  // backend reads the real prices and freezes them on save. A monthly package's parts make its monthly price (owner decision
+  // 11 Nov 2026). A package saved before this keeps its typed price.
   const addOns = catalogue.addOns ?? [];
   const savedRow = item?.id ? catalogue.packages.find(row => row.id === item.id) : undefined;
   const savedPricing: SavedPricing = savedRow?.pricing ? { category: savedRow.category, pricing: savedRow.pricing } : undefined;
-  const autoPriced = !!item && item.billing === "one_time" && item.services !== undefined;
+  const autoPriced = !!item && !!item.billing && item.services !== undefined;
   const categoryEntry = item ? (catalogue.categories ?? []).find(row => row.category === item.category) : undefined;
   const auto = autoPriced && item && item.category ? previewPrice({ category: item.category, basePrice: categoryEntry?.basePrice, categoryTerms: categoryEntry?.terms ?? [], choices: item.services ?? [], addOns, saved: savedPricing, refresh: item.repriceFromCurrent === true }) : null;
   const autoErrors: Errors = auto?.problems.length ? { services: auto.problems[0] } : {};
@@ -334,15 +296,15 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   }
   // One-time is sold with payment options; monthly with its billing cycles and length (package.md decision 7).
   function chooseBilling(billing: SalesPackage["billing"]) {
-    if (billing === "monthly" && savedPricing) { setError("A package priced from its category and add-ons stays one-time."); return; }
     setError("");
-    // Monthly keeps its typed price; a new one-time package is priced from its category and add-ons (an older one keeps its typed price).
+    // The price method stays as it is (automatic or manual, both for one-time and monthly); a package without settings yet takes the remembered one.
     setItem(current => {
       if (!current) return current;
-      const next: Item = { ...current, billing, ...(billing === "monthly"
-        ? { paymentOptions: undefined, monthly: current.monthly ?? { ...blankMonthly }, offerExtraPrice: 0, services: undefined }
-        : { paymentOptions: current.paymentOptions?.length ? current.paymentOptions : ["full"], monthly: undefined, services: current.services ?? (savedRow || readPriceMode() === "manual" ? undefined : []) }) };
-      return billing === "monthly" ? withTypedCategory(next) : next;
+      const services = current.services ?? (savedRow || readPriceMode() === "manual" ? undefined : []);
+      const next: Item = { ...current, billing, services, ...(billing === "monthly"
+        ? { paymentOptions: undefined, monthly: current.monthly ?? { ...blankMonthly }, offerExtraPrice: 0 }
+        : { paymentOptions: current.paymentOptions?.length ? current.paymentOptions : ["full"], monthly: undefined }) };
+      return services === undefined ? withTypedCategory(next) : next;
     });
   }
   // The category of a package whose price is typed (manual or monthly): the portal still starts its projects from it. The
@@ -386,16 +348,6 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     const created = !result.removed && isNew ? fresh?.addOns?.find(row => row.id === result.id) : undefined;
     if (created && item?.category && item.services && addOnOffered(created, item.category)) toggleService(created, true);
   }
-  // Fixed monthly keeps two prices; price per file has one (the price the customer pays now), held in both.
-  function choosePricing(pricing: PackageMonthly["pricing"]) {
-    setItem(current => {
-      if (!current?.monthly) return current;
-      if (pricing !== "per_file") return { ...current, monthly: { ...current.monthly, pricing, files: undefined, updatesPerMonth: undefined } };
-      const rate = current.discountedPrice > 0 ? current.discountedPrice : current.regularPrice;
-      return { ...current, regularPrice: rate, discountedPrice: rate, monthly: { ...current.monthly, pricing, files: current.monthly.files ?? { min: 10, max: 100, step: 10 }, updatesPerMonth: current.monthly.updatesPerMonth ?? { min: 1, max: 4 } } };
-    });
-  }
-  function setRate(value: number) { setItem(current => current ? { ...current, regularPrice: value, discountedPrice: value } : current); }
   function setMonthly(part: Partial<PackageMonthly>) { setItem(current => current?.monthly ? { ...current, monthly: { ...current.monthly, ...part } } : current); }
   function design<K extends keyof PackageDesign>(key: K, value: string) { setItem(current => current ? { ...current, design: { ...current.design, [key]: value } } : current); }
   function offerField<K extends keyof OfferForm>(key: K, value: OfferForm[K]) { setOfferForm(current => current ? { ...current, [key]: value } : current); }
@@ -476,7 +428,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   async function send(next: Item, form: OfferForm | null, isNew: boolean, done: string, draft?: { version: number; keepOffer?: OfferForm }, reopen = false) {
     setBusy(true); setError(""); setMessage("");
     try {
-      const config = { ...priced(next), inclusions: lines(next.inclusions), terms: lines(next.terms) };
+      const config = { ...next, inclusions: lines(next.inclusions), terms: lines(next.terms),
+        ...(next.billing === "monthly" && next.monthly ? { monthly: { ...next.monthly, uploadsPerMonth: next.portalUploads ? next.monthly.uploadsPerMonth ?? null : null } } : {}) };
       const offerPart = form ? { creating: !form.base, offer: offerPayload(form, next) } : undefined;
       const response = await fetch("/api/packages", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: config, creating: isNew, ...(offerPart ? { offer: offerPart } : {}), ...(draft ? { draft } : {}) }) });
       const result = await response.json();
@@ -615,7 +568,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   let previewEnd = NaN;
   try { previewEnd = offerForm ? Date.parse(indiaInputToUtc(offerForm.endsAt, true)) : NaN; } catch { /* not a date yet */ }
   const showOffer = !!offerForm && offerForm.offerPrice !== "" && Number.isFinite(previewEnd);
-  const shown = priced(item);
+  const shown = item;
   // The preview shows what the customer will read: the admin's terms, then the automatic ones of the current selection.
   const base = packageView({ ...shown, inclusions: lines(item.inclusions), terms: [...lines(item.terms), ...(auto?.terms ?? [])], id: id });
   const view = showOffer ? offerView({ ...base, title: offerForm!.title || "Offer name", offerPrice: Number(offerForm!.offerPrice), endsAt: new Date(previewEnd).toISOString(),
@@ -647,16 +600,12 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             {item.billing !== "monthly" ? <div className={s.choices} role="group" aria-label="Ways to pay"><span>Ways to pay *</span>
               {PACKAGE_PAYMENT_OPTIONS.map(option => <label key={option.value}><input type="checkbox" checked={!!item.paymentOptions?.includes(option.value)} onChange={e => update("paymentOptions", PACKAGE_PAYMENT_OPTIONS.map(row => row.value).filter(value => value === option.value ? e.target.checked : !!item.paymentOptions?.includes(value)))} /> {option.label}</label>)}
               {err("paymentOptions")}</div> : monthly && <>
-              <div className={s.choices} role="radiogroup" aria-label="Monthly pricing"><span>Monthly pricing *</span>
-                {(Object.keys(MONTHLY_PRICING_LABELS) as PackageMonthly["pricing"][]).map(pricing => <label key={pricing}><input type="radio" name="monthlyPricing" checked={monthly.pricing === pricing} onChange={() => choosePricing(pricing)} /> {MONTHLY_PRICING_LABELS[pricing]}{pricing === "per_file" ? ": the client picks files per update and updates a month; one price per file" : ": the prices below are per month; unlimited updates"}</label>)}
-              </div>
-              {monthly.pricing === "per_file" && <div className={s.cols3}>
-                {(["min", "max", "step"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyFiles") ?? ""}`}><span>Files per update: {key === "step" ? "step" : key === "min" ? "fewest" : "most"} *</span><input aria-label={`Files per update ${key}`} type="number" min={1} max={100} value={monthly.files?.[key] ?? ""} onChange={e => setMonthly({ files: { ...(monthly.files ?? { min: 10, max: 100, step: 10 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyFiles")}</label>)}
-              </div>}
-              {monthly.pricing === "per_file" && <label className={`admin-field ${bad("rate") ?? ""}`}><span>Price per file (₹) *</span><input aria-label="Price per file (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => setRate(Number(e.target.value))} /><small>One update costs files × this price. An offer lowers this price.</small>{err("rate")}</label>}
-              {monthly.pricing === "per_file" && <div className={s.cols3}>
-                {(["min", "max"] as const).map(key => <label key={key} className={`admin-field ${bad("monthlyUpdates") ?? ""}`}><span>Updates a month: {key === "min" ? "fewest" : "most"} *</span><input aria-label={`Updates per month ${key}`} type="number" min={1} max={31} value={monthly.updatesPerMonth?.[key] ?? ""} onChange={e => setMonthly({ updatesPerMonth: { ...(monthly.updatesPerMonth ?? { min: 1, max: 4 }), [key]: Number(e.target.value) } })} />{key === "min" && err("monthlyUpdates")}</label>)}
-              </div>}
+              <p className={s.note}>A monthly package runs as a plan in the client portal: a bill every billing period, at the price bought for the whole length. The client can stop it any time; it ends after the period paid for.</p>
+              {item.portalUploads && <div className={`${s.choices} ${bad("monthlyUploads") ?? ""}`} role="radiogroup" aria-label="Updates a month"><span>Updates a month *</span>
+                <label><input type="radio" name="monthlyUploads" checked={!monthly.uploadsPerMonth} onChange={() => setMonthly({ uploadsPerMonth: null })} /> Unlimited</label>
+                <label><input type="radio" name="monthlyUploads" checked={!!monthly.uploadsPerMonth} onChange={() => setMonthly({ uploadsPerMonth: monthly.uploadsPerMonth || 4 })} /> Limited:{" "}
+                  <input aria-label="Number of updates a month" type="number" min={1} max={31} className={s.percent} disabled={!monthly.uploadsPerMonth} value={monthly.uploadsPerMonth ?? ""} onChange={e => setMonthly({ uploadsPerMonth: Number(e.target.value) })} /> a month, open again every month</label>
+                {err("monthlyUploads")}</div>}
               <div className={`${s.choices} ${bad("monthlyCycles") ?? ""}`} role="group" aria-label="Billing cycles"><span>Billing cycles and discount *</span>
                 {CYCLES.map(cycle => { const option = monthly.billingOptions.find(row => row.billingCycle === cycle); return <label key={cycle}>
                   <input type="checkbox" checked={!!option} onChange={e => setMonthly({ billingOptions: CYCLES.flatMap(value => value === cycle ? (e.target.checked ? [{ billingCycle: cycle, discountPercent: 0 }] : []) : monthly.billingOptions.filter(row => row.billingCycle === value)) })} /> {PURCHASE_LABELS[cycle]}
@@ -665,14 +614,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
                 {err("monthlyCycles")}</div>
               <label className={`admin-field ${bad("monthlyLength") ?? ""}`}><span>Longest length (months) *</span><input aria-label="Longest length in months" type="number" min={1} max={12} value={monthly.maxTenureMonths} onChange={e => setMonthly({ maxTenureMonths: Number(e.target.value) })} /><small>The client buys 1 to 12 months; to continue after that, they buy it again.</small>{err("monthlyLength")}</label>
             </>}
-          {item.billing === "one_time" && (creating
+          {item.billing && (creating
             ? <div className={s.choices} role="radiogroup" aria-label="Price method"><span>Price method *</span>
-              <label><input type="radio" name="priceMode" checked={autoPriced} onChange={() => choosePriceMode("automatic")} /> Automatic: the main price comes from the category and add-ons</label>
+              <label><input type="radio" name="priceMode" checked={autoPriced} onChange={() => choosePriceMode("automatic")} /> Automatic: the main price{item.billing === "monthly" ? " (a month)" : ""} comes from the category and add-ons</label>
               <label><input type="radio" name="priceMode" checked={!autoPriced} onChange={() => choosePriceMode("manual")} /> Manual: you type the main and discount price</label></div>
             : <p className={s.note}>Price method: <b>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</b>. A saved package keeps the way its price was set; duplicate it to make a copy priced the other way.</p>)}
-          {item.billing === "monthly" && creating && <p className={s.note}>A monthly package uses typed prices.</p>}
+          {item.billing === "monthly" && autoPriced && <p className={s.note}>The prices below are for one month; every billing period is worked out from them, with its discount.</p>}
           {/* Only an automatic package takes its base price and add-ons from its category, so only it shows the category. A typed
-              package (manual, monthly, per file) has no category field or buttons on screen; it still saves the default category. */}
+              package (manual) has no category field or buttons on screen; it still saves the default category. */}
           {autoPriced && <>
             <label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => changeCategory(e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
               {running && <small>Fixed while its offer runs.</small>}
@@ -683,7 +632,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             {editCategory && categoryEntry && <ProjectCategoryDialog edit={categoryEntry} nextSortOrder={categoryEntry.sortOrder ?? 0} onCancel={() => setEditCategory(false)} onSaved={categorySaved} send={sendCategory} />}
             {newCategory && <ProjectCategoryDialog nextSortOrder={Math.min(9999, Math.max(0, ...(catalogue.categories || []).map(row => row.sortOrder || 0)) + 1)} onCancel={() => setNewCategory(false)} onSaved={categorySaved} send={sendCategory} />}
           </>}
-          {perFile(item) ? <PerFilePrice rate={item.discountedPrice} monthly={item.monthly!} /> : autoPriced ? <PackagePriceBuilder category={item.category} categoryEntry={categoryEntry} addOns={addOns} choices={item.services ?? []} saved={savedPricing}
+          {autoPriced ? <PackagePriceBuilder category={item.category} categoryEntry={categoryEntry} addOns={addOns} choices={item.services ?? []} saved={savedPricing}
             refresh={item.repriceFromCurrent === true} preview={auto ?? { base: null, baseFrozen: false, lines: [], total: null, problems: [], terms: [] }} regularPrice={item.regularPrice} discountedPrice={item.discountedPrice}
             error={err} bad={bad} onToggle={toggleService} onQuantity={setQuantity} onRefresh={on => update("repriceFromCurrent", on ? true : undefined)}
             onDiscount={value => update("discountedPrice", value)} onNewAddOn={() => setAddOnDialog({})} onEditAddOn={row => setAddOnDialog({ edit: row })} />
@@ -714,7 +663,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               <label className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><select aria-label="Offer status" value={offerForm.status} onChange={e => offerField("status", e.target.value as OfferForm["status"])}><option value="draft">{savedOffer ? "Draft (not on the website)" : "Draft (kept in the package draft)"}</option><option value="published">Published</option></select>{!savedOffer && offerForm.status === "draft" && <small>Publish keeps this offer in the draft. Choose Published to make it live with the package.</small>}{err("offerStatus")}</label>
             </div>
             <p className={s.idline}>Offer link: <code>/offer/{offerLink}</code> <span className={s.lock}>auto</span> <span>Opens this package page. Made from the offer name; never reused.</span></p>
-            <p className={s.inherit}>From the package (not typed again): {shown.regularPrice > shown.discountedPrice ? <>main price <b>{rupee(shown.regularPrice)}</b> · normal price <b>{rupee(shown.discountedPrice)}</b></> : <>{perFile(shown) ? "price per file" : "price"} <b>{rupee(shown.discountedPrice)}</b></>} · category, included work, terms and page design.</p>
+            <p className={s.inherit}>From the package (not typed again): {shown.regularPrice > shown.discountedPrice ? <>main price <b>{rupee(shown.regularPrice)}</b> · normal price <b>{rupee(shown.discountedPrice)}</b></> : <>price <b>{rupee(shown.discountedPrice)}</b></>} · category, included work, terms and page design.</p>
             <div className="form-columns">
               <label className={`admin-field ${bad("offerPrice") ?? ""}`}><span>Offer price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Offer price (₹)" type="number" min={0} max={10000000} step="0.01" value={offerForm.offerPrice} onChange={e => offerField("offerPrice", e.target.value)} /><small>{percent ? `Shown as ${percent}% OFF the main price.` : "Must be below the normal price."}</small>{err("offerPrice")}</label>
               <label className={`admin-field ${bad("endsAt") ?? ""}`}><span>Expires at (India time / IST) *</span><input aria-label="Expires at (India time / IST)" type="datetime-local" value={offerForm.endsAt} onChange={e => offerField("endsAt", e.target.value)} /><small>One fixed deadline. Starts the countdown.</small>{err("endsAt")}</label>
