@@ -1,8 +1,8 @@
 import Link from "@/components/link";
 import { AdminHeader } from "@/components/admin-layout";
-import { Field } from "@/components/admin-form";
 import { atLeast, getSession, requireStaffPage } from "@/lib/auth";
 import AdminContactSettings from './admin-contact-settings';
+import InvoiceBusinessSettings from './invoice-business-settings';
 
 export const metadata = { title: "Site settings" };
 
@@ -37,29 +37,7 @@ export default async function Settings() {
       <p><Link className="admin-action" href="/admin/blog-management/settings">Comments, views and sharing settings → Blog Management</Link></p>
 
       <p><Link className="admin-action" href="/admin/communication">Communication — email and WhatsApp templates, rules, approvals and history →</Link></p>
-      {session?.portalRoles.includes('admin') && <AdminContactSettings />}
-
-      <form className="admin-form">
-        <div className="form-columns">
-          <Field label="Business name" placeholder="Mera Software" />
-          <Field label="Contact email" placeholder="contact@merasoftware.com" />
-        </div>
-        <div className="form-columns">
-          <Field label="Website URL" placeholder="https://merasoftware.com" />
-          <Field label="WhatsApp number" placeholder="Add when ready" />
-        </div>
-        <Field label="Default SEO description" placeholder="Web development, SEO and performance marketing..." large />
-        <section className="admin-seo">
-          <h2>Social profiles</h2>
-          <div className="form-columns">
-            <Field label="LinkedIn URL" placeholder="https://linkedin.com/..." />
-            <Field label="Instagram URL" placeholder="https://instagram.com/..." />
-          </div>
-        </section>
-        <button className="admin-button" type="button">
-          Save settings
-        </button>
-      </form>
+      {session?.portalRoles.includes('admin') ? <><AdminContactSettings /><InvoiceBusinessSettings /></> : <p className="admin-empty">Link a portal admin account to manage team contacts and invoice business details.</p>}
     </main>
   );
 }

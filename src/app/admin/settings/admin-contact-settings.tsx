@@ -34,8 +34,8 @@ export default function AdminContactSettings() {
     finally { setBusy(false); }
   }
   return <section className="mx-auto w-full max-w-3xl p-4 sm:p-8">
-    <h2 className="text-2xl font-bold text-slate-900">My contact settings</h2>
-    <p className="mt-2 text-sm text-slate-600">Manage your profile and contact information.</p>
+    <h2 className="text-2xl font-bold text-slate-900">Team notification settings</h2>
+    <p className="mt-2 text-sm text-slate-600">Team email goes to the saved contact email; WhatsApp copies go only to the two saved numbers.</p>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert" className="my-4 rounded-lg bg-red-50 p-3 text-red-800">{error} {!data && <button onClick={() => { setError(''); load(); }} className="underline">Retry</button>}</p>}
     {!data ? !error && <p role="status" className="mt-6">Loading settings...</p> :
@@ -43,8 +43,8 @@ export default function AdminContactSettings() {
         <fieldset disabled={busy} className="space-y-5">
           <label className="block text-sm font-medium">Name<input required maxLength={120} value={data.name} onChange={e => setData({ ...data, name: e.target.value })} className="mt-1 block w-full rounded-lg border p-2.5" /></label>
           <p className="text-sm text-slate-600">Login email: {data.loginEmail}</p>
-          <label className="block text-sm font-medium">Contact email<input type="email" maxLength={254} value={data.contactEmail} onChange={e => setData({ ...data, contactEmail: e.target.value })} className="mt-1 block w-full rounded-lg border p-2.5" /></label>
-          <section className="space-y-3"><h2 className="font-semibold">WhatsApp numbers</h2>
+          <label className="block text-sm font-medium">Team contact email<input type="email" maxLength={254} value={data.contactEmail} onChange={e => setData({ ...data, contactEmail: e.target.value })} className="mt-1 block w-full rounded-lg border p-2.5" /></label>
+          <section className="space-y-3"><h2 className="font-semibold">Team WhatsApp numbers</h2>
             <p className="text-sm text-slate-600">Save up to two numbers with their country codes.</p>
             {data.whatsappNumbers.map((value, index) => {
               const country = data.countries.find(row => value.startsWith(row.code))?.code || '+91';
