@@ -567,7 +567,9 @@ try {
 
   // 12. An older package keeps its stored service references when saved: the field left the form only.
   await editor('GBP Setup');
-  assert.equal(await form.getByLabel('Project category', { exact: true }).inputValue(), 'standard_websites', 'its own category, no empty choice');
+  // A typed (manual) package shows no category; its own category is kept, not shown.
+  assert.equal(await form.getByLabel('Project category', { exact: true }).count(), 0, 'a typed package shows no category');
+  assert.equal(api.store.packages['gbp'].category, 'standard_websites', 'its own category is kept');
   await form.getByLabel('Description', { exact: true }).fill('GBP description updated.');
   await save('Publish changes');
   assert.deepEqual([api.store.packages.gbp.description, api.store.packages.gbp.linkedPlanIds], ['GBP description updated.', [OLD_REF]]);

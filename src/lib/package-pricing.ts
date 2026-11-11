@@ -65,6 +65,20 @@ export const typedTermsOf = (terms: string[], pricing?: PricingSnapshot): string
   return terms.filter(line => !automatic.has(line));
 };
 
+/**
+ * The package's Terms box shows the terms that come with its category and add-ons first (the same lines the backend adds on save),
+ * then the admin's own. The form keeps only the admin's own lines (see typedTermsOf); these two turn that into the box's text and back.
+ */
+export const termsBoxText = (automatic: string[], typed: string[]): string => {
+  const own = new Set(automatic);
+  return [...automatic, ...typed.filter(line => !own.has(line))].join("\n");
+};
+/** The admin's own lines of the box's text: a line that is an automatic one is not the admin's (it comes back by itself). */
+export const typedFromTermsBox = (text: string, automatic: string[]): string[] => {
+  const own = new Set(automatic);
+  return text.split("\n").filter(line => !own.has(line));
+};
+
 /** Choices that still make sense after the category changes: kept as saved when the category did not change, else only offered ones. */
 export function choicesForCategory(choices: ServiceChoice[], category: string, addOns: AddOn[], saved?: SavedPricing): ServiceChoice[] {
   const keep = new Set(saved?.pricing && saved.category === category ? saved.pricing.services.map(row => row.featureId) : []);

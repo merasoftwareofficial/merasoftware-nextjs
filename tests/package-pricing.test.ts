@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { choicesForCategory, previewPrice } from "../src/lib/package-pricing";
+import { choicesForCategory, previewPrice, termsBoxText, typedFromTermsBox } from "../src/lib/package-pricing";
 import type { AddOn, PricingSnapshot } from "../src/lib/sales-packages";
 
 // Same scenarios as the backend's tests/packageServicesPricing.test.js: the form's preview and the portal
@@ -32,6 +32,21 @@ test("the automatic terms: the category first, then each chosen add-on; a saved 
   assert.deepEqual(previewPrice({ category: "standard_websites", basePrice: 10000, categoryTerms: ["Category B"], choices: pick(["seo"]), addOns: [changed], saved: before }).terms, ["Category A", "SEO 1"]);
   // Untick the add-on: no terms left from it.
   assert.deepEqual(previewPrice({ category: "standard_websites", basePrice: 10000, categoryTerms: ["Category A"], choices: [], addOns: [changed], saved: before }).terms, ["Category A"]);
+});
+
+test("the terms box: automatic lines first, then the admin's own; automatic lines are never the admin's", () => {
+  const automatic = ["Category A", "SEO 1"];
+  assert.equal(termsBoxText(automatic, ["Mine"]), "Category A\nSEO 1\nMine");
+  assert.equal(termsBoxText([], ["Mine"]), "Mine", "a typed package shows only its own lines");
+  // An own line equal to an automatic one is shown once.
+  assert.equal(termsBoxText(automatic, ["SEO 1", "Mine"]), "Category A\nSEO 1\nMine");
+  // Typing below the automatic lines keeps only the admin's lines; a deleted automatic line is not the admin's and comes back by itself.
+  assert.deepEqual(typedFromTermsBox("Category A\nSEO 1\nMine\nMore", automatic), ["Mine", "More"]);
+  assert.deepEqual(typedFromTermsBox("SEO 1\nMine", automatic), ["Mine"]);
+  // Untick the add-on: its lines are no longer automatic, so nothing of it is left in the box.
+  assert.equal(termsBoxText(["Category A"], typedFromTermsBox("Category A\nSEO 1\nMine", automatic).filter(line => line !== "SEO 1")), "Category A\nMine");
+  // A new empty line at the end stays (the admin is about to type).
+  assert.deepEqual(typedFromTermsBox("Category A\nSEO 1\n", automatic), [""]);
 });
 
 test("a non-quantity add-on counts once; a bad quantity is a problem", () => {
