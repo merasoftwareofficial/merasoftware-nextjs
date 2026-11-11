@@ -1,8 +1,13 @@
 import "server-only";
 
-/** A portal backend call that failed; `status` is the HTTP status the website should answer with. */
+/**
+ * A portal backend call that failed; `status` is the HTTP status the website should answer with. `code` and
+ * `details` are the backend's own words for what a page should ask next (e.g. package_already_bought).
+ */
 export class PortalApiError extends Error {
-  constructor(message: string, public status = 503) { super(message); }
+  constructor(message: string, public status = 503, public code?: string, public details?: unknown) { super(message); }
+  /** The JSON a website route answers with: the message, plus the backend's code and details when it gave them. */
+  toJSON() { return { error: this.message, ...(this.code ? { code: this.code } : {}), ...(this.details ? { details: this.details } : {}) }; }
 }
 
 /**
@@ -21,6 +26,7 @@ export async function portalApiRequest<T>(label: string, path: string, method = 
     });
   } catch { throw new PortalApiError(`${label} service is unavailable. Please try again.`); }
   const result = await response.json().catch(() => null);
-  if (!response.ok || !result?.success) throw new PortalApiError(result?.message || `${label} request failed.`, response.status >= 400 ? response.status : 502);
+  if (!response.ok || !result?.success) throw new PortalApiError(result?.message || `${label} request failed.`, response.status >= 400 ? response.status : 502,
+    typeof result?.code === "string" ? result.code : undefined, result?.details ?? undefined);
   return result.data as T;
 }

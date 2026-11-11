@@ -27,6 +27,16 @@ test("only bought plans, newest first, each with the portal's status and its own
   assert.equal(rows.every(row => row.kind === "plan"), true);
 });
 
+test("a package bought on the website is listed with its project page; other projects are not", () => {
+  const rows = purchasesFrom([
+    { _id: "k1", createdAt: "2026-11-11T11:07:00Z", orderVisibility: "pending-approval", orderState: { code: "pending_approval", label: "Approval Pending", tone: "warning" },
+      projectSnapshot: { displayName: "All in One Startup Package", salesAgreement: { package: { id: "all-in-one-startup-package", name: "All in One Startup Package" } } } },
+    { _id: "c1", createdAt: "2026-11-10T10:00:00Z", projectSnapshot: { displayName: "Custom website", salesAgreement: null } },
+  ], PORTAL);
+  assert.deepEqual(rows.map(row => [row.id, row.kind, row.name, row.status]), [["k1", "package", "All in One Startup Package", "Approval Pending"]]);
+  assert.equal(rows[0].href, "https://portal.example.test/order-detail/k1");
+});
+
 test("an unknown tone or missing state never breaks a card", () => {
   const [row] = purchasesFrom([{ _id: "x", isServicePlan: true, orderState: { tone: "sparkly" } }], PORTAL);
   assert.deepEqual([row.name, row.status, row.code, row.tone, row.boughtAt], ["Plan", "Processing", "processing", "neutral", null]);

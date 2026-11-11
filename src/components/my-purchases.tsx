@@ -33,18 +33,18 @@ export function MyPurchases({ newOrderId }: { newOrderId?: string }) {
   useEffect(() => { if (rows) freshRef.current?.scrollIntoView({ block: "center" }); }, [rows]);
 
   return <div>
-    <p className={styles.intro}>You use every plan in your client portal: send files, follow the work and see bills there.</p>
+    <p className={styles.intro}>You use every plan and package in your client portal: send files, follow the work and see bills there.</p>
     {error && <p role="alert" className="admin-empty">{error} <button className="text-link" onClick={() => void refresh()}>Retry</button></p>}
     {!rows && !error && <p className="admin-empty" role="status"><InlineLoader />Loading your purchases…</p>}
     {rows?.length === 0 && <div className="admin-empty"><b>You have not bought anything yet.</b><br /><Link className="text-link" href="/plans">See plans →</Link></div>}
     {rows?.map(row => <article key={row.id} ref={row.id === newOrderId ? freshRef : undefined} className={`${styles.card}${row.id === newOrderId ? ` ${styles.fresh}` : ""}`}>
-      {row.id === newOrderId && <p className={styles.freshLabel}>✓ Your new plan</p>}
+      {row.id === newOrderId && <p className={styles.freshLabel}>✓ Your new {row.kind}</p>}
       <div className={styles.head}>
         <h2>{row.name}</h2>
         <span className={styles.status} data-tone={row.tone}>{row.status}</span>
       </div>
-      <p className={styles.meta}>Plan{row.boughtAt ? ` · bought ${boughtOn(row.boughtAt)}` : ""}</p>
-      {row.code === "pending_approval" && <p>We are checking your payment. You can send your data once it is approved.</p>}
+      <p className={styles.meta}>{row.kind === "package" ? "Package" : "Plan"}{row.boughtAt ? ` · bought ${boughtOn(row.boughtAt)}` : ""}</p>
+      {row.code === "pending_approval" && <p>{row.kind === "package" ? "We are checking your payment. Your work starts once it is approved." : "We are checking your payment. You can send your data once it is approved."}</p>}
       {row.code === "rejected" && <p>Your payment was not approved. See the reason in your client portal.</p>}
       <a className={styles.open} href={row.href} onClick={onLeaveClick}>Open in portal →</a>
     </article>)}

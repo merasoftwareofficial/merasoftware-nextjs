@@ -19,12 +19,12 @@ async function handle(request: Request, method: "GET" | "POST") {
     const input = method === "POST" ? await request.json().catch(() => null) : undefined;
     if (method === "POST" && (!input || typeof input !== "object")) return NextResponse.json({ error: "Choose the package options again." }, { status: 400 });
     const body = input ? { packageId: input.packageId, choice: input.choice, quoteKey: input.quoteKey, dueNow: input.dueNow, creationKey: input.creationKey,
-      upiTransactionId: input.upiTransactionId, countryCode: input.countryCode, phone: input.phone } : undefined;
+      upiTransactionId: input.upiTransactionId, countryCode: input.countryCode, phone: input.phone, confirmRepeat: input.confirmRepeat === true } : undefined;
     const path = method === "GET" ? "/api/package-starts/payment-info" : "/api/package-starts/purchase";
     const data = await portalApiRequest("Package purchase", path, method, { Cookie: `${PORTAL_COOKIE}=${token}` }, body);
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    if (error instanceof PortalApiError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof PortalApiError) return NextResponse.json(error.toJSON(), { status: error.status });
     return errorResponse(error);
   }
 }

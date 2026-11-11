@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@/components/loading/navigation";
-import type { OfferReservation, PackageStartKind, PackageStartList, PackageStartRequest, ReservationList } from "@/lib/offer-reservations";
+import type { ActivePackageProject, OfferReservation, PackageStartKind, PackageStartList, PackageStartRequest, ReservationList } from "@/lib/offer-reservations";
 import { useServerTime } from "@/components/use-server-time";
 import { type PhoneCountry, type PhoneValue } from "@/components/phone-field";
 import type { Offer } from "@/lib/offers";
@@ -172,6 +172,8 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
   const countries = config?.countries?.length ? config.countries : INDIA;
   const router = useNavigate();
   const [request, setRequest] = useState<PackageStartRequest | null>(null);
+  // This package's project the customer already bought and that still runs: the page asks before a second one.
+  const [boughtProject, setBoughtProject] = useState<ActivePackageProject | null>(null);
   const [loaded, setLoaded] = useState(!signedIn);
   const [busyKind, setBusyKind] = useState<PackageStartKind | null>(null);
   const [error, setError] = useState("");
@@ -181,13 +183,16 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
   const [phone, setPhoneState] = useState<PhoneValue>({ countryCode: countries[0].code, phone: "" });
   const phoneRef = useRef<PhoneValue | null>(null);
   const attempted = useRef(false);
-  const send = useCallback(async (kind: PackageStartKind) => {
+  const send = useCallback(async (kind: PackageStartKind, confirmRepeat = false) => {
     setBusyKind(kind); setError(""); setErrorKind(null);
     try {
       const contact = phoneRef.current ? { countryCode: phoneRef.current.countryCode, phone: phoneRef.current.phone.trim() } : {};
-      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId, kind, ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact }) });
+      const response = await fetch("/api/package-starts", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageId, kind, ...(choiceRef.current ? { choice: choiceRef.current } : {}), ...contact, ...(confirmRepeat ? { confirmRepeat: true } : {}) }) });
       const data = await response.json();
       if (!response.ok) {
+        // Bought already (in another tab, or the page was opened before): the page asks the customer, no error is shown.
+        if (data.code === "package_already_bought" && data.details?.project) { setBoughtProject(data.details.project); sessionStorage.removeItem(packageIntentKey); return; }
         if (response.status === 428) setNeedsPhone(true);
         else sessionStorage.removeItem(packageIntentKey);
         throw new Error(data.error || "Could not send your request");
@@ -206,7 +211,9 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
         if (!response.ok) throw new Error(data.error || "Could not check your request");
         if (!active) return;
         const open = (data as PackageStartList).requests.find(row => row.packageId === packageId && row.status === "requested");
-        setRequest(open || null); setLoaded(true);
+        setRequest(open || null);
+        setBoughtProject((data as PackageStartList).activeProjects?.find(row => row.packageId === packageId) ?? null);
+        setLoaded(true);
         // Back from sign-in with a pending request: send it once (15 minutes at most). An intent without a kind is the
         // older "Start my project" dialog, which was a callback.
         let intent;
@@ -224,11 +231,14 @@ export function usePackageStart(config: PackageStartConfig | undefined) {
     return () => { active = false; };
   }, [enabled, signedIn, packageId, send]);
   return {
-    enabled, request, loaded, busy: busyKind !== null, busyKind, error, errorKind, signedIn, needsPhone, phone, countries,
+    enabled, request, loaded, busy: busyKind !== null, busyKind, error, errorKind, signedIn, needsPhone, phone, countries, boughtProject,
+    /** The page's own news: the project just bought (asked about next time), or none. */
+    setBoughtProject,
     setPhone(value: PhoneValue) { setPhoneState(value); phoneRef.current = value; },
-    /** A button's action: send now, or keep the intent and sign in first (it sends on return). */
-    confirm(kind: PackageStartKind) {
-      if (signedIn) { void send(kind); return; }
+    /** A button's action: send now, or keep the intent and sign in first (it sends on return). `confirmRepeat`: the
+     * customer said yes to a second purchase of a package they already bought. */
+    confirm(kind: PackageStartKind, confirmRepeat = false) {
+      if (signedIn) { void send(kind, confirmRepeat); return; }
       try { sessionStorage.setItem(packageIntentKey, JSON.stringify({ packageId, kind, createdAt: Date.now() })); }
       catch { setError("Allow browser session storage to return here after signing in."); return; }
       router.push(`/login?next=${encodeURIComponent(returnPath)}`);

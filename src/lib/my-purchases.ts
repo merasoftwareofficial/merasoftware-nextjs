@@ -1,34 +1,39 @@
 // My Account → My purchases (docs/plan.md §4, decision 11): what a client has bought, read from the
 // portal backend's own order list (GET /api/get-order) and trimmed for the website. Status words and
 // tone come from the backend status engine (orderStatusEngine.js), so they match the portal exactly.
-// Plans only for now; projects and subscriptions join as new kinds, never as new tabs.
+// Plans and packages (a package bought on the website is a project, owner decision 11 Nov 2026); other projects
+// and subscriptions join as new kinds, never as new tabs.
 
 export type PurchaseTone = "neutral" | "positive" | "active" | "warning" | "danger";
-export type Purchase = { id: string; kind: "plan"; name: string; status: string; code: string; tone: PurchaseTone; boughtAt: string | null; href: string };
+export type Purchase = { id: string; kind: "plan" | "package"; name: string; status: string; code: string; tone: PurchaseTone; boughtAt: string | null; href: string };
 
 /** The fields the website reads from one portal order (helpers/orderSummary.js ORDER_SUMMARY_FIELDS). */
 export type PortalOrder = {
   _id: string; isServicePlan?: boolean; orderVisibility?: string; createdAt?: string;
   servicePlanSnapshot?: { serviceName?: string } | null;
   productId?: { serviceName?: string } | string | null;
+  projectSnapshot?: { displayName?: string; salesAgreement?: { package?: { id?: string; name?: string } | null } | null } | null;
   orderState?: { code?: string; label?: string; tone?: string } | null;
 };
 
 const TONES: PurchaseTone[] = ["neutral", "positive", "active", "warning", "danger"];
+const packageOf = (order: PortalOrder) => order.projectSnapshot?.salesAgreement?.package ?? null;
 
-/** Bought plans, newest first, each linking to its own page in the portal. Hidden orders are left out. */
+/** Bought plans and packages, newest first, each linking to its own page in the portal. Hidden orders are left out. */
 export function purchasesFrom(orders: PortalOrder[], portalUrl: string): Purchase[] {
   return orders
-    .filter(order => order.isServicePlan && order.orderVisibility !== "hidden")
+    .filter(order => (order.isServicePlan || Boolean(packageOf(order)?.id)) && order.orderVisibility !== "hidden")
     .map(order => {
       const product = typeof order.productId === "object" ? order.productId : null;
       const tone = TONES.find(value => value === order.orderState?.tone) ?? "neutral";
+      const plan = Boolean(order.isServicePlan);
       return {
-        id: String(order._id), kind: "plan" as const,
-        name: order.servicePlanSnapshot?.serviceName || product?.serviceName || "Plan",
+        id: String(order._id), kind: plan ? "plan" as const : "package" as const,
+        name: plan ? order.servicePlanSnapshot?.serviceName || product?.serviceName || "Plan"
+          : packageOf(order)?.name || order.projectSnapshot?.displayName || "Package",
         status: order.orderState?.label || "Processing", code: order.orderState?.code || "processing", tone,
         boughtAt: order.createdAt ?? null,
-        href: `${portalUrl}/plan-details/${order._id}`,
+        href: plan ? `${portalUrl}/plan-details/${order._id}` : `${portalUrl}/order-detail/${order._id}`,
       };
     })
     .sort((a, b) => Date.parse(b.boughtAt ?? "") - Date.parse(a.boughtAt ?? "") || 0);

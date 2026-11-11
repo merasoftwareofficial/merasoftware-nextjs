@@ -15,12 +15,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { InlineLoader } from "@/components/loading/navigation";
 import type { PackageChoice, PackageChoiceQuote } from "@/lib/sales-packages";
+import type { ActivePackageProject } from "@/lib/offer-reservations";
 import s from "@/components/plans/plans.module.css";
 
 const money = (value: number) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const cents = (value: number) => Math.round(value * 100);
 type PayInfo = { walletBalance: number; upiId: string; payeeName: string };
-export type PurchaseResult = { orderId: string; approved: boolean; walletPaid?: number; upiPending?: number };
+export type PurchaseResult = { orderId: string; approved: boolean; walletPaid?: number; upiPending?: number; reused?: boolean };
+
+// One purchase key per choice, kept in this tab (as the portal keeps it, frontend helpers/planCheckout.js) until the
+// purchase succeeds: a retry after a slow answer, a second click or a reload is the same purchase, never a second one.
+const KEY_PREFIX = "package-purchase-key:";
+function storedKey(signature: string): string {
+  try {
+    const kept = sessionStorage.getItem(KEY_PREFIX + signature);
+    if (kept) return kept;
+    const made = crypto.randomUUID();
+    sessionStorage.setItem(KEY_PREFIX + signature, made);
+    return made;
+  } catch { return crypto.randomUUID(); }
+}
+function forgetKey(signature: string) { try { sessionStorage.removeItem(KEY_PREFIX + signature); } catch { /* nothing kept */ } }
 
 export function packagePaymentSplit(dueNow: number, walletBalance: number) {
   const wallet = Math.min(cents(walletBalance), cents(dueNow));
@@ -34,18 +49,24 @@ async function readPayInfo(): Promise<PayInfo> {
   return data;
 }
 
-export function usePackagePayment({ packageId, packageName, choice, quote, signedIn, onPaid }: {
-  packageId: string; packageName: string; choice: PackageChoice; quote: PackageChoiceQuote | null; signedIn: boolean; onPaid: (result: PurchaseResult) => void;
+export function usePackagePayment({ packageId, packageName, choice, quote, signedIn, confirmRepeat, onPaid, onAlreadyBought }: {
+  packageId: string; packageName: string; choice: PackageChoice; quote: PackageChoiceQuote | null; signedIn: boolean;
+  /** The customer said yes to a second purchase of a package they already bought. */
+  confirmRepeat: boolean;
+  onPaid: (result: PurchaseResult) => void;
+  /** The backend found this package's project still running: the page asks the customer (nothing was bought). */
+  onAlreadyBought: (project: ActivePackageProject) => void;
 }) {
   const [info, setInfo] = useState<PayInfo | null>(null);
   const [step, setStep] = useState<"review" | "upi">("review");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // One key per choice: a retry of the same payment never makes a second project; a changed choice is a new one.
+  // One key per choice (kept in this tab): a retry of the same payment never makes a second project; a changed
+  // choice, or a second purchase the customer confirmed, is a new one.
+  const signature = JSON.stringify({ packageId, choice, quoteKey: quote?.quoteKey, dueNow: quote?.dueNow, repeat: confirmRepeat });
   const key = useRef({ signature: "", value: "" });
-  const signature = JSON.stringify({ packageId, choice, quoteKey: quote?.quoteKey, dueNow: quote?.dueNow });
-  if (key.current.signature !== signature) key.current = { signature, value: crypto.randomUUID() };
+  useEffect(() => { if (key.current.signature !== signature) key.current = { signature, value: storedKey(signature) }; }, [signature]);
 
   // The wallet balance and the UPI payee, shown before the customer pays.
   useEffect(() => {
@@ -63,17 +84,23 @@ export function usePackagePayment({ packageId, packageName, choice, quote, signe
   // The purchase: the quote's key and amount, never a price of this page's own.
   const buy = useCallback(async (upiReference: string) => {
     if (!quote) return;
+    if (key.current.signature !== signature) key.current = { signature, value: storedKey(signature) };
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/package-purchase", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ packageId, choice, quoteKey: quote.quoteKey, dueNow: quote.dueNow, creationKey: key.current.value,
-          ...(upiReference ? { upiTransactionId: upiReference } : {}) }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "The payment could not be completed");
+          ...(upiReference ? { upiTransactionId: upiReference } : {}), ...(confirmRepeat ? { confirmRepeat: true } : {}) }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (data.code === "package_already_bought" && data.details?.project) { setStep("review"); onAlreadyBought(data.details.project); return; }
+        // No answer in time: the payment may still have gone through. Sending it again is safe (the same key).
+        throw new Error(response.status === 503 ? "We could not confirm your payment yet. Press the button again in a moment; it will not charge you twice." : data.error || "The payment could not be completed");
+      }
+      forgetKey(signature);
       onPaid(data);
     } catch (err) { setError(err instanceof Error ? err.message : "The payment could not be completed"); }
     finally { setBusy(false); }
-  }, [packageId, choice, quote, onPaid]);
+  }, [packageId, choice, quote, confirmRepeat, signature, onPaid, onAlreadyBought]);
 
   /** After the buy request is sent: read the wallet again, then pay from it at once or ask for the UPI remainder. */
   const begin = useCallback(async () => {

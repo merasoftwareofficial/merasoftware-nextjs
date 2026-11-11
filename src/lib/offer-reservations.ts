@@ -16,4 +16,6 @@ export type PackageStartKind = "buy" | "callback";
 export type PackageStartRequest = { id: string; packageId: string; kind: PackageStartKind; title: string; price: number | null; requestedAt: string;
   choice?: import("./sales-packages").PackageChoice | null;
   closedAt: string | null; closedReason: "project_created" | "closed_by_team" | "callback_requested" | null; projectId: string | null; status: "requested" | "closed" };
-export type PackageStartList = { requests: PackageStartRequest[]; enabled: boolean };
+/** A package project of the customer that is still running (backend helpers/packagePurchase.js activePackageProjects). */
+export type ActivePackageProject = { orderId: string; packageId: string; name: string; boughtAt: string | null; approved: boolean };
+export type PackageStartList = { requests: PackageStartRequest[]; activeProjects?: ActivePackageProject[]; enabled: boolean };

@@ -9,12 +9,14 @@
  * the customer's project (helpers/packagePurchase.js) and the portal runs it from there.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
 import { usePackageStart } from "@/components/offer-reservations";
 import { InlineLoader, quietFetch } from "@/components/loading/navigation";
 import { UpiStep, WalletSplit, usePackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
 import { PackageTermsButton } from "@/components/packages/package-terms-button";
+import { AlreadyBoughtDialog, PurchasedDialog } from "@/components/packages/package-purchase-dialogs";
+import type { ActivePackageProject } from "@/lib/offer-reservations";
 import { Row, Step } from "@/components/plans/plan-builder";
 import { CYCLE_MONTHS, PERIOD_WORDS, PURCHASE_LABELS, tenureLabel } from "@/lib/public-plans";
 import {
@@ -119,21 +121,42 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
   // A buy that is open continues to the payment. This page only buys; a callback is asked for on the package page.
   const requested = start.request?.kind === "buy";
   const [purchased, setPurchased] = useState<PurchaseResult | null>(null);
-  const pay = usePackagePayment({ packageId: item.id, packageName: item.name, choice: clean, quote: ready ? quote : null, signedIn, onPaid: setPurchased });
+  const [purchasedOpen, setPurchasedOpen] = useState(false);
+  // A package bought already (owner decision 11 Nov 2026): "Proceed to pay" asks first; "Yes, buy another one" is a
+  // second purchase (its own key, confirmRepeat to the backend).
+  const [asking, setAsking] = useState<ActivePackageProject | null>(null);
+  const [confirmRepeat, setConfirmRepeat] = useState(false);
+  const { setBoughtProject } = start;
+  const onPaid = useCallback((result: PurchaseResult) => {
+    setPurchased(result); setPurchasedOpen(true); setConfirmRepeat(false);
+    setBoughtProject({ orderId: result.orderId, packageId: item.id, name: item.name, boughtAt: new Date().toISOString(), approved: result.approved });
+  }, [item.id, item.name, setBoughtProject]);
+  const onAlreadyBought = useCallback((project: ActivePackageProject) => { setBoughtProject(project); setAsking(project); }, [setBoughtProject]);
+  const pay = usePackagePayment({ packageId: item.id, packageName: item.name, choice: clean, quote: ready ? quote : null, signedIn, confirmRepeat, onPaid, onAlreadyBought });
   const upiStep = !purchased && pay.step === "upi";
   // "Proceed to pay" sends the request first (the team is told), then pays from the wallet or asks for the UPI remainder.
   const wantsToPay = useRef(false);
   const { begin } = pay;
   useEffect(() => { if (wantsToPay.current && start.request) { wantsToPay.current = false; void begin(); } }, [start.request, begin]);
+  // The request was refused because the package is bought already (found when sending it): ask instead.
+  useEffect(() => { if (wantsToPay.current && start.boughtProject && !confirmRepeat) { wantsToPay.current = false; setAsking(start.boughtProject); } }, [start.boughtProject, confirmRepeat]);
   const sideRef = useRef<HTMLElement>(null);
   // On a phone the card is below the steps: bring the UPI step into view when it opens.
   useEffect(() => { if (upiStep && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [upiStep]);
-  function get() {
+  function proceed(repeat: boolean) {
     if (signedIn && start.request) { void pay.begin(); return; }
     wantsToPay.current = true;
-    start.confirm("buy");
+    start.confirm("buy", repeat);
     if (start.needsPhone && window.matchMedia("(max-width: 900px)").matches) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  function get() {
+    if (signedIn && start.boughtProject && !confirmRepeat) { setAsking(start.boughtProject); return; }
+    proceed(confirmRepeat);
+  }
+  // "Yes, buy another one": the payment hook takes the new answer on the next render, then the purchase goes on.
+  const repeatPending = useRef(false);
+  function buyAnother() { setAsking(null); repeatPending.current = true; setConfirmRepeat(true); }
+  useEffect(() => { if (confirmRepeat && repeatPending.current) { repeatPending.current = false; proceed(true); } });
   // The phone bar has room for a short label only.
   const mainButton = (short = false) => (
     <button type="button" className={s.button} onClick={get} disabled={!ready || start.busy || pay.busy || !!purchased || (signedIn && !start.loaded) || (start.needsPhone && !start.phone.phone.trim())}>
@@ -225,6 +248,8 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
         {start.error && <p className={s.error} role="alert">{start.error}</p>}
         {pay.error && <p className={s.error} role="alert">{pay.error}</p>}
       </aside>
+      <AlreadyBoughtDialog project={asking} portalUrl={portalUrl} onBuyAnother={buyAnother} onClose={() => setAsking(null)} />
+      <PurchasedDialog orderId={purchasedOpen && purchased ? purchased.orderId : null} approved={!!purchased?.approved} portalUrl={portalUrl} onStay={() => setPurchasedOpen(false)} />
       {/* Phones: the price and the button stay in reach while the steps scroll. */}
       {!upiStep && (
         <div className={s.mobileBar}>
