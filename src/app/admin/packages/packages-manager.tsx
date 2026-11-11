@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
 import { categoryChoices, categoryLabel, PACKAGE_PAYMENT_OPTIONS, priceUnit, type AddOn, type PackageCycle, type PackageDraft, type PackageMonthly, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
-import { addOnOffered, choicesForCategory, previewPrice, termsBoxText, typedFromTermsBox, typedTermsOf, type SavedPricing } from "@/lib/package-pricing";
+import { addOnLine, addOnOffered, choicesForCategory, isAddOnLine, previewPrice, termsBoxText, typedFromTermsBox, typedTermsOf, type SavedPricing } from "@/lib/package-pricing";
 import { PackagePriceBuilder } from "./package-price-builder";
 import { readPriceMode, rememberPriceMode, type PriceMode } from "@/lib/package-price-mode";
 import { AddOnDialog } from "@/components/add-on-dialog";
@@ -32,7 +32,7 @@ type Item = SalesPackage & { design: PackageDesign; repriceFromCurrent?: boolean
 type PayMode = "" | "current" | "advance" | "limited_uploads" | "pay_later";
 type OfferForm = {
   base?: Offer; title: string; status: "draft" | "published"; offerPrice: string; endsAt: string; payMode: PayMode;
-  uploadAllowance: string; dueDays: string; reminders: string; reserveWindowHours: string; reservationHoldHours: string;
+  advanceType: "fixed" | "percentage"; advanceValue: string; uploadAllowance: string; dueDays: string; reminders: string; reserveWindowHours: string; reservationHoldHours: string;
 };
 type Errors = Record<string, string>;
 // A new project category is saved by the portal backend through the plan catalogue route, as the plan form does.
@@ -103,12 +103,12 @@ function fromDraft(draft: PackageDraft, offers: Offer[]): { item: Item; form: Of
 function blankOffer(): OfferForm {
   const end = new Date(Date.now() + 7 * 86400000);
   const day = toIndiaInput(end).slice(0, 10);
-  return { title: "", status: "draft", offerPrice: "", endsAt: `${day}T23:59`, payMode: "", uploadAllowance: "1", dueDays: "7", reminders: "-1, 0, 3", reserveWindowHours: "", reservationHoldHours: "" };
+  return { title: "", status: "draft", offerPrice: "", endsAt: `${day}T23:59`, payMode: "", advanceType: "fixed", advanceValue: "", uploadAllowance: "1", dueDays: "7", reminders: "-1, 0, 3", reserveWindowHours: "", reservationHoldHours: "" };
 }
 function formFromOffer(offer: Offer): OfferForm {
   const policy = offer.paymentPolicy;
   return { base: offer, title: offer.title, status: offer.status === "published" ? "published" : "draft", offerPrice: String(offer.offerPrice), endsAt: toIndiaInput(offer.endsAt),
-    payMode: policy?.mode ?? "current", uploadAllowance: String(policy?.uploadAllowance || 1), dueDays: String(policy?.dueDays ?? 7),
+    payMode: policy?.mode ?? "current", advanceType: policy?.minimumAdvance?.type ?? "fixed", advanceValue: policy?.minimumAdvance ? String(policy.minimumAdvance.value) : "", uploadAllowance: String(policy?.uploadAllowance || 1), dueDays: String(policy?.dueDays ?? 7),
     reminders: (policy?.reminderOffsets ?? [-1, 0, 3]).join(", "), reserveWindowHours: offer.reserveWindowHours ? String(offer.reserveWindowHours) : "",
     reservationHoldHours: offer.reservationHoldHours ? String(offer.reservationHoldHours) : "" };
 }
@@ -121,7 +121,7 @@ function offerPayload(form: OfferForm, item: Item): Partial<Offer> {
   const payload: Partial<Offer> = {
     ...(form.base ?? {}), title: form.title.trim(), status: form.status, offerPrice: Number(form.offerPrice),
     endsAt: indiaInputToUtc(form.endsAt, true), order: item.order,
-    paymentPolicy: { mode, uploadAllowance: mode === "limited_uploads" ? Number(form.uploadAllowance) : 0, dueDays: Number(form.dueDays || 0),
+    paymentPolicy: { mode, ...(mode === "advance" && form.advanceValue ? { minimumAdvance: { type: form.advanceType, value: Number(form.advanceValue) } } : {}), uploadAllowance: mode === "limited_uploads" ? Number(form.uploadAllowance) : 0, dueDays: Number(form.dueDays || 0),
       cycleScope: form.base?.paymentPolicy?.cycleScope ?? "first_purchase", reminderOffsets: reminderList(form.reminders) },
   };
   const window = hours(form.reserveWindowHours), hold = hours(form.reservationHoldHours);
@@ -165,6 +165,9 @@ function check(item: Item, offer: OfferForm | null, now: number, extra: Errors =
     try { end = Date.parse(indiaInputToUtc(offer.endsAt, true)); } catch { /* reported below */ }
     if (!Number.isFinite(end) || (offer.status === "published" && end <= now)) errors.endsAt = "Choose a date and time in the future.";
     if (!offer.payMode) errors.payMode = "Choose how the project is paid.";
+    if (offer.payMode === "advance" && (!(Number(offer.advanceValue) > 0) || (offer.advanceType === "percentage" && Number(offer.advanceValue) > 100))) errors.advanceValue = offer.advanceType === "percentage" ? "Enter a percentage from 0.01 to 100." : "Enter a minimum advance above ₹0.";
+    if (offer.payMode === "advance" && item.billing === "monthly") errors.payMode = "Advance token payment is only for one-time project packages.";
+    if (offer.payMode === "advance" && offer.advanceType === "fixed" && Number(offer.advanceValue) > Number(offer.offerPrice)) errors.advanceValue = "Cannot exceed the offer price.";
     if (offer.payMode === "limited_uploads" && !(Number.isInteger(Number(offer.uploadAllowance)) && Number(offer.uploadAllowance) >= 1)) errors.uploadAllowance = "Allow at least 1 upload.";
     if (offer.payMode && offer.payMode !== "current") {
       const due = Number(offer.dueDays);
@@ -331,12 +334,20 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     setItem(current => {
       if (!current?.services) return current;
       const services = on ? [...current.services.filter(row => row.featureId !== addOn.id), { featureId: addOn.id, quantity: 1 }] : current.services.filter(row => row.featureId !== addOn.id);
-      // The included work names each ticked add-on once, and drops it again when it is unticked.
-      const inclusions = on ? [...current.inclusions.filter(line => line.trim() && line.trim() !== addOn.name), addOn.name] : current.inclusions.filter(line => line.trim() !== addOn.name);
+      // The included work names each ticked add-on once (with its number when sold by quantity), and drops it again when it is unticked.
+      const inclusions = on ? [...current.inclusions.filter(line => line.trim() && !isAddOnLine(line, addOn.name)), addOnLine(addOn.name, 1, addOn.isQuantityBased)] : current.inclusions.filter(line => !isAddOnLine(line, addOn.name));
       return { ...current, services, inclusions };
     });
   }
-  function setQuantity(id: string, quantity: number) { setItem(current => current?.services ? { ...current, services: current.services.map(row => row.featureId === id ? { ...row, quantity } : row) } : current); }
+  // A new number also changes the add-on's line in the included work. The name comes from the price preview (the saved name for a saved add-on).
+  function setQuantity(id: string, quantity: number) {
+    const priced = auto?.lines.find(row => row.featureId === id);
+    setItem(current => current?.services ? {
+      ...current,
+      services: current.services.map(row => row.featureId === id ? { ...row, quantity } : row),
+      inclusions: priced ? current.inclusions.map(line => isAddOnLine(line, priced.name) ? addOnLine(priced.name, quantity, priced.isQuantityBased) : line) : current.inclusions,
+    } : current);
+  }
   // An add-on made, changed or deleted in its dialog: the list is read again; a new one is ticked when this category offers it.
   async function addOnChanged(result: { id: string; removed?: boolean }) {
     const isNew = !addOnDialog?.edit;
@@ -671,6 +682,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             <label className={`admin-field ${bad("payMode") ?? ""}`}><span>Payment rule *</span><select aria-label="Payment rule" value={payMode} onChange={e => offerField("payMode", e.target.value as PayMode)}><option value="" disabled>Choose a payment rule</option><option value="current">Keep current system rules</option><option value="advance">Advance payment</option><option value="limited_uploads">Limited uploads before payment</option><option value="pay_later">Pay later (uploads stay available)</option></select><small>Frozen onto each project started with this offer.</small>{err("payMode")}</label>
             {payMode && payMode !== "current" && <div className={s.dep}>
               <div className="form-columns">
+                {payMode === "advance" && <><label className="admin-field"><span>Minimum advance type *</span><select aria-label="Minimum advance type" value={offerForm.advanceType} onChange={e => offerField("advanceType", e.target.value as OfferForm["advanceType"])}><option value="fixed">Fixed amount (₹)</option><option value="percentage">Percentage</option></select></label><label className={`admin-field ${bad("advanceValue") ?? ""}`}><span>Minimum advance *</span><input aria-label="Minimum advance" type="number" min={0.01} max={offerForm.advanceType === "percentage" ? 100 : 10000000} step="0.01" value={offerForm.advanceValue} onChange={e => offerField("advanceValue", e.target.value)} /><small>The customer may pay this amount or more to start the project.</small>{err("advanceValue")}</label></>}
                 {payMode === "limited_uploads" && <label className={`admin-field ${bad("uploadAllowance") ?? ""}`}><span>Uploads allowed before payment *</span><input aria-label="Pre-payment upload allowance" type="number" min={1} max={10000} value={offerForm.uploadAllowance} onChange={e => offerField("uploadAllowance", e.target.value)} />{err("uploadAllowance")}</label>}
                 <label className={`admin-field ${bad("dueDays") ?? ""}`}><span>Payment due after (days) *</span><input aria-label="Payment due days" type="number" min={0} max={365} value={offerForm.dueDays} onChange={e => offerField("dueDays", e.target.value)} /><small>From project creation.</small>{err("dueDays")}</label>
               </div>

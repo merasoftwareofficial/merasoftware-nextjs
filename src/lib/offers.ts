@@ -6,11 +6,14 @@ import { PROJECT_CATEGORY_KEY } from "@/lib/sales-packages";
 const short = (max = 200) => z.string().trim().min(1).max(max);
 export const paymentPolicySchema = z.object({
   mode: z.enum(["current", "advance", "limited_uploads", "pay_later"]),
+  minimumAdvance: z.object({ type: z.enum(["fixed", "percentage"]), value: z.number().finite().positive().max(10000000).multipleOf(0.01) }).strict().optional(),
   uploadAllowance: z.number().int().min(0).max(10000),
   dueDays: z.number().int().min(0).max(365),
   cycleScope: z.enum(["first_purchase", "every_cycle"]),
   reminderOffsets: z.array(z.number().int().min(-365).max(365)).max(10),
-}).strict().refine(value => value.mode !== "limited_uploads" || value.uploadAllowance > 0, { message: "Allow at least one upload before payment.", path: ["uploadAllowance"] });
+}).strict().refine(value => value.mode !== "limited_uploads" || value.uploadAllowance > 0, { message: "Allow at least one upload before payment.", path: ["uploadAllowance"] })
+  .refine(value => !value.minimumAdvance || value.mode === "advance", { message: "Minimum advance belongs to the advance-payment mode.", path: ["minimumAdvance"] })
+  .refine(value => value.minimumAdvance?.type !== "percentage" || value.minimumAdvance.value <= 100, { message: "Advance percentage cannot exceed 100%.", path: ["minimumAdvance", "value"] });
 export const offerSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens.").max(80)
   .refine(value => !["new", "preview", "__proto__", "constructor", "prototype"].includes(value), "Choose another URL slug.");
 // The backend's package ID rule (helpers/salesPackages.js safeId), not the offer slug rule.
@@ -73,6 +76,7 @@ export const offerSchema = z.object({
     return Math.round(offerFinalPrice(value.mainPrice, value) * 100) === Math.round(value.offerPrice * 100);
   }, { message: "Offer display price must match the configured discount rule.", path: ["offerPrice"] })
   .refine(value => !value.packageId || value.pricingRule === "fixed_price", { message: "A package offer uses a fixed offer price.", path: ["pricingRule"] })
+  .refine(value => value.paymentPolicy?.minimumAdvance?.type !== "fixed" || value.paymentPolicy.minimumAdvance.value <= value.offerPrice, { message: "Minimum advance cannot exceed the offer price.", path: ["paymentPolicy", "minimumAdvance", "value"] })
   .refine(value => !!value.packageId || LEGACY_DESIGN_REQUIRED.every(key => !!value[key]?.trim()), { message: "Fill in the page heading, texts and enquiry link.", path: ["heading"] });
 export type Offer = z.infer<typeof offerSchema>;
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;

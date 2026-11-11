@@ -40,11 +40,12 @@ export type PackageMonthly = {
   billingOptions: { billingCycle: PackageCycle; discountPercent: number }[]; maxTenureMonths: number; uploadsPerMonth?: number | null;
 };
 /** What a customer chooses on /package/<id>/customize (backend helpers/salesPackages.js quoteChoice). */
-export type PackageChoice = { paymentOption?: PackagePaymentOption; billingCycle?: PackageCycle; tenureMonths?: number };
+export type PackageChoice = { paymentOption?: PackagePaymentOption; advanceAmount?: number; billingCycle?: PackageCycle; tenureMonths?: number };
 export type PackageChoiceQuote = {
   packageId: string; billing: PackageBilling; quoteKey: string; regularPrice: number; discountAmount: number; finalPrice: number; dueNow: number;
   offer: { slug: string; title: string; endsAt: string } | null;
   paymentOption?: PackagePaymentOption; installments?: { installmentNumber: number; percentage: number; amount: number; progressThreshold: number | null }[];
+  advance?: { minimum: number; selected: number; type: "fixed" | "percentage"; value: number };
   monthly?: { billingCycle: PackageCycle; cycleMonths: number; tenureMonths: number; totalCycles: number;
     uploadsPerMonth: number | null; perMonthPrice: number; discountPercent: number; cyclePrice: number; totalPrice: number };
 };

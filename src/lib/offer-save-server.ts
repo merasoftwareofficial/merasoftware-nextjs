@@ -30,6 +30,7 @@ export async function saveOfferRecord(input: Offer, creating: boolean, catalogue
     if (!source) return refuse("This offer's package no longer exists in the portal.");
     const problem = packageOfferProblem(offer, source);
     if (problem) return refuse(problem);
+    if (source.billing === "monthly" && offer.paymentPolicy?.minimumAdvance) return refuse("Advance token payment is only available for one-time project packages.");
     // The package's current values, not whatever an open form last loaded.
     offer = syncOfferWithPackage(offer, source);
     // A new offer on a package stores no page design: the package owns it (lib/package-design.ts).
@@ -38,7 +39,9 @@ export async function saveOfferRecord(input: Offer, creating: boolean, catalogue
     if (busy) return refuse(busyPackageMessage(source, busy), 409);
   }
   const targets = offer.targets || ["projects"];
+  if (offer.paymentPolicy?.minimumAdvance && !targets.includes("projects")) return refuse("Minimum advance payment applies only to project offers.");
   if (offer.status === "published" && targets.includes("projects") && (!offer.applicableCategories?.length || !offer.pricingRule)) return refuse("Select applicable project categories and a pricing rule before publishing.");
+  if (offer.status === "published" && targets.includes("projects") && offer.paymentPolicy?.mode === "advance" && !offer.paymentPolicy.minimumAdvance) return refuse("Set the minimum advance payment before publishing.");
   if (offer.status === "published" && targets.includes("projects")) {
     // Categories are portal-owned: each must exist there, and only one already on this saved offer may
     // stay selected after being archived.

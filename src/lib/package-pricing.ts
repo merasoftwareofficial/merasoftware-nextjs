@@ -17,6 +17,17 @@ export type PricedLine = { featureId: string; name: string; unitPrice: number; q
 /** `terms`: the terms the package gets automatically (category, then each add-on), as the backend freezes them. */
 export type PricePreview = { base: number | null; baseFrozen: boolean; lines: PricedLine[]; total: number | null; problems: string[]; terms: string[] };
 
+/** An add-on's line in the package's included work: "5 × Reels" when it is sold by quantity, otherwise just its name. */
+export const addOnLine = (name: string, quantity: number, isQuantityBased: boolean) =>
+  isQuantityBased && Number.isInteger(quantity) && quantity >= 1 && quantity <= 1000 ? `${quantity} × ${name}` : name;
+
+/** Whether a line of the included work is this add-on's: its bare name (older packages) or "N × name". */
+export function isAddOnLine(line: string, name: string): boolean {
+  const text = line.trim();
+  const tail = ` × ${name}`;
+  return text === name || (text.endsWith(tail) && /^\d+$/.test(text.slice(0, text.length - tail.length)));
+}
+
 /** The saved package this one is edited from: its category and frozen prices (missing for a new or hand-priced package). */
 export type SavedPricing = { category: string; pricing?: PricingSnapshot } | undefined;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { choicesForCategory, previewPrice, termsBoxText, typedFromTermsBox } from "../src/lib/package-pricing";
+import { addOnLine, choicesForCategory, isAddOnLine, previewPrice, termsBoxText, typedFromTermsBox } from "../src/lib/package-pricing";
 import type { AddOn, PricingSnapshot } from "../src/lib/sales-packages";
 
 // Same scenarios as the backend's tests/packageServicesPricing.test.js: the form's preview and the portal
@@ -107,4 +107,21 @@ test("changing the category drops the add-ons it does not offer, unless the pack
   const before = saved("standard_websites", 10000, [addOn("gone", "Gone", 1), 1]);
   assert.deepEqual(choicesForCategory(pick(["gone"]), "standard_websites", [], before), pick(["gone"]));
   assert.deepEqual(choicesForCategory(pick(["gone"]), "dynamic_websites", [], before), []);
+});
+
+test("an add-on's line in the included work: its number first when sold by quantity, otherwise the bare name", () => {
+  assert.equal(addOnLine("Reels", 1, true), "1 × Reels");
+  assert.equal(addOnLine("Reels", 10, true), "10 × Reels");
+  assert.equal(addOnLine("SEO setup", 1, false), "SEO setup");
+  // An invalid number never reaches the page (the save is refused); the line then shows the name only.
+  for (const bad of [0, -2, 1.5, 1001, NaN]) assert.equal(addOnLine("Reels", bad, true), "Reels");
+});
+
+test("a line belongs to an add-on when it is its bare name or 'N × name', and not when the name only ends the same", () => {
+  assert.equal(isAddOnLine("Reels", "Reels"), true);
+  assert.equal(isAddOnLine("5 × Reels", "Reels"), true);
+  assert.equal(isAddOnLine("  12 × Reels ", "Reels"), true);
+  assert.equal(isAddOnLine("5 × Short Reels", "Reels"), false);
+  assert.equal(isAddOnLine("Reels editing", "Reels"), false);
+  assert.equal(isAddOnLine("many × Reels", "Reels"), false);
 });

@@ -9,6 +9,7 @@ import type { PackageChoice, PackagePaymentOption, SalesPackage } from "@/lib/sa
  */
 export const packageChoiceSchema = z.object({
   paymentOption: z.enum(["full", "installments_2", "installments_3"]).optional(),
+  advanceAmount: z.number().finite().positive().max(10000000).optional(),
   billingCycle: z.enum(["monthly", "quarterly", "half_yearly", "yearly"]).optional(),
   tenureMonths: z.number().int().min(1).max(12).optional(),
 }).strict();
@@ -40,7 +41,8 @@ export function initialPackageChoice(item: Pkg, query: Record<string, string | s
   if (item.billing === "one_time") {
     const options = item.paymentOptions ?? [];
     const asked = one(query.pay) as PackagePaymentOption | undefined;
-    return options.length ? { paymentOption: asked && options.includes(asked) ? asked : options[0] } : null;
+    const advanceAmount = Number(one(query.advance));
+    return options.length ? { paymentOption: asked && options.includes(asked) ? asked : options[0], ...(advanceAmount > 0 ? { advanceAmount } : {}) } : null;
   }
   if (item.billing !== "monthly") return null;
   const cycles = cycleChoices(item);
@@ -54,6 +56,7 @@ export function initialPackageChoice(item: Pkg, query: Record<string, string | s
 export function packageChoiceQuery(choice: PackageChoice) {
   const params = new URLSearchParams();
   if (choice.paymentOption) params.set("pay", choice.paymentOption);
+  if (choice.advanceAmount) params.set("advance", String(choice.advanceAmount));
   if (choice.billingCycle) params.set("cycle", choice.billingCycle);
   if (choice.tenureMonths) params.set("months", String(choice.tenureMonths));
   return params.toString();
@@ -61,4 +64,4 @@ export function packageChoiceQuery(choice: PackageChoice) {
 /** Only the fields the package's billing uses. */
 export const cleanPackageChoice = (item: Pkg, choice: PackageChoice): PackageChoice => item.billing === "monthly"
   ? { billingCycle: choice.billingCycle, tenureMonths: choice.tenureMonths }
-  : { paymentOption: choice.paymentOption };
+  : { paymentOption: choice.paymentOption, ...(choice.advanceAmount ? { advanceAmount: choice.advanceAmount } : {}) };

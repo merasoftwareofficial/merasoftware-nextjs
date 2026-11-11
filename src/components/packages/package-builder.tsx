@@ -61,7 +61,7 @@ function QuoteBill({ item, quote, loading, error }: { item: BuilderPackage; quot
       <div className={s.rows}>
         <Row label="Package price" value={money(quote.regularPrice)} />
         {offerRow}
-        {parts.map(part => <Row key={part.installmentNumber} label={`Installment ${part.installmentNumber} (${part.percentage}%)${part.progressThreshold == null ? " · at the start" : ` · at ${part.progressThreshold}% progress`}`} value={money(part.amount)} />)}
+        {parts.map(part => <Row key={part.installmentNumber} label={`${quote.advance && part.installmentNumber === 1 ? "Advance" : `Installment ${part.installmentNumber}`} (${part.percentage}%)${part.progressThreshold == null ? " · at the start" : ` · at ${part.progressThreshold}% progress`}`} value={money(part.amount)} />)}
       </div>
       <div className={s.total}>
         <span>{parts.length ? "Due at the start" : "Pay once"}</span>
@@ -203,10 +203,15 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
               <div className={s.segsStack}>
                 {(item.paymentOptions ?? []).map(option => (
                   <button key={option} type="button" className={s.seg} aria-pressed={choice.paymentOption === option} onClick={() => set({ paymentOption: option })}>
-                    <b>{PAYMENT_OPTION_WORDS[option].title}</b><span>{PAYMENT_OPTION_WORDS[option].detail}</span>
+                    <b>{quote?.advance && option === "full" ? "Advance + final balance" : PAYMENT_OPTION_WORDS[option].title}</b><span>{quote?.advance && option === "full" ? "balance at 90% progress" : PAYMENT_OPTION_WORDS[option].detail}</span>
                   </button>
                 ))}
               </div>
+              {quote?.advance && <label className={s.payLabel}>Advance to pay now
+                <input aria-label="Advance to pay now" type="number" min={quote.advance.minimum} max={quote.finalPrice} step="0.01" value={choice.advanceAmount ?? quote.advance.selected}
+                  onChange={event => set({ advanceAmount: Number(event.target.value) })} />
+                <span>Minimum {money(quote.advance.minimum)}. You may pay up to {money(quote.finalPrice)}.</span>
+              </label>}
               {choice.paymentOption !== "full" && <p className={s.hint}>The first part starts your project; each next part is due as the work reaches its stage.</p>}
             </div>
           )}

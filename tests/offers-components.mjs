@@ -340,6 +340,9 @@ try {
   assert.equal(packageSaves, before, 'nothing was sent');
   await form.getByLabel('Offer price (₹)', { exact: true }).fill('2999');
   await page.getByText('Shown as 80% OFF the main price.', { exact: true }).waitFor();
+  await form.getByLabel('Payment rule', { exact: true }).selectOption('advance');
+  await form.getByLabel('Minimum advance type', { exact: true }).selectOption('percentage');
+  await form.getByLabel('Minimum advance', { exact: true }).fill('20');
   await form.getByLabel('Payment rule', { exact: true }).selectOption('limited_uploads');
   await form.getByLabel('Pre-payment upload allowance', { exact: true }).fill('2');
   await form.getByLabel('Expires at (India time / IST)', { exact: true }).fill('2030-10-20T23:59');
