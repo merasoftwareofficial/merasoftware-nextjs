@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useServerTime } from "@/components/use-server-time";
-import { categoryLabel, type ProjectCategory, type QuotedPackage } from "@/lib/sales-packages";
+import { type QuotedPackage } from "@/lib/sales-packages";
 import { PackageCard, packageOfferRunning, timeLeft } from "./package-card";
 import s from "./campaign.module.css";
 
@@ -11,7 +11,7 @@ import s from "./campaign.module.css";
  * leaves a half-empty row. While an offer runs, "All packages" / "Offers running" switch the list;
  * without one the grid starts straight away. When an offer ends its card returns to its own place.
  */
-export function StaffPackages({ title, intro, items, categories }: { title: string; intro: string; items: QuotedPackage[]; categories?: ProjectCategory[] }) {
+export function StaffPackages({ title, intro, items }: { title: string; intro: string; items: QuotedPackage[] }) {
   const now = useServerTime();
   const [onlyOffers, setOnlyOffers] = useState(false);
   const offers = items.filter(item => packageOfferRunning(item, now));
@@ -28,6 +28,6 @@ export function StaffPackages({ title, intro, items, categories }: { title: stri
       <button type="button" className={s.pkgTab} aria-pressed={!showOffers} onClick={() => setOnlyOffers(false)}>All packages <span className={s.pkgCount}>{items.length}</span></button>
       <button type="button" className={`${s.pkgTab} ${s.pkgTabOffer}`} aria-pressed={showOffers} onClick={() => setOnlyOffers(true)}><i aria-hidden="true" />Offers running <span className={s.pkgCount}>{offers.length}</span><span className={s.pkgEnds}>· ends in {timeLeft(soonest, now)}</span></button>
     </div>}
-    <div className={s.pkgGrid}>{shown.map(item => <PackageCard key={item.id} item={item} categoryLabel={categoryLabel(categories, item.category)} now={now} />)}</div>
+    <div className={s.pkgGrid}>{shown.map(item => <PackageCard key={item.id} item={item} now={now} />)}</div>
   </div>;
 }

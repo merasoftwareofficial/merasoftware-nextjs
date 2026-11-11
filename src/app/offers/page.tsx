@@ -12,6 +12,6 @@ export function generateMetadata() { return pageMetadata("offers"); }
 export default async function Page() {
   const { listing, catalogue, cards } = await readOffersPage();
   return <><SiteHeader /><main className={s.page}><div className={s.wrap}>{catalogue
-    ? <OffersGrid title={listing.title} emptyMessage={listing.emptyMessage} cards={cards} categories={catalogue.categories} />
+    ? <OffersGrid title={listing.title} emptyMessage={listing.emptyMessage} cards={cards} />
     : <section className={s.section}><h1>{listing.title}</h1><p>Offer details are temporarily unavailable. Please contact us for current offers and pricing.</p><a href="mailto:contact@merasoftware.com">Enquire about offers →</a></section>}</div></main><SiteFooter /></>;
 }

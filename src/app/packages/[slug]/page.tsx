@@ -21,5 +21,5 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   if (!page) notFound();
   let catalogue;
   try { catalogue = await readSalesCatalogue(); } catch { /* No stale or fabricated prices during an outage. */ }
-  return <><SiteHeader /><main className={s.page}><div className={s.wrap}>{catalogue ? <StaffPackages title={page.title} intro={page.intro} items={catalogue.packages.filter(item => item.pages?.includes(page.slug))} categories={catalogue.categories} /> : <section className={s.section}><h1>{page.title}</h1><p>Package details are temporarily unavailable. Please contact us for current scope and pricing.</p><a href="mailto:contact@merasoftware.com">Enquire about packages →</a></section>}</div></main><SiteFooter whatsappSubject={page.title} /></>;
+  return <><SiteHeader /><main className={s.page}><div className={s.wrap}>{catalogue ? <StaffPackages title={page.title} intro={page.intro} items={catalogue.packages.filter(item => item.pages?.includes(page.slug))} /> : <section className={s.section}><h1>{page.title}</h1><p>Package details are temporarily unavailable. Please contact us for current scope and pricing.</p><a href="mailto:contact@merasoftware.com">Enquire about packages →</a></section>}</div></main><SiteFooter whatsappSubject={page.title} /></>;
 }
