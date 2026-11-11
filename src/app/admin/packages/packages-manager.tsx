@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/link";
 import { categoryChoices, categoryLabel, MONTHLY_PRICING_LABELS, PACKAGE_PAYMENT_OPTIONS, priceUnit, type AddOn, type PackageCycle, type PackageDraft, type PackageMonthly, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
-import { addOnOffered, choicesForCategory, previewPrice, type SavedPricing } from "@/lib/package-pricing";
+import { addOnOffered, choicesForCategory, previewPrice, typedTermsOf, type SavedPricing } from "@/lib/package-pricing";
 import { PackagePriceBuilder } from "./package-price-builder";
 import { readPriceMode, rememberPriceMode, type PriceMode } from "@/lib/package-price-mode";
 import { AddOnDialog } from "@/components/add-on-dialog";
@@ -101,6 +101,8 @@ function toItem(row: SalesPackage, offers: Offer[] = []): Item {
   // What the form edits of the frozen pricing is only which add-ons and how many. A hand-priced package has none (its row has no
   // services either); a new package starts with an empty list, so it is priced from its category and add-ons.
   if (row.pricing) config.services = row.pricing.services.map(({ featureId, quantity }) => ({ featureId, quantity }));
+  // The form holds only the admin's own terms; the automatic ones (category and add-ons) come from the selection and are shown read-only.
+  config.terms = typedTermsOf(row.terms ?? [], row.pricing);
   const design = inheritedDesign(row, offers.filter(offer => offer.packageId === row.id)) ?? defaultPackageDesign(row);
   // Live packages are published or archived; an older hidden package goes live when it is published.
   if (config.status === "draft") config.status = "published";
@@ -261,7 +263,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const savedPricing: SavedPricing = savedRow?.pricing ? { category: savedRow.category, pricing: savedRow.pricing } : undefined;
   const autoPriced = !!item && item.billing === "one_time" && item.services !== undefined;
   const categoryEntry = item ? (catalogue.categories ?? []).find(row => row.category === item.category) : undefined;
-  const auto = autoPriced && item && item.category ? previewPrice({ category: item.category, basePrice: categoryEntry?.basePrice, choices: item.services ?? [], addOns, saved: savedPricing, refresh: item.repriceFromCurrent === true }) : null;
+  const auto = autoPriced && item && item.category ? previewPrice({ category: item.category, basePrice: categoryEntry?.basePrice, categoryTerms: categoryEntry?.terms ?? [], choices: item.services ?? [], addOns, saved: savedPricing, refresh: item.repriceFromCurrent === true }) : null;
   const autoErrors: Errors = auto?.problems.length ? { services: auto.problems[0] } : {};
   const autoTotal = auto?.total ?? null;
   // The main price follows the parts. The discount price follows it while there is no discount, so a new package starts without one.
@@ -601,10 +603,11 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   try { previewEnd = offerForm ? Date.parse(indiaInputToUtc(offerForm.endsAt, true)) : NaN; } catch { /* not a date yet */ }
   const showOffer = !!offerForm && offerForm.offerPrice !== "" && Number.isFinite(previewEnd);
   const shown = priced(item);
-  const base = packageView({ ...shown, inclusions: lines(item.inclusions), terms: lines(item.terms), id: id });
+  // The preview shows what the customer will read: the admin's terms, then the automatic ones of the current selection.
+  const base = packageView({ ...shown, inclusions: lines(item.inclusions), terms: [...lines(item.terms), ...(auto?.terms ?? [])], id: id });
   const view = showOffer ? offerView({ ...base, title: offerForm!.title || "Offer name", offerPrice: Number(offerForm!.offerPrice), endsAt: new Date(previewEnd).toISOString(),
     ...(hours(offerForm!.reservationHoldHours) ? { reservationHoldHours: hours(offerForm!.reservationHoldHours) } : {}) }, shown) : base;
-  const packageTerms = [...new Set([...universalTerms, ...lines(item.terms)])];
+  const packageTerms = [...new Set([...universalTerms, ...lines(item.terms), ...(auto?.terms ?? [])])];
   const percent = showOffer ? offerDiscountPercent(view) : 0;
   const leftMs = running ? Date.parse(savedOffer!.endsAt) - (now ?? 0) : 0;
   const payMode = offerForm?.payMode ?? "";
@@ -664,7 +667,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             : <p className={s.note}>Price method: <b>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</b>. A saved package keeps the way its price was set; duplicate it to make a copy priced the other way.</p>)}
           {item.billing === "monthly" && creating && <p className={s.note}>A monthly package uses typed prices.</p>}
           {perFile(item) ? <PerFilePrice rate={item.discountedPrice} monthly={item.monthly!} /> : autoPriced ? <PackagePriceBuilder category={item.category} categoryEntry={categoryEntry} addOns={addOns} choices={item.services ?? []} saved={savedPricing}
-            refresh={item.repriceFromCurrent === true} preview={auto ?? { base: null, baseFrozen: false, lines: [], total: null, problems: [] }} regularPrice={item.regularPrice} discountedPrice={item.discountedPrice}
+            refresh={item.repriceFromCurrent === true} preview={auto ?? { base: null, baseFrozen: false, lines: [], total: null, problems: [], terms: [] }} regularPrice={item.regularPrice} discountedPrice={item.discountedPrice}
             error={err} bad={bad} onToggle={toggleService} onQuantity={setQuantity} onRefresh={on => update("repriceFromCurrent", on ? true : undefined)}
             onDiscount={value => update("discountedPrice", value)} onEditCategory={() => { setCategoryNote(""); setEditCategory(true); }} onNewAddOn={() => setAddOnDialog({})} onEditAddOn={row => setAddOnDialog({ edit: row })} />
           : <>
@@ -676,6 +679,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <div className="form-columns">
             <label className={`admin-field ${bad("inclusions") ?? ""}`}><span>Included work (one per line) *</span><textarea aria-label="Included work (one item per line)" rows={6} value={item.inclusions.join("\n")} onChange={e => update("inclusions", e.target.value.split("\n"))} /><small>Saved with each client project.</small>{err("inclusions")}</label>
             <label className="admin-field"><span>Terms &amp; exclusions (one per line)</span><textarea aria-label="Terms & exclusions" rows={6} value={item.terms.join("\n")} onChange={e => update("terms", e.target.value.split("\n"))} /></label>
+            {auto && auto.terms.length > 0 && <div className={s.note}><b>Added automatically from the category and add-ons (read only; they follow the price choice):</b>
+              <ul>{auto.terms.map((line, index) => <li key={index}>{line}</li>)}</ul></div>}
           </div>
         </section>
 

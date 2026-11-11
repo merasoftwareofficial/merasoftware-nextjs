@@ -21,6 +21,8 @@ export function ProjectCategoryDialog({ nextSortOrder, edit, onCancel, onSaved, 
   const [keyEdited, setKeyEdited] = useState(false);
   const [price, setPrice] = useState(edit?.basePrice === null || edit?.basePrice === undefined ? "" : String(edit.basePrice));
   const [description, setDescription] = useState(edit?.description ?? "");
+  // Terms & conditions, one per line: a package priced from this category shows them automatically.
+  const [termsText, setTermsText] = useState((edit?.terms ?? []).join("\n"));
   const [node, setNode] = useState(edit?.startingNodeTitle ?? "");
   const [sortOrder, setSortOrder] = useState(edit?.sortOrder ?? nextSortOrder);
   const [customerSelectable, setCustomerSelectable] = useState(edit?.customerSelectable ?? false);
@@ -48,6 +50,7 @@ export function ProjectCategoryDialog({ nextSortOrder, edit, onCancel, onSaved, 
       try {
         const category = await send<ProjectCategory>({ target: "category", action: "save_project_category", ...(edit ? {} : { creating: true }),
           category: key, label: name.trim(), basePrice: price === "" ? null : Number(price), description,
+          terms: termsText.split("\n").map(line => line.trim()).filter(Boolean),
           startingNodeTitle: node, sortOrder, customerSelectable, status: archived ? "archived" : "active" });
         await onSaved(category);
       } catch (cause) { setError(cause instanceof Error ? cause.message : edit ? "Could not save the category." : "Could not create category."); }
@@ -61,6 +64,7 @@ export function ProjectCategoryDialog({ nextSortOrder, edit, onCancel, onSaved, 
         <label className="admin-field"><span>Base price (INR)</span><input type="number" min={0} step="0.01" value={price} onChange={event => setPrice(event.target.value)} /></label>
         <p>{edit ? "A package priced from this category and a new custom project start from this price. Packages already saved keep the price they were saved with." : "Leave the base price empty if undecided. Category creation does not enable customer project ordering."}</p>
         <label className="admin-field"><span>Description</span><textarea maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} /></label>
+        <label className="admin-field"><span>Terms &amp; conditions (one per line)</span><textarea rows={4} aria-label="Category terms and conditions" value={termsText} onChange={event => setTermsText(event.target.value)} /><small>A package priced from this category shows these terms automatically.</small></label>
         <label className="admin-field"><span>Starting node title</span><input maxLength={120} value={node} onChange={event => setNode(event.target.value)} /></label>
         <label className="admin-field"><span>Display order</span><input required type="number" min={0} max={9999} step={1} value={sortOrder} onChange={event => setSortOrder(Number(event.target.value))} /></label>
         <label><input type="checkbox" checked={customerSelectable} onChange={event => setCustomerSelectable(event.target.checked)} /> Customers can order this category online once priced</label>

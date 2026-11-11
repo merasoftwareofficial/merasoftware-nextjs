@@ -3,7 +3,9 @@
 export const PROJECT_CATEGORY_KEY = /^[a-z][a-z0-9_]{2,39}$/;
 export type ProjectCategory = { category: string; label: string; status?: "active" | "archived"; sortOrder?: number;
   /** What the package form needs from the portal: the base price a package is priced from, and what its dialog edits and warns about. */
-  basePrice?: number | null; description?: string; startingNodeTitle?: string; customerSelectable?: boolean; locked?: boolean; usage?: { projects: number; features: number; packages: number } };
+  basePrice?: number | null; description?: string; startingNodeTitle?: string; customerSelectable?: boolean; locked?: boolean; usage?: { projects: number; features: number; packages: number };
+  /** Terms & conditions of the category, one line each: a package priced from it gets them automatically. */
+  terms?: string[] };
 export type SalesPackage = {
   id: string; name: string; description: string; status: "draft" | "published" | "archived";
   category: string; regularPrice: number; discountedPrice: number; offerExtraPrice: number;
@@ -23,9 +25,12 @@ export type SalesPackage = {
   services?: ServiceChoice[]; pricing?: PricingSnapshot;
 };
 export type ServiceChoice = { featureId: string; quantity: number };
-export type PricingSnapshot = { categoryBasePrice: number; services: { featureId: string; name: string; unitPrice: number; isQuantityBased: boolean; quantity: number }[] };
+/** The terms come from the category and the add-ons, frozen with the prices (missing on packages saved before add-on terms). */
+export type PricingSnapshot = { categoryBasePrice: number; categoryTerms?: string[]; services: { featureId: string; name: string; unitPrice: number; isQuantityBased: boolean; quantity: number; terms?: string[] }[] };
 /** An add-on service of the portal catalogue (Additional Features / Upgrades) a package can be priced from. */
-export type AddOn = { id: string; name: string; unitPrice: number; description: string; isHidden: boolean; isQuantityBased: boolean; compatibleWith: string[] };
+export type AddOn = { id: string; name: string; unitPrice: number; description: string; isHidden: boolean; isQuantityBased: boolean; compatibleWith: string[];
+  /** Terms & conditions of the add-on, one line each: a package that includes it gets them automatically. */
+  terms: string[] };
 export type PackageBilling = "one_time" | "monthly";
 export type PackagePaymentOption = "full" | "installments_2" | "installments_3";
 export type PackageCycle = import("./public-plans").BillingCycle;

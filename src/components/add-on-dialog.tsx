@@ -24,6 +24,8 @@ export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
   const [perUnit, setPerUnit] = useState(start.isQuantityBased);
   const [scoped, setScoped] = useState(start.compatibleWith.length > 0);
   const [chosen, setChosen] = useState<string[]>(start.compatibleWith);
+  // Terms & conditions, one per line: the package that includes this add-on shows them automatically.
+  const [termsText, setTermsText] = useState(start.terms.join("\n"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const heading = edit ? "Edit add-on service" : "New add-on service";
@@ -54,7 +56,8 @@ export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
       if (edit && unitPrice !== edit.unitPrice && !window.confirm("Change the price? New projects and packages use the new price. Packages already saved keep their saved price.")) return;
       setBusy(true); setError("");
       try {
-        const saved = await call("POST", { ...(edit ? { id: edit.id } : {}), name: name.trim(), unitPrice, description: description.trim(), isHidden: hidden, isQuantityBased: perUnit, compatibleWith: scoped ? chosen : [] });
+        const terms = termsText.split("\n").map(line => line.trim()).filter(Boolean);
+        const saved = await call("POST", { ...(edit ? { id: edit.id } : {}), name: name.trim(), unitPrice, description: description.trim(), isHidden: hidden, isQuantityBased: perUnit, compatibleWith: scoped ? chosen : [], terms });
         await onChanged({ id: saved.id });
       } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save the add-on."); }
       finally { setBusy(false); }
@@ -63,6 +66,7 @@ export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
         <label className="admin-field"><span>Add-on name *</span><input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label>
         <label className="admin-field"><span>Price (₹) *</span><input type="number" min={0} max={10000000} step="0.01" value={price} onChange={event => setPrice(event.target.value)} /><small>{perUnit ? "The price of one unit; the package counts how many." : "A fixed price, counted once."}</small></label>
         <label className="admin-field"><span>Description</span><textarea maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} /></label>
+        <label className="admin-field"><span>Terms &amp; conditions (one per line)</span><textarea rows={4} aria-label="Terms and conditions" value={termsText} onChange={event => setTermsText(event.target.value)} /><small>A package that includes this add-on shows these terms automatically.</small></label>
         <label><input type="checkbox" checked={perUnit} onChange={event => setPerUnit(event.target.checked)} /> Price per unit (it can be taken more than once, e.g. extra pages)</label>
         <label><input type="checkbox" checked={hidden} onChange={event => setHidden(event.target.checked)} /> Hidden (not offered for new projects or packages)</label>
         <fieldset style={{ border: 0, padding: 0 }}><legend>Offered for</legend>

@@ -5,7 +5,7 @@ import type { AddOn, PricingSnapshot } from "../src/lib/sales-packages";
 
 // Same scenarios as the backend's tests/packageServicesPricing.test.js: the form's preview and the portal
 // backend must never disagree about a package's main price.
-const addOn = (id: string, name: string, unitPrice: number, extra: Partial<AddOn> = {}): AddOn => ({ id, name, unitPrice, description: "", isHidden: false, isQuantityBased: false, compatibleWith: [], ...extra });
+const addOn = (id: string, name: string, unitPrice: number, extra: Partial<AddOn> = {}): AddOn => ({ id, name, unitPrice, description: "", isHidden: false, isQuantityBased: false, compatibleWith: [], terms: [], ...extra });
 const seo = addOn("seo", "SEO setup", 3000);
 const pages = addOn("pages", "Extra page", 500, { isQuantityBased: true });
 const hidden = addOn("hidden", "Hidden add-on", 100, { isHidden: true });
@@ -20,6 +20,18 @@ test("a new package: base price plus the add-ons at today's prices", () => {
   assert.equal(result.total, 10000 + 3000 + 1500);
   assert.deepEqual(result.lines.map(row => [row.name, row.quantity, row.price, row.frozen]), [["SEO setup", 1, 3000, false], ["Extra page", 3, 1500, false]]);
   assert.equal(previewPrice({ category: "standard_websites", basePrice: 10000, choices: [], addOns: catalogue }).total, 10000);
+});
+
+test("the automatic terms: the category first, then each chosen add-on; a saved package keeps the terms it was saved with", () => {
+  const withTerms = [addOn("seo", "SEO setup", 3000, { terms: ["SEO 1", "SEO 2"] }), addOn("pages", "Extra page", 500, { isQuantityBased: true })];
+  const fresh = previewPrice({ category: "standard_websites", basePrice: 10000, categoryTerms: ["Category A"], choices: pick(["seo"], ["pages", 2]), addOns: withTerms });
+  assert.deepEqual(fresh.terms, ["Category A", "SEO 1", "SEO 2"]);
+  // Later the add-on's terms change; the saved package keeps what it was saved with.
+  const before = { category: "standard_websites", pricing: { categoryBasePrice: 10000, categoryTerms: ["Category A"], services: [{ featureId: "seo", name: "SEO setup", unitPrice: 3000, isQuantityBased: false, quantity: 1, terms: ["SEO 1"] }] } };
+  const changed = addOn("seo", "SEO setup", 3000, { terms: ["SEO changed"] });
+  assert.deepEqual(previewPrice({ category: "standard_websites", basePrice: 10000, categoryTerms: ["Category B"], choices: pick(["seo"]), addOns: [changed], saved: before }).terms, ["Category A", "SEO 1"]);
+  // Untick the add-on: no terms left from it.
+  assert.deepEqual(previewPrice({ category: "standard_websites", basePrice: 10000, categoryTerms: ["Category A"], choices: [], addOns: [changed], saved: before }).terms, ["Category A"]);
 });
 
 test("a non-quantity add-on counts once; a bad quantity is a problem", () => {

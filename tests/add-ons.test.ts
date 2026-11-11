@@ -14,7 +14,11 @@ function fake(overrides: Partial<AddOnDeps> = {}) {
 
 test("the portal gets exactly the fields its own add-on form sends, with the category fixed", () => {
   assert.deepEqual(portalAddOnBody(addOnSchema.parse(good)), { serviceName: "SEO setup", category: "feature_upgrades", price: 3000, sellingPrice: 3000,
-    formattedDescriptions: [{ content: "Basics" }], isHidden: false, isQuantityBased: true, compatibleWith: ["standard_websites"] });
+    formattedDescriptions: [{ content: "Basics" }], isHidden: false, isQuantityBased: true, compatibleWith: ["standard_websites"], terms: [] });
+  // Terms: one per line, blank lines dropped, lines trimmed; the portal gets them as its `terms` field.
+  assert.deepEqual(addOnSchema.parse({ ...good, terms: [" Term one ", "", "Term two"] }).terms, ["Term one", "Term two"]);
+  assert.equal(addOnSchema.safeParse({ ...good, terms: Array.from({ length: 51 }, (_, i) => `T${i}`) }).success, false);
+  assert.equal(addOnSchema.safeParse({ ...good, terms: ["x".repeat(1501)] }).success, false);
   assert.deepEqual(portalAddOnBody(addOnSchema.parse({ ...good, id: ID, description: "" })).formattedDescriptions, []);
   assert.equal(portalAddOnBody(addOnSchema.parse({ ...good, id: ID }))._id, ID);
 });

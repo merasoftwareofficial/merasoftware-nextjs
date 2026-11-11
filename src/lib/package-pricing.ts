@@ -14,13 +14,14 @@ const money = (value: number) => Math.round((Number(value) + Number.EPSILON) * 1
 export const addOnOffered = (addOn: AddOn, category: string) => !addOn.isHidden && (!addOn.compatibleWith.length || addOn.compatibleWith.includes(category));
 
 export type PricedLine = { featureId: string; name: string; unitPrice: number; quantity: number; price: number; frozen: boolean; isQuantityBased: boolean; offered: boolean };
-export type PricePreview = { base: number | null; baseFrozen: boolean; lines: PricedLine[]; total: number | null; problems: string[] };
+/** `terms`: the terms the package gets automatically (category, then each add-on), as the backend freezes them. */
+export type PricePreview = { base: number | null; baseFrozen: boolean; lines: PricedLine[]; total: number | null; problems: string[]; terms: string[] };
 
 /** The saved package this one is edited from: its category and frozen prices (missing for a new or hand-priced package). */
 export type SavedPricing = { category: string; pricing?: PricingSnapshot } | undefined;
 
-export function previewPrice({ category, basePrice, choices, addOns, saved, refresh = false }: {
-  category: string; basePrice: number | null | undefined; choices: ServiceChoice[]; addOns: AddOn[]; saved?: SavedPricing; refresh?: boolean;
+export function previewPrice({ category, basePrice, categoryTerms = [], choices, addOns, saved, refresh = false }: {
+  category: string; basePrice: number | null | undefined; categoryTerms?: string[]; choices: ServiceChoice[]; addOns: AddOn[]; saved?: SavedPricing; refresh?: boolean;
 }): PricePreview {
   const problems: string[] = [];
   const reuse = !!saved?.pricing && saved.category === category && !refresh;
@@ -28,6 +29,7 @@ export function previewPrice({ category, basePrice, choices, addOns, saved, refr
   if (reuse) base = saved!.pricing!.categoryBasePrice;
   else if (basePrice === null || basePrice === undefined) { base = null; problems.push("This category has no base price yet. Set its base price first."); }
   else base = basePrice;
+  const terms = new Set<string>(reuse ? (saved!.pricing!.categoryTerms ?? []) : categoryTerms);
   const frozen = new Map(reuse ? saved!.pricing!.services.map(row => [row.featureId, row]) : []);
   const catalogue = new Map(addOns.map(row => [row.id, row]));
   const lines: PricedLine[] = [];
@@ -46,10 +48,22 @@ export function previewPrice({ category, basePrice, choices, addOns, saved, refr
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 1000) problems.push(`Quantity for ${source.name} must be 1 to 1000.`);
     const unitPrice = kept ? kept.unitPrice : (live as AddOn).unitPrice;
     lines.push({ featureId: choice.featureId, name: source.name, unitPrice, quantity, price: money(unitPrice * quantity), frozen: !!kept, isQuantityBased, offered: kept ? !!(live && addOnOffered(live, category)) : true });
+    // A saved add-on keeps the terms it was saved with; an add-on that had none when saved stays without (no backfill).
+    for (const line of kept ? (kept.terms ?? []) : (live?.terms ?? [])) terms.add(line);
   }
   const total = base === null || problems.length ? null : money(base + lines.reduce((sum, row) => sum + row.price, 0));
-  return { base, baseFrozen: reuse, lines, total, problems };
+  return { base, baseFrozen: reuse, lines, total, problems, terms: [...terms] };
 }
+
+/** The terms a package got automatically from its category and add-ons when it was saved (the backend freezes them in pricing). */
+export const automaticTermsOf = (pricing?: PricingSnapshot): string[] =>
+  pricing ? [...new Set([...(pricing.categoryTerms ?? []), ...pricing.services.flatMap(row => row.terms ?? [])])] : [];
+
+/** The admin's own terms of a saved package: its terms without the automatic ones, which the form shows read-only. */
+export const typedTermsOf = (terms: string[], pricing?: PricingSnapshot): string[] => {
+  const automatic = new Set(automaticTermsOf(pricing));
+  return terms.filter(line => !automatic.has(line));
+};
 
 /** Choices that still make sense after the category changes: kept as saved when the category did not change, else only offered ones. */
 export function choicesForCategory(choices: ServiceChoice[], category: string, addOns: AddOn[], saved?: SavedPricing): ServiceChoice[] {

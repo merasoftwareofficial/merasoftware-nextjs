@@ -26,7 +26,7 @@ export const TIMINGS = [
   ["after", "Only after the website is finished"],
 ] as const;
 
-export type ProjectCategory = { category: string; label: string; status?: string; sortOrder?: number; basePrice?: number | null; description?: string; startingNodeTitle?: string; customerSelectable?: boolean };
+export type ProjectCategory = { category: string; label: string; status?: string; sortOrder?: number; basePrice?: number | null; description?: string; terms?: string[]; startingNodeTitle?: string; customerSelectable?: boolean };
 export type PlanCategory = { legacy?: boolean; updatedAt?: string | null; key: string; label: string; description?: string; linkedProjectCategory?: string | null; status: "active" | "archived"; sortOrder: number; usage?: { plans: number } };
 export type PriceRange = { unit: "update" | "one_time" | "month"; from: number; to: number } | null;
 export type StoredPlan = {

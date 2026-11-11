@@ -43,7 +43,7 @@ export function PackagePriceBuilder({ category, categoryEntry, addOns, choices, 
         {withdrawn.map(row => <div className={`${s.addOnRow} ${s.addOnOff}`} key={row.featureId}>
           <label><span><b>{row.name}</b> · {rupee(row.unitPrice)} <small>No longer offered{row.frozen ? "; kept as saved" : ""}.</small></span></label>
           <span />
-          <button type="button" className="admin-action" aria-label={`Remove ${row.name}`} onClick={() => onToggle({ id: row.featureId, name: row.name, unitPrice: row.unitPrice, description: "", isHidden: false, isQuantityBased: row.isQuantityBased, compatibleWith: [] }, false)}>Remove</button>
+          <button type="button" className="admin-action" aria-label={`Remove ${row.name}`} onClick={() => onToggle({ id: row.featureId, name: row.name, unitPrice: row.unitPrice, description: "", isHidden: false, isQuantityBased: row.isQuantityBased, compatibleWith: [], terms: [] }, false)}>Remove</button>
         </div>)}
         {!offered.length && !withdrawn.length && <p className={s.note}>No add-on is offered for this category yet.</p>}
       </div>

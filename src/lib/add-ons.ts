@@ -13,6 +13,8 @@ export const addOnSchema = z.object({
   isQuantityBased: z.boolean(),
   // Empty = offered for every category (the portal's rule).
   compatibleWith: z.array(z.string().regex(/^[a-z][a-z0-9_]{2,39}$/)).max(100),
+  // Terms & conditions, one per line; a package that includes this add-on gets them automatically.
+  terms: z.array(z.string().trim().max(1500, "At most 1500 characters per line.")).max(50, "At most 50 lines.").default([]).transform(lines => lines.filter(Boolean)),
 }).strict();
 export type AddOnInput = z.infer<typeof addOnSchema>;
 export const addOnRemoveSchema = z.object({ id: z.string().regex(/^[a-f\d]{24}$/i) }).strict();
@@ -29,11 +31,12 @@ export function portalAddOnBody(input: AddOnInput): Record<string, unknown> {
     isHidden: input.isHidden,
     isQuantityBased: input.isQuantityBased,
     compatibleWith: input.compatibleWith,
+    terms: input.terms,
   };
 }
 
-export const blankAddOn = (): AddOnInput => ({ name: "", unitPrice: 0, description: "", isHidden: false, isQuantityBased: false, compatibleWith: [] });
-export const addOnInput = (row: AddOn): AddOnInput => ({ id: row.id, name: row.name, unitPrice: row.unitPrice, description: row.description, isHidden: row.isHidden, isQuantityBased: row.isQuantityBased, compatibleWith: [...row.compatibleWith] });
+export const blankAddOn = (): AddOnInput => ({ name: "", unitPrice: 0, description: "", isHidden: false, isQuantityBased: false, compatibleWith: [], terms: [] });
+export const addOnInput = (row: AddOn): AddOnInput => ({ id: row.id, name: row.name, unitPrice: row.unitPrice, description: row.description, isHidden: row.isHidden, isQuantityBased: row.isQuantityBased, compatibleWith: [...row.compatibleWith], terms: [...(row.terms ?? [])] });
 
 // The checks of the add-on routes (app/api/add-ons), apart from the network so they can be tested: what the portal is
 // asked is only ever the fixed shape above, only for a service that really is in the add-on list, and with known categories.
