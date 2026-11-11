@@ -337,14 +337,27 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     if (billing === "monthly" && savedPricing) { setError("A package priced from its category and add-ons stays one-time."); return; }
     setError("");
     // Monthly keeps its typed price; a new one-time package is priced from its category and add-ons (an older one keeps its typed price).
-    setItem(current => current ? { ...current, billing, ...(billing === "monthly"
-      ? { paymentOptions: undefined, monthly: current.monthly ?? { ...blankMonthly }, offerExtraPrice: 0, services: undefined }
-      : { paymentOptions: current.paymentOptions?.length ? current.paymentOptions : ["full"], monthly: undefined, services: current.services ?? (savedRow || readPriceMode() === "manual" ? undefined : []) }) } : current);
+    setItem(current => {
+      if (!current) return current;
+      const next: Item = { ...current, billing, ...(billing === "monthly"
+        ? { paymentOptions: undefined, monthly: current.monthly ?? { ...blankMonthly }, offerExtraPrice: 0, services: undefined }
+        : { paymentOptions: current.paymentOptions?.length ? current.paymentOptions : ["full"], monthly: undefined, services: current.services ?? (savedRow || readPriceMode() === "manual" ? undefined : []) }) };
+      return billing === "monthly" ? withTypedCategory(next) : next;
+    });
   }
+  // The category of a package whose price is typed (manual or monthly): the portal still starts its projects from it. The
+  // first active category in display order is used; a category already chosen is kept.
+  const defaultCategory = () => [...(catalogue.categories ?? [])].filter(row => row.status !== "archived")
+    .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999))[0]?.category ?? "";
+  const withTypedCategory = <T extends { category: string }>(row: T): T => row.category ? row : { ...row, category: defaultCategory() };
   // Only a new package chooses how it is priced; a saved one keeps the way it was made (the portal refuses a switch).
   function choosePriceMode(mode: PriceMode) {
     rememberPriceMode(mode);
-    setItem(current => current ? { ...current, repriceFromCurrent: undefined, services: mode === "automatic" ? [] : undefined, ...(mode === "automatic" ? { discountedPrice: current.regularPrice } : {}) } : current);
+    setItem(current => {
+      if (!current) return current;
+      const next: Item = { ...current, repriceFromCurrent: undefined, services: mode === "automatic" ? [] : undefined, ...(mode === "automatic" ? { discountedPrice: current.regularPrice } : {}) };
+      return mode === "manual" ? withTypedCategory(next) : next;
+    });
   }
   function changeCategory(value: string) {
     const kept = item?.services ? choicesForCategory(item.services, value, addOns, savedPricing) : undefined;
@@ -568,7 +581,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
 
   if (!item) return <div>
     <div className={s.listTop}><p>Each package has its own page with 2 prices; an offer adds a third price and a countdown. A package has only one draft, and editing it always opens that draft.</p>
-      <button className="admin-button" onClick={() => choose({ ...blank, status: "published", order: catalogue.packages.length, services: readPriceMode() === "manual" ? undefined : [] }, true)}>New package +</button></div>
+      <button className="admin-button" onClick={() => { const manual = readPriceMode() === "manual"; const fresh: SalesPackage = { ...blank, status: "published", order: catalogue.packages.length, services: manual ? undefined : [] }; choose(manual ? withTypedCategory(fresh) : fresh, true); }}>New package +</button></div>
     {message && <p role="status">{message}</p>}
     <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
     <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
@@ -622,15 +635,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <p className={s.note}>What the client gets. Every project made from this package starts with these settings; its starting step and project description come from the category.</p>
           <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name * <small>(needed to save a draft)</small></span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
           <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> :<><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
-          <label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => changeCategory(e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
-            {running && <small>Fixed while its offer runs.</small>}
-            {!catalogue.categories?.length && <span className={s.msg} role="alert">The category list did not load from the portal. Reload the page; until then only a new category can be chosen.</span>}
-            {categoryNote && <small role="status">{categoryNote}</small>}{err("category")}</label>
-          <div>{!running && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setNewCategory(true); }}>+ New category</button>}{" "}
-            {categoryEntry && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setEditCategory(true); }}>Edit category</button>}</div>
-          {editCategory && categoryEntry && <ProjectCategoryDialog edit={categoryEntry} nextSortOrder={categoryEntry.sortOrder ?? 0} onCancel={() => setEditCategory(false)} onSaved={categorySaved} send={sendCategory} />}
           {addOnDialog && <AddOnDialog edit={addOnDialog.edit} categories={catalogue.categories ?? []} onCancel={() => setAddOnDialog(null)} onChanged={addOnChanged} />}
-          {newCategory && <ProjectCategoryDialog nextSortOrder={Math.min(9999, Math.max(0, ...(catalogue.categories || []).map(row => row.sortOrder || 0)) + 1)} onCancel={() => setNewCategory(false)} onSaved={categorySaved} send={sendCategory} />}
           <label className={`admin-field ${bad("description") ?? ""}`}><span>Description *</span><textarea aria-label="Description" maxLength={500} value={item.description} onChange={e => update("description", e.target.value)} /><small>Shown on the package card and under the page heading.</small>{err("description")}</label>
           <fieldset className={s.pages}><legend>How customers buy this package</legend>
             {!item.billing && item.portalUploads === undefined && !item.paymentOptions?.length && <p><span className={s.warn}>Older settings</span> This package works as before. Choose these options to turn on its customize page.</p>}
@@ -666,10 +671,20 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               <label><input type="radio" name="priceMode" checked={!autoPriced} onChange={() => choosePriceMode("manual")} /> Manual: you type the main and discount price</label></div>
             : <p className={s.note}>Price method: <b>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</b>. A saved package keeps the way its price was set; duplicate it to make a copy priced the other way.</p>)}
           {item.billing === "monthly" && creating && <p className={s.note}>A monthly package uses typed prices.</p>}
+          {/* The category: chosen for an automatic package (its base price and add-ons come from it); a typed package keeps its
+              category without choosing it. The buttons are the same in both. */}
+          <label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running || !autoPriced} value={item.category} onChange={e => changeCategory(e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
+            {running && <small>Fixed while its offer runs.</small>}
+            {!catalogue.categories?.length && <span className={s.msg} role="alert">The category list did not load from the portal. Reload the page; until then only a new category can be chosen.</span>}
+            {categoryNote && <small role="status">{categoryNote}</small>}{err("category")}</label>
+          <div>{!running && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setNewCategory(true); }}>+ New category</button>}{" "}
+            {categoryEntry && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setEditCategory(true); }}>Edit category</button>}</div>
+          {editCategory && categoryEntry && <ProjectCategoryDialog edit={categoryEntry} nextSortOrder={categoryEntry.sortOrder ?? 0} onCancel={() => setEditCategory(false)} onSaved={categorySaved} send={sendCategory} />}
+          {newCategory && <ProjectCategoryDialog nextSortOrder={Math.min(9999, Math.max(0, ...(catalogue.categories || []).map(row => row.sortOrder || 0)) + 1)} onCancel={() => setNewCategory(false)} onSaved={categorySaved} send={sendCategory} />}
           {perFile(item) ? <PerFilePrice rate={item.discountedPrice} monthly={item.monthly!} /> : autoPriced ? <PackagePriceBuilder category={item.category} categoryEntry={categoryEntry} addOns={addOns} choices={item.services ?? []} saved={savedPricing}
             refresh={item.repriceFromCurrent === true} preview={auto ?? { base: null, baseFrozen: false, lines: [], total: null, problems: [], terms: [] }} regularPrice={item.regularPrice} discountedPrice={item.discountedPrice}
             error={err} bad={bad} onToggle={toggleService} onQuantity={setQuantity} onRefresh={on => update("repriceFromCurrent", on ? true : undefined)}
-            onDiscount={value => update("discountedPrice", value)} onEditCategory={() => { setCategoryNote(""); setEditCategory(true); }} onNewAddOn={() => setAddOnDialog({})} onEditAddOn={row => setAddOnDialog({ edit: row })} />
+            onDiscount={value => update("discountedPrice", value)} onNewAddOn={() => setAddOnDialog({})} onEditAddOn={row => setAddOnDialog({ edit: row })} />
           : <>
             <div className={s.cols3} role="group" aria-label="Prices">
             <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Main price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.regularPrice} onChange={e => update("regularPrice", Number(e.target.value))} /><small>Shown crossed out.</small>{err("regularPrice")}</label>

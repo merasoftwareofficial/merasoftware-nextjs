@@ -517,8 +517,8 @@ try {
   await form.getByLabel('Main price (₹)', { exact: true }).fill('900');
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
   const top = async texts => form.evaluate((el, list) => list.map(text => { const node = [...el.querySelectorAll('legend, label span, h2, span')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }), texts);
-  const fixedOrder = await top(['Package name', 'Project category', 'How customers buy', 'Billing *', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
-  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, category, purchase settings, prices, included work, offer, website display, page design: ' + fixedOrder);
+  const fixedOrder = await top(['Package name', 'How customers buy', 'Billing *', 'Project category', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
+  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, purchase settings, category, prices, included work, offer, website display, page design: ' + fixedOrder);
   // Price per file: the plan form's order, one price, no main / normal boxes.
   await form.getByRole('radio', { name: /^Price per file:/ }).check();
   const rate = form.getByLabel('Price per file (₹)', { exact: true });

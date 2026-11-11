@@ -14,10 +14,10 @@ type Props = {
   category: string; categoryEntry?: ProjectCategory; addOns: AddOn[]; choices: ServiceChoice[]; saved?: SavedPricing; refresh: boolean;
   preview: PricePreview; regularPrice: number; discountedPrice: number; error: (key: string) => ReactNode; bad: (key: string) => string | undefined;
   onToggle: (addOn: AddOn, on: boolean) => void; onQuantity: (id: string, quantity: number) => void; onRefresh: (on: boolean) => void;
-  onDiscount: (value: number) => void; onEditCategory: () => void; onNewAddOn: () => void; onEditAddOn: (addOn: AddOn) => void;
+  onDiscount: (value: number) => void; onNewAddOn: () => void; onEditAddOn: (addOn: AddOn) => void;
 };
 export function PackagePriceBuilder({ category, categoryEntry, addOns, choices, saved, refresh, preview, regularPrice, discountedPrice, error, bad,
-  onToggle, onQuantity, onRefresh, onDiscount, onEditCategory, onNewAddOn, onEditAddOn }: Props) {
+  onToggle, onQuantity, onRefresh, onDiscount, onNewAddOn, onEditAddOn }: Props) {
   const chosen = new Map(choices.map(row => [row.featureId, row]));
   const offered = addOns.filter(row => addOnOffered(row, category));
   // A saved add-on that is no longer offered stays in the package as it was saved, and can be removed.
@@ -27,8 +27,7 @@ export function PackagePriceBuilder({ category, categoryEntry, addOns, choices, 
   return <div role="group" aria-label="Price from category and add-ons">
     <p className={s.note}>The main price is made from the category&apos;s base price and the add-ons you tick, the same prices a custom project uses. It is fixed when you save the package: later price changes do not reach a saved package.</p>
     {!category ? <p className={s.note}>Choose a project category above to see its base price and add-ons.</p> : <>
-      <p className={s.breakdown}>Base price of <b>{categoryEntry?.label ?? category}</b>: {preview.base === null ? <b>not set</b> : <b>{rupee(preview.base)}</b>}{preview.baseFrozen && " (as saved)"}{" "}
-        <button type="button" className="admin-action" onClick={onEditCategory}>Edit category</button></p>
+      <p className={s.breakdown}>Base price of <b>{categoryEntry?.label ?? category}</b>: {preview.base === null ? <b>not set</b> : <b>{rupee(preview.base)}</b>}{preview.baseFrozen && " (as saved)"}</p>
       <div className={s.addOnList} role="group" aria-label="Add-on services">
         {offered.map(row => {
           const picked = chosen.get(row.id), priced = line(row.id);
