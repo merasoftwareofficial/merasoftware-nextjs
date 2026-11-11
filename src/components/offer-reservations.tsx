@@ -48,7 +48,7 @@ export function MyOffers({ serverNow }: { serverNow: string }) {
     } catch (err) { setError(err instanceof Error ? err.message : "Could not load offers"); }
   }, []);
   useEffect(() => {
-    void Promise.resolve().then(refresh); const timer = setInterval(() => void refresh(), 60000);
+    void Promise.resolve().then(refresh); const timer = setInterval(() => { if (!document.hidden && navigator.onLine) void refresh(); }, 60000);
     const visible = () => { if (!document.hidden) void refresh(); };
     document.addEventListener("visibilitychange", visible);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", visible); };

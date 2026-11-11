@@ -32,7 +32,7 @@ export function useServerTime() {
   useEffect(() => {
     listeners.add(setNow);
     if (listeners.size === 1) {
-      void sync(); timer = setInterval(tick, 1000); syncTimer = setInterval(() => void sync(), 60000);
+      void sync(); timer = setInterval(tick, 1000); syncTimer = setInterval(() => { if (document.visibilityState === "visible" && navigator.onLine) void sync(); }, 60000);
       document.addEventListener("visibilitychange", onVisible);
     }
     tick();
