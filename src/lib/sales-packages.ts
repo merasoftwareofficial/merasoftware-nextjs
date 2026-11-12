@@ -12,6 +12,8 @@ export type SalesPackage = {
   offerSlug: string; inclusions: string[]; terms: string[]; linkedPlanIds: string[]; order: number;
   /** Website package pages (lib/package-pages.ts) this package is shown on. Missing on packages saved before pages existed. */
   pages?: string[];
+  /** Set by the portal (helpers/salesPackages.js, 12 Nov 2026): when the package was first saved, and when an admin last changed it. ISO text. Missing on packages saved before then; never invented. */
+  createdAt?: string; updatedAt?: string;
   /** The design of its page /package/<id> (lib/package-design.ts). Missing on packages saved before 7 Nov 2026. */
   design?: import("./package-design").PackageDesign;
   /** How a customer buys it (src/docs/package.md decision 7). All three or none: missing on packages saved
