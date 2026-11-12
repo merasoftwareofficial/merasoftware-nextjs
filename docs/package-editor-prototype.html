@@ -67,4 +67,12 @@ methodField.before(methodGrid);methodGrid.append(methodField,categoryField,categ
 function showCategoryWithMethod(){const isManual=priceMethod.value==='manual';categoryField.hidden=isManual;categoryLinks.hidden=isManual}
 priceMethod.addEventListener('change',showCategoryWithMethod);showCategoryWithMethod();
 </script>
+<style>
+/* Match the current package editor's 340px preview and stronger field borders. */
+.layout{grid-template-columns:minmax(0,1fr) 340px}
+.preview{padding:0;background:transparent;border:0;box-shadow:none}
+.field input,.field select,.field textarea,.addon input[type=number],.choicebox input[type=number]{border-color:color-mix(in srgb,#15283a 46%,#fff)}
+.field input:focus,.field select:focus,.field textarea:focus,.addon input[type=number]:focus,.choicebox input[type=number]:focus{border-color:#166381}
+@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}}
+</style>
 </body></html>

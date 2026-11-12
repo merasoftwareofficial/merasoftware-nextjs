@@ -646,6 +646,31 @@ try {
     await page.setViewportSize({ width, height: 1000 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll in the price builder at ${width}`);
   }
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  const layoutCheck = await form.evaluate(el => {
+    const layout = el.parentElement, card = layout.querySelector('[aria-label="Customer preview"]');
+    const formBox = el.getBoundingClientRect(), cardBox = card.getBoundingClientRect();
+    const parentStyle = getComputedStyle(layout.parentElement);
+    return { layout: layout.getBoundingClientRect().width, available: layout.parentElement.clientWidth - parseFloat(parentStyle.paddingLeft) - parseFloat(parentStyle.paddingRight),
+      card: cardBox.width, gap: cardBox.left - formBox.right };
+  });
+  assert.ok(Math.abs(layoutCheck.layout - layoutCheck.available) < 2, 'the editor uses all available width');
+  assert.equal(Math.round(layoutCheck.card), 340, 'desktop preview keeps its original width');
+  assert.equal(Math.round(layoutCheck.gap), 20, 'the original gap is restored');
+  const colors = await form.evaluate(el => {
+    const input = el.querySelector('input[aria-label="Package name"]'), section = input.closest('section');
+    const light = { surface: getComputedStyle(section).backgroundColor, field: getComputedStyle(input).backgroundColor };
+    input.disabled = true; light.disabled = getComputedStyle(input).backgroundColor; input.disabled = false;
+    const shell = document.createElement('div'); shell.className = 'admin-shell'; shell.dataset.theme = 'dark';
+    const root = document.querySelector('#app'); root.before(shell); shell.append(root);
+    const dark = { surface: getComputedStyle(section).backgroundColor, field: getComputedStyle(input).backgroundColor };
+    shell.before(root); shell.remove();
+    return { light, dark };
+  });
+  assert.equal(colors.light.surface, 'rgb(245, 247, 249)', 'form surface is light grey');
+  assert.equal(colors.light.field, 'rgb(255, 255, 255)', 'editable fields are white');
+  assert.notEqual(colors.light.disabled, colors.light.field, 'disabled fields are distinct');
+  assert.notEqual(colors.dark.surface, colors.dark.field, 'dark theme distinguishes fields from the form');
   await page.setViewportSize({ width: 1440, height: 1000 });
   // A saved add-on deleted in the portal stays in the package as it was saved, marked as no longer offered.
   await parts.getByRole('button', { name: 'Edit SEO setup', exact: true }).click();
