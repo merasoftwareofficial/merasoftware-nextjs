@@ -12,6 +12,20 @@ export async function GET() {
   try { return NextResponse.json(await readSalesCatalogue(true), { headers: { "Cache-Control": "no-store" } }); }
   catch (error) { return errorResponse(error); }
 }
+const deletePackageSchema = z.object({ packageId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80) }).strict();
+
+// The portal owns the catalogue, including the archive-only delete rule. The
+// website merely authenticates the admin and forwards this explicit command.
+export async function DELETE(request: Request) {
+  try {
+    requireSameOrigin(request);
+    await requireSalesAdmin();
+    const body = deletePackageSchema.safeParse(await request.json());
+    if (!body.success) return NextResponse.json({ error: "Choose a valid package." }, { status: 400 });
+    return NextResponse.json(await salesBackend(true, body.data, "sales-packages/delete"));
+  }
+  catch (error) { return errorResponse(error); }
+}
 // The offer part of a package form save (src/docs/package-offers.md): a new offer has no link yet (it is
 // made from its name), an existing one names its link.
 // The offer itself is checked by offerSchema once its package values are applied (below).

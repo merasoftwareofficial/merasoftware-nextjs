@@ -107,6 +107,20 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
     return store.packages[item.id];
   }
   if (path === 'sales-packages/drafts') return draftAction(body);
+  if (path === 'sales-packages/delete') {
+    const item = store.packages[body.packageId];
+    if (!item) throw new AuthError('Package not found', 404);
+    if (item.status !== 'archived') throw new AuthError('Archive this package before deleting it', 409);
+    delete store.packages[body.packageId]; delete store.drafts[body.packageId];
+    return { id: body.packageId, name: item.name };
+  }
+  if (path === 'sales-packages/lifecycle') {
+    const item = store.packages[body.packageId];
+    if (!item) throw new AuthError('Package not found', 404);
+    if (!['published', 'archived'].includes(body.action)) throw new AuthError('Choose a valid package action', 400);
+    item.status = body.action;
+    return item;
+  }
   if (path === 'sales-packages/offer-links') {
     store.linkCalls.push(body);
     if (store.failLink) throw new AuthError('Portal unavailable', 503);
@@ -136,16 +150,17 @@ export async function salesBackend(admin, body, path = 'sales-packages') {
 `;
 const serverEntry = `
 import {PATCH as offers} from '${src('src/app/api/offers/route.ts')}';
-import {GET as packagesGet, PATCH as packagesPatch} from '${src('src/app/api/packages/route.ts')}';
+import {GET as packagesGet, PATCH as packagesPatch, DELETE as packagesDelete} from '${src('src/app/api/packages/route.ts')}';
 import {PATCH as links} from '${src('src/app/api/packages/offer-links/route.ts')}';
 import {PATCH as drafts} from '${src('src/app/api/packages/drafts/route.ts')}';
+import {PATCH as lifecycle} from '${src('src/app/api/packages/lifecycle/route.ts')}';
 import {PATCH as plans} from '${src('src/app/api/plans/route.ts')}';
 import {POST as addOnPost, DELETE as addOnDelete} from '${src('src/app/api/add-ons/route.ts')}';
 import {identity} from '@/lib/auth';
 import {settingsRepo} from '@/lib/repo';
 import {store, readSalesCatalogue} from '@/lib/sales-catalogue-server';
 import {resolvedOffers,publishedOffers,DEFAULT_UNIVERSAL_TERMS,DEFAULT_OFFER_LISTING} from '@/lib/offers';
-const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts, 'PATCH /api/plans': plans, 'POST /api/add-ons': addOnPost, 'DELETE /api/add-ons': addOnDelete };
+const routes = { 'PATCH /api/offers': offers, 'GET /api/packages': packagesGet, 'PATCH /api/packages': packagesPatch, 'DELETE /api/packages': packagesDelete, 'PATCH /api/packages/offer-links': links, 'PATCH /api/packages/drafts': drafts, 'PATCH /api/packages/lifecycle': lifecycle, 'PATCH /api/plans': plans, 'POST /api/add-ons': addOnPost, 'DELETE /api/add-ons': addOnDelete };
 export const handle = (key, request, role) => identity.run(role, () => routes[key](request));
 export const seedOffer = offer => settingsRepo.saveOffer(offer, true);
 export {store};
@@ -192,7 +207,7 @@ process.chdir(folder);
 const api = createRequire(import.meta.url)(path.join(folder, 'server.cjs'));
 const pkg = (id, patch = {}) => ({ id, name: id, description: 'Package description', status: 'published', category: 'standard_websites', regularPrice: 4000, discountedPrice: 3500, offerExtraPrice: 0, offerSlug: '', inclusions: ['Business profile setup', 'Search and Maps listing'], terms: ['Package term: one revision.'], linkedPlanIds: [], order: 0, pages: [], ...patch });
 const OLD_REF = '0123456789abcdef01234567';
-for (const item of [pkg('gbp', { name: 'GBP Setup', linkedPlanIds: [OLD_REF] }), pkg('old-pkg', { offerSlug: 'legacy' })]) api.store.packages[item.id] = item;
+for (const item of [pkg('gbp', { name: 'GBP Setup', linkedPlanIds: [OLD_REF] }), pkg('old-pkg', { offerSlug: 'legacy' }), pkg('retired-pkg', { name: 'Retired package', status: 'archived' })]) api.store.packages[item.id] = item;
 const legacy = { slug: 'legacy', status: 'published', title: 'Legacy offer', eyebrow: 'OLD', heading: 'Old heading', headingHighlight: '', description: 'An offer saved before package offers.', supportingLine: '', subheading: 'Included', tagline: 'Tagline', badge: 'Badge', mainPrice: 4000, discountPrice: 3500, offerPrice: 3000, priceDescription: 'One-time', endsAt: '2030-12-31T23:59:59+05:30', inclusions: ['Hand-written point'], termsMode: 'combined', terms: ['Legacy term'], ctaLabel: 'Enquire', contactHref: 'mailto:hello@example.com', order: 9, applicableCategories: ['standard_websites'], packageIds: [], pricingRule: 'percentage', benefitValue: 25 };
 await api.seedOffer(legacy);
 const server = http.createServer(async (request, response) => {
@@ -242,6 +257,25 @@ try {
   // 0. Save draft needs only the package name (and the offer name); wrong values are kept; nothing goes live.
   // Publish checks every field and sends nothing while one is wrong.
   await page.goto(origin + '/admin/packages');
+  const gbpLine = page.locator('li').filter({ hasText: 'GBP Setup' });
+  const archiving = page.waitForResponse(r => r.url().endsWith('/api/packages/lifecycle') && r.request().method() === 'PATCH');
+  await gbpLine.getByRole('button', { name: 'Archive', exact: true }).click();
+  assert.equal((await archiving).status(), 200);
+  await page.getByText('"GBP Setup" was archived.', { exact: true }).waitFor();
+  assert.equal(api.store.packages.gbp.status, 'archived', 'outside Archive uses the lifecycle endpoint');
+  await page.getByRole('tab', { name: /^Archived/ }).click();
+  const publishing = page.waitForResponse(r => r.url().endsWith('/api/packages/lifecycle') && r.request().method() === 'PATCH');
+  await page.locator('li').filter({ hasText: 'GBP Setup' }).getByRole('button', { name: 'Publish', exact: true }).click();
+  assert.equal((await publishing).status(), 200);
+  await page.getByText('"GBP Setup" was published.', { exact: true }).waitFor();
+  assert.equal(api.store.packages.gbp.status, 'published', 'outside Publish uses the lifecycle endpoint');
+  const deleteRetired = page.getByRole('button', { name: 'Delete Retired package permanently' });
+  await deleteRetired.waitFor();
+  const deleting = page.waitForResponse(r => r.url().endsWith('/api/packages') && r.request().method() === 'DELETE');
+  await deleteRetired.click();
+  assert.equal((await deleting).status(), 200);
+  await page.getByText('"Retired package" was deleted permanently.', { exact: true }).waitFor();
+  assert.equal(api.store.packages['retired-pkg'], undefined, 'the archived package is removed only after confirmation');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByText('Enter the package name to save a draft.', { exact: true }).waitFor();

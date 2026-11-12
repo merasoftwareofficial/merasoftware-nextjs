@@ -371,6 +371,37 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     setCatalogue(next); setDrafts(next.drafts ?? []);
     return next;
   }
+  async function deletePackage(row: SalesPackage) {
+    if (!window.confirm(`Delete "${row.name}" permanently? It will be removed from the package catalogue. Existing customer projects, orders, invoices and payments will stay safe.`)) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/packages", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId: row.id }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The package could not be deleted. Please try again.");
+      // The portal response is the source of truth. This is not an optimistic removal.
+      setCatalogue(current => ({ ...current, packages: current.packages.filter(item => item.id !== row.id) }));
+      setDrafts(current => current.filter(draft => draft.packageId !== row.id));
+      setMessage(`"${row.name}" was deleted permanently.`);
+      if (!await reloadCatalogue()) setError("Package deleted. Reload the page to refresh the catalogue.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The package could not be deleted. Please try again."); }
+    finally { setBusy(false); }
+  }
+  async function changePackageStatus(row: SalesPackage, action: "published" | "archived") {
+    const publishing = action === "published";
+    if (!window.confirm(`${publishing ? "Publish" : "Archive"} "${row.name}"?${publishing ? " It will be available on the website." : " It will be hidden from new customers."}`)) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/packages/lifecycle", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId: row.id, action }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The package status could not be changed. Please try again.");
+      // The portal applies the existing package-save rules to its current row.
+      // Keep the quoted list shape until the authoritative catalogue reloads.
+      setCatalogue(current => ({ ...current, packages: current.packages.map(item => item.id === row.id ? { ...item, status: action } : item) }));
+      setMessage(`"${row.name}" was ${publishing ? "published" : "archived"}.`);
+      if (!await reloadCatalogue()) setError(`Package ${publishing ? "published" : "archived"}. Reload the page to refresh the catalogue.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The package status could not be changed. Please try again."); }
+    finally { setBusy(false); }
+  }
   // A category made from the package form is selected at once and the list is read again from the portal.
   async function categorySaved(saved: SavedCategory) {
     const edited = editCategory;
@@ -526,6 +557,9 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     const running = now === null ? undefined : ownOffers(row.id).find(offer => offerRunning(offer, now));
     const draftOffer = !running && ownOffers(row.id).some(offer => offer.status === "draft");
     const copy = drafts.find(draft => draft.packageId === row.id);
+    const draftLocked = !!copy;
+    const archiveDisabled = busy || draftLocked || !!running;
+    const lockedTitle = draftLocked ? "Continue or discard the draft first." : undefined;
     const onPages = shownOn(row);
     return <li className={s.line} key={`${copyLine ? "copy-" : ""}${row.id}`}>
       <div className={s.lineMain}><b>{copy && copyLine ? copy.name : row.name}</b>
@@ -538,6 +572,9 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       </span>
       <span className={s.lineActions}><button className="admin-action" onClick={() => choose(row)}>{copy ? "Continue draft →" : "Edit →"}</button>
         {!copyLine && <button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>}
+        {!copyLine && row.status !== "published" && <button type="button" className="admin-action" disabled={busy || draftLocked} title={lockedTitle} onClick={() => void changePackageStatus(row, "published")}>Publish</button>}
+        {!copyLine && row.status !== "archived" && <button type="button" className="admin-action" disabled={archiveDisabled} title={running ? `End the running offer "${running.title}" first.` : lockedTitle} onClick={() => void changePackageStatus(row, "archived")}>Archive</button>}
+        {!copyLine && row.status === "archived" && <button type="button" className="admin-action is-danger" disabled={busy || draftLocked} aria-label={`Delete ${row.name} permanently`} title={lockedTitle || "Delete permanently"} onClick={() => void deletePackage(row)}><svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg></button>}
         {!copyLine && row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View ↗</Link>}</span>
     </li>;
   };
@@ -547,6 +584,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     <div className={s.listTop}><p>Each package has its own page with 2 prices; an offer adds a third price and a countdown. A package has only one draft, and editing it always opens that draft.</p>
       <button className="admin-button" onClick={() => { const manual = readPriceMode() === "manual"; const fresh: SalesPackage = { ...blank, status: "published", order: catalogue.packages.length, services: manual ? undefined : [] }; choose(manual ? withTypedCategory(fresh) : fresh, true); }}>New package +</button></div>
     {message && <p role="status">{message}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
     <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
     <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
       {listTab === "live" && (liveRows.length ? liveRows.map(row => packageLine(row)) : <li className={s.empty}>No package is live.</li>)}
