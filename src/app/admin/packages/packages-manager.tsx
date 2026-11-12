@@ -682,28 +682,25 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       <form className={`admin-form ${s.form}`} onSubmit={save} noValidate><fieldset disabled={busy} className={s.fields}>
         {/* 1. Project */}
         {draftVersion > 0 && <p className={s.warnNote}>{creating ? "Draft: not published yet. Save draft keeps your work; Publish checks every field and makes it live." : "You are editing the draft of a published package. The live page stays as it is until you press Publish changes."}</p>}
-        <section className={s.sec}><div className={s.sechead}><h2>1. Project</h2><span className={s.tag}>Required to publish</span></div>
+        <section className={s.sec}><div className={s.sechead}><h2>1. Package details</h2><span className={s.tag}>Required to publish</span></div>
           <p className={s.note}>What the client gets. Every project made from this package starts with these settings; its starting step and project description come from the category.</p>
           <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name * <small>(needed to save a draft)</small></span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
-          <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> :<><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
           {addOnDialog && <AddOnDialog edit={addOnDialog.edit} categories={catalogue.categories ?? []} onCancel={() => setAddOnDialog(null)} onChanged={addOnChanged} />}
           <label className={`admin-field ${bad("description") ?? ""}`}><span>Description *</span><textarea aria-label="Description" maxLength={500} value={item.description} onChange={e => update("description", e.target.value)} /><small>Shown on the package card and under the page heading.</small>{err("description")}</label>
           <fieldset className={s.pages}><legend>How customers buy this package</legend>
             {!item.billing && item.portalUploads === undefined && !item.paymentOptions?.length && <p><span className={s.warn}>Older settings</span> This package works as before. Choose these options to turn on its customize page.</p>}
-            <label className={`admin-field ${bad("billing") ?? ""}`}><span>Billing *</span><select aria-label="Billing" value={item.billing ?? ""} onChange={e => chooseBilling((e.target.value || undefined) as SalesPackage["billing"])}>{!item.billing && <option value="">Not chosen yet</option>}<option value="one_time">One-time</option><option value="monthly">Monthly</option></select>{err("billing")}</label>
-            <div className={s.choices} role="radiogroup" aria-label="Portal uploads"><span>Portal uploads *</span>
-              <label><input type="radio" name="portalUploads" checked={item.portalUploads === true} onChange={() => update("portalUploads", true)} /> Yes: the client sends files in the portal</label>
-              <label><input type="radio" name="portalUploads" checked={item.portalUploads === false} onChange={() => update("portalUploads", false)} /> No: progress updates only</label>
-              {err("portalUploads")}</div>
+            <div className={s.twoFields}>
+              <label className={`admin-field ${bad("billing") ?? ""}`}><span>Billing *</span><select aria-label="Billing" value={item.billing ?? ""} onChange={e => chooseBilling((e.target.value || undefined) as SalesPackage["billing"])}>{!item.billing && <option value="">Not chosen yet</option>}<option value="one_time">One-time</option><option value="monthly">Monthly</option></select>{err("billing")}</label>
+              <label className={`admin-field ${bad("portalUploads") ?? ""}`}><span>Portal uploads *</span><select aria-label="Portal uploads" value={item.portalUploads === undefined ? "" : item.portalUploads ? "yes" : "no"} onChange={e => update("portalUploads", e.target.value === "" ? undefined : e.target.value === "yes")}><option value="" disabled>Choose portal access</option><option value="yes">Yes: the client sends files in the portal</option><option value="no">No: progress updates only</option></select>{err("portalUploads")}</label>
+            </div>
             {item.billing !== "monthly" ? <div className={s.choices} role="group" aria-label="Ways to pay"><span>Ways to pay *</span>
               {PACKAGE_PAYMENT_OPTIONS.map(option => <label key={option.value}><input type="checkbox" checked={!!item.paymentOptions?.includes(option.value)} onChange={e => update("paymentOptions", PACKAGE_PAYMENT_OPTIONS.map(row => row.value).filter(value => value === option.value ? e.target.checked : !!item.paymentOptions?.includes(value)))} /> {option.label}</label>)}
               {err("paymentOptions")}</div> : monthly && <>
               <p className={s.note}>A monthly package runs as a plan in the client portal: a bill every billing period, at the price bought for the whole length. The client can stop it any time; it ends after the period paid for.</p>
-              {item.portalUploads && <div className={`${s.choices} ${bad("monthlyUploads") ?? ""}`} role="radiogroup" aria-label="Updates a month"><span>Updates a month *</span>
-                <label><input type="radio" name="monthlyUploads" checked={!monthly.uploadsPerMonth} onChange={() => setMonthly({ uploadsPerMonth: null })} /> Unlimited</label>
-                <label><input type="radio" name="monthlyUploads" checked={!!monthly.uploadsPerMonth} onChange={() => setMonthly({ uploadsPerMonth: monthly.uploadsPerMonth || 4 })} /> Limited:{" "}
-                  <input aria-label="Number of updates a month" type="number" min={1} max={31} className={s.percent} disabled={!monthly.uploadsPerMonth} value={monthly.uploadsPerMonth ?? ""} onChange={e => setMonthly({ uploadsPerMonth: Number(e.target.value) })} /> a month, open again every month</label>
-                {err("monthlyUploads")}</div>}
+              {item.portalUploads && <div className={s.twoFields}>
+                <label className={`admin-field ${bad("monthlyUploads") ?? ""}`}><span>Updates a month *</span><select aria-label="Updates a month" value={monthly.uploadsPerMonth ? "limited" : "unlimited"} onChange={e => setMonthly({ uploadsPerMonth: e.target.value === "limited" ? monthly.uploadsPerMonth || 4 : null })}><option value="unlimited">Unlimited</option><option value="limited">Limited</option></select>{err("monthlyUploads")}</label>
+                {!!monthly.uploadsPerMonth && <label className="admin-field"><span>Number of updates a month</span><input aria-label="Number of updates a month" type="number" min={1} max={31} value={monthly.uploadsPerMonth} onChange={e => setMonthly({ uploadsPerMonth: Number(e.target.value) })} /><small>Opens again every month.</small></label>}
+              </div>}
               <div className={`${s.choices} ${bad("monthlyCycles") ?? ""}`} role="group" aria-label="Billing cycles"><span>Billing cycles and discount *</span>
                 {CYCLES.map(cycle => { const option = monthly.billingOptions.find(row => row.billingCycle === cycle); return <label key={cycle}>
                   <input type="checkbox" checked={!!option} onChange={e => setMonthly({ billingOptions: CYCLES.flatMap(value => value === cycle ? (e.target.checked ? [{ billingCycle: cycle, discountPercent: 0 }] : []) : monthly.billingOptions.filter(row => row.billingCycle === value)) })} /> {PURCHASE_LABELS[cycle]}
@@ -712,24 +709,25 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
                 {err("monthlyCycles")}</div>
               <label className={`admin-field ${bad("monthlyLength") ?? ""}`}><span>Longest length (months) *</span><input aria-label="Longest length in months" type="number" min={1} max={12} value={monthly.maxTenureMonths} onChange={e => setMonthly({ maxTenureMonths: Number(e.target.value) })} /><small>The client buys 1 to 12 months; to continue after that, they buy it again.</small>{err("monthlyLength")}</label>
             </>}
+          <div className={s.pricingHeader}>
+          <h3 className={s.pricingTitle}>Price &amp; project scope</h3>
           {item.billing && (creating
-            ? <div className={s.choices} role="radiogroup" aria-label="Price method"><span>Price method *</span>
-              <label><input type="radio" name="priceMode" checked={autoPriced} onChange={() => choosePriceMode("automatic")} /> Automatic: the main price{item.billing === "monthly" ? " (a month)" : ""} comes from the category and add-ons</label>
-              <label><input type="radio" name="priceMode" checked={!autoPriced} onChange={() => choosePriceMode("manual")} /> Manual: you type the main and discount price</label></div>
-            : <p className={s.note}>Price method: <b>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</b>. A saved package keeps the way its price was set; duplicate it to make a copy priced the other way.</p>)}
-          {item.billing === "monthly" && autoPriced && <p className={s.note}>The prices below are for one month; every billing period is worked out from them, with its discount.</p>}
+            ? <label className="admin-field"><span>Price method *</span><select aria-label="Price method" value={autoPriced ? "automatic" : "manual"} onChange={e => choosePriceMode(e.target.value as PriceMode)}><option value="automatic">Automatic: category and add-ons</option><option value="manual">Manual: typed prices</option></select><small>Automatic uses the category and add-ons; manual uses typed prices.</small></label>
+            : <div className="admin-field"><span>Price method</span><p className={s.methodValue}>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</p><small>A saved package keeps its pricing method; duplicate it to use the other method.</small></div>)}
           {/* Only an automatic package takes its base price and add-ons from its category, so only it shows the category. A typed
               package (manual) has no category field or buttons on screen; it still saves the default category. */}
           {autoPriced && <>
-            <label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => changeCategory(e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
+            <div><label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => changeCategory(e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
               {running && <small>Fixed while its offer runs.</small>}
               {!catalogue.categories?.length && <span className={s.msg} role="alert">The category list did not load from the portal. Reload the page; until then only a new category can be chosen.</span>}
               {categoryNote && <small role="status">{categoryNote}</small>}{err("category")}</label>
             <div>{!running && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setNewCategory(true); }}>+ New category</button>}{" "}
-              {categoryEntry && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setEditCategory(true); }}>Edit category</button>}</div>
+              {categoryEntry && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setEditCategory(true); }}>Edit category</button>}</div></div>
             {editCategory && categoryEntry && <ProjectCategoryDialog edit={categoryEntry} nextSortOrder={categoryEntry.sortOrder ?? 0} onCancel={() => setEditCategory(false)} onSaved={categorySaved} send={sendCategory} />}
             {newCategory && <ProjectCategoryDialog nextSortOrder={Math.min(9999, Math.max(0, ...(catalogue.categories || []).map(row => row.sortOrder || 0)) + 1)} onCancel={() => setNewCategory(false)} onSaved={categorySaved} send={sendCategory} />}
           </>}
+          </div>
+          {item.billing === "monthly" && autoPriced && <p className={s.note}>The prices below are for one month; every billing period is worked out from them, with its discount.</p>}
           {autoPriced ? <PackagePriceBuilder category={item.category} categoryEntry={categoryEntry} addOns={addOns} choices={item.services ?? []} saved={savedPricing}
             refresh={item.repriceFromCurrent === true} preview={auto ?? { base: null, baseFrozen: false, lines: [], total: null, problems: [], terms: [] }} regularPrice={item.regularPrice} discountedPrice={item.discountedPrice}
             error={err} bad={bad} onToggle={toggleService} onQuantity={setQuantity} onRefresh={on => update("repriceFromCurrent", on ? true : undefined)}
@@ -794,6 +792,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         {/* 3. Website display: where the package is shown. It never changes a client project. */}
         <section className={s.sec}><div className={s.sechead}><h2>3. Website display</h2></div>
           <p className={s.note}>Where this package appears on the website. None of this changes a client project.</p>
+          <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> : <><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
           <div className="form-columns">
             <label className="admin-field"><span>When published *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="published">Show on the website</option>{!running && <option value="archived">Archived (hidden)</option>}</select><small>Archived hides the package; it can be shown again later.</small></label>
             <label className="admin-field"><span>Display order</span><input aria-label="Display order" type="number" min={0} max={9999} value={item.order} onChange={e => update("order", Number(e.target.value))} /></label>

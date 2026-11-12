@@ -328,7 +328,7 @@ try {
   assert.equal(await form.getByLabel('Main heading', { exact: true }).inputValue(), 'Business Starter', 'design pre-filled from the name');
   // How customers buy it (src/docs/package.md decision 7): one-time and full payment pre-chosen, uploads always chosen.
   assert.equal(await form.getByLabel('Billing', { exact: true }).inputValue(), 'one_time');
-  await form.getByLabel('Yes: the client sends files in the portal').check();
+  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
   await form.getByLabel('2 installments (50% + 50%)').check();
   await page.getByRole('button', { name: '+ Add offer', exact: true }).waitFor();
   await page.screenshot({ path: path.join(folder, 'admin-new-package.png'), fullPage: true });
@@ -555,14 +555,14 @@ try {
   await form.getByLabel('Description', { exact: true }).fill('Monthly data entry for your business.');
   await form.getByLabel('Included work (one item per line)', { exact: true }).fill('Monthly data entry');
   await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
-  await form.getByLabel('Yes: the client sends files in the portal').check();
+  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
   // One fixed monthly price (owner decision 11 Nov 2026): no price per file anywhere.
   assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'no price per file');
   assert.equal(await form.getByRole('radiogroup', { name: 'Monthly pricing' }).count(), 0, 'no fixed / per file choice');
   // A monthly package has the same price methods as a one-time one; this one is typed by hand.
-  const priceMethod = form.getByRole('radiogroup', { name: 'Price method' });
-  assert.match(await priceMethod.innerText(), /Automatic: the main price \(a month\) comes from the category and add-ons/);
-  await priceMethod.getByRole('radio', { name: /^Manual/ }).check();
+  const priceMethod = form.getByLabel('Price method', { exact: true });
+  assert.equal(await priceMethod.inputValue(), 'automatic');
+  await priceMethod.selectOption('manual');
   await form.getByLabel('Main price (₹)', { exact: true }).fill('900');
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
   const top = async texts => form.evaluate((el, list) => list.map(text => { const node = [...el.querySelectorAll('legend, label span, h2, span')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }), texts);
@@ -570,9 +570,9 @@ try {
   const fixedOrder = await top(['Package name', 'How customers buy', 'Billing *', 'Updates a month', 'Billing cycles and discount', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
   assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, purchase settings, updates, cycles, prices, included work, offer, website display, page design: ' + fixedOrder);
   // Updates a month: unlimited by default, or a number that opens again every month.
-  const uploads = form.getByRole('radiogroup', { name: 'Updates a month' });
-  assert.equal(await uploads.getByRole('radio', { name: 'Unlimited' }).isChecked(), true);
-  await uploads.getByRole('radio', { name: /^Limited/ }).check();
+  const uploads = form.getByLabel('Updates a month', { exact: true });
+  assert.equal(await uploads.inputValue(), 'unlimited');
+  await uploads.selectOption('limited');
   await form.getByLabel('Number of updates a month', { exact: true }).fill('3');
   await form.getByRole('group', { name: 'Billing cycles' }).getByRole('checkbox').nth(1).check();
   await form.getByLabel('Quarterly discount %', { exact: true }).fill('10');
@@ -582,9 +582,9 @@ try {
   assert.equal('pricing' in monthlySaved.package.monthly, false, 'no fixed / per file field');
   assert.equal(monthlySaved.package.category, 'data_services', 'saved with the new category');
   // Without portal uploads there is no updates count: the team posts work updates instead.
-  await form.getByLabel('No: progress updates only').check();
-  assert.equal(await form.getByRole('radiogroup', { name: 'Updates a month' }).count(), 0);
-  await form.getByLabel('Yes: the client sends files in the portal').check();
+  await form.getByLabel('Portal uploads', { exact: true }).selectOption('no');
+  assert.equal(await form.getByLabel('Updates a month', { exact: true }).count(), 0);
+  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
   // An offer must be below the normal monthly price.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
   await form.getByLabel('Offer name', { exact: true }).fill('Monthly launch');
@@ -705,7 +705,7 @@ try {
   await form.getByLabel('Package name', { exact: true }).fill('Stale Pack');
   await form.getByLabel('Status', { exact: true }).selectOption('published');
   await form.getByLabel('Description', { exact: true }).fill('Priced from its parts.');
-  await form.getByLabel('Yes: the client sends files in the portal').check();
+  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
   assert.equal(await mainPrice(), '₹5,900', 'base 5,000 + Bought service 100 (ticked when made) + SEO audit 800');
   api.store.addOns.find(row => row.name === 'SEO audit').unitPrice = 900;
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
@@ -716,7 +716,7 @@ try {
   const typed = await context.request.patch(origin + '/api/packages', { data: { creating: true, item: { ...pkg(''), name: 'Typed Pack', category: 'standard_websites', regularPrice: 4000, discountedPrice: 3500,
     billing: 'one_time', portalUploads: true, paymentOptions: ['full'], design: api.store.packages['business-starter'].design } } });
   assert.equal(typed.status(), 200, await typed.text());
-  const method = () => form.getByRole('radiogroup', { name: 'Price method', exact: true });
+  const method = () => form.getByLabel('Price method', { exact: true });
   const remembered = () => page.evaluate(() => localStorage.getItem('package-price-mode'));
   await editor('Typed Pack');
   await form.getByText('Manual (typed prices)', { exact: true }).waitFor();
@@ -729,27 +729,27 @@ try {
   // Duplicate a typed package: the copy is new, opens typed, and may be priced from its parts.
   await page.goto(origin + '/admin/packages');
   await page.locator('li').filter({ hasText: 'Typed Pack' }).getByRole('button', { name: 'Duplicate', exact: true }).click();
-  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'a copy of a typed package opens typed');
+  assert.equal(await method().inputValue(), 'manual', 'a copy of a typed package opens typed');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
-  await method().getByRole('radio', { name: /^Automatic/ }).check();
+  await method().selectOption('automatic');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'P');
   assert.equal(await mainPrice(), '₹12,000', 'the category base price: this copy is priced from its parts');
   await form.getByRole('group', { name: 'Add-on services', exact: true }).waitFor();
   assert.equal(await remembered(), 'automatic');
   // The way chosen last is the way the next new package opens, also after switching to monthly and back.
-  await method().getByRole('radio', { name: /^Manual/ }).check();
+  await method().selectOption('manual');
   assert.equal(await remembered(), 'manual');
   await page.goto(origin + '/admin/packages');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
-  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'the next new package opens the way the last one was priced');
+  assert.equal(await method().inputValue(), 'manual', 'the next new package opens the way the last one was priced');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
   await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
-  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'a monthly package chooses its price method too');
+  assert.equal(await method().inputValue(), 'manual', 'a monthly package chooses its price method too');
   await form.getByLabel('Billing', { exact: true }).selectOption('one_time');
-  assert.equal(await method().getByRole('radio', { name: /^Manual/ }).isChecked(), true, 'billing back to one-time keeps the chosen way');
+  assert.equal(await method().inputValue(), 'manual', 'billing back to one-time keeps the chosen way');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
   // Back to automatic for the steps that follow (blocked storage is covered by tests/package-price-mode.test.ts).
-  await method().getByRole('radio', { name: /^Automatic/ }).check();
+  await method().selectOption('automatic');
   assert.equal(await remembered(), 'automatic');
   // A category list that did not load says so instead of looking empty.
   const savedCategories = api.store.categories.splice(0);
@@ -760,8 +760,10 @@ try {
   // No sideways scroll in the admin form at any width.
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
-            const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 6).map(el => el.tagName + '.' + String(el.className).slice(0, 40)));
+    const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 6).map(el => el.tagName + '.' + String(el.className).slice(0, 40)));
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal scroll in the package form at ${width}: ${JSON.stringify(wide)}`);
+    assert.equal(await form.getByLabel('Description', { exact: true }).evaluate(el => getComputedStyle(el).resize), 'both', 'the description can still be manually resized');
+    await page.screenshot({ path: path.join(folder, `admin-compact-package-${width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
 
