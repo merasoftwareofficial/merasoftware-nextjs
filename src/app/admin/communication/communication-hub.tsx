@@ -1,7 +1,7 @@
 "use client";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EmailControlPanel, type EmailView } from "@/app/admin/email-control/email-control-panel";
 import { Loader } from "@/app/admin/email-control/loader";
 import { connectionLabel, type HistoryGroup, message, phoneLabel, WhatsappPanel, whatsappApi } from "@/app/admin/whatsapp/whatsapp-panel";
@@ -53,11 +53,6 @@ const PANELS: Record<PanelId, Panel> = {
     description: "Mails waiting for Send / Don’t send, the Outbox and every decision." },
 };
 const IDS = Object.keys(PANELS) as PanelId[];
-const NAV_GROUPS: { title: string; items: PanelId[] }[] = [
-  { title: "Messages and reminders", items: ["broadcast", "email-templates", "reminders"] },
-  { title: "Delivery and activity", items: ["business-activity", "email-review", "whatsapp-queue", "whatsapp-connection"] },
-  { title: "Separate workflows", items: ["auto-reply", "final-message", "reservation"] },
-];
 type View = { panel: PanelId | null; tab: string; app: Application; show: HistoryGroup | null; event: string | null };
 
 function normalize(state: HubState, portalAdmin: boolean): View {
@@ -104,12 +99,12 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [mounted, setMounted] = useState(() => new Set(view.panel ? [partOf(view)] : []));
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
   const [query, setQuery] = useState("");
+  const [reminderSection, setReminderSection] = useState<"rules" | "activity" | "existing">("rules");
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
   const [summaryFailed, setSummaryFailed] = useState(false);
   const [whatsappRecent, setWhatsappRecent] = useState<WhatsappQueuePage | null>(null);
-  const drawer = useRef<HTMLElement>(null);
   const apps: Application[] = portalAdmin ? ["website", "portal"] : ["website"];
 
   const go = useCallback((next: HubState, push = true) => {
@@ -119,7 +114,6 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     if (value.panel === "whatsapp-queue" && value.tab === "history") setHistoryShow(value.show ?? "sent");
     if (push) window.history.pushState(null, "", href(value));
   }, [portalAdmin]);
-  const close = useCallback(() => go({ panel: null, tab: null, app: null }), [go]);
 
   // Back / Forward move between panels like pages.
   useEffect(() => {
@@ -130,20 +124,6 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [go]);
-
-  // An open panel: focus it, hold the page still, and close on Esc (an open email dialog takes Esc first).
-  useEffect(() => {
-    if (!view.panel) return;
-    drawer.current?.focus();
-    const page = document.documentElement, overflow = page.style.overflow;
-    page.style.overflow = "hidden";
-    const onKey = (event: KeyboardEvent) => {
-      const childModal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].some(element => element !== drawer.current);
-      if (event.key === "Escape" && !event.defaultPrevented && !childModal && !document.querySelector("dialog[open]")) close();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => { page.style.overflow = overflow; document.removeEventListener("keydown", onKey); };
-  }, [view.panel, close]);
 
   // WhatsApp status for the boxes and warnings: only while no panel is open (the panels refresh their own data).
   useEffect(() => {
@@ -184,24 +164,6 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const portalReview = useCallback((count: number) => reviewCount("portal", count), [reviewCount]);
 
   const emailReady = apps.every(app => summary[app]);
-  const emailTotal = (key: "review" | "actions") => emailReady ? apps.reduce((total, app) => total + summary[app]![key], 0) : null;
-  const whatsappLine = (line: (status: WhatsappStatus) => string) => !portalAdmin ? "Portal admin only" : status ? line(status) : statusError ? "Unavailable" : null;
-  const emailLine = (key: "review" | "actions", word: string) => { const total = emailTotal(key); return total !== null ? `${total.toLocaleString("en-IN")} ${word}` : summaryFailed ? "—" : null; };
-  const connected = !!status?.enabled && status.workerRunning && status.connection === "connected" && !status.paused;
-  const waiting = status ? status.counts.pending + status.counts.sending : 0;
-  const BOX_LINES: Record<PanelId, { line: string | null; tone?: "ok" | "warn" }> = {
-    "broadcast": { line: portalAdmin ? "Lead/client groups · saved messages" : "Portal admin only" },
-    "auto-reply": { line: portalAdmin ? "Ad message · reply · leads" : "Portal admin only" },
-    "final-message": { line: portalAdmin ? "Time limit · replies" : "Portal admin only" },
-    "reservation": { line: portalAdmin ? "Running · time left · expired" : "Portal admin only" },
-    "reminders": { line: portalAdmin ? "Offer payments · reservations · requests" : "Portal admin only" },
-    "business-activity": { line: portalAdmin ? "Orders · plan starts · reservations · broadcasts" : "Portal admin only" },
-    "whatsapp-connection": { line: whatsappLine(row => `${connectionLabel(row)}${row.paused ? " · paused" : ""}${row.phone ? ` · ${phoneLabel(row.phone)}` : ""}`), tone: status ? connected ? "ok" : "warn" : undefined },
-    "whatsapp-queue": { line: whatsappLine(() => `${waiting.toLocaleString("en-IN")} waiting`) },
-    "email-templates": { line: emailLine("actions", "messages") },
-    "email-review": { line: emailLine("review", "waiting"), tone: (emailTotal("review") ?? 0) > 0 ? "warn" : undefined },
-  };
-
   // Needs attention: only what asks for work now; each line opens the place to deal with it.
   const attention: { text: string; link: string; open: HubState }[] = [];
   for (const app of apps) {
@@ -245,15 +207,19 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
       ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} />],
       ["reminders", <section key="reminders" aria-label="Existing reminders">
-        <p>Existing reminder schedules continue to follow each offer&apos;s saved agreement and the reservation system. Messages and channels can be edited below.</p>
-        <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })}>Offer payment reminder settings →</button></p>
-        <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.reservation.reminder" })}>Reservation reminder message →</button></p>
-        <p><button type="button" className={s.link} onClick={() => go({ panel: "whatsapp-queue", tab: "history", app: null })}>WhatsApp delivery history →</button></p>
-        <p>Running reservations and package requests are shown below. This is not a complete schedule of upcoming reminders.</p>
-        <ReminderDrafts active={part("reminders").shown} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} />
-        <ReminderHistory active={part("reminders").shown} />
-        <OfferPaymentReminders active={part("reminders").shown} />
-        <ReservationPanel active={part("reminders").shown} portalUrl={portalUrl} />
+        <div className={s.subNav} role="group" aria-label="Reminder sections">
+          {([ ["rules", "Rules"], ["activity", "Reminder activity"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
+        </div>
+        <div hidden={reminderSection !== "rules"}><ReminderDrafts active={part("reminders").shown && reminderSection === "rules"} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} /></div>
+        <div hidden={reminderSection !== "activity"}><ReminderHistory active={part("reminders").shown && reminderSection === "activity"} /></div>
+        <div hidden={reminderSection !== "existing"}>
+          <p>Existing reminder schedules continue to follow each offer&apos;s saved agreement and the reservation system. This is not a complete schedule of upcoming reminders.</p>
+          <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })}>Offer payment reminder settings →</button></p>
+          <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.reservation.reminder" })}>Reservation reminder message →</button></p>
+          <p><button type="button" className={s.link} onClick={() => go({ panel: "whatsapp-queue", tab: "history", app: null })}>WhatsApp delivery history →</button></p>
+          <OfferPaymentReminders active={part("reminders").shown && reminderSection === "existing"} />
+          <ReservationPanel active={part("reminders").shown && reminderSection === "existing"} portalUrl={portalUrl} />
+        </div>
       </section>],
       ["whatsapp-connection", <WhatsappPanel key="c" view="connection" active={part("whatsapp-connection").shown} />],
       ["whatsapp-queue:queue", <WhatsappPanel key="q" view="queue" active={part("whatsapp-queue:queue").shown} />],
@@ -261,8 +227,8 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["whatsapp-queue:history", <WhatsappPanel key="h" view="messages" show={historyShow} active={part("whatsapp-queue:history").shown} />],
     ];
     const emailParts: [string, React.ReactNode][] = apps.flatMap(app => [
-      [`email-templates:${app}`, <EmailControlPanel key={`t-${app}`} initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: 'reminders', tab: null, app: null })} />],
-      [`email-review:${app}`, <EmailControlPanel key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
+      [`email-templates:${app}`, <EmailControlPanel workspace key={`t-${app}`} initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: 'reminders', tab: null, app: null })} />],
+      [`email-review:${app}`, <EmailControlPanel workspace key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
     ] as [string, React.ReactNode][]);
     return <>
       {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}
@@ -271,19 +237,25 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   }
 
   return <div className={s.hub}>
-    <nav className={s.navigation} aria-label="Communication">
-      {NAV_GROUPS.map(group => <section key={group.title} aria-label={group.title}>
-        <h2 className={s.navHeading}>{group.title}</h2><div className={s.boxes}>
-      {group.items.map(id => {
-        const { line, tone } = BOX_LINES[id];
-        return <button key={id} type="button" className={s.box} data-tone={tone} disabled={PANELS[id].whatsapp && !portalAdmin} onClick={() => go({ panel: id, tab: null, app: null })}>
-          <span className={s.boxGroup} aria-hidden="true">{PANELS[id].group}</span>
-          <span className={s.boxTitle}>{PANELS[id].title}</span>
-          <span className={s.boxLine}>{line ?? <Loader inline />}</span>
-        </button>;
-      })}</div></section>)}
+    <nav className={s.mainTabs} aria-label="Communication sections">
+      {[
+        { label: "Overview", panel: null },
+        { label: "Broadcast", panel: "broadcast" },
+        { label: "Automatic messages", panel: "email-templates" },
+        { label: "Reminders", panel: "reminders" },
+        { label: "Review & delivery", panel: "email-review" },
+        { label: "Workflows & settings", panel: "whatsapp-connection" },
+      ].map(item => {
+        const active = item.panel === null ? !view.panel : item.panel === "email-review" ? ["email-review", "whatsapp-queue", "business-activity"].includes(view.panel || "") && !(view.panel === "whatsapp-queue" && view.tab === "rules") : item.panel === "whatsapp-connection" ? ["whatsapp-connection", "auto-reply", "final-message", "reservation"].includes(view.panel || "") || (view.panel === "whatsapp-queue" && view.tab === "rules") : view.panel === item.panel;
+        return <button key={item.label} type="button" aria-current={active ? "page" : undefined} onClick={() => go({ panel: item.panel, tab: null, app: null })}>{item.label}</button>;
+      })}
     </nav>
-
+    {!open && <>
+      <div className={s.quickActions}>
+        <button type="button" className={s.quickCard} onClick={() => go({ panel: "broadcast", tab: null, app: null })}><strong>Send a broadcast</strong><span>Reach a selected group →</span></button>
+        <button type="button" className={s.quickCard} onClick={() => go({ panel: "email-templates", tab: null, app: null })}><strong>Automatic messages</strong><span>Find an action and manage its message →</span></button>
+        <button type="button" className={s.quickCard} onClick={() => go({ panel: "reminders", tab: null, app: null })}><strong>Reminders</strong><span>View rules and reminder activity →</span></button>
+      </div>
     <div className={s.overview}>
       <section className={s.card} aria-labelledby="attention-title">
         <header className={s.cardHeader}><h2 id="attention-title">Needs attention</h2></header>
@@ -315,26 +287,24 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       </section>
     </div>
 
-    {mounted.size > 0 && <div className={s.drawerLayer} hidden={!open}>
-      <div className={s.backdrop} onClick={close} aria-hidden="true" />
-      <aside ref={drawer} className={s.drawer} role="dialog" aria-modal="true" aria-labelledby="communication-panel-title" tabIndex={-1}>
-        {open && view.panel && <>
-          <header className={s.drawerHeader}>
-            <div><h2 id="communication-panel-title">{open.title}</h2><p>{open.description}</p></div>
-            <button type="button" className="admin-action" onClick={close}>Close</button>
-          </header>
-          {(open.tabs.length > 0 || view.panel === "email-review") && <div className={s.tabBar}>
-            {view.panel === "email-review" && portalAdmin && <div className={s.switch} role="group" aria-label="Application">
-              {APPS.map(app => <button key={app.id} type="button" aria-pressed={view.app === app.id} onClick={() => go({ ...view, app: app.id })}>{app.label}</button>)}
-            </div>}
-            <div className={s.tabs} role="tablist" aria-label={`${open.title} sections`}>
-              {open.tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view.tab === tab.id} disabled={view.panel === "email-templates" && tab.id === "portal" && !portalAdmin} onClick={() => go({ ...view, tab: tab.id, show: null, event: null })}>{tab.label}</button>)}
-            </div>
-            {view.panel === "email-templates" && <input className={s.search} type="search" aria-label="Find a message" placeholder="Find a message" value={query} onChange={event => setQuery(event.target.value)} />}
-          </div>}
-        </>}
-        <div className={s.drawerBody}>{body()}</div>
-      </aside>
-    </div>}
+    </>}
+    {mounted.size > 0 && <section className={s.workspace} hidden={!open} aria-label={open?.title}>
+      {open && view.panel && <>
+        <header className={s.workspaceHeader}><div><h2>{open.title}</h2><p>{open.description}</p></div></header>
+        {(["email-review", "whatsapp-queue", "business-activity"].includes(view.panel) && !(view.panel === "whatsapp-queue" && view.tab === "rules")) && <div className={s.subNav} aria-label="Review and delivery sections">
+          <button type="button" aria-pressed={view.panel === "email-review"} onClick={() => go({ panel: "email-review", tab: null, app: null })}>Email review & history</button>
+          {portalAdmin && <><button type="button" aria-pressed={view.panel === "whatsapp-queue"} onClick={() => go({ panel: "whatsapp-queue", tab: null, app: null })}>WhatsApp queue & history</button><button type="button" aria-pressed={view.panel === "business-activity"} onClick={() => go({ panel: "business-activity", tab: null, app: null })}>Business activity</button></>}
+        </div>}
+        {(["whatsapp-connection", "auto-reply", "final-message", "reservation"].includes(view.panel) || (view.panel === "whatsapp-queue" && view.tab === "rules")) && <div className={s.subNav} aria-label="Workflows and settings sections">
+          {([ ["whatsapp-connection", "Connection"], ["whatsapp-queue", "Sending rules"], ["auto-reply", "Auto Reply"], ["final-message", "Final Message"], ["reservation", "Reservations"] ] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={view.panel === id} disabled={!portalAdmin} onClick={() => go({ panel: id, tab: id === "whatsapp-queue" ? "rules" : null, app: null })}>{label}</button>)}
+        </div>}
+        {(open.tabs.length > 0 || view.panel === "email-review") && <div className={s.tabBar}>
+          {view.panel === "email-review" && portalAdmin && <div className={s.switch} role="group" aria-label="Application">{APPS.map(app => <button key={app.id} type="button" aria-pressed={view.app === app.id} onClick={() => go({ ...view, app: app.id })}>{app.label}</button>)}</div>}
+          <div className={s.tabs} role="tablist" aria-label={`${open.title} sections`}>{open.tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view.tab === tab.id} disabled={view.panel === "email-templates" && tab.id === "portal" && !portalAdmin} onClick={() => go({ ...view, tab: tab.id, show: null, event: null })}>{tab.label}</button>)}</div>
+          {view.panel === "email-templates" && <input className={s.search} type="search" aria-label="Find a message" placeholder="Find a message" value={query} onChange={event => setQuery(event.target.value)} />}
+        </div>}
+      </>}
+      <div className={s.workspaceBody}>{body()}</div>
+    </section>}
   </div>;
 }

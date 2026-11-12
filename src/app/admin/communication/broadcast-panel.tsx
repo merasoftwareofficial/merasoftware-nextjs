@@ -87,6 +87,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     {notice && <p role="status" className={s.notice}>{notice}</p>}
     {catalog && !catalog.jobsEnabled && <p className={s.note}>Broadcast sending is turned off on the server. Drafts and previews are available.</p>}
     {channel !== "email" && catalog?.stopped && <p className={s.note}>WhatsApp: {catalog.stopped.replaceAll("-", " ")}. WhatsApp deliveries wait until sending is available.</p>}
+    <div className={s.stage}><h3>1. Choose your audience</h3><p>Choose who should receive the broadcast and how it will be sent.</p>
     <label className={s.field}>Audience
       <select aria-label="Audience" value={audienceKind} disabled={busy} onChange={event => { setAudienceKind(event.target.value as "leads" | "clients"); setGroup(""); }}>
         <option value="leads">Leads only</option><option value="clients">Clients only</option>
@@ -104,6 +105,8 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
       </select>
     </label>
     {selectedGroup && <p className={s.note}>{selectedGroup.total} people · {selectedGroup.whatsappCount || 0} eligible WhatsApp numbers · {selectedGroup.emailCount || 0} eligible email addresses. {selectedGroup.excluded.invalidPhone} unusable phones · {selectedGroup.excluded.duplicatePhone} duplicate numbers · {selectedGroup.excluded.doNotDisturb || 0} blocked or unavailable · {selectedGroup.excluded.noName} without a confirmed name. {channel !== "whatsapp" && `${selectedGroup.excluded.invalidEmail || 0} missing or invalid emails · ${selectedGroup.excluded.duplicateEmail || 0} duplicate emails.`} {selectedGroup.blocked ? "Marketing is unavailable for this group." : "Eligibility is checked again before sending. Missing destinations are excluded; Both uses each available channel."}</p>}
+    </div>
+    <div className={s.stage}><h3>2. Create your message</h3><p>Choose a saved message or create a new one.</p>
     <label className={s.field}>Recent / saved messages
       <select aria-label="Recent / saved messages" value={templateId} disabled={busy || !catalog} onChange={event => choose(event.target.value)}>
         <option value="">New message</option>
@@ -133,6 +136,8 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
       setMedia({ id: asset._id, url: asset.url, kind: asset.kind || "image", bytes: asset.bytes, format: asset.format, publicId: asset.publicId, assetId: asset.assetId }); setMediaOpen(false); setPreview(null);
     }} />}
     <EmailEditor id="broadcast-message" label="Message" channel="whatsapp" value={doc} disabled={busy} variables={catalog?.fields || []} onChange={value => { setDoc(value); setPreview(null); }} />
+    </div>
+    <div className={s.stage}><h3>3. Preview and send</h3><p>Check your message and audience before sending.</p>
     <div className={s.actions}>
       <button type="button" disabled={busy || !hasContent} onClick={() => void action(save)}>{templateId ? "Update saved message" : "Save Draft"}</button>
       <button type="button" disabled={busy || !hasContent} onClick={() => void action(async () => { setPreview(await api<{ html: string; subject?: string; parts?: { text: string; html: string; media?: Media }[] }>("preview", "POST", composition)); })}>Preview</button>
@@ -147,6 +152,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
       {channel !== "whatsapp" && <div aria-label="Email preview"><strong>Email: {preview.subject}</strong><div dangerouslySetInnerHTML={{ __html: preview.html }} /></div>}
     </div>}
 
+    </div>
     <details className={s.history} open={runs.length > 0}>
       <summary>Sending progress / history (latest 30)</summary>
       {!runs.length && <p>No broadcasts yet.</p>}

@@ -106,8 +106,9 @@ test('browser: Communication → Final Message → time limit and replies', { ti
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: /^Final Message Time limit/ }).click();
-    const dialog = page.getByRole('dialog');
+    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await page.getByRole('button', { name: 'Final Message', exact: true }).click();
+    const dialog = page.getByRole('region', { name: 'Final Message', exact: true });
     await dialog.getByRole('heading', { name: 'Final Message', exact: true }).waitFor();
     const time = dialog.getByRole('spinbutton', { name: 'Time limit, in hours' });
     await dialog.getByText('Voice message', { exact: true }).waitFor();
@@ -167,8 +168,9 @@ test('browser: Communication → Reservation → running reservations with time 
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: /^Reservation Running/ }).click();
-    const dialog = page.getByRole('dialog');
+    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await page.getByRole('button', { name: 'Reservations', exact: true }).click();
+    const dialog = page.getByRole('region', { name: 'Reservation', exact: true });
     await dialog.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
     await dialog.getByText('Reserving Customer', { exact: true }).waitFor();
     await dialog.getByText('+91 98765 00009', { exact: true }).waitFor();
@@ -181,15 +183,17 @@ test('browser: Communication → Reservation → running reservations with time 
     const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Reservation"]'); return panel.scrollWidth - panel.clientWidth; });
     assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);
     await page.screenshot({ path: path.join(qaDir, 'reservation-mobile.png') });
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('button', { name: /^Reminders Offer payments/ }).click();
-    const reminders = page.getByRole('dialog', { name: 'Reminders' });
+    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    const reminders = page.getByRole('region', { name: 'Reminders', exact: true });
+    await reminders.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();
     await reminders.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
     await reminders.getByText('Reserving Customer · TEST-REMINDER', { exact: true }).waitFor();
     await reminders.getByText(/Outstanding ₹2,000/).waitFor();
     assert.equal((await request('/api/auto-reply/payment-reminders', 'GET', member)).status, 403);
     await reminders.getByRole('region', { name: 'Existing reminders' }).getByText('Reserving Customer', { exact: true }).waitFor();
     await reminders.getByText('This is not a complete schedule of upcoming reminders.', { exact: false }).waitFor();
+    await reminders.getByRole('button', { name: 'Rules', exact: true }).click();
     await reminders.getByRole('button', { name: 'Create draft' }).click();
     await reminders.getByLabel('Rule name').fill('Test monthly reminder');
     await reminders.getByLabel('Days for reminder 1').fill('-3');
@@ -234,6 +238,7 @@ test('browser: Communication → Reservation → running reservations with time 
       if (oldCrons === undefined) delete process.env.ENABLE_CRONS; else process.env.ENABLE_CRONS = oldCrons;
     }
     await ReminderRun.create({ ruleId: draft._id, ruleRevision: 1, source: 'monthly_package', occurrenceKey: `${orderId}:2`, step: 0, entityId: orderId, clientId: customer._id, dueAt: new Date(now + hour), subject: 'Reminder', text: 'Test', channel: 'both', status: 'queued', channelOutcomes: { email: 'sent', whatsapp: 'queued' } });
+    await reminders.getByRole('button', { name: 'Reminder activity', exact: true }).click();
     await reminders.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
     await reminders.getByText(/Email: sent · WhatsApp: queued/).waitFor();
     const history = reminders.getByRole('region', { name: 'New reminder activity' });
@@ -242,12 +247,13 @@ test('browser: Communication → Reservation → running reservations with time 
     await history.getByRole('combobox').selectOption('all');
     await history.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
     assert.equal((await request('/api/auto-reply/reminder-runs', 'GET', member)).status, 403);
+    await reminders.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();
     await reminders.getByRole('button', { name: 'Offer payment reminder settings →' }).click();
     assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.payment.reminder');
-    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Review & delivery' }).click();
     await Order.collection.updateOne({ _id: orderId }, { $set: { serviceStartNotifiedAt: new Date() } });
-    await page.getByRole('button', { name: /^Business Activity Orders/ }).click();
-    const activity = page.getByRole('dialog', { name: 'Business Activity' });
+    await page.getByRole('button', { name: 'Business activity', exact: true }).click();
+    const activity = page.getByRole('region', { name: 'Business Activity', exact: true });
     await activity.getByText('Monthly package order created', { exact: true }).waitFor();
     await activity.getByText('Plan started', { exact: true }).waitFor();
     await activity.getByText('Offer reserved', { exact: true }).first().waitFor();
@@ -255,9 +261,9 @@ test('browser: Communication → Reservation → running reservations with time 
     assert.equal((await request('/api/auto-reply/business-activity', 'GET', member)).status, 403);
     await activity.getByRole('button', { name: 'Reservation message settings' }).first().click();
     assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.reserved');
-    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('button', { name: /^Business Activity Orders/ }).click();
-    await page.getByRole('dialog', { name: 'Business Activity' }).getByRole('button', { name: 'Plan-start message settings' }).first().click();
+    await page.getByRole('button', { name: 'Review & delivery' }).click();
+    await page.getByRole('button', { name: 'Business activity', exact: true }).click();
+    await page.getByRole('region', { name: 'Business Activity', exact: true }).getByRole('button', { name: 'Plan-start message settings' }).first().click();
     assert.equal(new URL(page.url()).searchParams.get('event'), 'plan.started');
   } finally {
     await browser.close();
@@ -273,8 +279,9 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: /^Auto Reply Ad message/ }).click();
-    const dialog = page.getByRole('dialog');
+    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await page.getByRole('button', { name: 'Auto Reply', exact: true }).click();
+    const dialog = page.getByRole('region', { name: 'Auto Reply', exact: true });
     await dialog.getByRole('heading', { name: 'Auto Reply', exact: true }).waitFor();
     const recognise = dialog.getByRole('checkbox', { name: /^Recognise messages/ });
     await dialog.getByText('No messages recognised yet.').waitFor();
@@ -348,7 +355,7 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     assert.equal((await State.findById(STATE_ID).lean()).autoReply.recognise, false);
     assert.ok(await sendReplies.isDisabled(), 'the other two show as inactive');
     assert.equal(await sendReplies.isChecked(), false);
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Overview', exact: true }).click();
     assert.equal(await page.getByRole('dialog').count(), 0);
   } finally { await browser.close(); }
 });

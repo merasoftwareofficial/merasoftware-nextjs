@@ -112,3 +112,28 @@
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration:2.4s; } }
 
 :global(.admin-shell[data-theme="dark"]) .error { color:#ff9d9d; }
+
+/* Give message editing enough room in the full-page workspace. */
+.dialog:not(.reviewWindow) { width:min(1040px, 96vw); }
+
+@media(max-width:700px) {
+  .group .table { min-width:0; }
+  .group .table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .group .table, .group .table tbody, .group .table tr, .group .table td { display:block; width:100%; }
+  .group .table tr { padding:12px 16px; border-bottom:1px solid var(--line, #d8dbde); }
+  .group .table td { padding:8px 0; border:0; }
+  .group .table td:not(:first-child)::before { content:attr(data-label); display:block; color:var(--muted); font-size:12px; font-weight:600; margin-bottom:5px; }
+  .group .table select { width:100%; max-width:none; }
+  .group .table .actions { margin-top:0; }
+}
+
+.openAction { margin:0 16px 14px; border:0; background:transparent; color:var(--brand-link); font:inherit; font-weight:600; cursor:pointer; }
+.workspaceEditor { min-width:0; padding:4px 0 24px; }
+.workspaceEditor h2 { margin:0 0 8px; font-size:22px; }
+.workspaceEditor label { display:block; margin:16px 0 6px; font-weight:600; }
+.workspaceEditor input:not([type=checkbox]),.workspaceEditor select,.workspaceEditor textarea { width:100%; border:1px solid var(--line,#cbd0d4); border-radius:7px; padding:10px; color:inherit; background:var(--paper); font:inherit; }
+.workspaceEditor .reviewLayout { max-height:none; }
+.workspaceEditor .reviewBody { overflow:visible; padding:16px 0; }
+.workspaceEditor .reviewHeader,.workspaceEditor .reviewFooter { padding-left:0; padding-right:0; }
+.workspaceEditor .reviewBody .editorField .surface { max-height:none; }
+.panel[hidden] { display:none; }

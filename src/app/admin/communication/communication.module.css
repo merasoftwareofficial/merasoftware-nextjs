@@ -65,3 +65,16 @@
 @media(max-width:1100px){.boxes{grid-template-columns:repeat(2,minmax(0,1fr))}.overview{grid-template-columns:1fr}}
 @media(max-width:640px){.activity button{grid-template-columns:22px auto minmax(0,1fr);row-gap:2px}.activity .to{grid-column:3}.activity .when{grid-column:3}}
 @media(max-width:640px){.boxes{grid-template-columns:1fr}.drawerHeader,.tabBar,.drawerBody{padding-left:16px;padding-right:16px}.search{margin-left:0;max-width:none}}
+
+/* Full-page communication workspace */
+.mainTabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);min-width:0}
+.mainTabs button{flex:none;padding:13px 15px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);font:inherit;font-weight:600;cursor:pointer}
+.mainTabs button[aria-current=page]{border-bottom-color:var(--brand-link);color:var(--brand-link)}
+.mainTabs button:focus-visible,.subNav button:focus-visible,.quickCard:focus-visible{outline:2px solid var(--brand-link);outline-offset:-2px}
+.quickActions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.quickCard{display:grid;gap:8px;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:20px;color:inherit;font:inherit;cursor:pointer}
+.quickCard:hover{border-color:var(--brand-link)}.quickCard strong{font-size:16px}.quickCard span{color:var(--muted);font-size:13px}
+.workspace{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:12px}.workspace[hidden]{display:none}
+.workspaceHeader{padding:24px 28px 16px}.workspaceHeader h2{margin:0 0 6px;font-size:22px}.workspaceHeader p{margin:0;color:var(--muted);line-height:1.5}
+.workspaceBody{min-width:0;padding:22px 28px 36px}.subNav{display:flex;gap:8px;flex-wrap:wrap;padding:0 28px 16px}.subNav button{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit;font:inherit;cursor:pointer}.subNav button[aria-pressed=true]{background:var(--surface);border-color:var(--brand-link);color:var(--brand-link);font-weight:600}.subNav button:disabled{opacity:.5;cursor:default}
+@media(max-width:640px){.quickActions{grid-template-columns:1fr}.workspaceHeader,.workspaceBody{padding-left:16px;padding-right:16px}.subNav{padding-left:16px;padding-right:16px}}

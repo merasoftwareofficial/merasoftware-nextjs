@@ -359,6 +359,10 @@ test('browser: every action offers its Standard template, and the details guide 
     await message.fill('Dear ');
     await nameDetail.getByRole('button', { name: 'Customer name', exact: true }).click();
     assert.match(await message.innerText(), /^Dear Customer name\s*$/);
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.ok(await message.isVisible(), 'dismissing discard keeps unsaved edits');
+    page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
     // A review shows each detail's value in this very email.
@@ -495,44 +499,40 @@ test('browser: Email Review tabs show review, Outbox and history one at a time, 
   } finally { await browser.close(); }
 });
 
-test('browser: Communication boxes open their panel at once, follow the URL, and close with Esc and Back', async () => {
+test('browser: Communication full-page navigation preserves links and browser history', async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${websiteBase}/admin/communication`);
-    for (const name of ['WhatsApp Connection', 'WhatsApp Queue', 'Email Templates', 'Email Review']) await page.getByRole('button', { name: new RegExp(`^${name}`) }).waitFor();
-    // Email counts come from /summary alone (the full lists are not loaded for the boxes).
-    const listings = []; page.on('request', request => { if (/\/api\/email-control\?application=/.test(request.url())) listings.push(request.url()); });
-    await page.getByRole('button', { name: /^Email Review/ }).getByText(/\d+ waiting/).waitFor();
-    await page.getByRole('button', { name: /^Email Templates/ }).getByText(/\d+ messages/).waitFor();
-    assert.deepEqual(listings, []);
-
-    await page.getByRole('button', { name: /^Email Templates/ }).click();
-    const panel = page.getByRole('dialog', { name: 'Email Templates' });
-    await panel.getByRole('tab', { name: 'Website' }).waitFor();
+    await page.getByRole('button', { name: 'Automatic messages', exact: true }).click();
+    const workspace = page.getByRole('region', { name: 'Email Templates' });
+    await workspace.getByRole('tab', { name: 'Website' }).waitFor();
     assert.equal(new URL(page.url()).search, '?panel=email-templates');
-    await panel.getByRole('heading', { name: 'Website email rules' }).waitFor();
-    await panel.getByRole('tab', { name: 'Portal' }).click();
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await workspace.getByRole('tab', { name: 'Portal' }).click();
     assert.equal(new URL(page.url()).search, '?panel=email-templates&tab=portal');
-    await panel.getByRole('heading', { name: 'Portal email rules' }).waitFor();
-    await panel.getByLabel('Find a message').fill('Project created');
-    await panel.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) }).waitFor();
-
-    await page.keyboard.press('Escape');
-    await panel.waitFor({ state: 'hidden' });
-    assert.equal(new URL(page.url()).search, '');
+    await workspace.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await workspace.getByLabel('Find a message').fill('Project created');
+    const table = workspace.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) }).first();
+    await table.waitFor();
+    assert.ok(await table.evaluate(node => node.scrollWidth <= node.clientWidth), 'action settings fit a phone screen');
+    await table.locator('xpath=ancestor::details[1]').getByRole('button', { name: 'Open action details →' }).click();
+    await workspace.getByRole('button', { name: '← All actions' }).waitFor();
+    await table.getByRole('button', { name: /^Edit / }).first().click();
+    await workspace.getByRole('heading', { name: 'Edit email template' }).waitFor();
+    assert.equal(await workspace.getByRole('heading', { name: 'Portal email rules' }).count(), 0, 'action list is hidden while editing');
+    assert.equal(await page.getByRole('dialog').count(), 0, 'template editor uses the full-page workspace');
+    await workspace.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await workspace.getByLabel('Find a message').fill('');
     await page.goBack();
-    await panel.waitFor();
-    assert.equal(await panel.getByRole('tab', { name: 'Portal' }).getAttribute('aria-selected'), 'true');
-
+    assert.equal(await workspace.getByRole('tab', { name: 'Website' }).getAttribute('aria-selected'), 'true');
     await page.goto(`${websiteBase}/admin/communication?panel=email-review&tab=outbox`);
-    const review = page.getByRole('dialog', { name: 'Email Review' });
+    const review = page.getByRole('region', { name: 'Email Review' });
     await review.getByRole('region', { name: 'Outbox', exact: true }).waitFor();
     await review.getByRole('tab', { name: 'History' }).click();
     await review.getByRole('heading', { name: 'Email history' }).waitFor();
-    await review.getByRole('button', { name: 'Close' }).click();
-    await review.waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -554,17 +554,23 @@ test('browser: Communication shows what needs attention and the recent emails, e
     assert.match(await row.innerText(), new RegExp(draft.subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
     await row.click();
-    const review = page.getByRole('dialog', { name: 'Email Review' });
+    const review = page.getByRole('region', { name: 'Email Review' });
     await review.getByRole('tab', { name: 'Review', selected: true }).waitFor();
     await review.locator('article').filter({ hasText: 'activity@example.test' }).waitFor();
-    await review.getByRole('button', { name: 'Close' }).click();
+    await page.getByRole('button', { name: 'Overview', exact: true }).click();
 
     await line.getByRole('button', { name: 'Review →' }).click();
     await review.getByRole('tab', { name: 'Review', selected: true }).waitFor();
-    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Overview', exact: true }).click();
     await activity.getByRole('button', { name: 'Email history →' }).click();
     await review.getByRole('tab', { name: 'History', selected: true }).waitFor();
     await review.getByRole('heading', { name: 'Email history' }).waitFor();
+    await review.getByRole('tab', { name: 'Review' }).click();
+    await review.locator('article').filter({ hasText: 'activity@example.test' }).getByRole('button', { name: 'Review email' }).click();
+    await review.getByRole('heading', { name: 'Review & send' }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, 'review uses the full-page workspace');
+    await review.getByRole('button', { name: 'Close review' }).click();
+    await review.getByRole('button', { name: "Don't send and close" }).click();
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -779,7 +785,7 @@ test('browser: an exact action link shows only its action and can return to all 
   try {
     const page = await browser.newPage();
     await page.goto(`${websiteBase}/admin/communication?panel=email-templates&tab=portal&event=sendProjectCreatedEmail`);
-    const panel = page.getByRole('dialog', { name: 'Email Templates' });
+    const panel = page.getByRole('region', { name: 'Email Templates' });
     await panel.getByText('Showing one action: Project created').waitFor();
     await panel.getByLabel('Project created default template', { exact: true }).waitFor();
     assert.equal(await panel.getByLabel('Package project created (customer) default template', { exact: true }).count(), 0);
@@ -790,6 +796,6 @@ test('browser: an exact action link shows only its action and can return to all 
     await page.goBack();
     await panel.getByText('Showing one action: Project created').waitFor();
     await panel.getByRole('button', { name: 'Open reminder rules' }).click();
-    await page.getByRole('dialog', { name: 'Reminders' }).getByRole('heading', { name: 'Reminder rule drafts' }).waitFor();
+    await page.getByRole('region', { name: 'Reminders' }).getByRole('heading', { name: 'Reminder rule drafts' }).waitFor();
   } finally { await browser.close(); }
 });
