@@ -197,11 +197,12 @@ const ADMIN_SORTS: { value: PackageSort; label: string }[] = [
 ];
 const noSubscription = () => () => {};
 type ListLine = { row: SalesPackage; copyLine: boolean } | { draft: PackageDraft };
-function FilterChips({ label, choices, selected, onPick }: { label: string; choices: { value: string; label: string; count: number }[]; selected: string; onPick: (value: string) => void }) {
-  return <div className={s.filterRow} role="group" aria-label={`Filter by ${label.toLowerCase()}`}>
-    <span className={s.filterLabel}>{label}</span>
-    {choices.map(choice => <button key={choice.value} type="button" className={selected === choice.value ? s.filterOn : s.filterBtn} aria-pressed={selected === choice.value} onClick={() => onPick(choice.value)}>{choice.label} <span className={s.count}>{choice.count}</span></button>)}
-  </div>;
+/** One filter as a compact dropdown: "All …" first, then what the open tab has, each with its count. */
+function FilterSelect({ label, allLabel, choices, selected, onPick }: { label: string; allLabel: string; choices: { value: string; label: string; count: number }[]; selected: string; onPick: (value: string) => void }) {
+  return <select aria-label={`Filter by ${label}`} value={selected} onChange={event => onPick(event.target.value)}>
+    <option value="all">{allLabel}</option>
+    {choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label} ({choice.count})</option>)}
+  </select>;
 }
 
 export function PackagesManager({ initial, initialPages, initialOffers, universalTerms, openPackageId }: { initial: SalesCatalogue; initialPages: PackagePage[]; initialOffers: Offer[]; universalTerms: string[]; openPackageId?: string }) {
@@ -628,7 +629,6 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const typeChoicesNow = typeFilterChoices(tabLines);
   const pageChoicesNow = pageFilterChoices(tabLines, pages);
   const categoryChoicesNow = categoryFilterChoices(tabLines, catalogue.categories ?? []);
-  const allChoice = { value: "all", label: "All", count: tabLines.length };
 
   if (!item) return <div>
     <div className={s.listTop}><p>Each package has its own page with 2 prices; an offer adds a third price and a countdown. A package has only one draft, and editing it always opens that draft.</p>
@@ -636,11 +636,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     {message && <p role="status">{message}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
-    {tabLines.length > 0 && <div className={s.filters}>
-      {typeChoicesNow.length > 1 && <FilterChips label="Type" choices={[allChoice, ...typeChoicesNow]} selected={listOptions.type} onPick={value => setListFilter(current => ({ ...current, type: value as PackageListOptions["type"] }))} />}
-      {pageChoicesNow.length > 1 && <FilterChips label="Page" choices={[allChoice, ...pageChoicesNow]} selected={listOptions.page} onPick={value => setListFilter(current => ({ ...current, page: value }))} />}
-      {categoryChoicesNow.length > 1 && <FilterChips label="Category" choices={[allChoice, ...categoryChoicesNow]} selected={listOptions.category} onPick={value => setListFilter(current => ({ ...current, category: value }))} />}
-      <label className={s.sortField}><span>Sort by</span><select aria-label="Sort packages" value={listSort} onChange={event => pickSort(event.target.value as PackageSort)}>{ADMIN_SORTS.map(sort => <option key={sort.value} value={sort.value}>{sort.label}</option>)}</select></label>
+    {tabLines.length > 0 && <div className={s.toolbar}>
+      <div className={s.filterGroup}>
+        {typeChoicesNow.length > 1 && <FilterSelect label="type" allLabel="All types" choices={typeChoicesNow} selected={listOptions.type} onPick={value => setListFilter(current => ({ ...current, type: value as PackageListOptions["type"] }))} />}
+        {pageChoicesNow.length > 1 && <FilterSelect label="page" allLabel="All pages" choices={pageChoicesNow} selected={listOptions.page} onPick={value => setListFilter(current => ({ ...current, page: value }))} />}
+        {categoryChoicesNow.length > 1 && <FilterSelect label="category" allLabel="All categories" choices={categoryChoicesNow} selected={listOptions.category} onPick={value => setListFilter(current => ({ ...current, category: value }))} />}
+        {(listOptions.type !== "all" || listOptions.page !== "all" || listOptions.category !== "all") && <button type="button" className={s.clearLink} onClick={() => setListFilter({ type: "all", category: "all", page: "all" })}>Clear filters</button>}
+      </div>
+      <select className={s.sortSelect} aria-label="Sort packages" value={listSort} onChange={event => pickSort(event.target.value as PackageSort)}>{ADMIN_SORTS.map(sort => <option key={sort.value} value={sort.value}>Sort: {sort.label}</option>)}</select>
     </div>}
     <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
       {shownLines.map(({ item: line }) => "draft" in line ? newDraftLine(line.draft) : packageLine(line.row, line.copyLine))}
