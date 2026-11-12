@@ -2,7 +2,7 @@
 // category filters that only offer what the list has, the offers-first default, price and date sorts.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, DEFAULT_PACKAGE_LIST, publicEntry, typeFilterChoices, typeOf, usableOptions, type Entry, type PackageListOptions } from "../src/lib/package-list";
+import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, pageFilterChoices, DEFAULT_PACKAGE_LIST, publicEntry, typeFilterChoices, typeOf, usableOptions, type Entry, type PackageListOptions } from "../src/lib/package-list";
 import type { ProjectCategory, QuotedPackage } from "../src/lib/sales-packages";
 
 // A minimal package as the catalogue returns it; only the fields the list reads are set. `offerPrice` starts a running offer.
@@ -106,6 +106,28 @@ test("a line with no category has no category chip, but still shows under All", 
   assert.deepEqual(categoryFilterChoices(entries, [{ category: "website", label: "Website" }]).map(choice => [choice.value, choice.count]), [["website", 1]]);
   assert.equal(arrangePackages(entries, options()).length, 2, "All shows both");
   assert.equal(arrangePackages(entries, options({ category: "website" })).length, 1, "the category filter shows only the saved package");
+});
+
+test("the page filter offers only pages that have packages, plus 'No page' when a package is on none", () => {
+  const pages = [{ slug: "one-time-packages", title: "One-Time Packages" }, { slug: "monthly-packages", title: "Monthly Packages" }, { slug: "empty-page", title: "Empty Page" }];
+  const line = (id: string, on: string[]) => adminEntry({ id }, { billing: "one_time", category: "website", discountedPrice: 1000, regularPrice: 1000 }, on);
+  const entries = [line("a", ["one-time-packages"]), line("b", ["one-time-packages", "monthly-packages"]), line("c", ["monthly-packages"]), line("d", [])];
+  assert.deepEqual(pageFilterChoices(entries, pages).map(choice => [choice.value, choice.label, choice.count]),
+    [["one-time-packages", "One-Time Packages", 2], ["monthly-packages", "Monthly Packages", 2], ["none", "No page", 1]], "page order kept; Empty Page has no chip; a package on two pages counts on both");
+  assert.deepEqual(pageFilterChoices(entries.slice(0, 3), pages).map(choice => choice.value), ["one-time-packages", "monthly-packages"], "no 'No page' chip when every package is on a page");
+  const ids = (page: string) => arrangePackages(entries, options({ page })).map(entry => entry.item.id);
+  assert.deepEqual(ids("one-time-packages"), ["a", "b"]);
+  assert.deepEqual(ids("monthly-packages"), ["b", "c"]);
+  assert.deepEqual(ids("none"), ["d"]);
+  assert.deepEqual(ids("all"), ["a", "b", "c", "d"]);
+  assert.equal(usableOptions(options({ page: "deleted-page" }), entries).page, "all", "a page that has no packages here falls back to All");
+  assert.equal(usableOptions(options({ page: "none" }), entries.slice(0, 3)).page, "all", "'No page' falls back to All when every package is on a page");
+});
+
+test("a new draft's pages are the ones it ticked that still exist", () => {
+  const draft = { data: { item: { pages: ["monthly-packages", "deleted-page", 7] } } };
+  assert.deepEqual(draftEntry({ id: "d" }, draft, ["one-time-packages", "monthly-packages"]).pages, ["monthly-packages"]);
+  assert.deepEqual(draftEntry({ id: "d" }, { data: { item: {} } }, ["monthly-packages"]).pages, []);
 });
 
 test("admin lines sort by the price the admin line shows; a line with no price goes last", () => {

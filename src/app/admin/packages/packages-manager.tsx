@@ -14,7 +14,7 @@ import { offerDiscountPercent, resolvedTerms, type Offer } from "@/lib/offers";
 import { offerRunning } from "@/lib/offer-packages";
 import { defaultPackageDesign, inheritedDesign, offerView, packageDesignSchema, packageView, type PackageDesign } from "@/lib/package-design";
 import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime, formatIndiaDate } from "@/lib/date-time";
-import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, typeFilterChoices, usableOptions, type Entry, type PackageListOptions, type PackageSort } from "@/lib/package-list";
+import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, pageFilterChoices, typeFilterChoices, usableOptions, type Entry, type PackageListOptions, type PackageSort } from "@/lib/package-list";
 import { ADMIN_DEFAULT_SORT, readAdminSort, rememberAdminSort } from "@/lib/package-sort-memory";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
 import { ProjectCategoryDialog } from "@/components/project-category-dialog";
@@ -209,7 +209,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [offers, setOffers] = useState(initialOffers);
   const [pages, setPages] = useState(initialPages);
   const [listTab, setListTab] = useState<"live" | "drafts" | "archived">("live");
-  const [listFilter, setListFilter] = useState<Pick<PackageListOptions, "type" | "category">>({ type: "all", category: "all" });
+  const [listFilter, setListFilter] = useState<Pick<PackageListOptions, "type" | "category" | "page">>({ type: "all", category: "all", page: "all" });
   // The sort the admin picked this visit wins; before a pick, the one remembered in this browser (server and first paint use the default).
   const rememberedSort = useSyncExternalStore(noSubscription, () => readAdminSort(), () => ADMIN_DEFAULT_SORT);
   const [pickedSort, setPickedSort] = useState<PackageSort | null>(null);
@@ -617,15 +617,16 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   </li>;
   const tabs = [["live", "Live", liveRows.length], ["drafts", "Drafts", draftCount], ["archived", "Archived", archivedRows.length]] as const;
   // The lines of the open tab, with the facts the filter and sort need. A tab keeps its own counts above; the filter only narrows what is listed.
-  const packageLineEntry = (row: SalesPackage, copyLine = false): Entry<ListLine> => adminEntry<ListLine>({ row, copyLine }, row);
+  const packageLineEntry = (row: SalesPackage, copyLine = false): Entry<ListLine> => adminEntry<ListLine>({ row, copyLine }, row, shownOn(row));
   const tabLines: Entry<ListLine>[] = listTab === "live" ? liveRows.map(row => packageLineEntry(row))
     : listTab === "archived" ? archivedRows.map(row => packageLineEntry(row))
-    : [...newDrafts.map(draft => draftEntry<ListLine>({ draft }, draft)),
+    : [...newDrafts.map(draft => draftEntry<ListLine>({ draft }, draft, pages.map(page => page.slug))),
       ...changeDrafts.map(draft => packageLineEntry(catalogue.packages.find(row => row.id === draft.packageId)!, true)),
       ...hiddenRows.map(row => packageLineEntry(row))];
   const listOptions = usableOptions({ ...listFilter, sort: listSort, offersOnly: false }, tabLines);
   const shownLines = arrangePackages(tabLines, listOptions);
   const typeChoicesNow = typeFilterChoices(tabLines);
+  const pageChoicesNow = pageFilterChoices(tabLines, pages);
   const categoryChoicesNow = categoryFilterChoices(tabLines, catalogue.categories ?? []);
   const allChoice = { value: "all", label: "All", count: tabLines.length };
 
@@ -637,13 +638,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
     {tabLines.length > 0 && <div className={s.filters}>
       {typeChoicesNow.length > 1 && <FilterChips label="Type" choices={[allChoice, ...typeChoicesNow]} selected={listOptions.type} onPick={value => setListFilter(current => ({ ...current, type: value as PackageListOptions["type"] }))} />}
+      {pageChoicesNow.length > 1 && <FilterChips label="Page" choices={[allChoice, ...pageChoicesNow]} selected={listOptions.page} onPick={value => setListFilter(current => ({ ...current, page: value }))} />}
       {categoryChoicesNow.length > 1 && <FilterChips label="Category" choices={[allChoice, ...categoryChoicesNow]} selected={listOptions.category} onPick={value => setListFilter(current => ({ ...current, category: value }))} />}
       <label className={s.sortField}><span>Sort by</span><select aria-label="Sort packages" value={listSort} onChange={event => pickSort(event.target.value as PackageSort)}>{ADMIN_SORTS.map(sort => <option key={sort.value} value={sort.value}>{sort.label}</option>)}</select></label>
     </div>}
     <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
       {shownLines.map(({ item: line }) => "draft" in line ? newDraftLine(line.draft) : packageLine(line.row, line.copyLine))}
       {!tabLines.length && <li className={s.empty}>{listTab === "live" ? "No package is live." : listTab === "drafts" ? "No drafts." : "No archived packages."}</li>}
-      {tabLines.length > 0 && !shownLines.length && <li className={s.empty}>No packages match this filter. <button type="button" className="admin-action" onClick={() => setListFilter({ type: "all", category: "all" })}>Show all</button></li>}
+      {tabLines.length > 0 && !shownLines.length && <li className={s.empty}>No packages match this filter. <button type="button" className="admin-action" onClick={() => setListFilter({ type: "all", category: "all", page: "all" })}>Show all</button></li>}
     </ul>
   </div>;
 
