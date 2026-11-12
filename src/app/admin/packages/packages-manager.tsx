@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "@/components/link";
 import { categoryChoices, categoryLabel, PACKAGE_PAYMENT_OPTIONS, priceUnit, type AddOn, type PackageCycle, type PackageDraft, type PackageMonthly, type SalesCatalogue, type SalesPackage } from "@/lib/sales-packages";
 import { addOnLine, addOnOffered, choicesForCategory, isAddOnLine, previewPrice, termsBoxText, typedFromTermsBox, typedTermsOf, type SavedPricing } from "@/lib/package-pricing";
@@ -13,7 +13,9 @@ import { DEFAULT_HOLD_HOURS, DEFAULT_RESERVE_WINDOW_HOURS } from "@/lib/offer-re
 import { offerDiscountPercent, resolvedTerms, type Offer } from "@/lib/offers";
 import { offerRunning } from "@/lib/offer-packages";
 import { defaultPackageDesign, inheritedDesign, offerView, packageDesignSchema, packageView, type PackageDesign } from "@/lib/package-design";
-import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime } from "@/lib/date-time";
+import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime, formatIndiaDate } from "@/lib/date-time";
+import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, typeFilterChoices, usableOptions, type Entry, type PackageListOptions, type PackageSort } from "@/lib/package-list";
+import { ADMIN_DEFAULT_SORT, readAdminSort, rememberAdminSort } from "@/lib/package-sort-memory";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
 import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
@@ -184,11 +186,35 @@ function check(item: Item, offer: OfferForm | null, now: number, extra: Errors =
   return { ...errors, ...extra };
 }
 
+// The list's filter and sort (lib/package-list.ts, owner decisions 12 Nov 2026): type and category chips only for what the open
+// tab has, and a sort that opens by "Recently modified" and then remembers the admin's last pick (lib/package-sort-memory.ts).
+const ADMIN_SORTS: { value: PackageSort; label: string }[] = [
+  { value: "modified", label: "Recently modified" },
+  { value: "added", label: "Recently added" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+  { value: "default", label: "Display order" },
+];
+const noSubscription = () => () => {};
+type ListLine = { row: SalesPackage; copyLine: boolean } | { draft: PackageDraft };
+function FilterChips({ label, choices, selected, onPick }: { label: string; choices: { value: string; label: string; count: number }[]; selected: string; onPick: (value: string) => void }) {
+  return <div className={s.filterRow} role="group" aria-label={`Filter by ${label.toLowerCase()}`}>
+    <span className={s.filterLabel}>{label}</span>
+    {choices.map(choice => <button key={choice.value} type="button" className={selected === choice.value ? s.filterOn : s.filterBtn} aria-pressed={selected === choice.value} onClick={() => onPick(choice.value)}>{choice.label} <span className={s.count}>{choice.count}</span></button>)}
+  </div>;
+}
+
 export function PackagesManager({ initial, initialPages, initialOffers, universalTerms, openPackageId }: { initial: SalesCatalogue; initialPages: PackagePage[]; initialOffers: Offer[]; universalTerms: string[]; openPackageId?: string }) {
   const [catalogue, setCatalogue] = useState(initial);
   const [offers, setOffers] = useState(initialOffers);
   const [pages, setPages] = useState(initialPages);
   const [listTab, setListTab] = useState<"live" | "drafts" | "archived">("live");
+  const [listFilter, setListFilter] = useState<Pick<PackageListOptions, "type" | "category">>({ type: "all", category: "all" });
+  // The sort the admin picked this visit wins; before a pick, the one remembered in this browser (server and first paint use the default).
+  const rememberedSort = useSyncExternalStore(noSubscription, () => readAdminSort(), () => ADMIN_DEFAULT_SORT);
+  const [pickedSort, setPickedSort] = useState<PackageSort | null>(null);
+  const listSort = pickedSort ?? rememberedSort;
+  const pickSort = (sort: PackageSort) => { setPickedSort(sort); rememberAdminSort(sort); };
   const [pageDraft, setPageDraft] = useState<{ title: string; intro: string } | null>(null);
   const [pageBusy, setPageBusy] = useState(false);
   const [pageError, setPageError] = useState("");
@@ -563,9 +589,12 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     const archiveDisabled = busy || draftLocked;
     const lockedTitle = draftLocked ? "Continue or discard the draft first." : undefined;
     const onPages = shownOn(row);
+    // When the list is sorted by a date, the line shows that date, so the order explains itself. An older package has none until it is next saved.
+    const sortedDate = listSort === "modified" ? row.updatedAt : listSort === "added" ? row.createdAt : undefined;
+    const dateNote = sortedDate ? ` · ${listSort === "modified" ? "modified" : "added"} ${formatIndiaDate(sortedDate)}` : "";
     return <li className={s.line} key={`${copyLine ? "copy-" : ""}${row.id}`}>
       <div className={s.lineMain}><b>{copy && copyLine ? copy.name : row.name}</b>
-        <small>{copyLine ? `Changes to ${row.status === "published" ? "a live" : "an archived"} package · ${row.status === "published" ? "live page unchanged" : "stays hidden"} until you publish` : `${row.status === "draft" ? "Hidden, never published · " : ""}${categoryLabel(catalogue.categories, row.category)} · ${onPages.length ? onPages.map(slug => pages.find(page => page.slug === slug)?.title).join(", ") : "no page"}`}</small></div>
+        <small>{copyLine ? `Changes to ${row.status === "published" ? "a live" : "an archived"} package · ${row.status === "published" ? "live page unchanged" : "stays hidden"} until you publish` : `${row.status === "draft" ? "Hidden, never published · " : ""}${categoryLabel(catalogue.categories, row.category)} · ${onPages.length ? onPages.map(slug => pages.find(page => page.slug === slug)?.title).join(", ") : "no page"}${dateNote}`}</small></div>
       <span className={s.linePrice}>{rupee(row.discountedPrice ?? row.regularPrice)}</span>
       <span className={s.lineTags}>
         {running ? <span className={s.ok} title={`Ends ${formatIndiaDateTime(running.endsAt)}`}>Offer: {running.title} · {rupee(running.offerPrice)}</span> : draftOffer ? <span className={s.chip}>Offer not published</span> : <span className={s.chip}>No offer</span>}
@@ -580,7 +609,25 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         {!copyLine && row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View ↗</Link>}</span>
     </li>;
   };
+  const newDraftLine = (draft: PackageDraft) => <li className={s.line} key={`draft-${draft.packageId}`}>
+    <div className={s.lineMain}><b>{draft.name}</b><small>New package, not published · link /package/{draft.packageId} is reserved</small></div>
+    <span className={s.linePrice}>—</span>
+    <span className={s.lineTags}><span className={s.warn} title={savedAt(draft)}>Draft</span></span>
+    <span className={s.lineActions}><button className="admin-action" onClick={() => chooseDraft(draft)}>Edit draft →</button></span>
+  </li>;
   const tabs = [["live", "Live", liveRows.length], ["drafts", "Drafts", draftCount], ["archived", "Archived", archivedRows.length]] as const;
+  // The lines of the open tab, with the facts the filter and sort need. A tab keeps its own counts above; the filter only narrows what is listed.
+  const packageLineEntry = (row: SalesPackage, copyLine = false): Entry<ListLine> => adminEntry<ListLine>({ row, copyLine }, row);
+  const tabLines: Entry<ListLine>[] = listTab === "live" ? liveRows.map(row => packageLineEntry(row))
+    : listTab === "archived" ? archivedRows.map(row => packageLineEntry(row))
+    : [...newDrafts.map(draft => draftEntry<ListLine>({ draft }, draft)),
+      ...changeDrafts.map(draft => packageLineEntry(catalogue.packages.find(row => row.id === draft.packageId)!, true)),
+      ...hiddenRows.map(row => packageLineEntry(row))];
+  const listOptions = usableOptions({ ...listFilter, sort: listSort, offersOnly: false }, tabLines);
+  const shownLines = arrangePackages(tabLines, listOptions);
+  const typeChoicesNow = typeFilterChoices(tabLines);
+  const categoryChoicesNow = categoryFilterChoices(tabLines, catalogue.categories ?? []);
+  const allChoice = { value: "all", label: "All", count: tabLines.length };
 
   if (!item) return <div>
     <div className={s.listTop}><p>Each package has its own page with 2 prices; an offer adds a third price and a countdown. A package has only one draft, and editing it always opens that draft.</p>
@@ -588,20 +635,15 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     {message && <p role="status">{message}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
+    {tabLines.length > 0 && <div className={s.filters}>
+      {typeChoicesNow.length > 1 && <FilterChips label="Type" choices={[allChoice, ...typeChoicesNow]} selected={listOptions.type} onPick={value => setListFilter(current => ({ ...current, type: value as PackageListOptions["type"] }))} />}
+      {categoryChoicesNow.length > 1 && <FilterChips label="Category" choices={[allChoice, ...categoryChoicesNow]} selected={listOptions.category} onPick={value => setListFilter(current => ({ ...current, category: value }))} />}
+      <label className={s.sortField}><span>Sort by</span><select aria-label="Sort packages" value={listSort} onChange={event => pickSort(event.target.value as PackageSort)}>{ADMIN_SORTS.map(sort => <option key={sort.value} value={sort.value}>{sort.label}</option>)}</select></label>
+    </div>}
     <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
-      {listTab === "live" && (liveRows.length ? liveRows.map(row => packageLine(row)) : <li className={s.empty}>No package is live.</li>)}
-      {listTab === "drafts" && <>
-        {newDrafts.map(draft => <li className={s.line} key={`draft-${draft.packageId}`}>
-          <div className={s.lineMain}><b>{draft.name}</b><small>New package, not published · link /package/{draft.packageId} is reserved</small></div>
-          <span className={s.linePrice}>—</span>
-          <span className={s.lineTags}><span className={s.warn} title={savedAt(draft)}>Draft</span></span>
-          <span className={s.lineActions}><button className="admin-action" onClick={() => chooseDraft(draft)}>Edit draft →</button></span>
-        </li>)}
-        {changeDrafts.map(draft => packageLine(catalogue.packages.find(row => row.id === draft.packageId)!, true))}
-        {hiddenRows.map(row => packageLine(row))}
-        {!draftCount && <li className={s.empty}>No drafts.</li>}
-      </>}
-      {listTab === "archived" && (archivedRows.length ? archivedRows.map(row => packageLine(row)) : <li className={s.empty}>No archived packages.</li>)}
+      {shownLines.map(({ item: line }) => "draft" in line ? newDraftLine(line.draft) : packageLine(line.row, line.copyLine))}
+      {!tabLines.length && <li className={s.empty}>{listTab === "live" ? "No package is live." : listTab === "drafts" ? "No drafts." : "No archived packages."}</li>}
+      {tabLines.length > 0 && !shownLines.length && <li className={s.empty}>No packages match this filter. <button type="button" className="admin-action" onClick={() => setListFilter({ type: "all", category: "all" })}>Show all</button></li>}
     </ul>
   </div>;
 

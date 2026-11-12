@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useServerTime } from "@/components/use-server-time";
-import { arrangePackages, categoryChoices, DEFAULT_PACKAGE_LIST, typeChoices, usableOptions, type PackageListOptions, type PackageSort } from "@/lib/package-list";
+import { arrangePackages, categoryFilterChoices, DEFAULT_PACKAGE_LIST, publicEntry, typeFilterChoices, usableOptions, type PackageListOptions, type PackageSort } from "@/lib/package-list";
 import { type ProjectCategory, type QuotedPackage } from "@/lib/sales-packages";
 import { PackageCard, packageOfferRunning, timeLeft } from "./package-card";
 import s from "./campaign.module.css";
@@ -33,15 +33,16 @@ export function StaffPackages({ title, intro, items, categories }: { title: stri
   const now = useServerTime();
   const [chosen, setChosen] = useState<PackageListOptions>(DEFAULT_PACKAGE_LIST);
   const isOffer = (item: QuotedPackage) => packageOfferRunning(item, now);
-  const offers = items.filter(isOffer);
+  const entries = items.map(item => publicEntry(item, isOffer(item)));
+  const offers = entries.filter(entry => entry.offer);
   // The options that apply to this page right now: a filter that no longer has packages falls back to All.
-  const options = usableOptions({ ...chosen, offersOnly: chosen.offersOnly && offers.length > 0 }, items);
-  const shown = arrangePackages(items, options, isOffer);
-  const types = typeChoices(items);
-  const cats = categoryChoices(items, categories);
+  const options = usableOptions({ ...chosen, offersOnly: chosen.offersOnly && offers.length > 0 }, entries);
+  const shown = arrangePackages(entries, options).map(entry => entry.item);
+  const types = typeFilterChoices(entries);
+  const cats = categoryFilterChoices(entries, categories);
   const change = (patch: Partial<PackageListOptions>) => setChosen(current => ({ ...current, ...patch }));
   // The offer that ends first, for the countdown on the tab.
-  const soonest = offers.map(item => item.quote.offer!.endsAt).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+  const soonest = offers.map(entry => entry.item.quote.offer!.endsAt).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   return <div className={s.staff}>
     {/* Compact heading, so the first row of packages shows without scrolling. */}
     <header className={s.pkgHero}><p className={s.kicker}>PRICING &amp; PACKAGES</p><h1>{title}</h1>{intro && <p>{intro}</p>}</header>
