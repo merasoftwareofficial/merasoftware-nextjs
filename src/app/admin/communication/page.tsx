@@ -20,14 +20,14 @@ const OLD_LINKS: Record<string, string> = {
 };
 
 export const metadata = { title: "Communication — Admin" };
-export default async function CommunicationPage({ searchParams }: { searchParams: Promise<{ view?: string; panel?: string; tab?: string; app?: string; show?: string }> }) {
+export default async function CommunicationPage({ searchParams }: { searchParams: Promise<{ view?: string; panel?: string; tab?: string; app?: string; show?: string; event?: string }> }) {
   await requireStaffPage("/admin/communication", "admin");
   const session = await getSession();
   const portalAdmin = !!session?.portalRoles.includes("admin");
   const query = await searchParams;
   const old = query.view !== undefined ? `view:${query.view}` : query.panel !== undefined ? `panel:${query.panel}` : "";
   if (query.view !== undefined || Object.hasOwn(OLD_LINKS, old)) redirect(`/admin/communication${OLD_LINKS[old] ? `?${OLD_LINKS[old]}` : ""}`);
-  const initial: HubState = { panel: query.panel ?? null, tab: query.tab ?? null, app: query.app ?? null, show: query.show ?? null };
+  const initial: HubState = { panel: query.panel ?? null, tab: query.tab ?? null, app: query.app ?? null, show: query.show ?? null, event: query.event ?? null };
   let feedUrl: string | null = null;
   if (portalAdmin && process.env.PORTAL_API_URL) {
     try {

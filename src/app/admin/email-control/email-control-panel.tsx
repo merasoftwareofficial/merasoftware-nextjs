@@ -32,7 +32,7 @@ const matches = (event: CatalogEvent, query: string) => !query || [event.label, 
  */
 export type EmailView = "all" | "actions" | "activity" | "review" | "outbox" | "history";
 /** `query` filters the actions by name; `onReviewCount` reports how many mails wait for review (Communication's status bar). */
-export function EmailControlPanel({ initialApplication, canManagePortal, active = true, view = "all", showTabs = true, query = "", onReviewCount }: { initialApplication: Application; canManagePortal: boolean; active?: boolean; view?: EmailView; showTabs?: boolean; query?: string; onReviewCount?: (count: number) => void }) {
+export function EmailControlPanel({ initialApplication, canManagePortal, active = true, view = "all", showTabs = true, query = "", eventKey = null, onClearEvent, onReviewCount, onOpenReminders }: { initialApplication: Application; canManagePortal: boolean; active?: boolean; view?: EmailView; showTabs?: boolean; query?: string; eventKey?: string | null; onClearEvent?: () => void; onReviewCount?: (count: number) => void; onOpenReminders?: () => void }) {
   const [application, setApplication] = useState(initialApplication);
   const { track } = useTask();
   const request = useCallback(<T,>(path = "", method = "GET", body?: unknown, signal?: AbortSignal) => track(() => api<T>(application, path, method, body, signal)), [application, track]);
@@ -42,6 +42,9 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editor, setEditor] = useState<TemplateEditor | null>(null);
+  const [newAction, setNewAction] = useState("");
+  const [newActionSearch, setNewActionSearch] = useState("");
+  const [setup, setSetup] = useState<{ mode: EmailPolicyMode; channel: EmailChannel; apply: boolean } | null>(null);
   const [sample, setSample] = useState<{ subject: string; html: string; whatsapp?: string } | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -81,7 +84,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   function changeTab(next: Application) {
     // The open tab again: nothing to change (clearing the data here would never reload it).
     if (busy || next === application || (next === "portal" && !canManagePortal)) return;
-    generation.current++; setData(null); setLoading(true); setError(""); setApplication(next); setNotice(""); setHistoryFilter("all"); setSectionFilter("");
+    generation.current++; setData(null); setLoading(true); setError(""); setApplication(next); setNotice(""); setHistoryFilter("all"); setSectionFilter(""); setNewAction(""); setNewActionSearch("");
     const url = new URL(window.location.href); url.searchParams.set("tab", next); window.history.replaceState(null, "", url);
   }
   async function policy(event: string, mode: EmailPolicyMode, defaultTemplate: string | null, channel?: EmailChannel) {
@@ -90,11 +93,18 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     catch (err) { setError(reason(err)); }
     finally { setBusy(false); }
   }
-  function editTemplate(value: TemplateEditor) { setSample(null); setDialogError(""); setEditor(value); }
+  function editTemplate(value: TemplateEditor) { setSetup(null); setSample(null); setDialogError(""); setEditor(value); }
   // A new template starts from the action's built-in wording when it has one.
   function newTemplate(event: string) {
     const system = data?.templates.find(row => row.event === event && row.system);
     editTemplate(system ? { ...toEditor(system), _id: undefined, system: false, name: "" } : { event, name: "", subjectDoc: chipDoc("subject"), doc: chipDoc("message") });
+  }
+  function startActionTemplate() {
+    const event = data?.events.find(row => row.key === newAction);
+    if (!event) return;
+    const current = policyFor(event);
+    newTemplate(event.key);
+    setSetup({ mode: current.mode, channel: channelOf(event) || "email", apply: false });
   }
   // Review choices for the table, matching the server's draft templateOptions.
   function templateChoices(event: string): TemplateOption[] {
@@ -103,7 +113,20 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   }
   async function saveTemplate(event: React.FormEvent) {
     event.preventDefault(); if (!editor || busy) return; setBusy(true); setDialogError("");
-    try { await request( editor._id ? `/templates/${editor._id}` : "/templates", editor._id ? "PUT" : "POST", templateBody(editor)); setEditor(null); await load(); setNotice("Template saved. Choose it as the default for its action when ready."); }
+    try {
+      const saved = await request<EmailTemplate>(editor._id ? `/templates/${editor._id}` : "/templates", editor._id ? "PUT" : "POST", templateBody(editor));
+      setEditor(null);
+      let result = "Template saved. Choose it as the default for its action when ready.";
+      if (setup?.apply && !editor._id) {
+        try {
+          await request(`/policies/${editor.event}`, "PUT", { mode: setup.mode, channel: setup.channel, defaultTemplate: saved._id });
+          result = "Template saved and applied to this action. Its sending rule and channel are updated.";
+        } catch (failure) {
+          result = `Template saved, but not applied to the action: ${reason(failure)} Select it as the default in the action settings.`;
+        }
+      }
+      setSetup(null); await load(); setNotice(result);
+    }
     catch (err) { setDialogError(reason(err)); }
     finally { setBusy(false); }
   }
@@ -265,7 +288,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   const search = query.trim().toLowerCase();
   const allSections = [...new Set(data?.events.map(event => event.section) ?? [])];
   const sections = new Map<string, Map<string, CatalogEvent[]>>();
-  for (const event of data?.events.filter(row => matches(row, search) && (!sectionFilter || row.section === sectionFilter)) || []) {
+  for (const event of data?.events.filter(row => eventKey ? row.key === eventKey : matches(row, search) && (!sectionFilter || row.section === sectionFilter)) || []) {
     const groups = sections.get(event.section) ?? new Map<string, CatalogEvent[]>();
     sections.set(event.section, groups.set(groupOf(event), [...(groups.get(groupOf(event)) ?? []), event]));
   }
@@ -291,6 +314,22 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     {error && <p className={styles.error} role="alert">{error} <button onClick={() => void load()} disabled={busy}>Retry</button></p>}
     {actions && !data && !error && <Loader label="Loading messages…" />}
     {data && actions && <>
+      {eventKey && <div className={styles.banner}>Showing one action: {data.events.find(event => event.key === eventKey)?.label || "Action unavailable in this application."} <button type="button" onClick={onClearEvent}>Show all actions</button></div>}
+      {application === 'portal' && onOpenReminders && <p className={styles.muted}>Monthly package renewal reminders use their own timing and message. <button type="button" onClick={onOpenReminders}>Open reminder rules</button></p>}
+      <details className={styles.group}>
+        <summary><strong>Create template for an action</strong></summary>
+        <div className={styles.actions}>
+          <label htmlFor={`find-new-action-${application}`}>Find action</label>
+          <input id={`find-new-action-${application}`} value={newActionSearch} onChange={event => { setNewActionSearch(event.target.value); setNewAction(""); }} placeholder="Search name or category" />
+          <label htmlFor={`new-action-${application}`}>Action</label>
+          <select id={`new-action-${application}`} value={newAction} onChange={event => setNewAction(event.target.value)}>
+            <option value="">Choose an action</option>
+            {allSections.map(section => ({ section, events: data.events.filter(event => event.section === section && matches(event, newActionSearch.trim().toLowerCase())) })).filter(group => group.events.length).map(group => <optgroup label={group.section} key={group.section}>{group.events.map(event => <option key={event.key} value={event.key}>{event.label}</option>)}</optgroup>)}
+          </select>
+          <button type="button" disabled={!newAction || busy} onClick={startActionTemplate}>Continue</button>
+        </div>
+        <p className={styles.muted}>Choose an action, then write its message and choose whether to apply it. Existing settings stay in place until you apply them.</p>
+      </details>
       {allSections.length > 1 && <div className={styles.chips} role="group" aria-label={`${appName} sections`}>
         {["", ...allSections].map(value => <button key={value || "all"} type="button" aria-pressed={sectionFilter === value} onClick={() => setSectionFilter(value)}>{value || "All"}</button>)}
       </div>}
@@ -299,7 +338,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         {sections.size > 1 && <h3>{section}</h3>}
         {[...groups].map(([group, events]) => {
           const summary = groupSummary(events);
-          return <details className={styles.group} key={group} open={search ? true : undefined}>
+          return <details className={styles.group} key={group} open={search || eventKey ? true : undefined}>
             <summary><strong>{group}</strong><span className={styles.groupMeta}>{events.length} {events.length === 1 ? "mail" : "mails"} · {summary.rule}</span>
               <span className={summary.sends ? styles.channelOn : styles.channelOff}>{summary.sends ? summary.route : "Nothing sent"}</span></summary>
             {rulesTable(events)}
@@ -326,6 +365,12 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
       {editor && <form onSubmit={saveTemplate}>
         <h2 id="email-dialog-title">{editor._id ? "Edit" : "New"} email template</h2><p>{data?.events.find(event => event.key === editor.event)?.label}{editor.system ? " · built-in template" : ""}</p>
         <p className={styles.muted}>{editor.system ? "Changes apply to every new email of this action. Reset to original restores the wording it shipped with." : "Every email uses the Mera Software layout. Required links, such as subscription confirmation, are always preserved."}</p>
+        {setup && <>
+          <label htmlFor="setup-channel">Send via</label><select id="setup-channel" value={setup.channel} disabled={busy} onChange={event => setSetup({ ...setup, channel: event.target.value as EmailChannel })}>{(data?.events.find(event => event.key === editor.event)?.channels || ["email"]).map(value => <option key={value} value={value}>{CHANNEL_LABEL[value]}</option>)}</select>
+          <label htmlFor="setup-mode">Sending rule</label><select id="setup-mode" value={setup.mode} disabled={busy} onChange={event => setSetup({ ...setup, mode: event.target.value as EmailPolicyMode })}>{isAutomatic(data!.events.find(event => event.key === editor.event)!) ? <option value="auto">On — send automatically</option> : <option value="review">Ask before sending</option>}<option value="off">Off</option></select>
+          <label><input type="checkbox" checked={setup.apply} disabled={busy} onChange={event => setSetup({ ...setup, apply: event.target.checked })} style={{ width: "auto" }} /> Apply this template, channel and sending rule to the action</label>
+          <p className={styles.muted}>The channel and rule apply to future messages of this action, not only this template. Without applying, this saves a template without changing the action.</p>
+        </>}
         <label htmlFor="template-name">Template name</label><input id="template-name" required maxLength={100} disabled={busy} value={editor.name} onChange={e => setEditor({ ...editor, name: e.target.value })} />
         <EmailEditor id="template-subject" label="Subject" singleLine disabled={busy} value={editor.subjectDoc} onChange={value => setEditor(current => current && { ...current, subjectDoc: value })} variables={editorCatalog?.variables} />
         <EmailEditor id="template-message" label="Message" disabled={busy} value={editor.doc} onChange={value => setEditor(current => current && { ...current, doc: value })} variables={editorCatalog?.variables} blocks={editorCatalog?.blocks} />

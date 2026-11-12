@@ -14,6 +14,10 @@ import { AutoReplyPanel } from "./auto-reply-panel";
 import { FinalMessagePanel } from "./final-message-panel";
 import { ReservationPanel } from "./reservation-panel";
 import { BroadcastPanel } from "./broadcast-panel";
+import { OfferPaymentReminders } from "./offer-payment-reminders";
+import { BusinessActivity } from "./business-activity";
+import { ReminderDrafts } from "./reminder-drafts";
+import { ReminderHistory } from "./reminder-history";
 
 /**
  * Communication: navigation boxes, then what needs attention and the recent emails and
@@ -25,8 +29,8 @@ import { BroadcastPanel } from "./broadcast-panel";
  * first page (when those counts change), and the email /summary (counts + last 5, when the page opens and
  * whenever a panel closes). Activity is Communication's own: emails and WhatsApp messages only.
  */
-export type HubState = { panel: string | null; tab: string | null; app: string | null; show?: string | null };
-type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "email-templates" | "email-review";
+export type HubState = { panel: string | null; tab: string | null; app: string | null; show?: string | null; event?: string | null };
+type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review";
 type Tab = { id: string; label: string };
 type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; tabs: Tab[]; whatsapp: boolean };
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
@@ -35,6 +39,8 @@ const PANELS: Record<PanelId, Panel> = {
   "auto-reply": { group: "WhatsApp", title: "Auto Reply", whatsapp: true, tabs: [], description: "Recognise the ad message, reply through the queue and add the number to Leads." },
   "final-message": { group: "WhatsApp", title: "Final Message", whatsapp: true, tabs: [], description: "The time limit for a Negative lead's last message, and the replies that came back." },
   "reservation": { group: "WhatsApp", title: "Reservation", whatsapp: true, tabs: [], description: "Offer reservations running now with their time left, and the expiry messages sent." },
+  "reminders": { group: "WhatsApp", title: "Reminders", whatsapp: true, tabs: [], description: "Existing reminder settings and running reservations." },
+  "business-activity": { group: "WhatsApp", title: "Business Activity", whatsapp: true, tabs: [], description: "Recent package orders, plan starts, offer reservations and broadcasts." },
   "whatsapp-connection": { group: "WhatsApp", title: "WhatsApp Connection", whatsapp: true, tabs: [],
     description: "The linked number: connection, QR code, pause and unlink." },
   "whatsapp-queue": { group: "WhatsApp", title: "WhatsApp Queue", whatsapp: true,
@@ -47,7 +53,12 @@ const PANELS: Record<PanelId, Panel> = {
     description: "Mails waiting for Send / Don’t send, the Outbox and every decision." },
 };
 const IDS = Object.keys(PANELS) as PanelId[];
-type View = { panel: PanelId | null; tab: string; app: Application; show: HistoryGroup | null };
+const NAV_GROUPS: { title: string; items: PanelId[] }[] = [
+  { title: "Messages and reminders", items: ["broadcast", "email-templates", "reminders"] },
+  { title: "Delivery and activity", items: ["business-activity", "email-review", "whatsapp-queue", "whatsapp-connection"] },
+  { title: "Separate workflows", items: ["auto-reply", "final-message", "reservation"] },
+];
+type View = { panel: PanelId | null; tab: string; app: Application; show: HistoryGroup | null; event: string | null };
 
 function normalize(state: HubState, portalAdmin: boolean): View {
   const panel = IDS.find(id => id === state.panel) ?? null;
@@ -55,7 +66,7 @@ function normalize(state: HubState, portalAdmin: boolean): View {
   let tab = tabs.find(item => item.id === state.tab)?.id ?? tabs[0]?.id ?? "";
   if (panel === "email-templates" && tab === "portal" && !portalAdmin) tab = "website";
   const show = panel === "whatsapp-queue" && tab === "history" && state.show === "not-sent" ? "not-sent" : null;
-  return { panel, tab, app: state.app === "portal" && portalAdmin ? "portal" : "website", show };
+  return { panel, tab, app: state.app === "portal" && portalAdmin ? "portal" : "website", show, event: panel === "email-templates" && /^[\w.]{1,100}$/.test(state.event || "") ? state.event! : null };
 }
 function href(view: View) {
   if (!view.panel) return "/admin/communication";
@@ -63,6 +74,7 @@ function href(view: View) {
   if (view.tab && view.tab !== PANELS[view.panel].tabs[0]?.id) params.set("tab", view.tab);
   if (view.panel === "email-review" && view.app === "portal") params.set("app", "portal");
   if (view.show) params.set("show", view.show);
+  if (view.event) params.set("event", view.event);
   return `/admin/communication?${params}`;
 }
 // Which mounted part a view shows: one per tab, or one per application for the email panels.
@@ -113,7 +125,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   useEffect(() => {
     const onPop = () => {
       const params = new URLSearchParams(window.location.search);
-      go({ panel: params.get("panel"), tab: params.get("tab"), app: params.get("app"), show: params.get("show") }, false);
+      go({ panel: params.get("panel"), tab: params.get("tab"), app: params.get("app"), show: params.get("show"), event: params.get("event") }, false);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -182,6 +194,8 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     "auto-reply": { line: portalAdmin ? "Ad message · reply · leads" : "Portal admin only" },
     "final-message": { line: portalAdmin ? "Time limit · replies" : "Portal admin only" },
     "reservation": { line: portalAdmin ? "Running · time left · expired" : "Portal admin only" },
+    "reminders": { line: portalAdmin ? "Offer payments · reservations · requests" : "Portal admin only" },
+    "business-activity": { line: portalAdmin ? "Orders · plan starts · reservations · broadcasts" : "Portal admin only" },
     "whatsapp-connection": { line: whatsappLine(row => `${connectionLabel(row)}${row.paused ? " · paused" : ""}${row.phone ? ` · ${phoneLabel(row.phone)}` : ""}`), tone: status ? connected ? "ok" : "warn" : undefined },
     "whatsapp-queue": { line: whatsappLine(() => `${waiting.toLocaleString("en-IN")} waiting`) },
     "email-templates": { line: emailLine("actions", "messages") },
@@ -226,16 +240,28 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   function body() {
     const whatsappParts: [string, React.ReactNode][] = [
       ["broadcast", <BroadcastPanel key="b" active={part("broadcast").shown} />],
+      ["business-activity", <BusinessActivity key="activity" active={part("business-activity").shown} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
       ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
       ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} />],
+      ["reminders", <section key="reminders" aria-label="Existing reminders">
+        <p>Existing reminder schedules continue to follow each offer&apos;s saved agreement and the reservation system. Messages and channels can be edited below.</p>
+        <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })}>Offer payment reminder settings →</button></p>
+        <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.reservation.reminder" })}>Reservation reminder message →</button></p>
+        <p><button type="button" className={s.link} onClick={() => go({ panel: "whatsapp-queue", tab: "history", app: null })}>WhatsApp delivery history →</button></p>
+        <p>Running reservations and package requests are shown below. This is not a complete schedule of upcoming reminders.</p>
+        <ReminderDrafts active={part("reminders").shown} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} />
+        <ReminderHistory active={part("reminders").shown} />
+        <OfferPaymentReminders active={part("reminders").shown} />
+        <ReservationPanel active={part("reminders").shown} portalUrl={portalUrl} />
+      </section>],
       ["whatsapp-connection", <WhatsappPanel key="c" view="connection" active={part("whatsapp-connection").shown} />],
       ["whatsapp-queue:queue", <WhatsappPanel key="q" view="queue" active={part("whatsapp-queue:queue").shown} />],
       ["whatsapp-queue:rules", <WhatsappPanel key="r" view="rules" />],
       ["whatsapp-queue:history", <WhatsappPanel key="h" view="messages" show={historyShow} active={part("whatsapp-queue:history").shown} />],
     ];
     const emailParts: [string, React.ReactNode][] = apps.flatMap(app => [
-      [`email-templates:${app}`, <EmailControlPanel key={`t-${app}`} initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} />],
+      [`email-templates:${app}`, <EmailControlPanel key={`t-${app}`} initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: 'reminders', tab: null, app: null })} />],
       [`email-review:${app}`, <EmailControlPanel key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
     ] as [string, React.ReactNode][]);
     return <>
@@ -245,15 +271,17 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   }
 
   return <div className={s.hub}>
-    <nav className={s.boxes} aria-label="Communication">
-      {IDS.map(id => {
+    <nav className={s.navigation} aria-label="Communication">
+      {NAV_GROUPS.map(group => <section key={group.title} aria-label={group.title}>
+        <h2 className={s.navHeading}>{group.title}</h2><div className={s.boxes}>
+      {group.items.map(id => {
         const { line, tone } = BOX_LINES[id];
         return <button key={id} type="button" className={s.box} data-tone={tone} disabled={PANELS[id].whatsapp && !portalAdmin} onClick={() => go({ panel: id, tab: null, app: null })}>
           <span className={s.boxGroup} aria-hidden="true">{PANELS[id].group}</span>
           <span className={s.boxTitle}>{PANELS[id].title}</span>
           <span className={s.boxLine}>{line ?? <Loader inline />}</span>
         </button>;
-      })}
+      })}</div></section>)}
     </nav>
 
     <div className={s.overview}>
@@ -300,7 +328,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
               {APPS.map(app => <button key={app.id} type="button" aria-pressed={view.app === app.id} onClick={() => go({ ...view, app: app.id })}>{app.label}</button>)}
             </div>}
             <div className={s.tabs} role="tablist" aria-label={`${open.title} sections`}>
-              {open.tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view.tab === tab.id} disabled={view.panel === "email-templates" && tab.id === "portal" && !portalAdmin} onClick={() => go({ ...view, tab: tab.id, show: null })}>{tab.label}</button>)}
+              {open.tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view.tab === tab.id} disabled={view.panel === "email-templates" && tab.id === "portal" && !portalAdmin} onClick={() => go({ ...view, tab: tab.id, show: null, event: null })}>{tab.label}</button>)}
             </div>
             {view.panel === "email-templates" && <input className={s.search} type="search" aria-label="Find a message" placeholder="Find a message" value={query} onChange={event => setQuery(event.target.value)} />}
           </div>}

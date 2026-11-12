@@ -67,6 +67,32 @@ test('proxy enforces both admin roles and its allow-list', async () => {
   assert.equal((await request('/api/auto-reply/unknown')).status, 404);
   assert.equal((await request('/api/auto-reply/switches')).status, 404, 'POST only');
   assert.equal((await request('/api/auto-reply/status', 'POST', admin, 'admin', {})).status, 404);
+  const retryPath = `/api/auto-reply/reminder-runs/${new mongoose.Types.ObjectId()}/retry`;
+  assert.equal((await request(retryPath, 'POST', member, 'admin', {})).status, 403);
+  assert.equal((await request(retryPath, 'POST', admin, 'editor', {})).status, 403);
+  assert.equal((await request(retryPath, 'POST', admin, 'admin', {})).status, 400, 'admin reaches the guarded backend');
+});
+test('proxy forwards a reminder draft edit (PUT body) and keeps revision and role checks', async () => {
+  const steps = [{ offsetDays: -3, subject: 'Payment due soon', text: 'Hello {{name}}, please pay {{amount}}.', channel: 'email' }];
+  const created = await request('/api/auto-reply/reminder-rules', 'POST', admin, 'admin', { name: 'Proxy edit rule', source: 'monthly_package', steps });
+  assert.equal(created.status, 200);
+  const id = created.data._id, revision = created.data.revision;
+  const path = `/api/auto-reply/reminder-rules/${id}`;
+  const edit = { name: 'Proxy edit rule v2', source: 'monthly_package', steps: [{ ...steps[0], subject: 'Updated subject' }], expectedRevision: revision };
+  assert.equal((await request(path, 'PUT', member, 'admin', edit)).status, 403);
+  assert.equal((await request(path, 'PUT', admin, 'editor', edit)).status, 403);
+  const saved = await request(path, 'PUT', admin, 'admin', edit);
+  assert.equal(saved.status, 200, saved.error);
+  assert.equal(saved.data.name, 'Proxy edit rule v2');
+  assert.equal(saved.data.revision, revision + 1);
+  const stored = (await request('/api/auto-reply/reminder-rules')).data.find(row => row._id === id);
+  assert.equal(stored.name, 'Proxy edit rule v2');
+  assert.equal(stored.steps[0].subject, 'Updated subject');
+  assert.equal(stored.enabled, false);
+  const stale = await request(path, 'PUT', admin, 'admin', { ...edit, name: 'Stale overwrite' });
+  assert.equal(stale.status, 409, 'an old revision is rejected, not saved');
+  assert.equal((await request('/api/auto-reply/reminder-rules')).data.find(row => row._id === id).name, 'Proxy edit rule v2');
+  assert.equal((await request(path, 'PUT', admin, 'admin', { name: 'No revision', source: 'monthly_package', steps })).status, 400);
 });
 test('browser: Communication → Final Message → time limit and replies', { timeout: 60000 }, async () => {
   const leadId = new mongoose.Types.ObjectId();
@@ -119,11 +145,17 @@ test('browser: Communication → Final Message → time limit and replies', { ti
 });
 test('browser: Communication → Reservation → running reservations with time left, used and expired counts', { timeout: 60000 }, async () => {
   const Reservation = backend('./models/offerReservationModel');
+  const Order = backend('./models/orderProductModel'), Invoice = backend('./models/invoiceModel');
+  const ReminderDraft = backend('./models/communicationReminderRuleModel');
+  const ReminderRun = backend('./models/communicationReminderRunModel');
   const customer = await User.create({ name: 'Reserving Customer', email: 'reserve@example.test', roles: ['member'], phone: '+919876500009' });
   const hour = 3600000, now = Date.now();
   const base = { userId: customer._id, periodEndsAt: new Date(now + hour), regularPrice: 10000, reservedPrice: 5000, origin: 'customer' };
+  const orderId = new mongoose.Types.ObjectId(), invoiceId = new mongoose.Types.ObjectId();
+  await Order.collection.insertOne({ _id: orderId, userId: customer._id, orderVisibility: 'approved', isServicePlan: true, servicePlanStatus: 'active', salesPackage: { package: { id: 'sample' } }, orderItems: [{ name: 'Sample package' }], createdAt: new Date(now), paymentPolicy: { reminderOffsets: [-3, 0, 3] } });
+  await Invoice.collection.insertOne({ _id: invoiceId, userId: customer._id, orderId, invoiceNumber: 'TEST-REMINDER', invoiceType: 'project', amount: 3000, amountPaid: 1000, status: 'partially_paid', dueDate: new Date(now + 7 * 24 * hour) });
   await Reservation.create([
-    { ...base, offerSlug: 'running', offerSnapshot: { title: 'Running offer' }, reservedAt: new Date(now - hour), expiresAt: new Date(now + 47 * hour), closureStatus: 'pending' },
+    { ...base, offerSlug: 'running', offerSnapshot: { title: 'Running offer' }, reservedAt: new Date(now - hour), expiresAt: new Date(now + 47 * hour), closureStatus: 'pending', remindersEnabled: true },
     { ...base, offerSlug: 'used', offerSnapshot: { title: 'Used offer' }, reservedAt: new Date(now - 2 * hour), expiresAt: new Date(now + 70 * hour), projectId: new mongoose.Types.ObjectId() },
     { ...base, offerSlug: 'gone', offerSnapshot: { title: 'Gone offer' }, reservedAt: new Date(now - 80 * hour), expiresAt: new Date(now - 8 * hour), closureStatus: 'sent' },
   ]);
@@ -142,15 +174,97 @@ test('browser: Communication → Reservation → running reservations with time 
     await dialog.getByText('+91 98765 00009', { exact: true }).waitFor();
     await dialog.getByText(/^Running offer · 48 hours · ends /).waitFor();
     await dialog.getByText(/^4[67]h \d+m left$/).waitFor();
+    await dialog.getByText(/Upcoming reminder milestone:.*Subject to current eligibility/).waitFor();
     await dialog.getByText('1 used for a project · 1 expired · 1 expiry messages sent', { exact: true }).waitFor();
     assert.equal(await dialog.getByText('Used offer').count(), 0, 'a used reservation is not running');
     await page.setViewportSize({ width: 390, height: 844 });
     const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Reservation"]'); return panel.scrollWidth - panel.clientWidth; });
     assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);
     await page.screenshot({ path: path.join(qaDir, 'reservation-mobile.png') });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: /^Reminders Offer payments/ }).click();
+    const reminders = page.getByRole('dialog', { name: 'Reminders' });
+    await reminders.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
+    await reminders.getByText('Reserving Customer · TEST-REMINDER', { exact: true }).waitFor();
+    await reminders.getByText(/Outstanding ₹2,000/).waitFor();
+    assert.equal((await request('/api/auto-reply/payment-reminders', 'GET', member)).status, 403);
+    await reminders.getByRole('region', { name: 'Existing reminders' }).getByText('Reserving Customer', { exact: true }).waitFor();
+    await reminders.getByText('This is not a complete schedule of upcoming reminders.', { exact: false }).waitFor();
+    await reminders.getByRole('button', { name: 'Create draft' }).click();
+    await reminders.getByLabel('Rule name').fill('Test monthly reminder');
+    await reminders.getByLabel('Days for reminder 1').fill('-3');
+    await reminders.getByLabel('Subject', { exact: true }).fill('Payment due soon');
+    await reminders.getByLabel('Message', { exact: true }).fill('Hello {{name}}, please pay {{amount}}.');
+    await reminders.getByRole('button', { name: 'Save draft' }).click();
+    await reminders.getByText('Draft saved. It is not active and will not send messages.').waitFor();
+    const draft = await ReminderDraft.findOne({ name: 'Test monthly reminder' });
+    assert.equal(draft.enabled, false);
+    assert.equal(draft.revision, 1);
+    await reminders.locator('article', { hasText: 'Test monthly reminder' }).getByRole('button', { name: 'Edit draft' }).click();
+    await reminders.getByLabel('Subject', { exact: true }).fill('Payment due very soon');
+    await reminders.getByRole('button', { name: 'Save draft' }).click();
+    await reminders.getByText('Draft saved. It is not active and will not send messages.').waitFor();
+    const edited = await ReminderDraft.findById(draft._id);
+    assert.equal(edited.name, 'Test monthly reminder');
+    assert.equal(edited.steps[0].subject, 'Payment due very soon');
+    assert.equal(edited.revision, 2);
+    assert.equal(edited.enabled, false);
+    await reminders.getByRole('button', { name: 'Create draft' }).click();
+    await reminders.getByLabel('Rule name').fill('Broadcast follow-up');
+    await reminders.locator('form').getByRole('combobox').first().selectOption('broadcast');
+    await reminders.getByLabel('Subject', { exact: true }).fill('Following up');
+    await reminders.getByLabel('Message', { exact: true }).fill('Hello {{name}}');
+    await reminders.getByRole('button', { name: 'Save draft' }).click();
+    await reminders.getByRole('button', { name: 'Preview broadcast rule' }).click();
+    await reminders.getByRole('region', { name: 'Reminder rule preview' }).getByText('Future broadcasts only').waitFor();
+    const oldJobs = process.env.COMMUNICATION_REMINDER_JOBS_ENABLED, oldCrons = process.env.ENABLE_CRONS;
+    try {
+      process.env.COMMUNICATION_REMINDER_JOBS_ENABLED = 'true'; process.env.ENABLE_CRONS = 'true';
+      const broadcastRule = reminders.locator('article').filter({ hasText: 'Broadcast follow-up' });
+      page.once('dialog', dialog => dialog.accept());
+      await broadcastRule.getByRole('button', { name: 'Activate', exact: true }).click();
+      await broadcastRule.getByRole('button', { name: 'Stop reminders' }).waitFor();
+      assert.equal((await ReminderDraft.findOne({ name: 'Broadcast follow-up' })).enabled, true);
+      page.once('dialog', dialog => dialog.accept());
+      await broadcastRule.getByRole('button', { name: 'Stop reminders' }).click();
+      await broadcastRule.getByRole('button', { name: 'Activate', exact: true }).waitFor();
+      assert.equal((await ReminderDraft.findOne({ name: 'Broadcast follow-up' })).enabled, false);
+    } finally {
+      if (oldJobs === undefined) delete process.env.COMMUNICATION_REMINDER_JOBS_ENABLED; else process.env.COMMUNICATION_REMINDER_JOBS_ENABLED = oldJobs;
+      if (oldCrons === undefined) delete process.env.ENABLE_CRONS; else process.env.ENABLE_CRONS = oldCrons;
+    }
+    await ReminderRun.create({ ruleId: draft._id, ruleRevision: 1, source: 'monthly_package', occurrenceKey: `${orderId}:2`, step: 0, entityId: orderId, clientId: customer._id, dueAt: new Date(now + hour), subject: 'Reminder', text: 'Test', channel: 'both', status: 'queued', channelOutcomes: { email: 'sent', whatsapp: 'queued' } });
+    await reminders.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
+    await reminders.getByText(/Email: sent · WhatsApp: queued/).waitFor();
+    const history = reminders.getByRole('region', { name: 'New reminder activity' });
+    await history.getByRole('combobox').selectOption('sent_today');
+    await history.getByText('No reminder steps yet.').waitFor();
+    await history.getByRole('combobox').selectOption('all');
+    await history.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
+    assert.equal((await request('/api/auto-reply/reminder-runs', 'GET', member)).status, 403);
+    await reminders.getByRole('button', { name: 'Offer payment reminder settings →' }).click();
+    assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.payment.reminder');
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    await Order.collection.updateOne({ _id: orderId }, { $set: { serviceStartNotifiedAt: new Date() } });
+    await page.getByRole('button', { name: /^Business Activity Orders/ }).click();
+    const activity = page.getByRole('dialog', { name: 'Business Activity' });
+    await activity.getByText('Monthly package order created', { exact: true }).waitFor();
+    await activity.getByText('Plan started', { exact: true }).waitFor();
+    await activity.getByText('Offer reserved', { exact: true }).first().waitFor();
+    await activity.getByText('Reserving Customer · Sample package', { exact: true }).first().waitFor();
+    assert.equal((await request('/api/auto-reply/business-activity', 'GET', member)).status, 403);
+    await activity.getByRole('button', { name: 'Reservation message settings' }).first().click();
+    assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.reserved');
+    await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: /^Business Activity Orders/ }).click();
+    await page.getByRole('dialog', { name: 'Business Activity' }).getByRole('button', { name: 'Plan-start message settings' }).first().click();
+    assert.equal(new URL(page.url()).searchParams.get('event'), 'plan.started');
   } finally {
     await browser.close();
     await Reservation.deleteMany({});
+    await Invoice.deleteOne({ _id: invoiceId }); await Order.deleteOne({ _id: orderId });
+    await ReminderRun.deleteMany({});
+    await ReminderDraft.deleteMany({});
   }
 });
 test('browser: Communication → Auto Reply → switch, ad message and recognised messages', { timeout: 90000 }, async () => {

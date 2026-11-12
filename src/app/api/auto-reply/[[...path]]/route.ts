@@ -4,7 +4,7 @@ import { AuthError, getSession } from "@/lib/auth";
 import { PortalApiError, portalApiRequest } from "@/lib/portal-api";
 
 type Context = { params: Promise<{ path?: string[] }> };
-const allowed = (method: string, path: string) => (method === "GET" && ["status", "final-message", "reservations"].includes(path)) || (method === "POST" && ["switches", "message", "reply", "final-message/time", "final-message/ignored", "final-message/decision"].includes(path));
+const allowed = (method: string, path: string) => (method === "GET" && (["status", "final-message", "reservations", "payment-reminders", "business-activity", "reminder-rules", "reminder-runs"].includes(path) || /^reminder-rules\/[a-f\d]{24}\/preview$/i.test(path))) || (method === "POST" && (["switches", "message", "reply", "final-message/time", "final-message/ignored", "final-message/decision", "reminder-rules"].includes(path) || /^reminder-rules\/[a-f\d]{24}\/enabled$/i.test(path) || /^reminder-runs\/[a-f\d]{24}\/retry$/i.test(path))) || (method === "PUT" && /^reminder-rules\/[a-f\d]{24}$/i.test(path));
 async function handle(request: Request, context: Context) {
   try {
     const path = ((await context.params).path || []).join("/");
@@ -14,8 +14,14 @@ async function handle(request: Request, context: Context) {
     if (session.user.role !== "admin" || !session.portalRoles.includes("admin")) throw new AuthError("Admin access required.", 403);
     const token = (await cookies()).get("token")?.value;
     if (!token) throw new AuthError("Sign in again to manage Auto Reply.", 401);
-    const body = request.method === "POST" ? await request.json() : undefined;
-    const data = await portalApiRequest("Auto Reply", `/api/auto-reply/${path}`, request.method, { Cookie: `token=${token}` }, body);
+    const body = request.method === "POST" || request.method === "PUT" ? await request.json() : undefined;
+    const page = ["payment-reminders", "reminder-runs"].includes(path) ? new URL(request.url).searchParams.get("page") : null;
+    const view = path === "reminder-runs" ? new URL(request.url).searchParams.get("view") : null;
+    const params = new URLSearchParams();
+    if (page) params.set("page", page);
+    if (view) params.set("view", view);
+    const query = params.size ? `?${params}` : "";
+    const data = await portalApiRequest("Auto Reply", `/api/auto-reply/${path}${query}`, request.method, { Cookie: `token=${token}` }, body);
     return NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof AuthError || error instanceof PortalApiError ? error.status : 400;
@@ -24,3 +30,4 @@ async function handle(request: Request, context: Context) {
 }
 export const GET = handle;
 export const POST = handle;
+export const PUT = handle;

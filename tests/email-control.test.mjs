@@ -67,7 +67,7 @@ before(async () => {
     stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {EmailControlPanel} from './src/app/admin/email-control/email-control-panel';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<EmailControlPanel initialApplication="website" canManagePortal={true} view={(q.get('view') as any)||undefined} showTabs={q.get('tabs')!=='off'} query={q.get('query')||undefined}/>);`, loader: 'tsx', resolveDir: root } });
   // Communication's hub, as the page renders it (no WhatsApp backend here: its boxes show Unavailable).
   await build({ absWorkingDir: root, bundle: true, outfile: path.join(qaDir, 'hub.js'), jsx: 'automatic', tsconfig: path.join(root, 'tsconfig.json'), loader: { '.module.css': 'local-css' }, define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
-    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {CommunicationHub} from './src/app/admin/communication/communication-hub';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<CommunicationHub portalAdmin={true} initial={{panel:q.get('panel'),tab:q.get('tab'),app:q.get('app')}}/>);`, loader: 'tsx', resolveDir: root } });
+    stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {CommunicationHub} from './src/app/admin/communication/communication-hub';const q=new URLSearchParams(location.search);createRoot(document.getElementById('root')!).render(<CommunicationHub portalAdmin={true} initial={{panel:q.get('panel'),tab:q.get('tab'),app:q.get('app'),event:q.get('event')}}/>);`, loader: 'tsx', resolveDir: root } });
   database = await MongoMemoryServer.create({ instance: { launchTimeout: Number(process.env.EMAIL_TEST_MONGO_TIMEOUT || 60000) } });
   await mongoose.connect(database.getUri(), { dbName: 'website-email-isolated' });
   [admin, websiteAdmin] = await userModel.create([{ name: 'Portal Admin', email: 'admin@example.test', roles: ['admin'] }, { name: 'Website Admin', email: 'website-admin@example.test', roles: ['member'] }]);
@@ -266,7 +266,7 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     page.on('dialog', dialog => dialog.accept());
     await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
-    const row = page.getByRole('row').filter({ hasText: 'Project created' });
+    const row = page.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) });
     const system = await EmailTemplate.findOne({ event: 'sendProjectCreatedEmail', system: true }).lean();
     assert.equal(await row.getByLabel('Project created default template').inputValue(), String(system._id));
     await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
@@ -391,7 +391,7 @@ test('browser: panel still renders when the backend predates the template catalo
     });
     await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
-    const row = page.getByRole('row').filter({ hasText: 'Project created' });
+    const row = page.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) });
     await row.getByLabel('Project created default template').locator('option').first().waitFor({ state: 'attached' });
     assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
     await row.getByRole('button', { name: 'Add template', exact: true }).click();
@@ -517,7 +517,7 @@ test('browser: Communication boxes open their panel at once, follow the URL, and
     assert.equal(new URL(page.url()).search, '?panel=email-templates&tab=portal');
     await panel.getByRole('heading', { name: 'Portal email rules' }).waitFor();
     await panel.getByLabel('Find a message').fill('Project created');
-    await panel.getByRole('row').filter({ hasText: 'Project created' }).waitFor();
+    await panel.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) }).waitFor();
 
     await page.keyboard.press('Escape');
     await panel.waitFor({ state: 'hidden' });
@@ -705,4 +705,91 @@ test('admin contact proxy shares backend settings and rejects website-only admin
   assert.equal(saved.status, 200); assert.equal(saved.data.contactEmail, 'contact@example.test');
   assert.deepEqual((await contact(admin)).data.whatsappNumbers, ['+919876543210']);
   assert.equal((await userModel.findById(admin._id)).email, 'admin@example.test');
+});
+
+test('browser: create template starts with action and applies channel and rule only when selected', async () => {
+  const browser = await chromium.launch({ headless: true });
+  const event = 'sendProjectCreatedEmail';
+  try {
+    const sendsBefore = providerCalls.length;
+    const page = await browser.newPage();
+    await page.goto(`${websiteBase}/?view=actions`);
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click();
+    await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.getByText('Create template for an action', { exact: true }).click();
+    await page.getByLabel('Find action').fill('Project created');
+    assert.ok(await page.getByLabel('Action', { exact: true }).getByRole('option', { name: 'Project created', exact: true }).count());
+    await page.getByLabel('Action', { exact: true }).selectOption(event);
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByLabel('Template name').fill('Action-first example');
+    await page.getByLabel('Send via', { exact: true }).selectOption('both');
+    await page.getByLabel('Sending rule', { exact: true }).selectOption('review');
+    await page.getByLabel('Apply this template, channel and sending rule to the action').check();
+    await page.getByRole('button', { name: 'Save template', exact: true }).click();
+    await page.getByText('Template saved and applied to this action. Its sending rule and channel are updated.').waitFor();
+    const saved = await EmailTemplate.findOne({ event, name: 'Action-first example' }).lean();
+    const policy = await EmailPolicy.findOne({ event }).lean();
+    assert.equal(String(policy.defaultTemplate), String(saved._id));
+    assert.equal(policy.channel, 'both');
+    assert.equal(policy.mode, 'review');
+    await page.getByLabel('Action', { exact: true }).selectOption(event);
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByLabel('Template name').fill('Saved without applying');
+    await page.getByLabel('Send via', { exact: true }).selectOption('email');
+    await page.getByRole('button', { name: 'Save template', exact: true }).click();
+    await page.getByText('Template saved. Choose it as the default for its action when ready.').waitFor();
+    const unchanged = await EmailPolicy.findOne({ event }).lean();
+    assert.equal(String(unchanged.defaultTemplate), String(saved._id));
+    assert.equal(unchanged.channel, 'both', 'saving without Apply does not change the route');
+    assert.equal(providerCalls.length, sendsBefore, 'configuration never sends a message');
+  } finally {
+    await EmailPolicy.deleteOne({ event });
+    await EmailTemplate.deleteOne({ event, name: 'Action-first example' });
+    await EmailTemplate.deleteOne({ event, name: 'Saved without applying' });
+    await browser.close();
+  }
+});
+
+test('browser: a saved template remains available if applying its settings fails', async () => {
+  const browser = await chromium.launch({ headless: true });
+  const event = 'sendProjectCreatedEmail';
+  try {
+    const page = await browser.newPage();
+    await page.route(/\/api\/email-control\/policies\/sendProjectCreatedEmail\?/, route => route.fulfill({ status: 503, json: { error: 'Settings unavailable' } }));
+    await page.goto(`${websiteBase}/?view=actions`);
+    await page.getByRole('tab', { name: 'Portal', exact: true }).click();
+    await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
+    await page.getByText('Create template for an action', { exact: true }).click();
+    await page.getByLabel('Action', { exact: true }).selectOption(event);
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByLabel('Template name').fill('Unapplied after failure');
+    await page.getByLabel('Apply this template, channel and sending rule to the action').check();
+    await page.getByRole('button', { name: 'Save template', exact: true }).click();
+    await page.getByText(/Template saved, but not applied to the action: Settings unavailable/).waitFor();
+    assert.equal(await EmailTemplate.countDocuments({ event, name: 'Unapplied after failure' }), 1);
+    assert.equal(await EmailPolicy.exists({ event, defaultTemplate: (await EmailTemplate.findOne({ event, name: 'Unapplied after failure' }))._id }), null);
+  } finally {
+    await EmailTemplate.deleteOne({ event, name: 'Unapplied after failure' });
+    await browser.close();
+  }
+});
+
+test('browser: an exact action link shows only its action and can return to all actions', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.goto(`${websiteBase}/admin/communication?panel=email-templates&tab=portal&event=sendProjectCreatedEmail`);
+    const panel = page.getByRole('dialog', { name: 'Email Templates' });
+    await panel.getByText('Showing one action: Project created').waitFor();
+    await panel.getByLabel('Project created default template', { exact: true }).waitFor();
+    assert.equal(await panel.getByLabel('Package project created (customer) default template', { exact: true }).count(), 0);
+    await panel.getByRole('button', { name: 'Show all actions' }).click();
+    assert.equal(new URL(page.url()).searchParams.has('event'), false);
+    await panel.getByText('Showing one action: Project created').waitFor({ state: 'hidden' });
+    await panel.locator('summary').filter({ hasText: 'New lead welcome' }).waitFor();
+    await page.goBack();
+    await panel.getByText('Showing one action: Project created').waitFor();
+    await panel.getByRole('button', { name: 'Open reminder rules' }).click();
+    await page.getByRole('dialog', { name: 'Reminders' }).getByRole('heading', { name: 'Reminder rule drafts' }).waitFor();
+  } finally { await browser.close(); }
 });
