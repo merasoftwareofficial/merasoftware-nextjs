@@ -371,8 +371,10 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     setCatalogue(next); setDrafts(next.drafts ?? []);
     return next;
   }
-  async function deletePackage(row: SalesPackage) {
-    if (!window.confirm(`Delete "${row.name}" permanently? It will be removed from the package catalogue. Existing customer projects, orders, invoices and payments will stay safe.`)) return;
+  async function deletePackage(row: SalesPackage, hasDraft: boolean) {
+    const stateNote = row.status === "published" ? " It is live and will disappear from the website." : "";
+    const draftNote = hasDraft ? " Its draft in progress will be deleted too." : "";
+    if (!window.confirm(`Force delete "${row.name}" permanently? It will be removed from the package catalogue.${stateNote}${draftNote} Existing customer projects, orders, invoices and payments will stay safe.`)) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/packages", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId: row.id }) });
@@ -558,7 +560,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     const draftOffer = !running && ownOffers(row.id).some(offer => offer.status === "draft");
     const copy = drafts.find(draft => draft.packageId === row.id);
     const draftLocked = !!copy;
-    const archiveDisabled = busy || draftLocked || !!running;
+    const archiveDisabled = busy || draftLocked;
     const lockedTitle = draftLocked ? "Continue or discard the draft first." : undefined;
     const onPages = shownOn(row);
     return <li className={s.line} key={`${copyLine ? "copy-" : ""}${row.id}`}>
@@ -573,8 +575,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       <span className={s.lineActions}><button className="admin-action" onClick={() => choose(row)}>{copy ? "Continue draft →" : "Edit →"}</button>
         {!copyLine && <button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>}
         {!copyLine && row.status !== "published" && <button type="button" className="admin-action" disabled={busy || draftLocked} title={lockedTitle} onClick={() => void changePackageStatus(row, "published")}>Publish</button>}
-        {!copyLine && row.status !== "archived" && <button type="button" className="admin-action" disabled={archiveDisabled} title={running ? `End the running offer "${running.title}" first.` : lockedTitle} onClick={() => void changePackageStatus(row, "archived")}>Archive</button>}
-        {!copyLine && row.status === "archived" && <button type="button" className="admin-action is-danger" disabled={busy || draftLocked} aria-label={`Delete ${row.name} permanently`} title={lockedTitle || "Delete permanently"} onClick={() => void deletePackage(row)}><svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg></button>}
+        {!copyLine && row.status !== "archived" && <button type="button" className="admin-action" disabled={archiveDisabled} title={running ? `Archive package and end "${running.title}".` : lockedTitle} onClick={() => void changePackageStatus(row, "archived")}>Archive</button>}
+        {!copyLine && <button type="button" className="admin-action is-danger" disabled={busy} aria-label={`Force delete ${row.name} permanently`} title="Force delete permanently" onClick={() => void deletePackage(row, draftLocked)}><svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg></button>}
         {!copyLine && row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View ↗</Link>}</span>
     </li>;
   };

@@ -8,6 +8,7 @@ import { offerSchema, resolvedOffers, type Offer } from "@/lib/offers";
 import { busyPackageMessage, offerOutOfSync, offerRunning, packageOfferProblem, runningOfferForPackage, syncOfferWithPackage, type PackageSource } from "@/lib/offer-packages";
 import { packageDesignSchema } from "@/lib/package-design";
 import { createPackageOffer, saveOfferRecord } from "@/lib/offer-save-server";
+import { archiveRunningPackageOffers, restorePackageOffers } from "@/lib/package-offer-lifecycle";
 export async function GET() {
   try { return NextResponse.json(await readSalesCatalogue(true), { headers: { "Cache-Control": "no-store" } }); }
   catch (error) { return errorResponse(error); }
@@ -22,7 +23,15 @@ export async function DELETE(request: Request) {
     await requireSalesAdmin();
     const body = deletePackageSchema.safeParse(await request.json());
     if (!body.success) return NextResponse.json({ error: "Choose a valid package." }, { status: 400 });
-    return NextResponse.json(await salesBackend(true, body.data, "sales-packages/delete"));
+    const catalogue = await readSalesCatalogue(true);
+    const item = catalogue.packages.find(row => row.id === body.data.packageId);
+    if (!item) return NextResponse.json({ error: "Package not found. Refresh and try again." }, { status: 404 });
+    const ended = await archiveRunningPackageOffers(item.id, item.offerSlug);
+    try { return NextResponse.json(await salesBackend(true, body.data, "sales-packages/delete")); }
+    catch (error) {
+      await restorePackageOffers(ended);
+      throw error;
+    }
   }
   catch (error) { return errorResponse(error); }
 }

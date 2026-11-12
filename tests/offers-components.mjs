@@ -257,25 +257,6 @@ try {
   // 0. Save draft needs only the package name (and the offer name); wrong values are kept; nothing goes live.
   // Publish checks every field and sends nothing while one is wrong.
   await page.goto(origin + '/admin/packages');
-  const gbpLine = page.locator('li').filter({ hasText: 'GBP Setup' });
-  const archiving = page.waitForResponse(r => r.url().endsWith('/api/packages/lifecycle') && r.request().method() === 'PATCH');
-  await gbpLine.getByRole('button', { name: 'Archive', exact: true }).click();
-  assert.equal((await archiving).status(), 200);
-  await page.getByText('"GBP Setup" was archived.', { exact: true }).waitFor();
-  assert.equal(api.store.packages.gbp.status, 'archived', 'outside Archive uses the lifecycle endpoint');
-  await page.getByRole('tab', { name: /^Archived/ }).click();
-  const publishing = page.waitForResponse(r => r.url().endsWith('/api/packages/lifecycle') && r.request().method() === 'PATCH');
-  await page.locator('li').filter({ hasText: 'GBP Setup' }).getByRole('button', { name: 'Publish', exact: true }).click();
-  assert.equal((await publishing).status(), 200);
-  await page.getByText('"GBP Setup" was published.', { exact: true }).waitFor();
-  assert.equal(api.store.packages.gbp.status, 'published', 'outside Publish uses the lifecycle endpoint');
-  const deleteRetired = page.getByRole('button', { name: 'Delete Retired package permanently' });
-  await deleteRetired.waitFor();
-  const deleting = page.waitForResponse(r => r.url().endsWith('/api/packages') && r.request().method() === 'DELETE');
-  await deleteRetired.click();
-  assert.equal((await deleting).status(), 200);
-  await page.getByText('"Retired package" was deleted permanently.', { exact: true }).waitFor();
-  assert.equal(api.store.packages['retired-pkg'], undefined, 'the archived package is removed only after confirmation');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByText('Enter the package name to save a draft.', { exact: true }).waitFor();
@@ -359,6 +340,32 @@ try {
   await page.getByText('Package published. Its page is /package/business-starter. No offer: customers see 2 prices.', { exact: true }).waitFor();
   await page.getByText('fixed', { exact: true }).waitFor();
   assert.equal((await state()).offers.filter(row => row.packageId).length, 0, 'no offer was made');
+
+  // List actions work without opening the editor: Archive ends a running package offer, Publish restores
+  // the catalogue state, and force delete works for an archived package.
+  await api.seedOffer({ ...legacy, slug: 'gbp-running', title: 'GBP running offer', packageId: 'gbp', endsAt: '2030-12-31T23:59:59+05:30' });
+  await page.goto(origin + '/admin/packages');
+  const gbpLine = page.locator('li').filter({ hasText: 'GBP Setup' });
+  const archiving = page.waitForResponse(r => r.url().endsWith('/api/packages/lifecycle') && r.request().method() === 'PATCH');
+  await gbpLine.getByRole('button', { name: 'Archive', exact: true }).click();
+  assert.equal((await archiving).status(), 200);
+  await page.getByText('"GBP Setup" was archived.', { exact: true }).waitFor();
+  assert.equal(api.store.packages.gbp.status, 'archived', 'outside Archive uses the lifecycle endpoint');
+  assert.equal((await state()).offers.find(offer => offer.slug === 'gbp-running').status, 'archived', 'archiving a live package ends its running package offer');
+  await page.getByRole('tab', { name: /^Archived/ }).click();
+  const publishing = page.waitForResponse(r => r.url().endsWith('/api/packages/lifecycle') && r.request().method() === 'PATCH');
+  await page.locator('li').filter({ hasText: 'GBP Setup' }).getByRole('button', { name: 'Publish', exact: true }).click();
+  assert.equal((await publishing).status(), 200);
+  await page.getByText('"GBP Setup" was published.', { exact: true }).waitFor();
+  assert.equal(api.store.packages.gbp.status, 'published', 'outside Publish uses the lifecycle endpoint');
+  const deleteRetired = page.getByRole('button', { name: 'Force delete Retired package permanently' });
+  await deleteRetired.waitFor();
+  const deleting = page.waitForResponse(r => r.url().endsWith('/api/packages') && r.request().method() === 'DELETE');
+  await deleteRetired.click();
+  assert.equal((await deleting).status(), 200);
+  await page.getByText('"Retired package" was deleted permanently.', { exact: true }).waitFor();
+  assert.equal(api.store.packages['retired-pkg'], undefined, 'the archived package is removed only after confirmation');
+  await editor('Business Starter');
 
   // 2. Add offer makes every offer field the system needs required; nothing is sent until they are right.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
