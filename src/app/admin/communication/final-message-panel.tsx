@@ -25,7 +25,7 @@ const CHOICES: { id: Choice; label: string; done: string }[] = [
   { id: "keep", label: "Keep Negative", done: "Kept in Negative." },
 ];
 
-// The wait, what doesn't count as a reply, and the replies waiting for the admin. The message is the "Final message" action in Email Templates, and goes from the portal's review popup.
+// The wait, what doesn't count as a reply, and the replies waiting for the admin. The message is the "Final message" action in Message Templates, and goes from the portal's review popup.
 export function FinalMessagePanel({ active = true }: { active?: boolean }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [draft, setDraft] = useState<string | null>(null); // null = not being edited
@@ -100,6 +100,6 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
       <button type="button" disabled={busy || !status || ignoredDraft === null || ignoredDraft === savedIgnored} onClick={() => void saveIgnored()}>{busy ? "Working…" : "Save list"}</button>
     </div>
 
-    <p className={s.note}>Choose Send or Don&apos;t Send in the portal when a lead or client is marked Negative. For those already Negative, use Final message on the Leads page. Edit the words in Email Templates → Portal → Final message. Only WhatsApp and Both are followed; replies to email can&apos;t be read here. Every message goes through the WhatsApp queue.</p>
+    <p className={s.note}>Choose Send or Don&apos;t Send in the portal when a lead or client is marked Negative. For those already Negative, use Final message on the Leads page. Edit the words in Message Templates → Portal → Final message. Only WhatsApp and Both are followed; replies to email can&apos;t be read here. Every message goes through the WhatsApp queue.</p>
   </section>;
 }

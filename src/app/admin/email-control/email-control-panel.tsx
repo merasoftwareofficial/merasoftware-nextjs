@@ -27,7 +27,7 @@ const isAutomatic = (event: CatalogEvent) => event.trigger === "customer" || eve
 const groupOf = (event: CatalogEvent) => event.group || event.label;
 const matches = (event: CatalogEvent, query: string) => !query || [event.label, groupOf(event), event.section].some(text => text.toLowerCase().includes(query));
 /**
- * "actions" = rules and templates (Email Templates). "review" / "outbox" / "history" = the tabs of
+ * "actions" = rules and templates (Message Templates). "review" / "outbox" / "history" = the tabs of
  * Email Review; switching them keeps this panel's data. "activity" = all three together, "all" = everything.
  */
 export type EmailView = "all" | "actions" | "activity" | "review" | "outbox" | "history";
@@ -356,7 +356,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         {draft.status === "pending" && <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewEdits()}>Update preview</button></div>}
         {previewHtml && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>Preview</summary><EmailPreview html={previewHtml} /></details>}
         {!!draft.requiredLinks?.length && <details><summary>Required links (preserved when sending)</summary>{draft.requiredLinks.map(link => <p className={styles.link} key={link}>{link}</p>)}</details>}
-        <p className={styles.muted}>{dirty ? "Edited for this message. " : ""}Send does not save template changes. The template choice is remembered for this action; Send via starts from the action&apos;s setting in Email Templates and a change here applies to this message only.</p>
+        <p className={styles.muted}>{dirty ? "Edited for this message. " : ""}Send does not save template changes. The template choice is remembered for this action; Send via starts from the action&apos;s setting in Message Templates and a change here applies to this message only.</p>
         {dialogNotice && <p role="status">{dialogNotice}</p>}
         {dialogError && reviewTemplate && draft.status === "pending" && <button disabled={busy} onClick={() => void chooseTemplate(reviewTemplate.id)}>Reload saved message</button>}
         {off && <p className={styles.error}>Email for this action is Off. You can skip this draft or change its rule.</p>}
@@ -382,19 +382,22 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
       <p className={styles.muted}>Find an action below to see its sending rule, channel and available templates together. Choose Website or Portal above to switch applications.</p>
       {eventKey && <div className={styles.banner}>Showing one action: {data.events.find(event => event.key === eventKey)?.label || "Action unavailable in this application."} <button type="button" onClick={onClearEvent}>Show all actions</button></div>}
       {application === 'portal' && onOpenReminders && <p className={styles.muted}>Monthly package renewal reminders use their own timing and message. <button type="button" onClick={onOpenReminders}>Open reminder rules</button></p>}
-      <details className={styles.group}>
-        <summary><strong>Create template for an action</strong></summary>
-        <div className={styles.actions}>
-          <label htmlFor={`find-new-action-${application}`}>Find action</label>
-          <input id={`find-new-action-${application}`} value={newActionSearch} onChange={event => { setNewActionSearch(event.target.value); setNewAction(""); }} placeholder="Search name or category" />
-          <label htmlFor={`new-action-${application}`}>Action</label>
-          <select id={`new-action-${application}`} value={newAction} onChange={event => setNewAction(event.target.value)}>
-            <option value="">Choose an action</option>
-            {allSections.map(section => ({ section, events: data.events.filter(event => event.section === section && matches(event, newActionSearch.trim().toLowerCase())) })).filter(group => group.events.length).map(group => <optgroup label={group.section} key={group.section}>{group.events.map(event => <option key={event.key} value={event.key}>{event.label}</option>)}</optgroup>)}
-          </select>
-          <button type="button" disabled={!newAction || busy} onClick={startActionTemplate}>Continue</button>
+      <details className={styles.createTemplate}>
+        <summary><span className={styles.createIcon} aria-hidden="true">+</span><span className={styles.createHeading}><strong>Create template for an action</strong><span>Choose when this message should be used, then write your template.</span></span><span className={styles.createExpand} aria-hidden="true">⌄</span></summary>
+        <div className={styles.createBody}>
+          <div className={styles.createIntro}><span className={styles.createStep}>1</span><div><strong>Choose an action</strong><p>Search by name or category, then select an action from the list.</p></div></div>
+          <div className={styles.createFields}>
+            <div className={styles.createField}><label htmlFor={`find-new-action-${application}`}>Find action</label>
+              <input id={`find-new-action-${application}`} value={newActionSearch} onChange={event => { setNewActionSearch(event.target.value); setNewAction(""); }} placeholder="Search name or category" /></div>
+            <div className={styles.createField}><label htmlFor={`new-action-${application}`}>Action</label>
+              <select id={`new-action-${application}`} value={newAction} onChange={event => setNewAction(event.target.value)}>
+                <option value="">Choose an action</option>
+                {allSections.map(section => ({ section, events: data.events.filter(event => event.section === section && matches(event, newActionSearch.trim().toLowerCase())) })).filter(group => group.events.length).map(group => <optgroup label={group.section} key={group.section}>{group.events.map(event => <option key={event.key} value={event.key}>{event.label}</option>)}</optgroup>)}
+              </select></div>
+            <button className={styles.createContinue} type="button" disabled={!newAction || busy} onClick={startActionTemplate}>Continue <span aria-hidden="true">→</span></button>
+          </div>
+          <p className={styles.createHint}>Next, write your message and decide whether to apply it. Existing settings change only when you choose to apply them.</p>
         </div>
-        <p className={styles.muted}>Choose an action, then write its message and choose whether to apply it. Existing settings stay in place until you apply them.</p>
       </details>
       {allSections.length > 1 && <div className={styles.chips} role="group" aria-label={`${appName} sections`}>
         {["", ...allSections].map(value => <button key={value || "all"} type="button" aria-pressed={sectionFilter === value} onClick={() => setSectionFilter(value)}>{value || "All"}</button>)}

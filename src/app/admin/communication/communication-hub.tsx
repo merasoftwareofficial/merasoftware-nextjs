@@ -15,6 +15,7 @@ import { FinalMessagePanel } from "./final-message-panel";
 import { ReservationPanel } from "./reservation-panel";
 import { BroadcastPanel } from "./broadcast-panel";
 import { OfferPaymentReminders } from "./offer-payment-reminders";
+import { LegacyReminderHistory } from "./legacy-reminder-history";
 import { BusinessActivity } from "./business-activity";
 import { ReminderDrafts } from "./reminder-drafts";
 import { ReminderHistory } from "./reminder-history";
@@ -46,7 +47,7 @@ const PANELS: Record<PanelId, Panel> = {
   "whatsapp-queue": { group: "WhatsApp", title: "WhatsApp Queue", whatsapp: true,
     tabs: [{ id: "queue", label: "Queue" }, { id: "rules", label: "Sending rules" }, { id: "history", label: "History" }],
     description: "Messages waiting to go, the rules that pace them, and every finished message." },
-  "email-templates": { group: "Email", title: "Email Templates", whatsapp: false, tabs: APPS,
+  "email-templates": { group: "Email", title: "Message Templates", whatsapp: false, tabs: APPS,
     description: "Each job’s mails: who decides, the default template and the editor. WhatsApp sends the same text." },
   "email-review": { group: "Email", title: "Email Review", whatsapp: false,
     tabs: [{ id: "review", label: "Review" }, { id: "outbox", label: "Outbox" }, { id: "history", label: "History" }],
@@ -205,7 +206,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["business-activity", <BusinessActivity key="activity" active={part("business-activity").shown} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
       ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
-      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} />],
+      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
       ["reminders", <section key="reminders" aria-label="Existing reminders">
         <div className={s.subNav} role="group" aria-label="Reminder sections">
           {([ ["rules", "Rules"], ["activity", "Reminder activity"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
@@ -217,8 +218,9 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
           <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })}>Offer payment reminder settings →</button></p>
           <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.reservation.reminder" })}>Reservation reminder message →</button></p>
           <p><button type="button" className={s.link} onClick={() => go({ panel: "whatsapp-queue", tab: "history", app: null })}>WhatsApp delivery history →</button></p>
-          <OfferPaymentReminders active={part("reminders").shown && reminderSection === "existing"} />
-          <ReservationPanel active={part("reminders").shown && reminderSection === "existing"} portalUrl={portalUrl} />
+          <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "existing"} openAction={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })} />
+          <LegacyReminderHistory source="all" active={part("reminders").shown && reminderSection === "existing"} title="All existing reminder message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
+          <ReservationPanel active={part("reminders").shown && reminderSection === "existing"} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
         </div>
       </section>],
       ["whatsapp-connection", <WhatsappPanel key="c" view="connection" active={part("whatsapp-connection").shown} />],

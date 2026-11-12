@@ -94,6 +94,135 @@ test('proxy forwards a reminder draft edit (PUT body) and keeps revision and rol
   assert.equal((await request('/api/auto-reply/reminder-rules')).data.find(row => row._id === id).name, 'Proxy edit rule v2');
   assert.equal((await request(path, 'PUT', admin, 'admin', { name: 'No revision', source: 'monthly_package', steps })).status, 400);
 });
+test('paid-project review is admin-only and shows mismatches before any linking', async () => {
+  const Reservation = backend('./models/offerReservationModel'), Order = backend('./models/orderProductModel'), Invoice = backend('./models/invoiceModel'), Transaction = backend('./models/transactionModel');
+  const customer = await User.create({ name: 'Paid review', email: 'paidreview@example.test', roles: ['customer'] });
+  const now = Date.now(), reservationId = new mongoose.Types.ObjectId(), orderId = new mongoose.Types.ObjectId(), invoiceId = new mongoose.Types.ObjectId();
+  await Reservation.create({ _id: reservationId, userId: customer._id, offerSlug: 'review-offer', offerSnapshot: { title: 'Review offer', applicableCategories: ['combo_packages'] }, periodEndsAt: new Date(now + 3600000), regularPrice: 10000, reservedPrice: 2099, reservedAt: new Date(now - 3600000), expiresAt: new Date(now + 36000000), origin: 'customer', remindersEnabled: true });
+  await Order.collection.insertOne({ _id: orderId, userId: customer._id, isWebsiteProject: true, isServicePlan: false, orderVisibility: 'approved', price: 2099, totalAmount: 2099, createdAt: new Date(now - 10000), projectSnapshot: { category: 'standard_websites' }, orderItems: [{ name: 'Paid project' }] });
+  await Invoice.collection.insertOne({ _id: invoiceId, orderId, userId: customer._id, invoiceType: 'project', status: 'paid', amount: 2099, amountPaid: 2099 });
+  await Transaction.collection.insertOne({ orderId, invoiceId, userId: customer._id, type: 'payment', status: 'completed', amount: 2099, createdAt: new Date(now - 5000) });
+  const path = `/api/auto-reply/reservations/${reservationId}/paid-projects`;
+  assert.equal((await request(path, 'GET', member)).status, 403);
+  assert.equal((await request(path, 'GET', admin, 'editor')).status, 403);
+  const preview = await request(path);
+  assert.equal(preview.status, 200);
+  assert.equal(preview.data.candidates[0].categoryMismatch, true);
+  assert.equal(preview.data.candidates[0].offerRecorded, false);
+  assert.equal((await Reservation.findById(reservationId)).projectId, null);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await page.getByRole('button', { name: 'Reservations', exact: true }).click();
+    await page.getByRole('button', { name: 'Review matching paid projects' }).click();
+    const review = page.getByRole('region', { name: 'Review paid project link' });
+    await review.getByLabel('Paid project').selectOption(String(orderId));
+    await review.getByText(/No offer agreement was recorded/).waitFor();
+    await review.getByText(/I reviewed the category mismatch/).waitFor();
+    assert.ok(await review.getByRole('button', { name: 'Link paid project' }).isDisabled());
+  } finally { await browser.close(); }
+  await Reservation.deleteOne({ _id: reservationId }); await Order.deleteOne({ _id: orderId }); await Invoice.deleteOne({ _id: invoiceId }); await Transaction.deleteMany({ orderId }); await User.deleteOne({ _id: customer._id });
+});
+test('package start can be closed from Communication only by both admins', async () => {
+  const StartRequest = backend('./models/packageStartRequestModel');
+  const customer = await User.create({ name: 'Request customer', email: 'request-close@example.test', roles: ['customer'] });
+  const row = await StartRequest.create({ userId: customer._id, packageId: 'request-close', packageSnapshot: { name: 'Request package' }, requestedAt: new Date(), kind: 'callback' });
+  const path = `/api/auto-reply/package-starts/${row._id}/close`;
+  assert.equal((await request(path, 'POST', member, 'admin', {})).status, 403);
+  assert.equal((await request(path, 'POST', admin, 'editor', {})).status, 403);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await page.getByRole('button', { name: 'Reservations', exact: true }).click();
+    await page.getByText('Request customer', { exact: true }).waitFor();
+    const control = { source: 'package_request', entityId: String(row._id), paused: true, expectedPaused: false };
+    assert.equal((await request('/api/auto-reply/reminder-controls', 'POST', member, 'admin', control)).status, 403);
+    assert.equal((await request('/api/auto-reply/reminder-controls', 'POST', admin, 'editor', control)).status, 403);
+    page.once('dialog', confirmation => confirmation.accept());
+    await page.getByRole('button', { name: 'Pause request team reminders', exact: true }).click();
+    await page.getByText('Request team reminders: Paused', { exact: true }).waitFor();
+    assert.equal((await StartRequest.findById(row._id)).remindersPaused, true);
+    assert.equal((await request('/api/auto-reply/reminder-controls', 'POST', admin, 'admin', control)).status, 409, 'stale state is rejected');
+    page.once('dialog', confirmation => confirmation.accept());
+    await page.getByRole('button', { name: 'Resume request team reminders', exact: true }).click();
+    await page.getByText('Request team reminders: On', { exact: true }).waitFor();
+    page.once('dialog', confirmation => confirmation.accept());
+    await page.getByRole('button', { name: 'Close request', exact: true }).click();
+    await page.getByText('No open request.').waitFor();
+    const saved = await StartRequest.findById(row._id).lean();
+    assert.equal(saved.closedReason, 'closed_by_team');
+    assert.equal(String(saved.closedBy), String(admin._id));
+    assert.equal((await request(path, 'POST', admin, 'admin', {})).status, 409);
+  } finally { await browser.close(); await StartRequest.deleteOne({ _id: row._id }); await User.deleteOne({ _id: customer._id }); }
+});
+test('reservation team reminders can be paused independently without resuming the customer countdown', async () => {
+  const Reservation = backend('./models/offerReservationModel');
+  const customer = await User.create({ name: 'Reservation team customer', email: 'reservation-team@example.test', roles: ['member'] });
+  const now = Date.now(), at = new Date(now - 24 * 3600000);
+  const row = await Reservation.create({ userId: customer._id, offerSlug: 'team-control', offerSnapshot: { title: 'Team controlled offer' }, periodEndsAt: new Date(now + 3600000), regularPrice: 10000, reservedPrice: 5000, reservedAt: new Date(now - 48 * 3600000), expiresAt: new Date(now + 24 * 3600000), origin: 'customer', remindersEnabled: true, startRequestedAt: at, pausedRemainingMs: 48 * 3600000, startRequests: [{ at, remainingMs: 48 * 3600000, alerts: 1 }] });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await page.getByRole('button', { name: 'Reservations', exact: true }).click();
+    await page.getByText(/Customer countdown reminders are held/).waitFor();
+    page.once('dialog', confirmation => confirmation.accept());
+    await page.getByRole('button', { name: 'Pause reservation team reminders', exact: true }).click();
+    await page.getByText('Reservation team reminders: Paused', { exact: true }).waitFor();
+    let saved = await Reservation.findById(row._id).lean();
+    assert.equal(saved.teamRemindersPaused, true); assert.equal(saved.remindersPaused, false); assert.ok(saved.startRequestedAt);
+    page.once('dialog', confirmation => confirmation.accept());
+    await page.getByRole('button', { name: 'Resume reservation team reminders', exact: true }).click();
+    await page.getByText('Reservation team reminders: On', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Message and channel settings (all customers)', exact: true }).click();
+    assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.start.request.admin');
+  } finally { await browser.close(); await Reservation.deleteOne({ _id: row._id }); await User.deleteOne({ _id: customer._id }); }
+});
+
+test('all recorded reminder history supports pagination, retry and direct action settings', async () => {
+  const Reservation = backend('./models/offerReservationModel');
+  const { EmailHistory } = backend('./models/emailControlModel');
+  const userId = new mongoose.Types.ObjectId(), reservationId = new mongoose.Types.ObjectId();
+  await User.collection.insertOne({ _id: userId, name: 'History pagination customer' });
+  await Reservation.collection.insertOne({ _id: reservationId, userId, projectId: new mongoose.Types.ObjectId(), offerSnapshot: { title: 'Finished history offer' } });
+  const historyIds = [];
+  for (let version = 1; version <= 21; version++) {
+    const row = await EmailHistory.create({ draftId: new mongoose.Types.ObjectId(), application: 'portal', event: 'offer.reservation.extended', status: 'sent', dedupeKey: `offer-reservation-extended:${reservationId}:${version}` });
+    historyIds.push(row._id);
+  }
+  assert.equal((await request('/api/auto-reply/legacy-reminder-history?source=reservation', 'GET', member)).status, 403);
+  assert.equal((await request('/api/auto-reply/legacy-reminder-history?source=reservation', 'GET', admin, 'editor')).status, 403);
+  assert.equal((await request('/api/auto-reply/legacy-reminder-history?source=reservation&entityId=invalid')).status, 400);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    let heldOnce = true;
+    await page.route('**/api/auto-reply/legacy-reminder-history?**', async route => {
+      if (heldOnce) { heldOnce = false; await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'History temporarily unavailable.' }) }); }
+      else await route.continue();
+    });
+    await page.goto(websiteBase);
+    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    await page.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();
+    await page.getByText('All existing reminder message history', { exact: true }).click();
+    const history = page.getByRole('region', { name: 'All existing reminder message history', exact: true });
+    await history.getByText('History temporarily unavailable.', { exact: false }).waitFor();
+    await history.getByRole('button', { name: 'Retry history' }).click();
+    await history.getByText('Page 1 of 2 · 21 records', { exact: true }).waitFor();
+    await history.getByRole('button', { name: 'Next history page' }).click();
+    await history.getByText('Page 2 of 2 · 21 records', { exact: true }).waitFor();
+    await history.getByRole('button', { name: 'Open action settings', exact: true }).click();
+    assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.reservation.extended');
+  } finally {
+    await browser.close(); await EmailHistory.deleteMany({ _id: { $in: historyIds } }); await Reservation.deleteOne({ _id: reservationId }); await User.deleteOne({ _id: userId });
+  }
+});
+
 test('browser: Communication → Final Message → time limit and replies', { timeout: 60000 }, async () => {
   const leadId = new mongoose.Types.ObjectId();
   await mongoose.connection.db.collection('leads').insertOne({ _id: leadId, name: 'Ravi', status: 'Negative' });
@@ -149,12 +278,17 @@ test('browser: Communication → Reservation → running reservations with time 
   const Order = backend('./models/orderProductModel'), Invoice = backend('./models/invoiceModel');
   const ReminderDraft = backend('./models/communicationReminderRuleModel');
   const ReminderRun = backend('./models/communicationReminderRunModel');
+  const { EmailHistory } = backend('./models/emailControlModel');
+  const { Queue } = backend('./whatsapp/src/models.js');
+  const paymentDraftId = new mongoose.Types.ObjectId();
   const customer = await User.create({ name: 'Reserving Customer', email: 'reserve@example.test', roles: ['member'], phone: '+919876500009' });
   const hour = 3600000, now = Date.now();
   const base = { userId: customer._id, periodEndsAt: new Date(now + hour), regularPrice: 10000, reservedPrice: 5000, origin: 'customer' };
   const orderId = new mongoose.Types.ObjectId(), invoiceId = new mongoose.Types.ObjectId();
   await Order.collection.insertOne({ _id: orderId, userId: customer._id, orderVisibility: 'approved', isServicePlan: true, servicePlanStatus: 'active', salesPackage: { package: { id: 'sample' } }, orderItems: [{ name: 'Sample package' }], createdAt: new Date(now), paymentPolicy: { reminderOffsets: [-3, 0, 3] } });
   await Invoice.collection.insertOne({ _id: invoiceId, userId: customer._id, orderId, invoiceNumber: 'TEST-REMINDER', invoiceType: 'project', amount: 3000, amountPaid: 1000, status: 'partially_paid', dueDate: new Date(now + 7 * 24 * hour) });
+  await EmailHistory.create({ draftId: paymentDraftId, application: 'portal', event: 'offer.payment.reminder', status: 'queued', dedupeKey: `offer-reminder:${invoiceId}:-3` });
+  await Queue.create({ to: '919876500009', text: 'Payment reminder', status: 'pending', emailDraftId: paymentDraftId, event: 'offer.payment.reminder', application: 'portal' });
   await Reservation.create([
     { ...base, offerSlug: 'running', offerSnapshot: { title: 'Running offer' }, reservedAt: new Date(now - hour), expiresAt: new Date(now + 47 * hour), closureStatus: 'pending', remindersEnabled: true },
     { ...base, offerSlug: 'used', offerSnapshot: { title: 'Used offer' }, reservedAt: new Date(now - 2 * hour), expiresAt: new Date(now + 70 * hour), projectId: new mongoose.Types.ObjectId() },
@@ -172,13 +306,27 @@ test('browser: Communication → Reservation → running reservations with time 
     await page.getByRole('button', { name: 'Reservations', exact: true }).click();
     const dialog = page.getByRole('region', { name: 'Reservation', exact: true });
     await dialog.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
-    await dialog.getByText('Reserving Customer', { exact: true }).waitFor();
+    await dialog.getByText('Reserving Customer', { exact: true }).first().waitFor();
     await dialog.getByText('+91 98765 00009', { exact: true }).waitFor();
     await dialog.getByText(/^Running offer · 48 hours · ends /).waitFor();
     await dialog.getByText(/^4[67]h \d+m left$/).waitFor();
     await dialog.getByText(/Upcoming reminder milestone:.*Subject to current eligibility/).waitFor();
-    await dialog.getByText('1 used for a project · 1 expired · 1 expiry messages sent', { exact: true }).waitFor();
-    assert.equal(await dialog.getByText('Used offer').count(), 0, 'a used reservation is not running');
+    const runningReservation = await Reservation.findOne({ offerSlug: 'running' });
+    const controlPath = `/api/auto-reply/reservations/${runningReservation._id}/reminders`;
+    assert.equal((await request(controlPath, 'POST', member, 'admin', { paused: true })).status, 403);
+    assert.equal((await request(controlPath, 'POST', admin, 'editor', { paused: true })).status, 403);
+    page.once('dialog', confirmation => confirmation.accept());
+    await dialog.getByRole('button', { name: 'Pause customer reminders' }).click();
+    await dialog.getByText('Customer reminders: Paused').waitFor();
+    assert.equal((await Reservation.findById(runningReservation._id)).remindersPaused, true);
+    assert.equal(await dialog.getByText(/Upcoming reminder milestone:/).count(), 0);
+    page.once('dialog', confirmation => confirmation.accept());
+    await dialog.getByRole('button', { name: 'Resume customer reminders' }).click();
+    await dialog.getByText('Customer reminders: On').waitFor();
+    assert.equal((await Reservation.findById(runningReservation._id)).remindersPaused, false);
+    await dialog.getByText('1 reservation linked to a project · 1 expired reservation', { exact: true }).waitFor();
+    await dialog.getByText(/Expiry message records: 1 sent or queued/).waitFor();
+    assert.equal(await dialog.getByText('Used offer').isVisible(), false, 'a used reservation is not in the running list');
     await page.setViewportSize({ width: 390, height: 844 });
     const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Reservation"]'); return panel.scrollWidth - panel.clientWidth; });
     assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);
@@ -190,8 +338,28 @@ test('browser: Communication → Reservation → running reservations with time 
     await reminders.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
     await reminders.getByText('Reserving Customer · TEST-REMINDER', { exact: true }).waitFor();
     await reminders.getByText(/Outstanding ₹2,000/).waitFor();
+    const invoiceCard = reminders.locator('article').filter({ hasText: 'TEST-REMINDER' });
+    await invoiceCard.getByText('Recorded payment reminder history', { exact: true }).click();
+    await invoiceCard.getByText('Day -3', { exact: true }).waitFor();
+    await invoiceCard.getByText(/Message record: Queued/).waitFor();
+    await invoiceCard.getByText('WhatsApp: Waiting', { exact: true }).waitFor();
+    page.once('dialog', confirmation => confirmation.accept());
+    await invoiceCard.getByRole('button', { name: 'Pause payment reminders', exact: true }).click();
+    await invoiceCard.getByText('Payment reminders: Paused', { exact: true }).waitFor();
+    assert.equal((await Invoice.findById(invoiceId)).offerRemindersPaused, true);
+    assert.deepEqual((await Order.findById(orderId)).paymentPolicy.reminderOffsets, [-3, 0, 3], 'saved agreement stays unchanged');
+    page.once('dialog', confirmation => confirmation.accept());
+    await invoiceCard.getByRole('button', { name: 'Resume payment reminders', exact: true }).click();
+    await invoiceCard.getByText('Payment reminders: On', { exact: true }).waitFor();
+    await Invoice.updateOne({ _id: invoiceId }, { $set: { status: 'paid', amountPaid: 3000 } });
+    await reminders.getByRole('button', { name: 'Paid / cancelled invoices', exact: true }).click();
+    await reminders.getByText('This invoice is closed; no payment reminder is due.', { exact: true }).waitFor();
+    await invoiceCard.getByText('Recorded payment reminder history', { exact: true }).click();
+    await invoiceCard.getByText('Day -3', { exact: true }).waitFor();
+    assert.equal(await invoiceCard.getByRole('button', { name: 'Pause payment reminders', exact: true }).count(), 0);
+
     assert.equal((await request('/api/auto-reply/payment-reminders', 'GET', member)).status, 403);
-    await reminders.getByRole('region', { name: 'Existing reminders' }).getByText('Reserving Customer', { exact: true }).waitFor();
+    await reminders.getByRole('region', { name: 'Existing reminders' }).getByText('Reserving Customer', { exact: true }).first().waitFor();
     await reminders.getByText('This is not a complete schedule of upcoming reminders.', { exact: false }).waitFor();
     await reminders.getByRole('button', { name: 'Rules', exact: true }).click();
     await reminders.getByRole('button', { name: 'Create draft' }).click();
@@ -268,6 +436,7 @@ test('browser: Communication → Reservation → running reservations with time 
   } finally {
     await browser.close();
     await Reservation.deleteMany({});
+    await Queue.deleteMany({ emailDraftId: paymentDraftId }); await EmailHistory.deleteMany({ draftId: paymentDraftId });
     await Invoice.deleteOne({ _id: invoiceId }); await Order.deleteOne({ _id: orderId });
     await ReminderRun.deleteMany({});
     await ReminderDraft.deleteMany({});

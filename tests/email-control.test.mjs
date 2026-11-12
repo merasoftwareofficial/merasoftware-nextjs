@@ -506,7 +506,7 @@ test('browser: Communication full-page navigation preserves links and browser hi
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${websiteBase}/admin/communication`);
     await page.getByRole('button', { name: 'Automatic messages', exact: true }).click();
-    const workspace = page.getByRole('region', { name: 'Email Templates' });
+    const workspace = page.getByRole('region', { name: 'Message Templates' });
     await workspace.getByRole('tab', { name: 'Website' }).waitFor();
     assert.equal(new URL(page.url()).search, '?panel=email-templates');
     assert.equal(await page.getByRole('dialog').count(), 0);
@@ -785,7 +785,7 @@ test('browser: an exact action link shows only its action and can return to all 
   try {
     const page = await browser.newPage();
     await page.goto(`${websiteBase}/admin/communication?panel=email-templates&tab=portal&event=sendProjectCreatedEmail`);
-    const panel = page.getByRole('region', { name: 'Email Templates' });
+    const panel = page.getByRole('region', { name: 'Message Templates' });
     await panel.getByText('Showing one action: Project created').waitFor();
     await panel.getByLabel('Project created default template', { exact: true }).waitFor();
     assert.equal(await panel.getByLabel('Package project created (customer) default template', { exact: true }).count(), 0);
