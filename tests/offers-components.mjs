@@ -567,8 +567,8 @@ try {
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
   const top = async texts => form.evaluate((el, list) => list.map(text => { const node = [...el.querySelectorAll('legend, label span, h2, span')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }), texts);
   // A typed (manual) package shows no category field; it keeps the category chosen above.
-  const fixedOrder = await top(['Package name', 'How customers buy', 'Billing *', 'Updates a month', 'Billing cycles and discount', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
-  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, purchase settings, updates, cycles, prices, included work, offer, website display, page design: ' + fixedOrder);
+  const fixedOrder = await top(['Package name', 'Billing *', 'How customers buy', 'Updates a month', 'Billing cycles and discount', 'Main price', 'Included work', '2. Offer', '3. Website display', 'When published', 'Show on pages', '4. Page design']);
+  assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, billing, purchase settings, updates, cycles, prices, included work, offer, website display, page design: ' + fixedOrder);
   // Updates a month: unlimited by default, or a number that opens again every month.
   const uploads = form.getByLabel('Updates a month', { exact: true });
   assert.equal(await uploads.inputValue(), 'unlimited');

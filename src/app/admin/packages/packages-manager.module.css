@@ -94,7 +94,17 @@
 .addOnList{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .addOnRow{grid-template-columns:minmax(0,1fr) auto auto;border-radius:6px}
 .addOnRow label{overflow-wrap:anywhere}
+.addOnRow{background:var(--pn-field,#fff)}
+.packageIntro{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch}
+.introFields{display:grid;gap:10px;align-content:start}
+.introFields :global(.admin-field){margin:0}
+.introDescription{display:flex!important;flex-direction:column;min-width:0;margin:0!important}
+.introDescription textarea{flex:1 1 auto;min-height:180px}
+.paymentChoices{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
+.paymentChoices>span{flex-basis:100%}
+.pageGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 20px}
+.pageGrid .pageRow,.pageGrid .pageRow label{min-width:0;overflow-wrap:anywhere}
 .savebar{border-radius:0 0 12px 12px}
 @media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:700px){.sec{padding:18px 16px}.sechead{margin:-18px -16px 8px;padding:14px 16px}.twoFields,.pricingHeader,.addOnList{grid-template-columns:minmax(0,1fr)}.cols3{grid-template-columns:repeat(2,minmax(0,1fr))}.savebar{padding:12px 16px}}
+@media(max-width:700px){.sec{padding:18px 16px}.sechead{margin:-18px -16px 8px;padding:14px 16px}.packageIntro,.pageGrid,.twoFields,.pricingHeader,.addOnList{grid-template-columns:minmax(0,1fr)}.introDescription textarea{min-height:120px}.cols3{grid-template-columns:repeat(2,minmax(0,1fr))}.savebar{padding:12px 16px}}
 @media(max-width:380px){.cols3{grid-template-columns:minmax(0,1fr)}}
