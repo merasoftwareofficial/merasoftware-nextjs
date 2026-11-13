@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
+import c from "./actions-panel.module.css";
 
 type Surface = "Admin" | "Client" | "Website" | "System";
 type ActionRow = {
@@ -18,24 +19,32 @@ type ActionRow = {
   changed: boolean;
 };
 type ActionsData = { actions: ActionRow[]; surfaces: Surface[]; categories: string[] };
+type View = "all" | Surface | "archived" | "deleted";
+type SortKey = "id" | "surface" | "endpoint" | "category";
 
-// Owner's boxes. "System" holds integration and sync calls from other services.
-const SURFACE_TITLES: Record<Surface, string> = {
-  Admin: "Admin panel",
-  Client: "Client portal",
-  Website: "Website",
-  System: "System",
-};
-const UNSORTED = "Unsorted";
+const SURFACE_TITLES: Record<Surface, string> = { Admin: "Admin panel", Client: "Client portal", Website: "Website", System: "System" };
+const SURFACE_DOT: Record<Surface, string> = { Admin: "#007f99", Client: "#6b5ce7", Website: "#1f8a4c", System: "#8a8f98" };
+const VIEWS: { id: View; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "Admin", label: "Admin panel" },
+  { id: "Client", label: "Client portal" },
+  { id: "Website", label: "Website" },
+  { id: "System", label: "System" },
+  { id: "archived", label: "Archived" },
+  { id: "deleted", label: "Deleted" },
+];
 
 export function ActionsPanel({ active }: { active: boolean }) {
   const [data, setData] = useState<ActionsData | null>(null);
   const [error, setError] = useState("");
-  const [surface, setSurface] = useState<Surface>("Admin");
-  const [query, setQuery] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [view, setView] = useState<View>("all");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "id", desc: false });
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -49,10 +58,11 @@ export function ActionsPanel({ active }: { active: boolean }) {
   }, []);
   useCommunicationRefresh(load, active);
 
-  // Save one action's change, then show the server's version of that row.
+  // Save one action's change, then replace that row with the server's version.
   async function save(id: string, change: Record<string, unknown>, done: string) {
     setSaving(true);
     setNotice("");
+    setError("");
     try {
       const response = await fetch(`/api/auto-reply/actions/${id}`, {
         method: "PUT",
@@ -65,117 +75,177 @@ export function ActionsPanel({ active }: { active: boolean }) {
       const updated = result.data as ActionRow;
       setData(current => current && { ...current, actions: current.actions.map(row => (row.id === id ? updated : row)) });
       setNotice(done);
-      setEditingId(null);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not save.");
     } finally {
       setSaving(false);
+      setMenuFor(null);
+      setEditing(null);
     }
   }
 
-  const live = useMemo(() => (data?.actions ?? []).filter(row => !row.archived && !row.deleted), [data]);
+  const all = useMemo(() => data?.actions ?? [], [data]);
   const counts = useMemo(() => {
-    const result = { Admin: 0, Client: 0, Website: 0, System: 0 } as Record<Surface, number>;
-    for (const row of live) result[row.surface] += 1;
-    return result;
-  }, [live]);
+    const live = all.filter(row => !row.archived && !row.deleted);
+    const surfaceCount = (s: Surface) => live.filter(row => row.surface === s).length;
+    return {
+      all: live.length,
+      Admin: surfaceCount("Admin"), Client: surfaceCount("Client"), Website: surfaceCount("Website"), System: surfaceCount("System"),
+      archived: all.filter(row => row.archived && !row.deleted).length,
+      deleted: all.filter(row => row.deleted).length,
+    } as Record<View, number>;
+  }, [all]);
 
-  const groups = useMemo(() => {
+  // Rows of the chosen view, then the search and category filter, then the sort.
+  const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const rows = live.filter(row => row.surface === surface && (!needle || `${row.endpoint} ${row.category} ${row.id}`.toLowerCase().includes(needle)));
-    const byCategory = new Map<string, ActionRow[]>();
-    for (const row of rows) byCategory.set(row.category, [...(byCategory.get(row.category) ?? []), row]);
-    // "Unsorted" always goes last.
-    return [...byCategory.entries()].sort((a, b) => (a[0] === UNSORTED ? 1 : b[0] === UNSORTED ? -1 : a[0].localeCompare(b[0])));
-  }, [live, surface, query]);
+    const inView = all.filter(row => {
+      if (view === "archived") return row.archived && !row.deleted;
+      if (view === "deleted") return row.deleted;
+      if (row.archived || row.deleted) return false;
+      return view === "all" || row.surface === view;
+    });
+    const filtered = inView.filter(row =>
+      (!category || row.category === category) &&
+      (!needle || `${row.id} ${row.method} ${row.endpoint} ${row.category} ${row.note}`.toLowerCase().includes(needle)));
+    const valueOf = (row: ActionRow) => (sort.key === "surface" ? row.surface : sort.key === "endpoint" ? row.endpoint : sort.key === "category" ? row.category : row.id);
+    return [...filtered].sort((a, b) => {
+      const result = String(valueOf(a)).localeCompare(String(valueOf(b)), undefined, { numeric: true });
+      return sort.desc ? -result : result;
+    });
+  }, [all, view, query, category, sort]);
 
-  const archived = (data?.actions ?? []).filter(row => row.archived && !row.deleted);
-  const deleted = (data?.actions ?? []).filter(row => row.deleted);
+  const sortHeader = (key: SortKey, label: string) => (
+    <th aria-sort={sort.key === key ? (sort.desc ? "descending" : "ascending") : "none"}>
+      <button type="button" onClick={() => setSort(current => ({ key, desc: current.key === key ? !current.desc : false }))}>
+        {label}{sort.key === key ? (sort.desc ? " ▼" : " ▲") : ""}
+      </button>
+    </th>
+  );
 
-  return <section className={styles.section} aria-label="Actions" hidden={!active}>
-    <p className={styles.muted}>Every action that changes data. Manage an action to move it, archive it or remove it from this list.</p>
+  function commitCategory(row: ActionRow) {
+    const next = editing?.draft.replace(/\s+/g, " ").trim() ?? "";
+    setEditing(null);
+    if (!next || next === row.category) return;
+    void save(row.id, { category: next }, "Category saved.");
+  }
+
+  return <section className={styles.section} aria-label="Actions list" hidden={!active}>
+    <p className={styles.muted}>Change Where or Category right in the row. Use Manage for archive, delete or reset.</p>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
 
     {!data ? !error && <Loader label="Loading actions…" /> : <>
-      <div role="tablist" aria-label="Where the action happens">
-        {data.surfaces.map(item => <button key={item} type="button" role="tab" aria-selected={surface === item} onClick={() => { setSurface(item); setEditingId(null); }}>
-          {SURFACE_TITLES[item]} <span>({counts[item]})</span>
+      <div role="tablist" aria-label="Show actions" className={c.segment}>
+        {VIEWS.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => { setView(item.id); setMenuFor(null); }}>
+          {item.id in SURFACE_DOT && <span className={c.dot} style={{ background: SURFACE_DOT[item.id as Surface] }} aria-hidden="true" />}
+          {item.label} <span className={c.badge}>({counts[item.id]})</span>
         </button>)}
       </div>
 
-      <input type="search" aria-label="Find an action" placeholder="Find an action" value={query} onChange={event => setQuery(event.target.value)} />
+      <div className={c.toolbar}>
+        <div>
+          <input className={c.search} type="search" aria-label="Find an action" placeholder="Find by name, endpoint or number" value={query} onChange={event => setQuery(event.target.value)} />{" "}
+          <select className={c.select} aria-label="Category" value={category} onChange={event => setCategory(event.target.value)}>
+            <option value="">All categories</option>
+            {data.categories.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </div>
+        <span className={c.count}>Showing {rows.length} {rows.length === 1 ? "action" : "actions"}</span>
+      </div>
 
-      {!groups.length ? <p>No matching actions.</p> : groups.map(([category, rows]) => <div key={category}>
-        <h3>{category} <span className={styles.muted}>({rows.length})</span></h3>
-        <ul>
-          {rows.map(row => <li key={row.id}>
-            <div>
-              <code>{row.method}</code> <span>{row.endpoint}</span> <small className={styles.muted}>{row.id}</small>
-              {row.note && <small className={styles.muted}> · {row.note}</small>}
-              {row.changed && <small className={styles.muted}> · changed</small>}
-              {" "}<button type="button" onClick={() => setEditingId(editingId === row.id ? null : row.id)} aria-expanded={editingId === row.id}>Manage</button>
-            </div>
-            {editingId === row.id && <ManageForm row={row} surfaces={data.surfaces} categories={data.categories} saving={saving}
-              onSave={(change, done) => save(row.id, change, done)} onCancel={() => setEditingId(null)} />}
-          </li>)}
-        </ul>
-      </div>)}
-
-      <h2>Archived</h2>
-      {!archived.length ? <p className={styles.muted}>No archived actions.</p> : data.surfaces.map(item => {
-        const rows = archived.filter(row => row.surface === item);
-        if (!rows.length) return null;
-        return <div key={item}>
-          <h3>{SURFACE_TITLES[item]}</h3>
-          <ul>{rows.map(row => <li key={row.id}>
-            <span>{row.category}</span> · <code>{row.method}</code> <span>{row.endpoint}</span>{" "}
-            <button type="button" disabled={saving} onClick={() => save(row.id, { archived: false }, "Action restored.")}>Restore</button>
-          </li>)}</ul>
-        </div>;
-      })}
-
-      <h2>Deleted</h2>
-      {!deleted.length ? <p className={styles.muted}>No deleted actions. Deleting only removes an action from this list; the code stays.</p> : <ul>
-        {deleted.map(row => <li key={row.id}>
-          <span>{SURFACE_TITLES[row.surface]} · {row.category}</span> · <code>{row.method}</code> <span>{row.endpoint}</span>{" "}
-          <button type="button" disabled={saving} onClick={() => save(row.id, { deleted: false }, "Action restored.")}>Restore</button>
-        </li>)}
-      </ul>}
+      {!rows.length ? <p>No actions here.</p> : <div className={c.tableWrap}>
+        <table className={c.table} aria-label="Actions table">
+          <thead><tr>
+            {sortHeader("id", "ID")}
+            <th>Method</th>
+            {sortHeader("endpoint", "Endpoint")}
+            {sortHeader("surface", "Where")}
+            {sortHeader("category", "Category")}
+            <th>Note</th>
+            <th>Status</th>
+            <th className={c.right}>Manage</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(row => <tr key={row.id} data-off={row.archived || row.deleted ? "true" : "false"}>
+              <td>{row.id}</td>
+              <td className={c.method}>{row.method}</td>
+              <td className={c.endpoint}>{row.endpoint}</td>
+              <td>
+                <select className={c.inlineSelect} aria-label={`Where ${row.id}`} value={row.surface} disabled={saving || row.deleted}
+                  onChange={event => { const next = event.target.value as Surface; if (next !== row.surface) void save(row.id, { surface: next }, `Moved to ${SURFACE_TITLES[next]}.`); }}>
+                  {(data.surfaces).map(item => <option key={item} value={item}>{SURFACE_TITLES[item]}</option>)}
+                </select>
+              </td>
+              <td>
+                {editing?.id === row.id ? <input className={c.cellInput} aria-label={`Category for ${row.id}`} autoFocus list="action-categories" value={editing.draft}
+                  onChange={event => setEditing({ id: row.id, draft: event.target.value })}
+                  onBlur={() => commitCategory(row)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter") { event.preventDefault(); commitCategory(row); }
+                    if (event.key === "Escape") { event.preventDefault(); setEditing(null); }
+                  }} />
+                  : <button type="button" className={c.cellButton} title="Click to change the category" disabled={saving || row.deleted}
+                    onClick={() => setEditing({ id: row.id, draft: row.category })}>{row.category}</button>}
+              </td>
+              <td className={c.note}>{row.note}</td>
+              <td>
+                {row.deleted && <span className={`${c.status} ${c.statusDeleted}`}>Deleted</span>}
+                {row.archived && !row.deleted && <span className={`${c.status} ${c.statusArchived}`}>Archived</span>}
+                {row.changed && !row.archived && !row.deleted && <span className={`${c.status} ${c.statusChanged}`}>Changed</span>}
+              </td>
+              <td className={c.right}>
+                <ManageMenu row={row} open={menuFor === row.id} saving={saving}
+                  onToggle={() => setMenuFor(menuFor === row.id ? null : row.id)}
+                  onClose={() => setMenuFor(null)}
+                  onAction={(change, done) => void save(row.id, change, done)} />
+              </td>
+            </tr>)}
+          </tbody>
+        </table>
+        <datalist id="action-categories">{data.categories.map(item => <option key={item} value={item} />)}</datalist>
+      </div>}
     </>}
   </section>;
 }
 
-function ManageForm({ row, surfaces, categories, saving, onSave, onCancel }: {
-  row: ActionRow; surfaces: Surface[]; categories: string[]; saving: boolean;
-  onSave: (change: Record<string, unknown>, done: string) => void; onCancel: () => void;
+function ManageMenu({ row, open, saving, onToggle, onClose, onAction }: {
+  row: ActionRow; open: boolean; saving: boolean;
+  onToggle: () => void; onClose: () => void; onAction: (change: Record<string, unknown>, done: string) => void;
 }) {
-  const [surface, setSurface] = useState<Surface>(row.surface);
-  const [category, setCategory] = useState(row.category);
-  const listId = `categories-${row.id}`;
-  return <form className={styles.section} aria-label={`Manage ${row.endpoint}`} onSubmit={event => {
-    event.preventDefault();
-    const change: Record<string, unknown> = {};
-    if (surface !== row.surface) change.surface = surface;
-    if (category.trim() !== row.category) change.category = category;
-    if (!Object.keys(change).length) { onCancel(); return; }
-    onSave(change, "Action saved.");
-  }}>
-    <label>Where it happens{" "}
-      <select value={surface} onChange={event => setSurface(event.target.value as Surface)}>
-        {surfaces.map(item => <option key={item} value={item}>{SURFACE_TITLES[item]}</option>)}
-      </select>
-    </label>{" "}
-    <label>Category{" "}
-      <input list={listId} value={category} onChange={event => setCategory(event.target.value)} maxLength={60} />
-      <datalist id={listId}>{categories.map(item => <option key={item} value={item} />)}</datalist>
-    </label>
-    <div>
-      <button type="submit" disabled={saving}>Save</button>{" "}
-      <button type="button" disabled={saving} onClick={() => onSave({ archived: true }, "Action archived.")}>Archive</button>{" "}
-      <button type="button" disabled={saving} onClick={() => onSave({ deleted: true }, "Action removed from the list.")}>Delete from list</button>{" "}
-      {row.changed && <button type="button" disabled={saving} onClick={() => onSave({ reset: true }, "Action reset to its original place.")}>Reset to original</button>}{" "}
-      <button type="button" disabled={saving} onClick={onCancel}>Cancel</button>
-    </div>
-  </form>;
+  const wrap = useRef<HTMLDivElement>(null);
+
+  // Close on a click outside the menu or on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: MouseEvent) => { if (wrap.current && !wrap.current.contains(event.target as Node)) onClose(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", escape); };
+  }, [open, onClose]);
+
+  return <div className={c.menuWrap} ref={wrap}>
+    <button type="button" className={c.manage} aria-haspopup="menu" aria-expanded={open} aria-label={`Manage ${row.id} ${row.endpoint}`}
+      onClick={onToggle} disabled={saving}>Manage ▾</button>
+    {open && <div className={c.menu} role="menu" aria-label={`Manage ${row.id}`}>
+      <div className={c.menuTitle}>{row.id} · {row.endpoint}</div>
+      {!row.deleted && <button type="button" role="menuitem" disabled={saving} onClick={() => onAction({ archived: !row.archived }, row.archived ? "Action restored." : "Action archived.")}>
+        <strong>{row.archived ? "Restore" : "Archive"}</strong>
+        <span>{row.archived ? "Show it in the list again." : "Hide it from the list. It stays in Archived."}</span>
+      </button>}
+      {!row.deleted && <button type="button" role="menuitem" className={c.danger} disabled={saving} onClick={() => onAction({ deleted: true }, "Action removed from the list. The code stays.")}>
+        <strong>Delete from list</strong>
+        <span>Remove it from this list. The code stays; Restore it from Deleted.</span>
+      </button>}
+      {row.deleted && <button type="button" role="menuitem" disabled={saving} onClick={() => onAction({ deleted: false }, "Action restored.")}>
+        <strong>Restore</strong>
+        <span>Put it back in the list.</span>
+      </button>}
+      {row.changed && <button type="button" role="menuitem" disabled={saving} onClick={() => onAction({ reset: true }, "Action reset to its original place.")}>
+        <strong>Reset to original</strong>
+        <span>Put it back where the catalog has it.</span>
+      </button>}
+    </div>}
+  </div>;
 }

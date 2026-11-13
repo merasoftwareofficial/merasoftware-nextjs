@@ -1,0 +1,62 @@
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin: 12px 0; }
+.search { flex: 1 1 260px; max-width: 420px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; font: inherit; font-size: 14px; }
+.select { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; font: inherit; font-size: 14px; }
+.count { color: var(--muted); font-size: 13px; }
+
+.segment { display: flex; flex-wrap: wrap; gap: 6px; }
+.segment button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: 14px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.segment button[aria-selected="true"] { background: var(--inverse); color: var(--inverse-text); border-color: var(--inverse); font-weight: 600; }
+.segment button:focus-visible { outline: 2px solid var(--brand-link); outline-offset: 2px; }
+.segment .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-link); }
+.segment .badge { font-size: 12px; opacity: .8; }
+
+.tableWrap { margin-top: 12px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th, .table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.table thead th { position: sticky; top: 0; background: var(--paper); font-weight: 700; white-space: nowrap; z-index: 1; }
+.table thead button { border: 0; background: none; font: inherit; font-weight: 700; color: inherit; cursor: pointer; padding: 0; }
+.table tbody tr:nth-child(even) { background: rgb(127 127 127 / .05); }
+.table tbody tr:hover { background: rgb(127 127 127 / .12); }
+.table tbody tr[data-off="true"] td { color: var(--muted); }
+.endpoint { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+.method { font-family: ui-monospace, Consolas, monospace; font-size: 12px; font-weight: 700; }
+.note { color: var(--muted); font-size: 12px; max-width: 320px; }
+.status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: rgb(127 127 127 / .15); white-space: nowrap; }
+.statusChanged { background: rgb(0 127 153 / .18); }
+.statusArchived { background: rgb(180 130 0 / .2); }
+.statusDeleted { background: rgb(177 42 42 / .15); }
+.right { text-align: right !important; white-space: nowrap; }
+.manage { padding: 6px 14px; border: 1px solid var(--inverse); border-radius: 7px; background: var(--inverse); color: var(--inverse-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.manage:focus-visible, .segment button:focus-visible, .table thead button:focus-visible { outline: 2px solid var(--brand-link); outline-offset: 2px; }
+
+.overlay { position: fixed; inset: 0; z-index: 100; background: rgb(0 0 0 / .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.dialog { width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--surface); color: inherit; border: 1px solid var(--line); border-radius: 12px; padding: 22px; display: grid; gap: 14px; }
+.dialog h3 { margin: 0; font-size: 17px; }
+.dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 13px; }
+.dialog dt { color: var(--muted); }
+.dialog dd { margin: 0; overflow-wrap: anywhere; }
+.form { display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; font-size: 14px; }
+.field input, .field select { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; font: inherit; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.actions .group { display: flex; flex-wrap: wrap; gap: 8px; }
+.button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
+.button.primary { background: var(--inverse); color: var(--inverse-text); border-color: var(--inverse); font-weight: 600; }
+.button.danger { color: #b12a2a; }
+.button:disabled { opacity: .5; cursor: default; }
+.button:focus-visible { outline: 2px solid var(--brand-link); outline-offset: 2px; }
+
+.inlineSelect { padding: 5px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.inlineSelect:hover, .inlineSelect:focus-visible { border-color: var(--line); background: var(--paper); outline: none; }
+.cellButton { border: 1px dashed transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 13px; padding: 4px 6px; cursor: text; text-align: left; }
+.cellButton:hover, .cellButton:focus-visible { border-color: var(--line); background: var(--paper); outline: none; }
+.cellInput { padding: 5px 8px; border: 1px solid var(--brand-link); border-radius: 6px; background: var(--paper); color: inherit; font: inherit; font-size: 13px; min-width: 180px; }
+.menuWrap { position: relative; display: inline-block; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 290px; display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 10px 30px rgb(0 0 0 / .18); text-align: left; }
+.menu button { display: grid; gap: 2px; text-align: left; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--paper); outline: none; }
+.menu button:disabled { opacity: .5; cursor: default; }
+.menu button strong { font-size: 14px; }
+.menu button span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.menu button.danger strong { color: #b12a2a; }
+.menuTitle { padding: 6px 10px 8px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
