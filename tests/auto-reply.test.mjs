@@ -730,7 +730,7 @@ test('browser: Communication → Actions → Where and Category change in the ro
     const tab = name => region.getByRole('tab', { name: new RegExp(`^${name}`) });
     const openMenu = async () => { await rowOf().getByRole('button', { name: /^Manage / }).click(); return page.getByRole('menu', { name: 'Manage A01' }); };
     await region.getByRole('table', { name: 'Actions table' }).waitFor();
-    assert.ok(await region.getByRole('columnheader', { name: /What it does/ }).count());
+    assert.ok(await region.getByRole('columnheader', { name: /Endpoint/ }).count());
     await tab('Admin panel').click();
     await rowOf().waitFor();
     // Where: change it right in the row.
@@ -741,7 +741,7 @@ test('browser: Communication → Actions → Where and Category change in the ro
     await rowOf().waitFor();
     assert.match(await rowOf().innerText(), /Changed/);
     // Category: click the cell, type, press Enter.
-    await rowOf().getByRole('button', { name: 'Admin settings', exact: true }).click();
+    await rowOf().getByRole('button', { name: 'Admin settings' }).click();
     await rowOf().getByLabel('Category for A01').fill('Browser test');
     await rowOf().getByLabel('Category for A01').press('Enter');
     await region.getByRole('status').getByText('Category saved.').waitFor();
