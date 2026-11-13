@@ -57,8 +57,8 @@ export function AdminNavLinks({ groups }: { groups: AdminNavGroup[] }) {
       rows.push(<NavRow key={href} href={href} label={label} active={active} soft={soft} pathname={pathname} />);
       if (!sub || !active) continue;
       for (const child of sub) {
-        // Only the Communication sections use a panel; other sub-tabs are plain pages.
-        const childActive = child.section !== undefined && pathOf(child.href) === pathname && communicationSectionOf(panel, tab) === child.section;
+        // A Communication section is active by its panel; any other sub-tab by its page path (a nested page counts).
+        const childActive = child.section !== undefined ? pathOf(child.href) === pathname && communicationSectionOf(panel, tab) === child.section : under(pathname, pathOf(child.href));
         rows.push(<NavRow key={child.href} href={child.href} label={child.label} active={childActive} soft={soft} pathname={pathname} sub />);
       }
     }

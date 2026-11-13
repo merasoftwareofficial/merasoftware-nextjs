@@ -16,17 +16,19 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   { items: [{ label: "Overview", href: "/admin", minimum: "moderator" }] },
   { title: "Business", items: [
     { label: "Leads", href: "/admin/leads", minimum: "editor" },
-    { label: "Offers", href: "/admin/offers", minimum: "admin" },
-    { label: "Plans", href: "/admin/plans", minimum: "admin" },
-    { label: "Packages", href: "/admin/packages", minimum: "admin" },
+    { label: "Packages", href: "/admin/packages", minimum: "admin", also: ["/admin/offers", "/admin/plans"], sub: [
+      { label: "Offers", href: "/admin/offers" },
+      { label: "Plans", href: "/admin/plans" },
+    ] },
     { label: "Communication", href: "/admin/communication", minimum: "admin", also: ["/admin/email-control", "/admin/whatsapp"], soft: true, sub: COMMUNICATION_SECTIONS.map(({ id, label, panel }) => ({ label, href: `/admin/communication?panel=${panel}`, section: id })) },
   ] },
   { title: "Website", items: [
-    { label: "Website Content", href: "/admin/content", minimum: "editor" },
-    { label: "Homepage variants", href: "/admin/homepage-variants", minimum: "editor" },
-    { label: "Section visuals", href: "/admin/visuals", minimum: "editor" },
-    { label: "Portfolio", href: "/admin/portfolio", minimum: "editor" },
-    { label: "Media library", href: "/admin/media", minimum: "editor" },
+    { label: "Content Management", href: "/admin/content", minimum: "editor", also: ["/admin/homepage-variants", "/admin/visuals", "/admin/portfolio", "/admin/media"], sub: [
+      { label: "Homepage variants", href: "/admin/homepage-variants" },
+      { label: "Section visuals", href: "/admin/visuals" },
+      { label: "Portfolio", href: "/admin/portfolio" },
+      { label: "Media library", href: "/admin/media" },
+    ] },
   ] },
   { title: "Blog", items: [{ label: "Blog Management", href: "/admin/blog-management", minimum: "moderator", also: ["/admin/blog", "/admin/comments", "/admin/categories", "/admin/users"] }] },
   { title: "SEO", items: [

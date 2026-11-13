@@ -28,7 +28,7 @@ export default async function Admin() {
   const pending = attention.filter(item => item.count > 0);
   const shortcuts = [
     ...(canEdit ? [
-      { title: "Website Content", description: "Edit text, buttons and section visuals on Home, About and Services.", href: "/admin/content" },
+      { title: "Content Management", description: "Edit text, buttons and section visuals on Home, About and Services.", href: "/admin/content" },
       { title: "Portfolio", description: "Edit project details and images, and select projects to feature on the homepage.", href: "/admin/portfolio" },
       { title: "Media Library", description: "Upload images and edit the descriptions used when selecting media.", href: "/admin/media" },
     ] : []),

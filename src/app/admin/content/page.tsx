@@ -13,7 +13,7 @@ import { PageSectionEditor } from "./page-section-editor";
 import { resolveAbout, resolveServices, sectionVisualIds, type ManagedPage } from "@/lib/page-content";
 import { activeVisualSlots, resolveVisualConfigs } from "@/lib/visual-config";
 
-export const metadata = { title: "Website Content — Admin" };
+export const metadata = { title: "Content Management — Admin" };
 export default async function WebsiteContent({ searchParams }: { searchParams: Promise<{ page?: string; section?: string }> }) {
   const query = await searchParams;
   if (query.page === "offers") redirect(legacyOfferDestination(query.section));
@@ -27,7 +27,7 @@ export default async function WebsiteContent({ searchParams }: { searchParams: P
   const managedContent = resolved ? (resolved as unknown as Record<string, unknown>)[section.id] : undefined;
   const managedVisuals = managed && managedPage ? resolveVisualConfigs(managed[0], sectionVisualIds(managedPage, section.id, managedContent)) : {};
   return <main className="admin-main">
-    <AdminHeader eyebrow="SITE CONTENT" title="Website Content" description="Choose a page and section to manage its content. About and Services include their visual controls below." action={<Link className="admin-button" href="/admin/visuals">Section visuals ↗</Link>} />
+    <AdminHeader eyebrow="SITE CONTENT" title="Content Management" description="Choose a page and section to manage its content. About and Services include their visual controls below." action={<Link className="admin-button" href="/admin/visuals">Section visuals ↗</Link>} />
     <div className={s.layout}>
       <nav className={s.navigation} aria-label="Website content sections">
         {CONTENT_PAGES.map(group => <div className={s.group} key={group.id}>
