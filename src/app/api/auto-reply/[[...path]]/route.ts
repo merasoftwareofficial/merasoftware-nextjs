@@ -20,6 +20,10 @@ async function handle(request: Request, context: Context) {
     const params = new URLSearchParams();
     if (page) params.set("page", page);
     if (view) params.set("view", view);
+    if (path === "reminder-runs") {
+      const source = new URL(request.url).searchParams.get("source");
+      if (source) params.set("source", source);
+    }
     if (path === "legacy-reminder-history") {
       const search = new URL(request.url).searchParams;
       for (const name of ["source", "entityId"]) { const value = search.get(name); if (value) params.set(name, value); }

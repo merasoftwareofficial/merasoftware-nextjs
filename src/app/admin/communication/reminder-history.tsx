@@ -8,18 +8,18 @@ import styles from "../email-control/email-control.module.css";
 type Row = { _id: string; customer: string; ruleName: string; source: string; dueAt: string; status: string; reason?: string; channel: string; channelOutcomes?: { email?: string; whatsapp?: string } };
 type View = 'all' | 'upcoming' | 'today' | 'sent' | 'sent_today' | 'attention';
 type Reply = { page: number; pageSize: number; view: View; total: number; rows: Row[] };
-export function ReminderHistory({ active }: { active: boolean }) {
+export function ReminderHistory({ active, source }: { active: boolean; source?: "monthly_package" | "broadcast" }) {
   const [page, setPage] = useState(1), [data, setData] = useState<Reply | null>(null), [error, setError] = useState("");
   const [view, setView] = useState<View>('all');
   const [retrying, setRetrying] = useState("");
   const load = useCallback(async (signal: AbortSignal) => {
     try {
-      const response = await fetch(`/api/auto-reply/reminder-runs?page=${page}&view=${view}`, { signal, cache: 'no-store' });
+      const response = await fetch(`/api/auto-reply/reminder-runs?page=${page}&view=${view}${source ? `&source=${source}` : ""}`, { signal, cache: 'no-store' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not load reminder activity.');
       if (!signal.aborted) { setData(result.data); setError(''); }
     } catch (failure) { if (!signal.aborted) setError(failure instanceof Error ? failure.message : 'Could not load reminder activity.'); }
-  }, [page, view]);
+  }, [page, view, source]);
   useCommunicationRefresh(load, active, 5000, `${page}:${view}`);
   async function retry(id: string) {
     setRetrying(id); setError('');

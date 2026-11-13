@@ -101,7 +101,8 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [mounted, setMounted] = useState(() => new Set(view.panel ? [partOf(view)] : []));
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
   const [query, setQuery] = useState("");
-  const [reminderSection, setReminderSection] = useState<"rules" | "activity" | "existing">("rules");
+  const [reminderSection, setReminderSection] = useState<"work" | "rules" | "activity" | "existing">("work");
+  const [reminderWork, setReminderWork] = useState<"monthly_package" | "offer_payment" | "reservation" | "broadcast" | null>(null);
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
@@ -222,7 +223,21 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
       ["reminders", <section key="reminders" aria-label="Existing reminders">
         <div className={s.subNav} role="group" aria-label="Reminder sections">
-          {([ ["rules", "Rules"], ["activity", "Reminder activity"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
+          {([ ["work", "By work"], ["activity", "Reminder activity"], ["rules", "Rules"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
+        </div>
+        <div hidden={reminderSection !== "work"}>
+          {!reminderWork ? <section aria-label="Reminders by work">
+            <h3>Choose a work</h3><p>Open a work to manage its messages and reminders. Customer activity is available inside each existing system.</p>
+            {([ ["monthly_package", "Monthly payment", "Plan messages and renewal reminders"], ["offer_payment", "Offer payment", "Payment messages and saved agreement reminders"], ["reservation", "Reservation", "Reservation messages and expiry reminders"], ["broadcast", "Broadcast follow-up", "Messages after a broadcast"] ] as const).map(([id, title, description]) => <article className={s.quickCard} key={id}><strong>{title}</strong><span>{description}</span><button type="button" onClick={() => setReminderWork(id)}>Open →</button></article>)}
+          </section> : <section aria-label="Work reminders">
+            <button type="button" className={s.link} onClick={() => setReminderWork(null)}>← All work</button>
+            <h3>{reminderWork === "monthly_package" ? "Monthly payment" : reminderWork === "offer_payment" ? "Offer payment" : reminderWork === "reservation" ? "Reservation" : "Broadcast follow-up"}</h3>
+            {reminderWork !== "broadcast" && <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: reminderWork === "monthly_package" ? "plan.started" : reminderWork === "offer_payment" ? "offer.payment.reminder" : "offer.reservation.reminder" })}>Open message settings →</button></p>}
+            {(reminderWork === "monthly_package" || reminderWork === "broadcast") && <ReminderDrafts active={part("reminders").shown && reminderSection === "work"} source={reminderWork} openSource={source => source === "broadcast" ? go({ panel: "broadcast", tab: null, app: null }) : go({ panel: "email-templates", tab: "portal", app: null, event: "plan.started" })} />}
+            {(reminderWork === "monthly_package" || reminderWork === "broadcast") && <ReminderHistory key={reminderWork} active={part("reminders").shown && reminderSection === "work"} source={reminderWork} />}
+            {reminderWork === "offer_payment" && <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "work"} openAction={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })} />}
+            {reminderWork === "reservation" && <ReservationPanel active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />}
+          </section>}
         </div>
         <div hidden={reminderSection !== "rules"}><ReminderDrafts active={part("reminders").shown && reminderSection === "rules"} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} /></div>
         <div hidden={reminderSection !== "activity"}><ReminderHistory active={part("reminders").shown && reminderSection === "activity"} /></div>

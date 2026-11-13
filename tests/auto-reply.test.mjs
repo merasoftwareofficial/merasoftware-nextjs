@@ -533,3 +533,41 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     assert.equal(await page.getByRole('dialog').count(), 0);
   } finally { await browser.close(); }
 });
+test('browser: work-based reminders use existing action-specific controls', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(websiteBase);
+    await openPanel(page, '?panel=reminders');
+    const work = page.getByRole('region', { name: 'Reminders by work' });
+    await work.getByText('Monthly payment', { exact: true }).waitFor();
+    await work.locator('article').filter({ hasText: 'Monthly payment' }).getByRole('button', { name: 'Open' }).click();
+    const details = page.getByRole('region', { name: 'Work reminders' });
+    await details.getByRole('button', { name: 'Create draft' }).click();
+    assert.equal(await details.getByRole('combobox').first().inputValue(), 'monthly_package');
+    assert.equal(await details.getByRole('combobox').first().isDisabled(), true);
+    await details.getByRole('button', { name: 'Cancel' }).click();
+    await details.getByRole('button', { name: 'All work' }).click();
+    await work.locator('article').filter({ hasText: 'Offer payment' }).getByRole('button', { name: 'Open' }).click();
+    await details.getByRole('heading', { name: 'Offer payment reminders' }).waitFor();
+    await details.getByRole('button', { name: 'Open message settings' }).click();
+    assert.match(page.url(), /event=offer.payment.reminder/);
+  } finally { await browser.close(); }
+});
+test('reminder activity filters by work using stored runs', async () => {
+  const Run = backend('./models/communicationReminderRunModel');
+  const id = () => new mongoose.Types.ObjectId();
+  const ruleId = id(), clientId = id();
+  const base = { ruleId, ruleRevision: 1, step: 0, entityId: id(), clientId, dueAt: new Date(), subject: 'Reminder', text: 'Hello', channel: 'email' };
+  await Run.create([{ ...base, source: 'monthly_package', occurrenceKey: `monthly-${id()}` }, { ...base, source: 'broadcast', occurrenceKey: `broadcast-${id()}` }]);
+  try {
+    const monthly = await request('/api/auto-reply/reminder-runs?source=monthly_package');
+    assert.equal(monthly.status, 200);
+    assert.ok(monthly.data.rows.some(row => String(row.ruleId) === String(ruleId)));
+    assert.ok(monthly.data.rows.every(row => row.source === 'monthly_package'));
+    const broadcast = await request('/api/auto-reply/reminder-runs?source=broadcast');
+    assert.ok(broadcast.data.rows.some(row => String(row.ruleId) === String(ruleId)));
+    assert.ok(broadcast.data.rows.every(row => row.source === 'broadcast'));
+    assert.equal((await request('/api/auto-reply/reminder-runs?source=invalid')).status, 400);
+  } finally { await Run.deleteMany({ ruleId }); }
+});
