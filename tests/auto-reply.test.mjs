@@ -688,3 +688,79 @@ test('work summary counts distinct customers with upcoming offer-payment and res
     await User.collection.deleteMany({ _id: { $in: [good._id, paused._id, noEmail] } });
   }
 });
+
+test('actions API: admin only; lists every action; saves a move, archive and delete; reset restores the original', async () => {
+  const list = await request('/api/auto-reply/actions');
+  assert.equal(list.status, 200);
+  assert.equal(list.data.actions.length, 178);
+  assert.deepEqual(list.data.surfaces, ['Admin', 'Client', 'Website', 'System']);
+  assert.equal((await request('/api/auto-reply/actions', 'GET', member)).status, 403);
+  assert.equal((await request('/api/auto-reply/actions/A01', 'PUT', member, 'admin', { archived: true })).status, 403);
+  assert.equal((await request('/api/auto-reply/actions/A01', 'PUT', admin, 'editor', { archived: true })).status, 403);
+  assert.equal((await request('/api/auto-reply/actions/Z99', 'PUT', admin, 'admin', { archived: true })).status, 404);
+  const original = list.data.actions.find(row => row.id === 'A01');
+  const moved = await request('/api/auto-reply/actions/A01', 'PUT', admin, 'admin', { surface: 'Website', category: 'Orders' });
+  assert.equal(moved.status, 200, moved.error);
+  assert.equal(moved.data.surface, 'Website');
+  assert.equal(moved.data.category, 'Orders');
+  assert.equal(moved.data.changed, true);
+  const archived = await request('/api/auto-reply/actions/A01', 'PUT', admin, 'admin', { archived: true });
+  assert.equal(archived.data.archived, true);
+  const deleted = await request('/api/auto-reply/actions/A01', 'PUT', admin, 'admin', { deleted: true });
+  assert.equal(deleted.data.deleted, true);
+  const reset = await request('/api/auto-reply/actions/A01', 'PUT', admin, 'admin', { reset: true });
+  assert.equal(reset.data.surface, original.surface);
+  assert.equal(reset.data.category, original.category);
+  assert.equal(reset.data.archived, false);
+  assert.equal(reset.data.deleted, false);
+  assert.equal(reset.data.changed, false);
+  assert.equal((await request('/api/auto-reply/actions/A01', 'PUT', admin, 'admin', { surface: 'Other' })).status, 400);
+});
+
+test('browser: Communication → Actions → Manage moves, archives, deletes and resets an action', { timeout: 120000 }, async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(websiteBase);
+    await openPanel(page, '?panel=actions');
+    const region = page.getByRole('region', { name: 'Actions' });
+    for (const name of ['Admin panel', 'Client portal', 'Website', 'System']) await region.getByRole('tab', { name: new RegExp(`^${name}`) }).waitFor();
+    const endpoint = '/api/admin/my-settings';
+    const rowOf = () => region.locator('li', { hasText: endpoint });
+    // Admin tab: the action is there. Manage it, move it to Website with a new category, save.
+    await rowOf().first().waitFor();
+    await rowOf().first().getByRole('button', { name: 'Manage' }).click();
+    const form = region.getByRole('form', { name: `Manage ${endpoint}` });
+    await form.getByLabel('Where it happens').selectOption('Website');
+    await form.getByLabel('Category').fill('Browser test');
+    await form.getByRole('button', { name: 'Save', exact: true }).click();
+    await region.getByText('Action saved.').waitFor();
+    assert.equal(await rowOf().count(), 0, 'moved action leaves the Admin list');
+    await region.getByRole('tab', { name: /^Website/ }).click();
+    await rowOf().first().waitFor();
+    await region.getByRole('heading', { name: /^Browser test/ }).waitFor();
+    // Website tab: archive it. It leaves the list and shows in Archived under its own surface.
+    await rowOf().first().getByRole('button', { name: 'Manage' }).click();
+    await region.getByRole('form', { name: `Manage ${endpoint}` }).getByRole('button', { name: 'Archive', exact: true }).click();
+    await region.getByText('Action archived.').waitFor();
+    assert.equal(await rowOf().count(), 1, 'archived action is shown only in Archived');
+    await rowOf().first().getByRole('button', { name: 'Restore' }).click();
+    await region.getByText('Action restored.').waitFor();
+    // Delete it from the list, then restore from Deleted.
+    await rowOf().first().getByRole('button', { name: 'Manage' }).click();
+    await region.getByRole('form', { name: `Manage ${endpoint}` }).getByRole('button', { name: 'Delete from list' }).click();
+    await region.getByText('Action removed from the list.').waitFor();
+    await region.getByRole('heading', { name: 'Deleted', level: 2, exact: true }).waitFor();
+    await rowOf().first().getByRole('button', { name: 'Restore' }).click();
+    await region.getByText('Action restored.').waitFor();
+    // Reset to the original place: back under Admin with its original category.
+    await rowOf().first().getByRole('button', { name: 'Manage' }).click();
+    await region.getByRole('form', { name: `Manage ${endpoint}` }).getByRole('button', { name: 'Reset to original' }).click();
+    await region.getByText('Action reset to its original place.').waitFor();
+    await region.getByRole('tab', { name: /^Admin panel/ }).click();
+    await rowOf().first().waitFor();
+    assert.equal(await region.getByRole('heading', { name: /^Browser test/ }).count(), 0, 'reset removes the test category');
+  } finally {
+    await browser.close();
+  }
+});
