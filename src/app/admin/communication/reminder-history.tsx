@@ -39,7 +39,7 @@ export function ReminderHistory({ active, source }: { active: boolean; source?: 
     {view === 'sent_today' && <p className={styles.muted}>Shows deliveries with a recorded completion time for all selected channels. Older records without a completion time are not counted.</p>}
     {error && <p className={styles.error} role="alert">{error}</p>}
     {!ready ? !error && <Loader label="Loading reminder activity…" /> : <>
-      {!data.rows.length ? <p>No reminder steps yet.</p> : data.rows.map(row => <article className={styles.card} key={row._id}><div>
+      {!data.rows.length ? <p>No reminder steps yet. Steps appear after a reminder rule is active and the server scheduler has run.</p> : data.rows.map(row => <article className={styles.card} key={row._id}><div>
         <strong>{row.customer} · {row.ruleName}</strong><p>{row.source === 'monthly_package' ? 'Monthly package' : 'Broadcast'} · {formatIndiaDateTime(row.dueAt)} (IST)</p>
         <small>{row.status.replaceAll('_', ' ')} · {row.channel}{row.channelOutcomes ? ` · Email: ${row.channelOutcomes.email || 'unknown'} · WhatsApp: ${row.channelOutcomes.whatsapp || 'unknown'}` : ''}</small>{row.reason && <p className={styles.muted}>{row.reason}</p>}
       </div>{row.status === 'partial' && row.channelOutcomes?.email === 'sent' && row.channelOutcomes?.whatsapp === 'failed' && <button type="button" disabled={!!retrying} onClick={() => retry(row._id)}>{retrying === row._id ? 'Retrying…' : 'Retry WhatsApp queue'}</button>}</article>)}

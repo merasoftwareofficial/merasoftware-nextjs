@@ -561,10 +561,33 @@ test('browser: work-based reminders use existing action-specific controls', asyn
     await details.getByRole('button', { name: 'Add Reminder' }).waitFor();
     assert.equal(await details.getByRole('textbox', { name: 'Rule name' }).count(), 0);
     await details.getByRole('button', { name: 'All work' }).click();
+    // Each work page says what it is, which messages it uses, when it goes and when it stops, even with no data yet.
+    const sections = ['Messages', 'When reminders go', 'When reminders stop'];
+    for (const title of ['Monthly payment', 'Offer payment', 'Reservation', 'Broadcast follow-up']) {
+      await work.locator('article').filter({ hasText: title }).getByRole('button', { name: 'Open' }).click();
+      await details.getByRole('heading', { name: title, level: 3, exact: true }).waitFor();
+      for (const name of sections) await details.getByRole('region', { name, exact: true }).waitFor();
+      await details.getByRole('button', { name: 'WhatsApp delivery history' }).waitFor();
+      await details.getByRole('button', { name: 'All work' }).click();
+    }
+    await work.locator('article').filter({ hasText: 'Broadcast follow-up' }).getByRole('button', { name: 'Open' }).click();
+    await details.getByRole('region', { name: 'Messages', exact: true }).getByText(/own wording/).waitFor();
+    await details.getByRole('button', { name: 'All work' }).click();
+    await work.locator('article').filter({ hasText: 'Reservation' }).getByRole('button', { name: 'Open' }).click();
+    const reservationMessages = details.getByRole('region', { name: 'Messages', exact: true });
+    for (const label of ['Reservation confirmation', 'Start request and team reminder', 'After 24 hours', '24 hours left', '6 hours left', '1 hour left']) await reservationMessages.getByRole('button', { name: `${label} settings` }).waitFor();
+    // The work's own recorded history is open straight away, not hidden behind a click.
+    await details.getByRole('region', { name: 'Reservation message history', exact: true }).waitFor();
+    await details.getByRole('button', { name: 'All work' }).click();
     await work.locator('article').filter({ hasText: 'Offer payment' }).getByRole('button', { name: 'Open' }).click();
     await details.getByRole('heading', { name: 'Offer payment reminders' }).waitFor();
-    await details.getByRole('button', { name: 'Open message settings' }).click();
+    await details.getByRole('region', { name: 'Offer payment message history', exact: true }).waitFor();
+    await details.getByRole('button', { name: 'Offer payment reminder settings' }).click();
     assert.match(page.url(), /event=offer.payment.reminder/);
+    // Reminder activity: recorded offer and reservation history is open straight away too.
+    await openPanel(page, '?panel=reminders');
+    await page.getByRole('button', { name: 'Reminder activity', exact: true }).click();
+    await page.getByRole('region', { name: 'Offer and reservation message history', exact: true }).waitFor();
   } finally { await browser.close(); }
 });
 test('reminder activity filters by work using stored runs', async () => {

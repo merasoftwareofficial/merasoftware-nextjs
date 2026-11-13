@@ -21,6 +21,7 @@ import { BusinessActivity } from "./business-activity";
 import { ReminderDrafts } from "./reminder-drafts";
 import { ReminderHistory } from "./reminder-history";
 import { ReminderWorkList } from "./reminder-work-list";
+import { ReminderWorkDetail } from "./reminder-work-detail";
 
 /**
  * Communication: navigation boxes, then what needs attention and the recent emails and
@@ -228,20 +229,13 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
           {([ ["work", "By work"], ["activity", "Reminder activity"], ["rules", "Rules"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
         </div>
         <div hidden={reminderSection !== "work"}>
-          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={(work, add) => { setReminderAdd(!!add); setReminderWork(work); }} /> : <section aria-label="Work reminders">
-            <button type="button" className={s.link} onClick={() => setReminderWork(null)}>← All work</button>
-            <h3>{reminderWork === "monthly_package" ? "Monthly payment" : reminderWork === "offer_payment" ? "Offer payment" : reminderWork === "reservation" ? "Reservation" : "Broadcast follow-up"}</h3>
-            {reminderWork !== "broadcast" && <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: reminderWork === "monthly_package" ? "plan.started" : reminderWork === "offer_payment" ? "offer.payment.reminder" : "offer.reservation.reminder" })}>Open message settings →</button></p>}
-            {(reminderWork === "monthly_package" || reminderWork === "broadcast") && <ReminderDrafts active={part("reminders").shown && reminderSection === "work"} source={reminderWork} autoAdd={reminderAdd} openSource={source => source === "broadcast" ? go({ panel: "broadcast", tab: null, app: null }) : go({ panel: "email-templates", tab: "portal", app: null, event: "plan.started" })} />}
-            {(reminderWork === "monthly_package" || reminderWork === "broadcast") && <ReminderHistory key={reminderWork} active={part("reminders").shown && reminderSection === "work"} source={reminderWork} />}
-            {reminderWork === "offer_payment" && <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "work"} openAction={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })} />}
-            {reminderWork === "reservation" && <ReservationPanel active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />}
-          </section>}
+          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={(work, add) => { setReminderAdd(!!add); setReminderWork(work); }} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} autoAdd={reminderAdd} back={() => setReminderWork(null)}
+            openMessage={event => go({ panel: "email-templates", tab: "portal", app: null, event })} openBroadcast={() => go({ panel: "broadcast", tab: null, app: null })} openWhatsappHistory={() => go({ panel: "whatsapp-queue", tab: "history", app: null })} />}
         </div>
         <div hidden={reminderSection !== "rules"}><ReminderDrafts active={part("reminders").shown && reminderSection === "rules"} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} /></div>
         <div hidden={reminderSection !== "activity"}>
           <ReminderHistory active={part("reminders").shown && reminderSection === "activity"} />
-          <LegacyReminderHistory source="all" active={part("reminders").shown && reminderSection === "activity"} title="Offer and reservation message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
+          <LegacyReminderHistory source="all" defaultOpen active={part("reminders").shown && reminderSection === "activity"} title="Offer and reservation message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
         </div>
         <div hidden={reminderSection !== "existing"}>
           <p>Existing reminder schedules continue to follow each offer&apos;s saved agreement and the reservation system. This is not a complete schedule of upcoming reminders.</p>

@@ -11,8 +11,8 @@ type Row = { id: string; source: Source; entityId: string; event: string; action
 type Page = { page: number; pages: number; pageSize: number; total: number; rows: Row[] };
 const names: Record<string, string> = { sent: "Sent", queued: "Queued", pending: "Waiting", staged: "Prepared", sending: "Sending", failed: "Failed", skipped: "Not sent", expired: "Expired", cancelled: "Cancelled", "not-selected": "Not selected", "not-recorded": "Not recorded", unknown: "Unknown" };
 const stateName = (value: string) => names[value] || value.replaceAll("_", " ");
-export function LegacyReminderHistory({ source = "all", entityId, active, title = "Recorded message history", openAction }: { source?: Source; entityId?: string; active: boolean; title?: string; openAction?: (event: string) => void }) {
-  const [opened, setOpened] = useState(false);
+export function LegacyReminderHistory({ source = "all", entityId, active, title = "Recorded message history", openAction, defaultOpen = false }: { source?: Source; entityId?: string; active: boolean; title?: string; openAction?: (event: string) => void; defaultOpen?: boolean }) {
+  const [opened, setOpened] = useState(defaultOpen);
   const [filter, setFilter] = useState<Source>(source);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ key: string; value: Page } | null>(null);
@@ -31,7 +31,7 @@ export function LegacyReminderHistory({ source = "all", entityId, active, title 
   }, [selected, page, entityId, key]);
   useCommunicationRefresh(load, active && opened, 5000, `${key}:${retry}`);
   const current = data?.key === key ? data.value : null;
-  return <details onToggle={event => { if (event.target === event.currentTarget) setOpened(event.currentTarget.open); }}>
+  return <details open={defaultOpen} onToggle={event => { if (event.target === event.currentTarget) setOpened(event.currentTarget.open); }}>
     <summary>{title}</summary>
     {opened && <section className={styles.section} aria-label={title}>
       <p className={styles.muted}>Saved message records, including completed records. Missing old records are not recreated. WhatsApp results are shown while queue records remain available.</p>

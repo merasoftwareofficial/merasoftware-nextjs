@@ -13,6 +13,7 @@ import s from "./broadcast.module.css";
 import a from "./auto-reply.module.css";
 import { ReminderPauseControl } from "./reminder-pause-control";
 import { LegacyReminderHistory } from "./legacy-reminder-history";
+import { RESERVATION_MESSAGES } from "./reminder-work-info";
 
 // startRequestedAt: the customer pressed Start my project; the clock is paused until the team acts.
 type TeamReminder = { at: string; number: number } | null;
@@ -183,17 +184,7 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
     <p className={s.note}>Depending on the reservation&apos;s length and status, reminders can go after the first 24 hours and with 24, 6 or 1 hours left. Start my project pauses the countdown until a project is created or Extend deadline resumes it. The team is reminded once a day, up to 3 times.</p>
     {openAction && <details><summary>Reservation message settings (apply to all customers)</summary>
       <p className={s.note}>These links open the existing action settings for message wording, channel and On/Off. The reminder times are currently fixed by the reservation system.</p>
-      <div className={s.actions}>{([
-        ["offer.reserved", "Reservation confirmation"],
-        ["offer.reservation.extended", "Deadline extension"],
-        ["offer.reservation.expired", "Reservation expiry"],
-        ["offer.start.request.admin", "Start request and team reminder"],
-        ["offer.start.request.received", "Start request acknowledgement"],
-        ["offer.reservation.dayPassed", "After 24 hours"],
-        ["offer.reservation.reminder", "24 hours left"],
-        ["offer.reservation.sixHours", "6 hours left"],
-        ["offer.reservation.lastHour", "1 hour left"],
-      ] as const).map(([event, label]) => <button key={event} type="button" onClick={() => openAction(event)}>{label} settings</button>)}</div>
+      <div className={s.actions}>{RESERVATION_MESSAGES.map(([event, label]) => <button key={event} type="button" onClick={() => openAction(event)}>{label} settings</button>)}</div>
     </details>}
     <p className={s.note}>Edit the words and choose Send via in Message Templates → Portal → Offers: reservation confirmation, extension, expiry, each reminder, and the start-request messages.</p>
   </section>;
