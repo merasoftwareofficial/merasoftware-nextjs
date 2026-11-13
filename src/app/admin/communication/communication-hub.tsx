@@ -22,7 +22,6 @@ import { ReminderDrafts } from "./reminder-drafts";
 import { ReminderHistory } from "./reminder-history";
 import { ReminderWorkList } from "./reminder-work-list";
 import { ReminderWorkDetail } from "./reminder-work-detail";
-import { ActionsPanel } from "./actions-panel";
 
 /**
  * Communication: navigation boxes, then what needs attention and the recent emails and
@@ -35,7 +34,7 @@ import { ActionsPanel } from "./actions-panel";
  * whenever a panel closes). Activity is Communication's own: emails and WhatsApp messages only.
  */
 export type HubState = { panel: string | null; tab: string | null; app: string | null; show?: string | null; event?: string | null };
-type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review" | "actions";
+type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review";
 type Tab = { id: string; label: string };
 type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; tabs: Tab[]; whatsapp: boolean };
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
@@ -53,7 +52,6 @@ const PANELS: Record<PanelId, Panel> = {
     description: "Messages waiting to go, the rules that pace them, and every finished message." },
   "email-templates": { group: "Email", title: "Message Templates", whatsapp: false, tabs: APPS,
     description: "Each job’s mails: who decides, the default template and the editor. WhatsApp sends the same text." },
-  "actions": { group: "Email", title: "Actions", whatsapp: false, tabs: [], description: "Every action that changes data, by where it happens (Admin, Client, Website, System). Read-only for now." },
   "email-review": { group: "Email", title: "Email Review", whatsapp: false,
     tabs: [{ id: "review", label: "Review" }, { id: "outbox", label: "Outbox" }, { id: "history", label: "History" }],
     description: "Mails waiting for Send / Don’t send, the Outbox and every decision." },
@@ -259,7 +257,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     ] as [string, React.ReactNode][]);
     return <>
       {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}
-      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), ["actions", <ActionsPanel key="actions" active={part("actions").shown} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
+      {(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts).map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
     </>;
   }
 
@@ -269,7 +267,6 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
         <button type="button" className={s.quickCard} onClick={() => go({ panel: "broadcast", tab: null, app: null })}><strong>Send a broadcast</strong><span>Reach a selected group →</span></button>
         <button type="button" className={s.quickCard} onClick={() => go({ panel: "email-templates", tab: null, app: null })}><strong>Automatic messages</strong><span>Find an action and manage its message →</span></button>
         <button type="button" className={s.quickCard} onClick={() => go({ panel: "reminders", tab: null, app: null })}><strong>Reminders</strong><span>View rules and reminder activity →</span></button>
-        <button type="button" className={s.quickCard} onClick={() => go({ panel: "actions", tab: null, app: null })}><strong>Actions</strong><span>All actions that change data →</span></button>
       </div>
     <div className={s.overview}>
       <section className={s.card} aria-labelledby="attention-title">
