@@ -10,11 +10,12 @@ type Preview = { ruleId: string; revision: number; source: Draft['source']; coun
 const blankStep = (): Step => ({ offsetDays: 0, subject: "", text: "", channel: "whatsapp" });
 const initial = () => ({ name: "", source: "monthly_package" as const, steps: [blankStep()] });
 
-export function ReminderDrafts({ active, openSource, source }: { active: boolean; openSource: (source: Draft['source']) => void; source?: Draft['source'] }) {
+export function ReminderDrafts({ active, openSource, source, autoAdd = false }: { active: boolean; openSource: (source: Draft['source']) => void; source?: Draft['source']; autoAdd?: boolean }) {
   const [rows, setRows] = useState<Draft[] | null>(null);
-  const [form, setForm] = useState<{ name: string; source: Draft["source"]; steps: Step[] }>(initial);
+  // "Add Reminder" chosen on the work list opens this work with the new-reminder form already open: one click, not three.
+  const [form, setForm] = useState<{ name: string; source: Draft["source"]; steps: Step[] }>(() => ({ ...initial(), source: autoAdd && source ? source : "monthly_package" }));
   const [editing, setEditing] = useState<Draft | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoAdd);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -65,10 +66,11 @@ export function ReminderDrafts({ active, openSource, source }: { active: boolean
     finally { setBusy(false); }
   }
   return <section className={styles.section} aria-label="Reminder drafts">
-    <div className={styles.toolbar}><h3>Reminder rule drafts</h3><button type="button" className="admin-action" onClick={() => begin()}>Create draft</button></div>
+    <div className={styles.toolbar}><h3>{source ? "Reminder setup" : "Reminder rule drafts"}</h3><button type="button" className="admin-action" onClick={() => begin()}>{source ? "Add Reminder" : "Create draft"}</button></div>
     <p className={styles.banner}>Rules can be previewed and activated when both server schedulers are enabled. Existing offer reminders keep their own rules.</p>
     {notice && <p className={styles.notice} role="status">{notice}</p>}{error && <p className={styles.error} role="alert">{error}</p>}
-    {rows?.filter(row => !source || row.source === source).map(row => <article className={styles.card} key={row._id}><div><strong>{row.name}</strong><small>{row.source === 'monthly_package' ? 'Monthly package' : 'Broadcast'} · {row.steps.length} steps · {row.enabled ? 'Active' : 'Draft'}</small></div><div className={styles.actions}><button type="button" onClick={() => openSource(row.source)}>{row.source === 'monthly_package' ? 'Plan-start message settings' : 'Open Broadcast'}</button><button type="button" className="admin-action" disabled={busy || row.enabled} onClick={() => begin(row)}>Edit draft</button>{!row.enabled && <button type="button" disabled={busy} onClick={() => void previewRule(row)}>{row.source === 'monthly_package' ? 'Preview affected cycles' : 'Preview broadcast rule'}</button>}<button type="button" disabled={busy || (!row.enabled && (preview?.ruleId !== row._id || preview.revision !== row.revision))} onClick={() => void toggle(row)}>{row.enabled ? 'Stop reminders' : 'Activate'}</button></div></article>)}
+    {rows && !rows.some(row => !source || row.source === source) && <p>No reminders have been set up for this work yet.</p>}
+    {rows?.filter(row => !source || row.source === source).map(row => <article className={styles.card} key={row._id}><div><strong>{row.name}</strong><small>{row.source === 'monthly_package' ? 'Monthly package' : 'Broadcast'} · {row.steps.length} steps · {row.enabled ? 'Active' : 'Inactive'}</small></div><div className={styles.actions}><button type="button" onClick={() => openSource(row.source)}>{row.source === 'monthly_package' ? 'Plan-start message settings' : 'Open Broadcast'}</button><button type="button" className="admin-action" disabled={busy || row.enabled} onClick={() => begin(row)}>Edit draft</button>{!row.enabled && <button type="button" disabled={busy} onClick={() => void previewRule(row)}>{row.source === 'monthly_package' ? 'Preview affected cycles' : 'Preview broadcast rule'}</button>}<button type="button" disabled={busy || (!row.enabled && (preview?.ruleId !== row._id || preview.revision !== row.revision))} onClick={() => void toggle(row)}>{row.enabled ? 'Stop reminders' : 'Activate'}</button></div></article>)}
     {preview && <div className={styles.banner} role="region" aria-label="Reminder rule preview">{preview.source === 'broadcast' ? <><strong>Future broadcasts only</strong><p>Recipients are not known until a broadcast is accepted. Each original recipient qualifies only after every original part has sent; their audience membership and original channels are checked again. Earlier broadcasts are excluded.</p></> : <><strong>{preview.count}{preview.truncated ? '+' : ''} future billing cycles currently match</strong><p>The preview is an estimate based on billing data; only milestones after activation apply. Customer eligibility and payment are checked again before sending. Existing offer-policy orders are excluded.</p>{preview.samples.map((row, index) => <p key={index}>{row.customer} · ₹{row.amount.toLocaleString('en-IN')} · {formatIndiaDateTime(row.due)} (IST) · {row.steps} steps</p>)}</>}</div>}
     {open && <form onSubmit={save} className={styles.card}>
       <div style={{ width: '100%' }}>

@@ -541,12 +541,25 @@ test('browser: work-based reminders use existing action-specific controls', asyn
     await openPanel(page, '?panel=reminders');
     const work = page.getByRole('region', { name: 'Reminders by work' });
     await work.getByText('Monthly payment', { exact: true }).waitFor();
-    await work.locator('article').filter({ hasText: 'Monthly payment' }).getByRole('button', { name: 'Open' }).click();
+    // Every work shows its real status line; offer and reservation count customers, not invoices or reservations.
+    for (const title of ['Offer payment', 'Reservation']) await work.locator('article').filter({ hasText: title }).getByText(/customers with upcoming reminders/).waitFor();
+    await work.locator('article').filter({ hasText: 'Offer payment' }).getByText(/server scheduler is off/i).waitFor();
+    await work.getByRole('button', { name: 'Add Reminder' }).click();
+    const chooser = work.getByRole('region', { name: 'Choose work for new reminder' });
+    assert.equal(await chooser.getByRole('button', { name: 'Monthly payment' }).count(), 1);
+    assert.equal(await chooser.getByRole('button', { name: 'Broadcast follow-up' }).count(), 1);
+    // One click: choosing the work opens it with the new-reminder form already open.
+    await chooser.getByRole('button', { name: 'Monthly payment' }).click();
     const details = page.getByRole('region', { name: 'Work reminders' });
-    await details.getByRole('button', { name: 'Create draft' }).click();
+    await details.getByRole('combobox').first().waitFor();
     assert.equal(await details.getByRole('combobox').first().inputValue(), 'monthly_package');
     assert.equal(await details.getByRole('combobox').first().isDisabled(), true);
     await details.getByRole('button', { name: 'Cancel' }).click();
+    await details.getByRole('button', { name: 'All work' }).click();
+    // Opening a work from its card does not open the form by itself.
+    await work.locator('article').filter({ hasText: 'Monthly payment' }).getByRole('button', { name: 'Open' }).click();
+    await details.getByRole('button', { name: 'Add Reminder' }).waitFor();
+    assert.equal(await details.getByRole('textbox', { name: 'Rule name' }).count(), 0);
     await details.getByRole('button', { name: 'All work' }).click();
     await work.locator('article').filter({ hasText: 'Offer payment' }).getByRole('button', { name: 'Open' }).click();
     await details.getByRole('heading', { name: 'Offer payment reminders' }).waitFor();
@@ -570,4 +583,76 @@ test('reminder activity filters by work using stored runs', async () => {
     assert.ok(broadcast.data.rows.every(row => row.source === 'broadcast'));
     assert.equal((await request('/api/auto-reply/reminder-runs?source=invalid')).status, 400);
   } finally { await Run.deleteMany({ ruleId }); }
+});
+test('work summary counts distinct recipients only for current active scheduled rule', async () => {
+  const Rule = backend('./models/communicationReminderRuleModel');
+  const Run = backend('./models/communicationReminderRunModel');
+  const id = () => new mongoose.Types.ObjectId();
+  const ruleId = id(), customer = id(), entityId = id();
+  // Insert directly to avoid changing any existing rule's state in this isolated fixture.
+  await Rule.collection.insertOne({ _id: ruleId, name: 'Summary test', source: 'monthly_package', enabled: true, revision: 37, steps: [] });
+  const base = { ruleId, ruleRevision: 37, source: 'monthly_package', entityId, clientId: customer, dueAt: new Date(), subject: 'Reminder', text: 'Hello', channel: 'email' };
+  try {
+    await Run.create([{ ...base, occurrenceKey: `a-${id()}`, step: 0 }, { ...base, occurrenceKey: `b-${id()}`, step: 1 }, { ...base, occurrenceKey: `c-${id()}`, step: 0, status: 'sent' }, { ...base, occurrenceKey: `d-${id()}`, step: 0, ruleRevision: 36, clientId: id() }]);
+    const response = await request('/api/auto-reply/reminder-work-summary');
+    assert.equal(response.status, 200);
+    assert.equal(response.data.monthly_package.enabled, true);
+    assert.equal(response.data.monthly_package.scheduledRecipients, 1);
+    // An active rule is not "sending" while the server schedulers are off; the summary says so.
+    assert.equal(response.data.monthly_package.schedulerEnabled, false);
+    const oldJobs = process.env.COMMUNICATION_REMINDER_JOBS_ENABLED, oldCrons = process.env.ENABLE_CRONS;
+    try {
+      process.env.COMMUNICATION_REMINDER_JOBS_ENABLED = 'true'; process.env.ENABLE_CRONS = 'true';
+      assert.equal((await request('/api/auto-reply/reminder-work-summary')).data.monthly_package.schedulerEnabled, true);
+    } finally {
+      if (oldJobs === undefined) delete process.env.COMMUNICATION_REMINDER_JOBS_ENABLED; else process.env.COMMUNICATION_REMINDER_JOBS_ENABLED = oldJobs;
+      if (oldCrons === undefined) delete process.env.ENABLE_CRONS; else process.env.ENABLE_CRONS = oldCrons;
+    }
+  } finally { await Run.deleteMany({ ruleId }); await Rule.deleteOne({ _id: ruleId }); }
+});
+test('work summary counts distinct customers with upcoming offer-payment and reservation reminders', async () => {
+  const User = backend('./models/userModel'), Order = backend('./models/orderProductModel'), Invoice = backend('./models/invoiceModel');
+  const Reservation = backend('./models/offerReservationModel');
+  const { clearCache } = backend('./helpers/reminderWorkSummary');
+  const id = () => new mongoose.Types.ObjectId(), hour = 3600000, now = Date.now();
+  const read = async () => { clearCache(); const response = await request('/api/auto-reply/reminder-work-summary'); assert.equal(response.status, 200); return response.data; };
+  const before = await read();
+  const good = await User.create({ name: 'Summary offer customer', email: 'summary-offer@example.test', roles: ['member'] });
+  const paused = await User.create({ name: 'Summary paused customer', email: 'summary-paused@example.test', roles: ['member'] });
+  const noEmail = id();
+  await User.collection.insertOne({ _id: noEmail, name: 'Summary customer without email' });
+  const orders = [], invoices = [];
+  // Two open invoices for one customer count once; a paused invoice and a customer with no email do not count.
+  for (const [userId, extra] of [[good._id, {}], [good._id, {}], [paused._id, { offerRemindersPaused: true }], [noEmail, {}]]) {
+    const orderId = id();
+    orders.push(orderId);
+    await Order.collection.insertOne({ _id: orderId, userId, orderVisibility: 'approved', isServicePlan: false, orderItems: [{ name: 'Summary project' }], createdAt: new Date(now), paymentPolicy: { reminderOffsets: [-3, 0, 3] } });
+    const invoiceId = id();
+    invoices.push(invoiceId);
+    await Invoice.collection.insertOne({ _id: invoiceId, userId, orderId, invoiceNumber: `SUMMARY-${invoiceId}`, invoiceType: 'project', amount: 3000, amountPaid: 0, status: 'unpaid', dueDate: new Date(now + 7 * 24 * hour), ...extra });
+  }
+  const reservationBase = { periodEndsAt: new Date(now + hour), regularPrice: 10000, reservedPrice: 5000, origin: 'customer', reservedAt: new Date(now - hour), expiresAt: new Date(now + 47 * hour), remindersEnabled: true };
+  const reservations = await Reservation.create([
+    { ...reservationBase, userId: good._id, offerSlug: 'summary-a', offerSnapshot: { title: 'Summary A' } },
+    { ...reservationBase, userId: good._id, offerSlug: 'summary-b', offerSnapshot: { title: 'Summary B' } },
+    { ...reservationBase, userId: paused._id, offerSlug: 'summary-c', offerSnapshot: { title: 'Summary C' }, remindersPaused: true },
+  ]);
+  try {
+    const after = await read();
+    assert.equal(after.offer_payment.upcomingCustomers, before.offer_payment.upcomingCustomers + 1);
+    assert.equal(after.reservation.upcomingCustomers, before.reservation.upcomingCustomers + 1);
+    assert.equal(typeof after.offer_payment.schedulerEnabled, 'boolean');
+    assert.equal(typeof after.reservation.schedulerEnabled, 'boolean');
+    assert.ok(after.legacyAsOf);
+    // Cached for a minute: a new open reservation does not show until the cache is cleared.
+    await Reservation.create({ ...reservationBase, userId: noEmail, offerSlug: 'summary-d', offerSnapshot: { title: 'Summary D' } });
+    assert.equal((await request('/api/auto-reply/reminder-work-summary')).data.reservation.upcomingCustomers, after.reservation.upcomingCustomers);
+    assert.equal((await read()).reservation.upcomingCustomers, after.reservation.upcomingCustomers + 1);
+  } finally {
+    clearCache();
+    await Reservation.deleteMany({ offerSlug: /^summary-/ });
+    await Invoice.collection.deleteMany({ _id: { $in: invoices } });
+    await Order.collection.deleteMany({ _id: { $in: orders } });
+    await User.collection.deleteMany({ _id: { $in: [good._id, paused._id, noEmail] } });
+  }
 });
