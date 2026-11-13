@@ -533,56 +533,68 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     assert.equal(await page.getByRole('dialog').count(), 0);
   } finally { await browser.close(); }
 });
-test('browser: work-based reminders use existing action-specific controls', async () => {
+test('browser: work-based reminders are a plain list; details open per work and explanations sit in (i) popups', async () => {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
     await page.goto(websiteBase);
     await openPanel(page, '?panel=reminders');
     const work = page.getByRole('region', { name: 'Reminders by work' });
-    await work.getByText('Monthly payment', { exact: true }).waitFor();
-    // Every work shows its real status line; offer and reservation count customers, not invoices or reservations.
-    for (const title of ['Offer payment', 'Reservation']) await work.locator('article').filter({ hasText: title }).getByText(/customers with upcoming reminders/).waitFor();
-    await work.locator('article').filter({ hasText: 'Offer payment' }).getByText(/server scheduler is off/i).waitFor();
+    await work.getByRole('heading', { name: 'Reminders', level: 3, exact: true }).waitFor();
+    // Plain rows, not cards: each work is one button row with its name and one short status.
+    assert.equal(await work.locator('article').count(), 0);
+    const row = title => work.getByRole('button', { name: new RegExp(`^${title}`) });
+    for (const title of ['Monthly payment', 'Offer payment', 'Reservation', 'Broadcast follow-up']) await row(title).waitFor();
+    await row('Offer payment').getByText(/customers$/).waitFor();
+    await row('Reservation').getByText(/customers$/).waitFor();
+    // Add Reminder shows only the two works that can take a new rule, and the (i) explains the rest.
     await work.getByRole('button', { name: 'Add Reminder' }).click();
     const chooser = work.getByRole('region', { name: 'Choose work for new reminder' });
-    assert.equal(await chooser.getByRole('button', { name: 'Monthly payment' }).count(), 1);
-    assert.equal(await chooser.getByRole('button', { name: 'Broadcast follow-up' }).count(), 1);
-    // One click: choosing the work opens it with the new-reminder form already open.
-    await chooser.getByRole('button', { name: 'Monthly payment' }).click();
+    assert.equal(await chooser.getByRole('button', { name: 'Monthly payment', exact: true }).count(), 1);
+    assert.equal(await chooser.getByRole('button', { name: 'Broadcast follow-up', exact: true }).count(), 1);
+    assert.equal(await chooser.getByRole('button', { name: 'Offer payment', exact: true }).count(), 0);
+    await chooser.getByRole('button', { name: 'About Add Reminder' }).click();
+    await chooser.getByRole('note').getByText(/nothing to add/).waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await chooser.getByRole('note').count(), 0);
+    // One click: choosing a work opens it with the new-reminder form already open.
+    await chooser.getByRole('button', { name: 'Monthly payment', exact: true }).click();
     const details = page.getByRole('region', { name: 'Work reminders' });
     await details.getByRole('combobox').first().waitFor();
     assert.equal(await details.getByRole('combobox').first().inputValue(), 'monthly_package');
     assert.equal(await details.getByRole('combobox').first().isDisabled(), true);
     await details.getByRole('button', { name: 'Cancel' }).click();
     await details.getByRole('button', { name: 'All work' }).click();
-    // Opening a work from its card does not open the form by itself.
-    await work.locator('article').filter({ hasText: 'Monthly payment' }).getByRole('button', { name: 'Open' }).click();
-    await details.getByRole('button', { name: 'Add Reminder' }).waitFor();
+    // Opening a work from its row does not open the form by itself.
+    await row('Monthly payment').click();
+    await details.getByRole('heading', { name: 'Monthly payment', level: 3, exact: true }).waitFor();
     assert.equal(await details.getByRole('textbox', { name: 'Rule name' }).count(), 0);
+    // The popup on Timing opens with the detail, closes with Escape, and the page does not move.
+    await details.getByRole('button', { name: 'About Timing' }).click();
+    await details.getByRole('note').getByText(/Each step is set in days/).waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await details.getByRole('note').count(), 0);
     await details.getByRole('button', { name: 'All work' }).click();
-    // Each work page says what it is, which messages it uses, when it goes and when it stops, even with no data yet.
-    const sections = ['Messages', 'When reminders go', 'When reminders stop'];
-    for (const title of ['Monthly payment', 'Offer payment', 'Reservation', 'Broadcast follow-up']) {
-      await work.locator('article').filter({ hasText: title }).getByRole('button', { name: 'Open' }).click();
+    // Each work: a title, the facts list with its (i) popups, and its existing data lists. No long paragraphs.
+    for (const title of ['Offer payment', 'Reservation', 'Broadcast follow-up']) {
+      await row(title).click();
       await details.getByRole('heading', { name: title, level: 3, exact: true }).waitFor();
-      for (const name of sections) await details.getByRole('region', { name, exact: true }).waitFor();
-      await details.getByRole('button', { name: 'WhatsApp delivery history' }).waitFor();
+      for (const label of ['Timing', 'Stops', 'Control']) await details.getByRole('button', { name: `About ${label}` }).waitFor();
+      await details.getByRole('button', { name: 'Delivery history →' }).waitFor();
       await details.getByRole('button', { name: 'All work' }).click();
     }
-    await work.locator('article').filter({ hasText: 'Broadcast follow-up' }).getByRole('button', { name: 'Open' }).click();
-    await details.getByRole('region', { name: 'Messages', exact: true }).getByText(/own wording/).waitFor();
+    await row('Broadcast follow-up').click();
+    await details.getByText('Set in each step below', { exact: true }).waitFor();
     await details.getByRole('button', { name: 'All work' }).click();
-    await work.locator('article').filter({ hasText: 'Reservation' }).getByRole('button', { name: 'Open' }).click();
-    const reservationMessages = details.getByRole('region', { name: 'Messages', exact: true });
-    for (const label of ['Reservation confirmation', 'Start request and team reminder', 'After 24 hours', '24 hours left', '6 hours left', '1 hour left']) await reservationMessages.getByRole('button', { name: `${label} settings` }).waitFor();
+    await row('Reservation').click();
+    for (const label of ['Reservation confirmation', 'Start request and team reminder', 'After 24 hours', '24 hours left', '6 hours left', '1 hour left']) await details.getByRole('button', { name: `${label} →` }).waitFor();
     // The work's own recorded history is open straight away, not hidden behind a click.
     await details.getByRole('region', { name: 'Reservation message history', exact: true }).waitFor();
     await details.getByRole('button', { name: 'All work' }).click();
-    await work.locator('article').filter({ hasText: 'Offer payment' }).getByRole('button', { name: 'Open' }).click();
+    await row('Offer payment').click();
     await details.getByRole('heading', { name: 'Offer payment reminders' }).waitFor();
-    await details.getByRole('region', { name: 'Offer payment message history', exact: true }).waitFor();
-    await details.getByRole('button', { name: 'Offer payment reminder settings' }).click();
+    await details.getByRole('region', { name: 'Message history', exact: true }).waitFor();
+    await details.getByRole('button', { name: 'Offer payment reminder message →' }).click();
     assert.match(page.url(), /event=offer.payment.reminder/);
     // Reminder activity: recorded offer and reservation history is open straight away too.
     await openPanel(page, '?panel=reminders');

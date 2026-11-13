@@ -75,3 +75,36 @@
 .workspaceHeader{padding:24px 28px 16px}.workspaceHeader h2{margin:0 0 6px;font-size:22px}.workspaceHeader p{margin:0;color:var(--muted);line-height:1.5}
 .workspaceBody{min-width:0;padding:22px 28px 36px}.subNav{display:flex;gap:8px;flex-wrap:wrap;padding:0 28px 16px}.subNav button{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit;font:inherit;cursor:pointer}.subNav button[aria-pressed=true]{background:var(--surface);border-color:var(--brand-link);color:var(--brand-link);font-weight:600}.subNav button:disabled{opacity:.5;cursor:default}
 @media(max-width:640px){.quickActions{grid-template-columns:1fr}.workspaceHeader,.workspaceBody{padding-left:16px;padding-right:16px}.subNav{padding-left:16px;padding-right:16px}}
+
+/* Reminders by work: plain list rows, a details list, and (i) popups. */
+.workSection{display:grid;gap:14px;min-width:0}
+.workToolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px}
+.workToolbar h3{margin:0;font-size:18px;font-weight:650}
+.workAdd{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.workList{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.workList li+li{border-top:1px solid var(--line)}
+.workRow{display:flex;align-items:center;gap:14px;width:100%;padding:14px 18px;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.workRow:hover{background:var(--surface)}
+.workRow:focus-visible{outline:2px solid var(--brand-link);outline-offset:-2px}
+.workName{font-size:15px;font-weight:600;min-width:170px}
+.workListStatus{flex:1;min-width:0;font-size:13px;color:var(--muted)}
+.workChevron{color:var(--muted);font-size:18px}
+.headStatus{font-size:13px;color:var(--muted)}
+.facts{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
+.factRow{display:grid;grid-template-columns:minmax(120px,200px) minmax(0,1fr);gap:12px;padding:12px 18px;border-top:1px solid var(--line);align-items:start}
+.factRow:first-child{border-top:0}
+.factRow dt{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.factRow dd{margin:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px}
+.factRow dd button{padding:0;border:0;background:none;color:var(--brand-link);font:inherit;font-weight:600;cursor:pointer}
+.factRow dd button:hover{text-decoration:underline}
+.infoTip{position:relative;display:inline-flex;vertical-align:middle}
+.infoButton{display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--paper);color:var(--muted);font:inherit;font-size:12px;font-weight:700;line-height:1;cursor:pointer}
+.infoButton:hover,.infoButton[aria-expanded=true]{border-color:var(--brand-link);color:var(--brand-link)}
+.infoButton:focus-visible{outline:2px solid var(--brand-link);outline-offset:2px}
+.infoBubble{position:absolute;top:calc(100% + 8px);left:0;z-index:30;display:grid;gap:8px;width:min(360px,80vw);padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 8px 24px rgb(0 0 0 / .18);font-size:13px;line-height:1.5;font-weight:400;color:var(--ink,inherit);text-align:left}
+.infoBubble p,.infoBubble ul{margin:0}
+.infoBubble ul{padding-left:18px}
+.plainRow{display:grid;gap:6px;padding:12px 0;border-top:1px solid var(--line)}
+.plainRow:first-child{border-top:0;padding-top:0}
+.plainRow small{color:var(--muted)}
+@media(max-width:640px){.factRow{grid-template-columns:1fr}.workName{min-width:0}.workRow{flex-wrap:wrap}}

@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import styles from "../email-control/email-control.module.css";
+import s from "./communication.module.css";
 
 type Step = { offsetDays: number; subject: string; text: string; channel: "whatsapp" | "email" | "both" };
 type Draft = { _id: string; name: string; source: "monthly_package" | "broadcast"; enabled: boolean; steps: Step[]; revision: number };
@@ -10,7 +11,7 @@ type Preview = { ruleId: string; revision: number; source: Draft['source']; coun
 const blankStep = (): Step => ({ offsetDays: 0, subject: "", text: "", channel: "whatsapp" });
 const initial = () => ({ name: "", source: "monthly_package" as const, steps: [blankStep()] });
 
-export function ReminderDrafts({ active, openSource, source, autoAdd = false }: { active: boolean; openSource: (source: Draft['source']) => void; source?: Draft['source']; autoAdd?: boolean }) {
+export function ReminderDrafts({ active, openSource, source, autoAdd = false, compact = false }: { compact?: boolean; active: boolean; openSource: (source: Draft['source']) => void; source?: Draft['source']; autoAdd?: boolean }) {
   const [rows, setRows] = useState<Draft[] | null>(null);
   // "Add Reminder" chosen on the work list opens this work with the new-reminder form already open: one click, not three.
   const [form, setForm] = useState<{ name: string; source: Draft["source"]; steps: Step[] }>(() => ({ ...initial(), source: autoAdd && source ? source : "monthly_package" }));
@@ -65,12 +66,13 @@ export function ReminderDrafts({ active, openSource, source, autoAdd = false }: 
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not update the rule.'); }
     finally { setBusy(false); }
   }
+  const Row = compact ? "div" : "article";
   return <section className={styles.section} aria-label="Reminder drafts">
-    <div className={styles.toolbar}><h3>{source ? "Reminder setup" : "Reminder rule drafts"}</h3><button type="button" className="admin-action" onClick={() => begin()}>{source ? "Add Reminder" : "Create draft"}</button></div>
-    <p className={styles.banner}>Rules can be previewed and activated when both server schedulers are enabled. Existing offer reminders keep their own rules.</p>
+    <div className={styles.toolbar}><h3>{compact ? "Rules" : source ? "Reminder setup" : "Reminder rule drafts"}</h3><button type="button" className="admin-action" onClick={() => begin()}>{source ? "Add Reminder" : "Create draft"}</button></div>
+    {!compact && <p className={styles.banner}>Rules can be previewed and activated when both server schedulers are enabled. Existing offer reminders keep their own rules.</p>}
     {notice && <p className={styles.notice} role="status">{notice}</p>}{error && <p className={styles.error} role="alert">{error}</p>}
     {rows && !rows.some(row => !source || row.source === source) && <p>No reminders have been set up for this work yet.</p>}
-    {rows?.filter(row => !source || row.source === source).map(row => <article className={styles.card} key={row._id}><div><strong>{row.name}</strong><small>{row.source === 'monthly_package' ? 'Monthly package' : 'Broadcast'} · {row.steps.length} steps · {row.enabled ? 'Active' : 'Inactive'}</small></div><div className={styles.actions}><button type="button" onClick={() => openSource(row.source)}>{row.source === 'monthly_package' ? 'Plan-start message settings' : 'Open Broadcast'}</button><button type="button" className="admin-action" disabled={busy || row.enabled} onClick={() => begin(row)}>Edit draft</button>{!row.enabled && <button type="button" disabled={busy} onClick={() => void previewRule(row)}>{row.source === 'monthly_package' ? 'Preview affected cycles' : 'Preview broadcast rule'}</button>}<button type="button" disabled={busy || (!row.enabled && (preview?.ruleId !== row._id || preview.revision !== row.revision))} onClick={() => void toggle(row)}>{row.enabled ? 'Stop reminders' : 'Activate'}</button></div></article>)}
+    {rows?.filter(row => !source || row.source === source).map(row => <Row className={compact ? s.plainRow : styles.card} key={row._id}><div><strong>{row.name}</strong><small>{row.source === 'monthly_package' ? 'Monthly package' : 'Broadcast'} · {row.steps.length} steps · {row.enabled ? 'Active' : 'Inactive'}</small></div><div className={styles.actions}><button type="button" onClick={() => openSource(row.source)}>{row.source === 'monthly_package' ? 'Plan-start message settings' : 'Open Broadcast'}</button><button type="button" className="admin-action" disabled={busy || row.enabled} onClick={() => begin(row)}>Edit draft</button>{!row.enabled && <button type="button" disabled={busy} onClick={() => void previewRule(row)}>{row.source === 'monthly_package' ? 'Preview affected cycles' : 'Preview broadcast rule'}</button>}<button type="button" disabled={busy || (!row.enabled && (preview?.ruleId !== row._id || preview.revision !== row.revision))} onClick={() => void toggle(row)}>{row.enabled ? 'Stop reminders' : 'Activate'}</button></div></Row>)}
     {preview && <div className={styles.banner} role="region" aria-label="Reminder rule preview">{preview.source === 'broadcast' ? <><strong>Future broadcasts only</strong><p>Recipients are not known until a broadcast is accepted. Each original recipient qualifies only after every original part has sent; their audience membership and original channels are checked again. Earlier broadcasts are excluded.</p></> : <><strong>{preview.count}{preview.truncated ? '+' : ''} future billing cycles currently match</strong><p>The preview is an estimate based on billing data; only milestones after activation apply. Customer eligibility and payment are checked again before sending. Existing offer-policy orders are excluded.</p>{preview.samples.map((row, index) => <p key={index}>{row.customer} · ₹{row.amount.toLocaleString('en-IN')} · {formatIndiaDateTime(row.due)} (IST) · {row.steps} steps</p>)}</>}</div>}
     {open && <form onSubmit={save} className={styles.card}>
       <div style={{ width: '100%' }}>

@@ -50,7 +50,7 @@ function choiceText(choice: PackageChoice) {
   if (choice.paymentOption) return PAYMENT_OPTION_WORDS[choice.paymentOption].title;
   return [choice.billingCycle ? PURCHASE_LABELS[choice.billingCycle] : "", choice.tenureMonths ? tenureLabel(choice.tenureMonths) : ""].filter(Boolean).join(" · ");
 }
-export function ReservationPanel({ active = true, portalUrl = "", openAction }: { active?: boolean; portalUrl?: string; openAction?: (event: string) => void }) {
+export function ReservationPanel({ active = true, portalUrl = "", openAction, compact = false }: { active?: boolean; portalUrl?: string; openAction?: (event: string) => void; compact?: boolean }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -141,18 +141,18 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
                 <div className={s.actions}><button type="button" onClick={() => setPaidPreview(null)}>Cancel review</button><button type="button" disabled={!!busyId || !paidOrder || !paidReason.trim() || paidSlug !== paidPreview.offerSlug || (!!paidPreview.candidates.find(candidate => candidate.id === paidOrder)?.categoryMismatch && !ackMismatch)} onClick={() => void reconcilePaidProject(row)}>Link paid project</button></div>
               </>}
             </section>}
-            <LegacyReminderHistory source="reservation" entityId={row.id} active={active} title="Reservation message history" openAction={openAction} />
+            <LegacyReminderHistory source="reservation" entityId={row.id} active={active} title="Reservation message history" compact={compact} openAction={openAction} />
             {row.teamReminder && <p>Team reminder {row.teamReminder.number}/3 eligible from {when(row.teamReminder.at)} (IST). {row.teamActionEnabled === false ? "The team reminder action is Off." : "Subject to sending settings."}</p>}
             {row.startRequestedAt && <p className={s.note}>{row.teamReminderAttempts || 0}/3 daily team milestones processed. Check message history for actual delivery.{(row.teamReminderAttempts || 0) >= 3 ? " No more daily team reminders are planned." : ""}</p>}
           </li>)}</ul>}
     </div>
     <div className={a.detected}>
       <details><summary>Recently completed or expired reservations ({data?.recentClosed?.length || 0})</summary>
-        <p className={s.note}>Showing up to the 50 most recently updated completed or expired reservations. WhatsApp queue records may expire; missing history is not recreated.</p>
+        {!compact && <p className={s.note}>Showing up to the 50 most recently updated completed or expired reservations. WhatsApp queue records may expire; missing history is not recreated.</p>}
         {!data ? <Loader label="Loading…" /> : !data.recentClosed?.length ? <p>No completed or expired reservations found.</p> : <ul>{data.recentClosed.map(row => <li key={row.id}>
           <div className={a.who}><strong>{row.customer || "Customer"}</strong><span>{row.status === "project_linked" ? "Project linked" : "Expired"}</span></div>
           <p>{row.offer}{row.closureStatus && row.status === "expired" ? ` · Expiry message record: ${row.closureStatus}` : ""}</p>
-          <LegacyReminderHistory source="reservation" entityId={row.id} active={active} title="Reservation message history" openAction={openAction} />
+          <LegacyReminderHistory source="reservation" entityId={row.id} active={active} title="Reservation message history" compact={compact} openAction={openAction} />
           {portalUrl && row.userId && <a href={`${portalUrl}/admin-panel/clients/${row.userId}`} target="_blank" rel="noopener noreferrer">Open client ↗</a>}
         </li>)}</ul>}
       </details>
@@ -178,14 +178,14 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
             {/* The project is made with the portal's own form, filled from this request (frontend AdminClientWorkspace.js). */}
             {portalUrl && row.userId && <a href={`${portalUrl}/admin-panel/clients/${row.userId}?startRequest=${row.id}`} target="_blank" rel="noopener noreferrer">Create project ↗</a>}
           </li>)}</ul>}
-      <p className={s.note}>Get this package or Arrange a callback on a package page. No price is held. Creating the project on that package closes the request; the team can also close it on the client&apos;s Reserved offers in the portal.</p>
+      {!compact && <p className={s.note}>Get this package or Arrange a callback on a package page. No price is held. Creating the project on that package closes the request; the team can also close it on the client&apos;s Reserved offers in the portal.</p>}
     </div>
-    <p className={s.note}>Each offer sets how long its reservation lasts (Admin → Offers → Reservation lasts). The countdown starts when the customer reserves. When a project is created on the reservation, the normal project message goes and nothing else. When the time ends with no project, the customer gets the offer-expired message once, with the offers page link. To give one customer more time, use Extend deadline on the client&apos;s page in the portal.</p>
-    <p className={s.note}>Depending on the reservation&apos;s length and status, reminders can go after the first 24 hours and with 24, 6 or 1 hours left. Start my project pauses the countdown until a project is created or Extend deadline resumes it. The team is reminded once a day, up to 3 times.</p>
-    {openAction && <details><summary>Reservation message settings (apply to all customers)</summary>
+    {!compact && <p className={s.note}>Each offer sets how long its reservation lasts (Admin → Offers → Reservation lasts). The countdown starts when the customer reserves. When a project is created on the reservation, the normal project message goes and nothing else. When the time ends with no project, the customer gets the offer-expired message once, with the offers page link. To give one customer more time, use Extend deadline on the client&apos;s page in the portal.</p>}
+    {!compact && <p className={s.note}>Depending on the reservation&apos;s length and status, reminders can go after the first 24 hours and with 24, 6 or 1 hours left. Start my project pauses the countdown until a project is created or Extend deadline resumes it. The team is reminded once a day, up to 3 times.</p>}
+    {!compact && openAction && <details><summary>Reservation message settings (apply to all customers)</summary>
       <p className={s.note}>These links open the existing action settings for message wording, channel and On/Off. The reminder times are currently fixed by the reservation system.</p>
       <div className={s.actions}>{RESERVATION_MESSAGES.map(([event, label]) => <button key={event} type="button" onClick={() => openAction(event)}>{label} settings</button>)}</div>
     </details>}
-    <p className={s.note}>Edit the words and choose Send via in Message Templates → Portal → Offers: reservation confirmation, extension, expiry, each reminder, and the start-request messages.</p>
+    {!compact && <p className={s.note}>Edit the words and choose Send via in Message Templates → Portal → Offers: reservation confirmation, extension, expiry, each reminder, and the start-request messages.</p>}
   </section>;
 }
