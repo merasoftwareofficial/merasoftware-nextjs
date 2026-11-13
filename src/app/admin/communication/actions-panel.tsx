@@ -9,6 +9,9 @@ import c from "./actions-panel.module.css";
 type Surface = "Admin" | "Client" | "Website" | "System";
 type ActionRow = {
   id: string;
+  title: string;
+  what: string;
+  when: string;
   method: string;
   endpoint: string;
   note: string;
@@ -20,7 +23,7 @@ type ActionRow = {
 };
 type ActionsData = { actions: ActionRow[]; surfaces: Surface[]; categories: string[] };
 type View = "all" | Surface | "archived" | "deleted";
-type SortKey = "id" | "surface" | "endpoint" | "category";
+type SortKey = "id" | "title" | "surface" | "category";
 
 const SURFACE_TITLES: Record<Surface, string> = { Admin: "Admin panel", Client: "Client portal", Website: "Website", System: "System" };
 const SURFACE_DOT: Record<Surface, string> = { Admin: "#007f99", Client: "#6b5ce7", Website: "#1f8a4c", System: "#8a8f98" };
@@ -107,8 +110,8 @@ export function ActionsPanel({ active }: { active: boolean }) {
     });
     const filtered = inView.filter(row =>
       (!category || row.category === category) &&
-      (!needle || `${row.id} ${row.method} ${row.endpoint} ${row.category} ${row.note}`.toLowerCase().includes(needle)));
-    const valueOf = (row: ActionRow) => (sort.key === "surface" ? row.surface : sort.key === "endpoint" ? row.endpoint : sort.key === "category" ? row.category : row.id);
+      (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle)));
+    const valueOf = (row: ActionRow) => (sort.key === "surface" ? row.surface : sort.key === "title" ? row.title : sort.key === "category" ? row.category : row.id);
     return [...filtered].sort((a, b) => {
       const result = String(valueOf(a)).localeCompare(String(valueOf(b)), undefined, { numeric: true });
       return sort.desc ? -result : result;
@@ -131,7 +134,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
   }
 
   return <section className={styles.section} aria-label="Actions list" hidden={!active}>
-    <p className={styles.muted}>Change Where or Category right in the row. Use Manage for archive, delete or reset.</p>
+    <p className={styles.muted}>Each action in plain words. Change Where or Category right in the row; use Manage for archive, delete or reset.</p>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {notice && <p role="status">{notice}</p>}
 
@@ -145,7 +148,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
 
       <div className={c.toolbar}>
         <div>
-          <input className={c.search} type="search" aria-label="Find an action" placeholder="Find by name, endpoint or number" value={query} onChange={event => setQuery(event.target.value)} />{" "}
+          <input className={c.search} type="search" aria-label="Find an action" placeholder="Find by name, what it does, or endpoint" value={query} onChange={event => setQuery(event.target.value)} />{" "}
           <select className={c.select} aria-label="Category" value={category} onChange={event => setCategory(event.target.value)}>
             <option value="">All categories</option>
             {data.categories.map(item => <option key={item} value={item}>{item}</option>)}
@@ -157,24 +160,29 @@ export function ActionsPanel({ active }: { active: boolean }) {
       {!rows.length ? <p>No actions here.</p> : <div className={c.tableWrap}>
         <table className={c.table} aria-label="Actions table">
           <thead><tr>
-            {sortHeader("id", "ID")}
-            <th>Method</th>
-            {sortHeader("endpoint", "Endpoint")}
+            {sortHeader("title", "Action")}
+            <th>What it does</th>
+            <th>When it happens</th>
             {sortHeader("surface", "Where")}
             {sortHeader("category", "Category")}
-            <th>Note</th>
             <th>Status</th>
             <th className={c.right}>Manage</th>
           </tr></thead>
           <tbody>
             {rows.map(row => <tr key={row.id} data-off={row.archived || row.deleted ? "true" : "false"}>
-              <td>{row.id}</td>
-              <td className={c.method}>{row.method}</td>
-              <td className={c.endpoint}>{row.endpoint}</td>
+              <td className={c.actionCell}>
+                <div className={c.actionBox}>
+                  <strong>{row.title}</strong>
+                  <span className={c.meta}>{row.id} · <code className={c.method}>{row.method}</code> <code className={c.endpoint}>{row.endpoint}</code></span>
+                  {row.note && <span className={c.note}>{row.note}</span>}
+                </div>
+              </td>
+              <td className={c.wrapText}>{row.what}</td>
+              <td className={c.wrapText}>{row.when}</td>
               <td>
                 <select className={c.inlineSelect} aria-label={`Where ${row.id}`} value={row.surface} disabled={saving || row.deleted}
                   onChange={event => { const next = event.target.value as Surface; if (next !== row.surface) void save(row.id, { surface: next }, `Moved to ${SURFACE_TITLES[next]}.`); }}>
-                  {(data.surfaces).map(item => <option key={item} value={item}>{SURFACE_TITLES[item]}</option>)}
+                  {data.surfaces.map(item => <option key={item} value={item}>{SURFACE_TITLES[item]}</option>)}
                 </select>
               </td>
               <td>
@@ -188,7 +196,6 @@ export function ActionsPanel({ active }: { active: boolean }) {
                   : <button type="button" className={c.cellButton} title="Click to change the category" disabled={saving || row.deleted}
                     onClick={() => setEditing({ id: row.id, draft: row.category })}>{row.category}</button>}
               </td>
-              <td className={c.note}>{row.note}</td>
               <td>
                 {row.deleted && <span className={`${c.status} ${c.statusDeleted}`}>Deleted</span>}
                 {row.archived && !row.deleted && <span className={`${c.status} ${c.statusArchived}`}>Archived</span>}
@@ -226,10 +233,10 @@ function ManageMenu({ row, open, saving, onToggle, onClose, onAction }: {
   }, [open, onClose]);
 
   return <div className={c.menuWrap} ref={wrap}>
-    <button type="button" className={c.manage} aria-haspopup="menu" aria-expanded={open} aria-label={`Manage ${row.id} ${row.endpoint}`}
+    <button type="button" className={c.manage} aria-haspopup="menu" aria-expanded={open} aria-label={`Manage ${row.id} ${row.title}`}
       onClick={onToggle} disabled={saving}>Manage ▾</button>
     {open && <div className={c.menu} role="menu" aria-label={`Manage ${row.id}`}>
-      <div className={c.menuTitle}>{row.id} · {row.endpoint}</div>
+      <div className={c.menuTitle}>{row.title}<br /><span>{row.id} · {row.endpoint}</span></div>
       {!row.deleted && <button type="button" role="menuitem" disabled={saving} onClick={() => onAction({ archived: !row.archived }, row.archived ? "Action restored." : "Action archived.")}>
         <strong>{row.archived ? "Restore" : "Archive"}</strong>
         <span>{row.archived ? "Show it in the list again." : "Hide it from the list. It stays in Archived."}</span>
