@@ -547,28 +547,25 @@ test('browser: work-based reminders are a plain list; details open per work and 
     for (const title of ['Monthly payment', 'Offer payment', 'Reservation', 'Broadcast follow-up']) await row(title).waitFor();
     await row('Offer payment').getByText(/customers$/).waitFor();
     await row('Reservation').getByText(/customers$/).waitFor();
-    // Add Reminder shows only the two works that can take a new rule, and the (i) explains the rest.
+    // Add Reminder opens one form right away. Saving closes it and keeps the user on this page.
     await work.getByRole('button', { name: 'Add Reminder' }).click();
-    const chooser = work.getByRole('region', { name: 'Choose work for new reminder' });
-    assert.equal(await chooser.getByRole('button', { name: 'Monthly payment', exact: true }).count(), 1);
-    assert.equal(await chooser.getByRole('button', { name: 'Broadcast follow-up', exact: true }).count(), 1);
-    assert.equal(await chooser.getByRole('button', { name: 'Offer payment', exact: true }).count(), 0);
-    await chooser.getByRole('button', { name: 'About Add Reminder' }).click();
-    await chooser.getByRole('note').getByText(/nothing to add/).waitFor();
-    await page.keyboard.press('Escape');
-    assert.equal(await chooser.getByRole('note').count(), 0);
-    // One click: choosing a work opens it with the new-reminder form already open.
-    await chooser.getByRole('button', { name: 'Monthly payment', exact: true }).click();
+    const form = page.getByRole('dialog', { name: 'New reminder' });
+    await form.getByRole('heading', { name: 'New reminder' }).waitFor();
+    assert.equal(await form.getByLabel('Work').inputValue(), 'monthly_package');
+    assert.equal(await form.getByLabel('Work').locator('option').count(), 2);
+    await form.getByLabel('Rule name').fill('Browser renewal reminder');
+    await form.getByLabel('Days for reminder 1').fill('-3');
+    await form.getByLabel('Subject', { exact: true }).fill('Renewal due soon');
+    await form.getByLabel('Message', { exact: true }).fill('Hello {{name}}, your renewal is due soon.');
+    await form.getByRole('button', { name: 'Save draft' }).click();
+    await page.getByText('Draft saved. It is not active and will not send messages.').waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'New reminder' }).count(), 0);
+    // The saved rule shows on its work page. Opening a work from its row does not open the form by itself.
     const details = page.getByRole('region', { name: 'Work reminders' });
-    await details.getByRole('combobox').first().waitFor();
-    assert.equal(await details.getByRole('combobox').first().inputValue(), 'monthly_package');
-    assert.equal(await details.getByRole('combobox').first().isDisabled(), true);
-    await details.getByRole('button', { name: 'Cancel' }).click();
-    await details.getByRole('button', { name: 'All work' }).click();
-    // Opening a work from its row does not open the form by itself.
     await row('Monthly payment').click();
     await details.getByRole('heading', { name: 'Monthly payment', level: 3, exact: true }).waitFor();
-    assert.equal(await details.getByRole('textbox', { name: 'Rule name' }).count(), 0);
+    await details.getByText('Browser renewal reminder', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'New reminder' }).count(), 0);
     // The popup on Timing opens with the detail, closes with Escape, and the page does not move.
     await details.getByRole('button', { name: 'About Timing' }).click();
     await details.getByRole('note').getByText(/Each step is set in days/).waitFor();

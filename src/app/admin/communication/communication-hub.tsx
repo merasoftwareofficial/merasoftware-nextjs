@@ -105,7 +105,6 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [query, setQuery] = useState("");
   const [reminderSection, setReminderSection] = useState<"work" | "rules" | "activity" | "existing">("work");
   const [reminderWork, setReminderWork] = useState<"monthly_package" | "offer_payment" | "reservation" | "broadcast" | null>(null);
-  const [reminderAdd, setReminderAdd] = useState(false);
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
@@ -229,7 +228,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
           {([ ["work", "By work"], ["activity", "Reminder activity"], ["rules", "Rules"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
         </div>
         <div hidden={reminderSection !== "work"}>
-          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={(work, add) => { setReminderAdd(!!add); setReminderWork(work); }} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} autoAdd={reminderAdd} back={() => setReminderWork(null)}
+          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={work => setReminderWork(work)} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} back={() => setReminderWork(null)}
             openMessage={event => go({ panel: "email-templates", tab: "portal", app: null, event })} openBroadcast={() => go({ panel: "broadcast", tab: null, app: null })} openWhatsappHistory={() => go({ panel: "whatsapp-queue", tab: "history", app: null })} />}
         </div>
         <div hidden={reminderSection !== "rules"}><ReminderDrafts active={part("reminders").shown && reminderSection === "rules"} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} /></div>

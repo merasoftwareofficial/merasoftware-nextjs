@@ -10,8 +10,8 @@ import { ReservationPanel } from "./reservation-panel";
 
 // One reminder work, opened. Short facts in a plain list; the explanations sit in (i) popups. Below them, the
 // existing data lists for this work (nothing here recreates their data).
-export function ReminderWorkDetail({ work, active, portalUrl, autoAdd, back, openMessage, openBroadcast, openWhatsappHistory }: {
-  work: Work; active: boolean; portalUrl: string; autoAdd: boolean; back: () => void;
+export function ReminderWorkDetail({ work, active, portalUrl, back, openMessage, openBroadcast, openWhatsappHistory }: {
+  work: Work; active: boolean; portalUrl: string; back: () => void;
   openMessage: (event: string) => void; openBroadcast: () => void; openWhatsappHistory: () => void;
 }) {
   const info = WORK_INFO[work];
@@ -49,7 +49,7 @@ export function ReminderWorkDetail({ work, active, portalUrl, autoAdd, back, ope
         <dd><button type="button" onClick={openWhatsappHistory}>Delivery history →</button></dd>
       </div>
     </dl>
-    {rule && <ReminderDrafts compact active={active} source={work} autoAdd={autoAdd} openSource={source => source === "broadcast" ? openBroadcast() : openMessage("plan.started")} />}
+    {rule && <ReminderDrafts compact active={active} source={work} openSource={source => source === "broadcast" ? openBroadcast() : openMessage("plan.started")} />}
     {rule && <ReminderHistory compact key={work} active={active} source={work} />}
     {work === "offer_payment" && <>
       <OfferPaymentReminders compact portalUrl={portalUrl} active={active} openAction={() => openMessage("offer.payment.reminder")} />

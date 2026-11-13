@@ -37,7 +37,6 @@ type Info = {
 };
 
 export const WORKS: Work[] = ["monthly_package", "offer_payment", "reservation", "broadcast"];
-export const ADD_INFO = "Monthly payment and broadcast follow-up can get a new rule: set the days, message and channel. It starts as a draft and sends only after preview and activation. Offer payment and reservation use their saved agreement and the reservation system, so there is nothing to add.";
 
 export const WORK_INFO: Record<Work, Info> = {
   monthly_package: {
