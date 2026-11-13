@@ -5,6 +5,7 @@ import { atLeast, type Role } from "@/lib/auth";
 import { StaffAlerts } from "@/components/staff-alerts";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AdminNavLinks, type AdminNavGroup, type AdminNavItem } from "@/components/admin-nav-links";
+import { COMMUNICATION_SECTIONS } from "@/app/admin/communication/communication-sections";
 
 /**
  * Every nav entry, grouped so related work sits together, with the lowest role
@@ -18,7 +19,7 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
     { label: "Offers", href: "/admin/offers", minimum: "admin" },
     { label: "Plans", href: "/admin/plans", minimum: "admin" },
     { label: "Packages", href: "/admin/packages", minimum: "admin" },
-    { label: "Communication", href: "/admin/communication", minimum: "admin", also: ["/admin/email-control", "/admin/whatsapp"] },
+    { label: "Communication", href: "/admin/communication", minimum: "admin", also: ["/admin/email-control", "/admin/whatsapp"], soft: true, sub: COMMUNICATION_SECTIONS.map(({ id, label, panel }) => ({ label, href: `/admin/communication?panel=${panel}`, section: id })) },
   ] },
   { title: "Website", items: [
     { label: "Website Content", href: "/admin/content", minimum: "editor" },
@@ -49,7 +50,7 @@ const SALES_PAGES = ["/admin/offers", "/admin/plans", "/admin/packages"];
 export function AdminLayout({ children, role = "visitor", pushKey = null, salesAdmin = false }: { children: React.ReactNode; role?: Role; pushKey?: string | null; salesAdmin?: boolean }) {
   // A group whose entries this role cannot open is dropped, heading and all.
   const visible: AdminNavGroup[] = navigation
-    .map(({ title, items }) => ({ title, items: items.filter(({ href, minimum }) => atLeast(role, minimum) && (!SALES_PAGES.includes(href) || salesAdmin)).map(({ label, href, also }) => ({ label, href, also })) }))
+    .map(({ title, items }) => ({ title, items: items.filter(({ href, minimum }) => atLeast(role, minimum) && (!SALES_PAGES.includes(href) || salesAdmin)).map(({ label, href, also, sub, soft }) => ({ label, href, also, sub, soft })) }))
     .filter(group => group.items.length);
   return <div className="admin-shell"><aside className="admin-nav"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /><img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /></Link><AdminNavLinks groups={visible} /><ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
 }

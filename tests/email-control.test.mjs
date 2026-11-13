@@ -8,6 +8,11 @@ import http from 'node:http';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 
+// The Communication top tab bar is gone; the sidebar sub-tabs change the URL the same way, so tests do too.
+async function openPanel(page, search) {
+  await page.evaluate(query => { window.history.pushState(null, '', `${window.location.pathname}${query}`); window.dispatchEvent(new PopStateEvent('popstate')); }, search);
+}
+
 const root = process.cwd();
 const backend = createRequire(path.resolve(root, '../backend/package.json'));
 const mongoose = backend('mongoose');
@@ -505,7 +510,7 @@ test('browser: Communication full-page navigation preserves links and browser hi
     const page = await browser.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${websiteBase}/admin/communication`);
-    await page.getByRole('button', { name: 'Automatic messages', exact: true }).click();
+    await openPanel(page, '?panel=email-templates');
     const workspace = page.getByRole('region', { name: 'Message Templates' });
     await workspace.getByRole('tab', { name: 'Website' }).waitFor();
     assert.equal(new URL(page.url()).search, '?panel=email-templates');
@@ -557,11 +562,11 @@ test('browser: Communication shows what needs attention and the recent emails, e
     const review = page.getByRole('region', { name: 'Email Review' });
     await review.getByRole('tab', { name: 'Review', selected: true }).waitFor();
     await review.locator('article').filter({ hasText: 'activity@example.test' }).waitFor();
-    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+    await openPanel(page, '');
 
     await line.getByRole('button', { name: 'Review →' }).click();
     await review.getByRole('tab', { name: 'Review', selected: true }).waitFor();
-    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+    await openPanel(page, '');
     await activity.getByRole('button', { name: 'Email history →' }).click();
     await review.getByRole('tab', { name: 'History', selected: true }).waitFor();
     await review.getByRole('heading', { name: 'Email history' }).waitFor();

@@ -7,6 +7,11 @@ import http from 'node:http';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 
+// The Communication top tab bar is gone; the sidebar sub-tabs change the URL the same way, so tests do too.
+async function openPanel(page, search) {
+  await page.evaluate(query => { window.history.pushState(null, '', `${window.location.pathname}${query}`); window.dispatchEvent(new PopStateEvent('popstate')); }, search);
+}
+
 // Real proxy + backend routes + MongoDB + visual editor. No external messages are sent.
 const root = process.cwd();
 const libraryAsset = { _id: '507f1f77bcf86cd799439011', url: 'https://res.cloudinary.com/test/video/upload/v1/clip.mp4', publicId: 'clip', assetId: 'immutable-video', assetFolder: 'test', width: 640, height: 360, format: 'mp4', bytes: 1000, altText: 'Demo video', kind: 'video' };
@@ -90,7 +95,7 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Broadcast', exact: true }).click();
+    await openPanel(page, '?panel=broadcast');
     await page.getByRole('region', { name: 'Broadcast' }).getByRole('heading', { name: 'Broadcast', exact: true }).waitFor();
     await page.getByRole('combobox', { name: 'Lead group' }).selectOption('leads:Contacted');
     const editor = page.getByRole('textbox', { name: 'Message', exact: true });
@@ -135,7 +140,7 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await editor.isVisible());
     await page.screenshot({ path: path.join(qaDir, 'broadcast-mobile.png'), fullPage: true });
-    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+    await openPanel(page, '');
     assert.equal(await page.getByRole('dialog').count(), 0);
   } finally { await browser.close(); }
 });
@@ -150,7 +155,7 @@ test('browser: client behaviour, Both with caption and separate text, signed med
     page.setDefaultTimeout(10000);
     await page.route('https://res.cloudinary.com/**', route => route.fulfill({ status: 200, body: '' }));
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Broadcast', exact: true }).click();
+    await openPanel(page, '?panel=broadcast');
     assert.equal(await page.getByLabel('Send via', { exact: true }).inputValue(), 'whatsapp');
     await page.getByLabel('Audience', { exact: true }).selectOption('clients');
     await page.getByLabel('Client behaviour', { exact: true }).selectOption('clients:Dead');
@@ -177,7 +182,7 @@ test('browser: client behaviour, Both with caption and separate text, signed med
     assert.equal(sent.channel, 'both');
     assert.equal(JSON.parse(sent.message).media.assetId, libraryAsset.assetId);
     await page.reload();
-    await page.getByRole('button', { name: 'Broadcast', exact: true }).click();
+    await openPanel(page, '?panel=broadcast');
     await page.waitForFunction(() => document.querySelector('[aria-label="Send via"]')?.value === 'both');
     await page.getByLabel('Send via', { exact: true }).selectOption('whatsapp');
     await page.getByRole('button', { name: 'Add media', exact: true }).click();
@@ -198,7 +203,7 @@ test('browser: committed lead and client changes update counts over the real SSE
     const page = await browser.newPage();
     const live = page.waitForResponse(response => response.url().endsWith('/api/live') && response.status() === 200);
     await page.goto(`${websiteBase}/?live=1`);
-    await page.getByRole('button', { name: 'Broadcast', exact: true }).click();
+    await openPanel(page, '?panel=broadcast');
     await live;
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep my unsaved message');
     await page.getByLabel('Lead group', { exact: true }).selectOption('leads:Positive');

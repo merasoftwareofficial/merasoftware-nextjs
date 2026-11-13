@@ -7,6 +7,11 @@ import http from 'node:http';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 
+// The Communication top tab bar is gone; the sidebar sub-tabs change the URL the same way, so tests do too.
+async function openPanel(page, search) {
+  await page.evaluate(query => { window.history.pushState(null, '', `${window.location.pathname}${query}`); window.dispatchEvent(new PopStateEvent('popstate')); }, search);
+}
+
 // Real proxy + backend routes + MongoDB + the Communication page. No WhatsApp connection; nothing is sent.
 const root = process.cwd();
 const backend = createRequire(path.resolve(root, '../backend/package.json'));
@@ -114,7 +119,7 @@ test('paid-project review is admin-only and shows mismatches before any linking'
   try {
     const page = await browser.newPage();
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await openPanel(page, '?panel=whatsapp-connection');
     await page.getByRole('button', { name: 'Reservations', exact: true }).click();
     await page.getByRole('button', { name: 'Review matching paid projects' }).click();
     const review = page.getByRole('region', { name: 'Review paid project link' });
@@ -136,7 +141,7 @@ test('package start can be closed from Communication only by both admins', async
   try {
     const page = await browser.newPage();
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await openPanel(page, '?panel=whatsapp-connection');
     await page.getByRole('button', { name: 'Reservations', exact: true }).click();
     await page.getByText('Request customer', { exact: true }).waitFor();
     const control = { source: 'package_request', entityId: String(row._id), paused: true, expectedPaused: false };
@@ -168,7 +173,7 @@ test('reservation team reminders can be paused independently without resuming th
   try {
     const page = await browser.newPage();
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await openPanel(page, '?panel=whatsapp-connection');
     await page.getByRole('button', { name: 'Reservations', exact: true }).click();
     await page.getByText(/Customer countdown reminders are held/).waitFor();
     page.once('dialog', confirmation => confirmation.accept());
@@ -207,7 +212,7 @@ test('all recorded reminder history supports pagination, retry and direct action
       else await route.continue();
     });
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    await openPanel(page, '?panel=reminders');
     await page.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();
     await page.getByText('All existing reminder message history', { exact: true }).click();
     const history = page.getByRole('region', { name: 'All existing reminder message history', exact: true });
@@ -235,7 +240,7 @@ test('browser: Communication → Final Message → time limit and replies', { ti
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await openPanel(page, '?panel=whatsapp-connection');
     await page.getByRole('button', { name: 'Final Message', exact: true }).click();
     const dialog = page.getByRole('region', { name: 'Final Message', exact: true });
     await dialog.getByRole('heading', { name: 'Final Message', exact: true }).waitFor();
@@ -302,7 +307,7 @@ test('browser: Communication → Reservation → running reservations with time 
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await openPanel(page, '?panel=whatsapp-connection');
     await page.getByRole('button', { name: 'Reservations', exact: true }).click();
     const dialog = page.getByRole('region', { name: 'Reservation', exact: true });
     await dialog.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
@@ -331,8 +336,8 @@ test('browser: Communication → Reservation → running reservations with time 
     const overflow = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Reservation"]'); return panel.scrollWidth - panel.clientWidth; });
     assert.ok(overflow <= 0, `no sideways scroll at phone width (${overflow}px)`);
     await page.screenshot({ path: path.join(qaDir, 'reservation-mobile.png') });
-    await page.getByRole('button', { name: 'Overview', exact: true }).click();
-    await page.getByRole('button', { name: 'Reminders', exact: true }).click();
+    await openPanel(page, '');
+    await openPanel(page, '?panel=reminders');
     const reminders = page.getByRole('region', { name: 'Reminders', exact: true });
     await reminders.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();
     await reminders.getByRole('heading', { name: 'Running (1)', exact: true }).waitFor();
@@ -418,7 +423,7 @@ test('browser: Communication → Reservation → running reservations with time 
     await reminders.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();
     await reminders.getByRole('button', { name: 'Offer payment reminder settings →' }).click();
     assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.payment.reminder');
-    await page.getByRole('button', { name: 'Review & delivery' }).click();
+    await openPanel(page, '?panel=email-review');
     await Order.collection.updateOne({ _id: orderId }, { $set: { serviceStartNotifiedAt: new Date() } });
     await page.getByRole('button', { name: 'Business activity', exact: true }).click();
     const activity = page.getByRole('region', { name: 'Business Activity', exact: true });
@@ -429,7 +434,7 @@ test('browser: Communication → Reservation → running reservations with time 
     assert.equal((await request('/api/auto-reply/business-activity', 'GET', member)).status, 403);
     await activity.getByRole('button', { name: 'Reservation message settings' }).first().click();
     assert.equal(new URL(page.url()).searchParams.get('event'), 'offer.reserved');
-    await page.getByRole('button', { name: 'Review & delivery' }).click();
+    await openPanel(page, '?panel=email-review');
     await page.getByRole('button', { name: 'Business activity', exact: true }).click();
     await page.getByRole('region', { name: 'Business Activity', exact: true }).getByRole('button', { name: 'Plan-start message settings' }).first().click();
     assert.equal(new URL(page.url()).searchParams.get('event'), 'plan.started');
@@ -448,7 +453,7 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } });
     page.setDefaultTimeout(10000);
     await page.goto(websiteBase);
-    await page.getByRole('button', { name: 'Workflows & settings' }).click();
+    await openPanel(page, '?panel=whatsapp-connection');
     await page.getByRole('button', { name: 'Auto Reply', exact: true }).click();
     const dialog = page.getByRole('region', { name: 'Auto Reply', exact: true });
     await dialog.getByRole('heading', { name: 'Auto Reply', exact: true }).waitFor();
@@ -524,7 +529,7 @@ test('browser: Communication → Auto Reply → switch, ad message and recognise
     assert.equal((await State.findById(STATE_ID).lean()).autoReply.recognise, false);
     assert.ok(await sendReplies.isDisabled(), 'the other two show as inactive');
     assert.equal(await sendReplies.isChecked(), false);
-    await page.getByRole('button', { name: 'Overview', exact: true }).click();
+    await openPanel(page, '');
     assert.equal(await page.getByRole('dialog').count(), 0);
   } finally { await browser.close(); }
 });

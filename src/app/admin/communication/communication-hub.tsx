@@ -2,6 +2,7 @@
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { EmailControlPanel, type EmailView } from "@/app/admin/email-control/email-control-panel";
 import { Loader } from "@/app/admin/email-control/loader";
 import { connectionLabel, type HistoryGroup, message, phoneLabel, WhatsappPanel, whatsappApi } from "@/app/admin/whatsapp/whatsapp-panel";
@@ -126,6 +127,18 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     return () => window.removeEventListener("popstate", onPop);
   }, [go]);
 
+  // The sidebar's sub-tabs change the URL on this same page, which does not remount the hub, so the hub follows the URL too.
+  const search = useSearchParams()?.toString() ?? null;
+  const [syncedSearch, setSyncedSearch] = useState(search);
+  if (search !== syncedSearch) {
+    setSyncedSearch(search);
+    if (search !== null) {
+      const params = new URLSearchParams(search);
+      const next = normalize({ panel: params.get("panel"), tab: params.get("tab"), app: params.get("app"), show: params.get("show"), event: params.get("event") }, portalAdmin);
+      if (href(next) !== href(view)) go(next, false);
+    }
+  }
+
   // WhatsApp status for the boxes and warnings: only while no panel is open (the panels refresh their own data).
   useEffect(() => {
     if (!portalAdmin || view.panel) return;
@@ -239,19 +252,6 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   }
 
   return <div className={s.hub}>
-    <nav className={s.mainTabs} aria-label="Communication sections">
-      {[
-        { label: "Overview", panel: null },
-        { label: "Broadcast", panel: "broadcast" },
-        { label: "Automatic messages", panel: "email-templates" },
-        { label: "Reminders", panel: "reminders" },
-        { label: "Review & delivery", panel: "email-review" },
-        { label: "Workflows & settings", panel: "whatsapp-connection" },
-      ].map(item => {
-        const active = item.panel === null ? !view.panel : item.panel === "email-review" ? ["email-review", "whatsapp-queue", "business-activity"].includes(view.panel || "") && !(view.panel === "whatsapp-queue" && view.tab === "rules") : item.panel === "whatsapp-connection" ? ["whatsapp-connection", "auto-reply", "final-message", "reservation"].includes(view.panel || "") || (view.panel === "whatsapp-queue" && view.tab === "rules") : view.panel === item.panel;
-        return <button key={item.label} type="button" aria-current={active ? "page" : undefined} onClick={() => go({ panel: item.panel, tab: null, app: null })}>{item.label}</button>;
-      })}
-    </nav>
     {!open && <>
       <div className={s.quickActions}>
         <button type="button" className={s.quickCard} onClick={() => go({ panel: "broadcast", tab: null, app: null })}><strong>Send a broadcast</strong><span>Reach a selected group →</span></button>
