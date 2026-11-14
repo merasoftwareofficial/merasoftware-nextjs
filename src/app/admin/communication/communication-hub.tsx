@@ -222,7 +222,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     const whatsappParts: [string, React.ReactNode][] = [
       ["broadcast", <BroadcastPanel key="b" active={part("broadcast").shown} />],
       ["business-activity", <BusinessActivity key="activity" active={part("business-activity").shown} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
-      ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} />],
+      ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} onOpenActions={() => go({ panel: "actions", tab: null, app: null })} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
       ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
       ["reminders", <section key="reminders" aria-label="Existing reminders">

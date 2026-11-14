@@ -39,7 +39,7 @@ const OUTCOME: Record<string, string> = {
 };
 const REPLY: Record<string, string> = { pending: "Reply waiting", sending: "Reply sending", sent: "Reply sent", failed: "Reply not sent", expired: "Reply expired", cancelled: "Reply cancelled", skipped: "Reply skipped" };
 
-export function AutoReplyPanel({ active = true }: { active?: boolean }) {
+export function AutoReplyPanel({ active = true, onOpenActions }: { active?: boolean; onOpenActions?: () => void }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [draft, setDraft] = useState<string | null>(null); // null = not being edited
   const [replyDraft, setReplyDraft] = useState<JSONContent | null>(null);
@@ -70,6 +70,10 @@ export function AutoReplyPanel({ active = true }: { active?: boolean }) {
   return <section className={s.panel} aria-label="Auto Reply">
     {(error || loadError) && <p role="alert" className={s.error}>{error || loadError}</p>}
     {notice && <p role="status" className={s.notice}>{notice}</p>}
+    <p className={s.note}>
+      Replies and automatic lead updates for WhatsApp ad messages can now be managed as an Action rule (<strong>WhatsApp ad message received</strong>) in Actions.{" "}
+      {onOpenActions && <button type="button" className={s.link} onClick={onOpenActions}>Open Actions</button>}
+    </p>
     {status && recognise && !status.listening && <p role="alert" className={s.error}>WhatsApp is not connected, so messages can&apos;t be recognised right now. Check WhatsApp Connection.</p>}
 
     <div className={a.switches}>

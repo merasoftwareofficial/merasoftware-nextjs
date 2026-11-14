@@ -18,6 +18,8 @@ export type RuleStep = {
 };
 export type RuleCondition = "anytime" | "unpaid" | "paid";
 export type RuleScopeKind = "all" | "monthly" | "one_time" | "package";
+export type DoAlsoType = "change_lead_stage" | "add_lead_note" | "stop_reminders";
+export type DoAlsoStep = { type: DoAlsoType; stage?: string; note?: string };
 export type ActionRuleRecord = {
   _id?: string;
   id?: string;
@@ -30,6 +32,7 @@ export type ActionRuleRecord = {
   steps: RuleStep[];
   repeat: { times: number; everyDays: number };
   stopOn: string[];
+  doAlso?: DoAlsoStep[];
   control: "auto" | "off";
   enabled: boolean;
   revision?: number;
@@ -62,6 +65,15 @@ const STOP_CHOICES = [
   { key: "payment.received", label: "Payment received" },
   { key: "plan.started", label: "Plan started" },
   { key: "project.completed", label: "Project completed" },
+];
+const LEAD_STAGES = [
+  { value: "Contacted", label: "Neutral" },
+  { value: "Positive", label: "Positive" },
+  { value: "NotNow", label: "Not Now" },
+  { value: "Negative", label: "Negative" },
+  { value: "Unhappy", label: "Unhappy" },
+  { value: "Dead", label: "Dead" },
+  { value: "Wrong", label: "Wrong" },
 ];
 const PLACEHOLDERS = ["{name}", "{amount}", "{dueDate}", "{invoiceLink}", "{project}", "{planName}", "{duration}"];
 
@@ -128,6 +140,7 @@ export function ActionRuleForm({
   const [condition, setCondition] = useState<RuleCondition>(editingRule?.condition || "anytime");
   const [scopeKind, setScopeKind] = useState<RuleScopeKind>(editingRule?.scope?.kind || "all");
   const [packageSlug, setPackageSlug] = useState<string>(editingRule?.scope?.packageSlug || packages[0]?.slug || "digital-growth-package");
+  const [doAlso, setDoAlso] = useState<DoAlsoStep[]>(editingRule?.doAlso ? editingRule.doAlso.map(d => ({ ...d })) : []);
   const [control, setControl] = useState<"auto" | "off">(editingRule?.control || "auto");
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -182,6 +195,7 @@ export function ActionRuleForm({
     setCondition(rule.condition || "anytime");
     setScopeKind(rule.scope?.kind || "all");
     setPackageSlug(rule.scope?.packageSlug || "digital-growth-package");
+    setDoAlso(rule.doAlso ? rule.doAlso.map(d => ({ ...d })) : []);
     setControl(rule.control || "auto");
     const cfg: TargetConfig = {
       steps: rule.steps.length ? rule.steps.map(st => ({ ...st })) : [blankStep()],
@@ -229,7 +243,8 @@ export function ActionRuleForm({
     return stepsOk && stopOk;
   };
 
-  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && targets.every(who => targetValid(who === "customer" ? customerCfg : adminCfg));
+  const doAlsoValid = doAlso.every(d => d.type !== "add_lead_note" || (d.note || "").trim().length > 0);
+  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : adminCfg));
 
   async function save(controlOverride: "auto" | "off") {
     if (!currentRow?.triggerKey) return;
@@ -257,6 +272,7 @@ export function ActionRuleForm({
         })),
         repeat: isRem && cfg.repeatTimes > 0 ? { times: cfg.repeatTimes, everyDays: cfg.repeatEvery } : { times: 0, everyDays: 2 },
         stopOn: isRem ? cfg.stopOn : [],
+        doAlso: who === "customer" || targets.length === 1 ? doAlso.map(d => ({ type: d.type, ...(d.type === "change_lead_stage" ? { stage: d.stage || "Positive" } : {}), ...(d.type === "add_lead_note" ? { note: (d.note || "").trim() } : {}) })) : [],
         control: controlOverride,
         enabled: controlOverride === "auto",
       };
@@ -544,10 +560,45 @@ export function ActionRuleForm({
         );
       })}
 
-      {/* Control & Preview */}
+      {/* Do also, Control & Preview */}
       <dl className={s.facts}>
         <div className={s.factRow}>
-          <dt>6. Control <InfoTip label="Control"><p>Auto sends automatically. Review (approval before sending) is coming soon. Off saves without sending.</p></InfoTip></dt>
+          <dt>6. Do also (optional) <InfoTip label="Do also"><p>Fixed automatic steps that run right after the first message goes out (never touches Matured/Won leads&apos; stage).</p></InfoTip></dt>
+          <dd style={{ display: "grid", gap: 8 }}>
+            {doAlso.map((step, idx) => (
+              <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                <select value={step.type} onChange={e => {
+                  const next = e.target.value as DoAlsoType;
+                  setDoAlso(prev => prev.map((it, i) => i === idx ? { type: next, ...(next === "change_lead_stage" ? { stage: "Positive" } : next === "add_lead_note" ? { note: "" } : {}) } : it));
+                }}>
+                  <option value="change_lead_stage">Change lead stage</option>
+                  <option value="add_lead_note">Add follow-up note</option>
+                  <option value="stop_reminders">Stop other scheduled reminders</option>
+                </select>
+                {step.type === "change_lead_stage" && (
+                  <select value={step.stage || "Positive"} onChange={e => setDoAlso(prev => prev.map((it, i) => i === idx ? { ...it, stage: e.target.value } : it))}>
+                    {LEAD_STAGES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                  </select>
+                )}
+                {step.type === "add_lead_note" && (
+                  <input type="text" placeholder="Note (e.g. Auto-replied to {name})" value={step.note || ""} maxLength={500} style={{ minWidth: 240 }}
+                    onChange={e => setDoAlso(prev => prev.map((it, i) => i === idx ? { ...it, note: e.target.value } : it))} />
+                )}
+                <button type="button" className={s.link} onClick={() => setDoAlso(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
+              </div>
+            ))}
+            {doAlso.length < 5 && (
+              <div>
+                <button type="button" onClick={() => setDoAlso(prev => [...prev, { type: "change_lead_stage", stage: "Positive" }])}>
+                  + Add automatic step
+                </button>
+              </div>
+            )}
+          </dd>
+        </div>
+
+        <div className={s.factRow}>
+          <dt>7. Control <InfoTip label="Control"><p>Auto sends automatically. Review (approval before sending) is coming soon. Off saves without sending.</p></InfoTip></dt>
           <dd>
             <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "auto"} onChange={() => setControl("auto")} /> Auto</label>
             <label style={{ opacity: 0.6 }} title="Coming soon"><input type="radio" name="control" disabled /> Review (coming soon)</label>
@@ -570,6 +621,7 @@ export function ActionRuleForm({
                   {condText ? ` · ${condText}` : ""}{scopeText ? ` · ${scopeText}` : ""}
                   {isRem && cfg.repeatTimes > 0 ? ` · repeat ${cfg.repeatTimes}x every ${cfg.repeatEvery}d` : ""}
                   {isRem && cfg.stopOn.length ? ` · stop when ${cfg.stopOn.map(k => STOP_CHOICES.find(c => c.key === k)?.label || k).join(", ")}` : ""}
+                  {(who === "customer" || targets.length === 1) && doAlso.length > 0 ? ` · then ${doAlso.map(d => d.type === "change_lead_stage" ? `stage → ${LEAD_STAGES.find(l => l.value === d.stage)?.label || d.stage}` : d.type === "add_lead_note" ? "add note" : "stop reminders").join(", ")}` : ""}
                   {` · ${control === "auto" ? "Auto" : "Off"}`}
                 </div>
               );
