@@ -69,6 +69,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
   const [saving, setSaving] = useState(false);
   const [messagesFor, setMessagesFor] = useState<ActionRow | null>(null);
   const [newRule, setNewRule] = useState(false);
+  const [newRuleFor, setNewRuleFor] = useState<string | null>(null);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -155,6 +156,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
 
   if (messagesFor) return <section hidden={!active}><ActionMessages row={messagesFor} back={() => setMessagesFor(null)} /></section>;
   if (newRule) return <section hidden={!active}><ActionRuleForm onBack={() => setNewRule(false)} /></section>;
+  if (newRuleFor) return <section hidden={!active}><ActionRuleForm action={newRuleFor} onBack={() => setNewRuleFor(null)} /></section>;
 
   return <section className={styles.section} aria-label="Actions list" hidden={!active}>
     <p className={styles.muted}>Use Manage on a row to move it to another tab or heading, archive it or remove it from the list.</p>
@@ -210,7 +212,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
                 <td className={`${c.mono} ${c.endpoint}`}>{row.endpoint}</td>
                 <td>{row.category}</td>
                 <td className={c.note}>{row.note || "—"}</td>
-                <td><MessageStatus row={row} onOpen={() => setMessagesFor(row)} /></td>
+                <td><MessageStatus row={row} onAdd={() => setNewRuleFor(row.id)} onViewRules={() => setMessagesFor(row)} /></td>
                 <td className={c.right}>
                   <ManageMenu row={row} data={data} open={menuFor === row.id} saving={saving}
                     onToggle={() => setMenuFor(menuFor === row.id ? null : row.id)}
@@ -226,12 +228,15 @@ export function ActionsPanel({ active }: { active: boolean }) {
   </section>;
 }
 
-// What is attached to this action, at a glance: a plain "+ Add message" when nothing is, or
-// Template / Reminder tags (with a count past one) so the owner never has to open a row to know.
-function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) {
+// What is attached to this action, at a glance: a plain "+ Add message" when nothing is (opens the
+// form directly; the action step still asks, since the row ID has no real mapping yet — phase 2),
+// or Template / Reminder tags (with a count past one) that open the rules list instead — so the
+// owner never has to open a row to know, and never lands on an empty "Messages" page with nothing
+// but another "+ Add message" button.
+function MessageStatus({ row, onAdd, onViewRules }: { row: ActionRow; onAdd: () => void; onViewRules: () => void }) {
   const status = ruleStatus(row.id);
-  if (!status.template && !status.reminder) return <button type="button" className={c.messageNone} onClick={onOpen}>+ Add message</button>;
-  return <button type="button" className={c.messageTags} onClick={onOpen} aria-label={`Edit messages for ${row.title}`}>
+  if (!status.template && !status.reminder) return <button type="button" className={c.messageNone} onClick={onAdd}>+ Add message</button>;
+  return <button type="button" className={c.messageTags} onClick={onViewRules} aria-label={`Edit messages for ${row.title}`}>
     {status.template > 0 && <span className={c.tagTemplate}>Template{status.template > 1 ? ` (${status.template})` : ""}</span>}
     {status.reminder > 0 && <span className={c.tagReminder}>Reminder{status.reminder > 1 ? ` (${status.reminder})` : ""}</span>}
   </button>;
@@ -331,21 +336,22 @@ function ManageMenu({ row, data, open, saving, onToggle, onClose, onAction }: {
 
 /**
  * One action's rules (Reminder.md §4). UI-only: rule counts come from MOCK_RULE_STATUS, matching
- * the row's own badge. "+ Add message" opens the same form with the action already chosen.
- * Note: the action row's ID (e.g. "A29") is the Actions-list ID, not an action-rule trigger key
- * (e.g. "invoice.created", helpers/actionEvents.js). The two are mapped only once the backend is
- * wired (phase 2); until then the form here opens with no action pre-selected.
+ * the row's own badge. "+ Add another message" opens the same form with this action pre-selected.
+ * Note: the action row's ID (e.g. "A29") is passed as the form's `action` prop, but it is the
+ * Actions-list ID, not an action-rule trigger key (e.g. "invoice.created", helpers/actionEvents.js).
+ * The form only displays it as a label; the real ID-to-trigger-key mapping is still missing and
+ * must be built with the backend wiring (phase 2) before this can be saved for real.
  */
 function ActionMessages({ row, back }: { row: ActionRow; back: () => void }) {
   const [adding, setAdding] = useState(false);
   const status = ruleStatus(row.id);
-  if (adding) return <ActionRuleForm onBack={() => setAdding(false)} />;
+  if (adding) return <ActionRuleForm action={row.id} onBack={() => setAdding(false)} />;
   return <section aria-label="Action messages" className={s.workSection}>
     <div><button type="button" className={s.link} onClick={back}>← All actions</button></div>
     <div className={s.workToolbar}><h3>{row.title}</h3></div>
     <p className={styles.muted}>{row.what}</p>
     {!status.template && !status.reminder ? <p>No message or reminder is set for this action yet.</p>
       : <p>{[status.template > 0 && `${status.template} template${status.template > 1 ? "s" : ""}`, status.reminder > 0 && `${status.reminder} reminder${status.reminder > 1 ? "s" : ""}`].filter(Boolean).join(" and ")} set for this action.</p>}
-    <button type="button" className="admin-button" onClick={() => setAdding(true)}>+ Add message</button>
+    <button type="button" className="admin-button" onClick={() => setAdding(true)}>+ Add another message</button>
   </section>;
 }
