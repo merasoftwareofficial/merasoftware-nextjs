@@ -39,6 +39,16 @@
 .note { color: var(--pn-muted, var(--muted)); font-size: 12px; max-width: 220px; }
 .right { text-align: right !important; white-space: nowrap; }
 
+/* Messages column: what is attached to this action, at a glance. */
+.messageNone { padding: 0; border: 0; background: none; color: var(--pn-muted, var(--muted)); font: inherit; font-size: 13px; cursor: pointer; }
+.messageNone:hover { color: var(--brand-link); text-decoration: underline; }
+.messageTags { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 0; border: 0; background: none; cursor: pointer; }
+.tagTemplate, .tagReminder { padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.tagTemplate { background: color-mix(in srgb, var(--brand-link) 16%, transparent); color: var(--brand-link); }
+.tagReminder { background: color-mix(in srgb, #b26a00 16%, transparent); color: #b26a00; }
+.messageTags:hover .tagTemplate, .messageTags:hover .tagReminder { filter: brightness(0.92); }
+.messageTags:focus-visible, .messageNone:focus-visible { outline: 2px solid var(--brand-link); outline-offset: 2px; }
+
 .manage { padding: 6px 14px; border: 1px solid var(--inverse, var(--pn-text)); border-radius: 7px; background: var(--inverse, var(--pn-text)); color: var(--inverse-text, var(--pn-card)); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .manage:hover { filter: brightness(1.08); }
 .manage:focus-visible { outline: 2px solid var(--brand-link); outline-offset: 2px; }

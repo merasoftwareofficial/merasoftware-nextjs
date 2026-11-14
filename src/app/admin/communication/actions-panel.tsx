@@ -33,6 +33,8 @@ type Category = { name: string; meaning: string };
 type ActionsData = { actions: ActionRow[]; surfaces: Surface[]; categories: Category[] };
 type View = "all" | Surface | "archived" | "deleted";
 type Change = Record<string, unknown>;
+type MessageFilter = "all" | "template" | "reminder" | "none";
+type RuleStatus = { template: number; reminder: number };
 
 const SURFACE_TITLES: Record<Surface, string> = { Admin: "Admin panel", Client: "Client portal", Website: "Website", System: "System" };
 const VIEWS: { id: View; label: string }[] = [
@@ -44,15 +46,24 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "archived", label: "Archived" },
   { id: "deleted", label: "Deleted" },
 ];
+const MESSAGE_FILTERS: { id: MessageFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "template", label: "Has template" },
+  { id: "reminder", label: "Has reminder" },
+  { id: "none", label: "No message" },
+];
 const COLUMNS = 9;
-// UI-only mock: how many rules an action already has, for the badge. Real counts come with the backend wiring.
-const MOCK_RULE_COUNTS: Record<string, number> = {};
+// UI-only mock: which actions already have a template and/or a reminder, for the row badge and
+// the "Has template / Has reminder / No message" filter. Real counts come with the backend wiring.
+const MOCK_RULE_STATUS: Record<string, RuleStatus> = {};
+const ruleStatus = (id: string): RuleStatus => MOCK_RULE_STATUS[id] || { template: 0, reminder: 0 };
 
 export function ActionsPanel({ active }: { active: boolean }) {
   const [data, setData] = useState<ActionsData | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<View>("all");
+  const [messageFilter, setMessageFilter] = useState<MessageFilter>("all");
   const [query, setQuery] = useState("");
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -114,6 +125,13 @@ export function ActionsPanel({ active }: { active: boolean }) {
       deleted: all.filter(row => row.deleted).length,
     } as Record<View, number>;
   }, [all]);
+  const messageCounts = useMemo(() => {
+    const live = all.filter(row => !row.archived && !row.deleted);
+    const template = live.filter(row => ruleStatus(row.id).template > 0).length;
+    const reminder = live.filter(row => ruleStatus(row.id).reminder > 0).length;
+    const none = live.filter(row => { const status = ruleStatus(row.id); return status.template === 0 && status.reminder === 0; }).length;
+    return { all: live.length, template, reminder, none } as Record<MessageFilter, number>;
+  }, [all]);
 
   // Rows of the chosen tab and search, grouped under their category heading, in the heading order.
   const groups = useMemo(() => {
@@ -122,12 +140,17 @@ export function ActionsPanel({ active }: { active: boolean }) {
       const inView = view === "archived" ? row.archived && !row.deleted
         : view === "deleted" ? row.deleted
           : !row.archived && !row.deleted && (view === "all" || row.surface === view);
-      return inView && (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle));
+      const status = ruleStatus(row.id);
+      const inMessageFilter = messageFilter === "all" ? true
+        : messageFilter === "template" ? status.template > 0
+          : messageFilter === "reminder" ? status.reminder > 0
+            : status.template === 0 && status.reminder === 0;
+      return inView && inMessageFilter && (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle));
     });
     return (data?.categories ?? [])
       .map(category => ({ category, rows: rows.filter(row => row.category === category.name).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })) }))
       .filter(group => group.rows.length);
-  }, [all, data, view, query]);
+  }, [all, data, view, messageFilter, query]);
   const shown = groups.reduce((sum, group) => sum + group.rows.length, 0);
 
   if (messagesFor) return <section hidden={!active}><ActionMessages row={messagesFor} back={() => setMessagesFor(null)} /></section>;
@@ -144,6 +167,12 @@ export function ActionsPanel({ active }: { active: boolean }) {
       <div role="tablist" aria-label="Show actions" className={c.segment}>
         {VIEWS.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => { setView(item.id); setMenuFor(null); }}>
           {item.label} <span className={c.badge}>({counts[item.id]})</span>
+        </button>)}
+      </div>
+
+      <div role="tablist" aria-label="Filter by message" className={c.segment}>
+        {MESSAGE_FILTERS.map(item => <button key={item.id} type="button" role="tab" aria-selected={messageFilter === item.id} onClick={() => { setMessageFilter(item.id); setMenuFor(null); }}>
+          {item.label} <span className={c.badge}>({messageCounts[item.id]})</span>
         </button>)}
       </div>
 
@@ -181,7 +210,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
                 <td className={`${c.mono} ${c.endpoint}`}>{row.endpoint}</td>
                 <td>{row.category}</td>
                 <td className={c.note}>{row.note || "—"}</td>
-                <td><button type="button" className={s.link} onClick={() => setMessagesFor(row)}>Messages{MOCK_RULE_COUNTS[row.id] ? ` (${MOCK_RULE_COUNTS[row.id]})` : ""}</button></td>
+                <td><MessageStatus row={row} onOpen={() => setMessagesFor(row)} /></td>
                 <td className={c.right}>
                   <ManageMenu row={row} data={data} open={menuFor === row.id} saving={saving}
                     onToggle={() => setMenuFor(menuFor === row.id ? null : row.id)}
@@ -195,6 +224,17 @@ export function ActionsPanel({ active }: { active: boolean }) {
       </div>}
     </>}
   </section>;
+}
+
+// What is attached to this action, at a glance: a plain "+ Add message" when nothing is, or
+// Template / Reminder tags (with a count past one) so the owner never has to open a row to know.
+function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) {
+  const status = ruleStatus(row.id);
+  if (!status.template && !status.reminder) return <button type="button" className={c.messageNone} onClick={onOpen}>+ Add message</button>;
+  return <button type="button" className={c.messageTags} onClick={onOpen} aria-label={`Edit messages for ${row.title}`}>
+    {status.template > 0 && <span className={c.tagTemplate}>Template{status.template > 1 ? ` (${status.template})` : ""}</span>}
+    {status.reminder > 0 && <span className={c.tagReminder}>Reminder{status.reminder > 1 ? ` (${status.reminder})` : ""}</span>}
+  </button>;
 }
 
 type Flyout = "filter" | "category" | null;
@@ -290,20 +330,22 @@ function ManageMenu({ row, data, open, saving, onToggle, onClose, onAction }: {
 }
 
 /**
- * One action's rules (Reminder.md §4). UI-only: no rules exist yet, so this always shows the
- * empty state plus "+ Add message", which opens the same form with the action already chosen.
+ * One action's rules (Reminder.md §4). UI-only: rule counts come from MOCK_RULE_STATUS, matching
+ * the row's own badge. "+ Add message" opens the same form with the action already chosen.
  * Note: the action row's ID (e.g. "A29") is the Actions-list ID, not an action-rule trigger key
  * (e.g. "invoice.created", helpers/actionEvents.js). The two are mapped only once the backend is
  * wired (phase 2); until then the form here opens with no action pre-selected.
  */
 function ActionMessages({ row, back }: { row: ActionRow; back: () => void }) {
   const [adding, setAdding] = useState(false);
+  const status = ruleStatus(row.id);
   if (adding) return <ActionRuleForm onBack={() => setAdding(false)} />;
   return <section aria-label="Action messages" className={s.workSection}>
     <div><button type="button" className={s.link} onClick={back}>← All actions</button></div>
     <div className={s.workToolbar}><h3>{row.title}</h3></div>
     <p className={styles.muted}>{row.what}</p>
-    <p>No rules yet for this action.</p>
+    {!status.template && !status.reminder ? <p>No message or reminder is set for this action yet.</p>
+      : <p>{[status.template > 0 && `${status.template} template${status.template > 1 ? "s" : ""}`, status.reminder > 0 && `${status.reminder} reminder${status.reminder > 1 ? "s" : ""}`].filter(Boolean).join(" and ")} set for this action.</p>}
     <button type="button" className="admin-button" onClick={() => setAdding(true)}>+ Add message</button>
   </section>;
 }
