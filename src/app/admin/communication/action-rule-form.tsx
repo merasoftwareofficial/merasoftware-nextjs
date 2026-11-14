@@ -35,12 +35,18 @@ export type ActionRuleRecord = {
   revision?: number;
 };
 
+export type ConditionOption = { key: string; label: string };
 export type FormActionOption = {
   id: string;
   title: string;
+  what?: string;
+  when?: string;
+  category?: string;
   method: string;
   endpoint: string;
   triggerKey?: string | null;
+  supportsScope?: boolean;
+  conditions?: ConditionOption[];
   rules?: ActionRuleRecord[];
 };
 
@@ -59,11 +65,16 @@ const STOP_CHOICES = [
 ];
 const PLACEHOLDERS = ["{name}", "{amount}", "{dueDate}", "{invoiceLink}", "{project}", "{planName}", "{duration}"];
 
+const PAY_CONDS: ConditionOption[] = [
+  { key: "anytime", label: "Anytime (always)" },
+  { key: "unpaid", label: "Only if payment is pending (unpaid)" },
+  { key: "paid", label: "Only if already paid" },
+];
 const FALLBACK_ACTIONS: FormActionOption[] = [
-  { id: "S_INV", title: "Invoice created (amount > 0)", method: "SYSTEM", endpoint: "signal: invoice.created", triggerKey: "invoice.created" },
-  { id: "S_PAY", title: "Payment received (full)", method: "SYSTEM", endpoint: "signal: payment.received", triggerKey: "payment.received" },
-  { id: "S_PRJ", title: "Project completed (100% progress)", method: "SYSTEM", endpoint: "signal: project.completed", triggerKey: "project.completed" },
-  { id: "S_PLN", title: "Plan started", method: "SYSTEM", endpoint: "signal: plan.started", triggerKey: "plan.started" },
+  { id: "S_INV", title: "Invoice created (amount > 0)", category: "Orders & invoices", what: "Runs when a billed invoice is created.", method: "SYSTEM", endpoint: "signal: invoice.created", triggerKey: "invoice.created", supportsScope: true, conditions: PAY_CONDS },
+  { id: "S_PAY", title: "Payment received (full)", category: "Orders & invoices", what: "Runs when an invoice is marked fully paid.", method: "SYSTEM", endpoint: "signal: payment.received", triggerKey: "payment.received", supportsScope: false, conditions: [{ key: "anytime", label: "Anytime (always)" }] },
+  { id: "S_PRJ", title: "Project completed (100% progress)", category: "Projects", what: "Runs when project progress reaches 100%.", method: "SYSTEM", endpoint: "signal: project.completed", triggerKey: "project.completed", supportsScope: true, conditions: PAY_CONDS },
+  { id: "S_PLN", title: "Plan started", category: "Plans & packages", what: "Runs when a plan or package starts.", method: "SYSTEM", endpoint: "signal: plan.started", triggerKey: "plan.started", supportsScope: true, conditions: PAY_CONDS },
 ];
 
 const blankStep = (timingRef: TimingRef = "after_action", days = 0): RuleStep => ({
@@ -110,6 +121,9 @@ export function ActionRuleForm({
   const [editingId, setEditingId] = useState<string | null>(editingRule?._id || editingRule?.id || null);
   const [kind, setKind] = useState<"template" | "reminder">(editingRule?.kind || "template");
   const [selectedActionId, setSelectedActionId] = useState<string>(initialRow?.id || "");
+  const [readyOnly, setReadyOnly] = useState<boolean>(initialRow ? !!initialRow.triggerKey : true);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [actionSearch, setActionSearch] = useState<string>("");
   const [audienceChoice, setAudienceChoice] = useState<AudienceChoice>(editingRule?.audience || "customer");
   const [condition, setCondition] = useState<RuleCondition>(editingRule?.condition || "anytime");
   const [scopeKind, setScopeKind] = useState<RuleScopeKind>(editingRule?.scope?.kind || "all");
@@ -137,6 +151,29 @@ export function ActionRuleForm({
   const existingRules = currentRow?.rules || [];
   const targets: ("customer" | "admin")[] = audienceChoice === "both" ? ["customer", "admin"] : [audienceChoice];
   const isRem = kind === "reminder";
+  const availableConditions = currentRow?.conditions?.length ? currentRow.conditions : [{ key: "anytime", label: "Anytime (always)" }];
+  const supportsScope = !!currentRow?.supportsScope;
+  const actionCategories = [...new Set(actionOptions.map(a => a.category || "Other"))].sort();
+  const filteredActions = actionOptions.filter(a => {
+    if (a.id === selectedActionId) return true;
+    if (readyOnly && !a.triggerKey) return false;
+    if (categoryFilter !== "all" && (a.category || "Other") !== categoryFilter) return false;
+    const q = actionSearch.trim().toLowerCase();
+    if (!q) return true;
+    return `${a.id} ${a.title} ${a.what || ""} ${a.when || ""} ${a.endpoint} ${a.category || ""}`.toLowerCase().includes(q);
+  });
+  const groupedActions = actionCategories
+    .map(cat => ({ category: cat, items: filteredActions.filter(a => (a.category || "Other") === cat) }))
+    .filter(g => g.items.length > 0);
+
+  function selectAction(nextId: string) {
+    setSelectedActionId(nextId);
+    setEditingId(null);
+    const nextRow = actionOptions.find(a => a.id === nextId);
+    const nextConds = (nextRow?.conditions || [{ key: "anytime" }]).map(c => c.key);
+    if (!nextConds.includes(condition)) setCondition("anytime");
+    if (!nextRow?.supportsScope) setScopeKind("all");
+  }
 
   function loadExistingRule(rule: ActionRuleRecord) {
     setEditingId(rule._id || rule.id || null);
@@ -192,15 +229,15 @@ export function ActionRuleForm({
     return stepsOk && stopOk;
   };
 
-  const canSave = !!selectedActionId && !saving && targets.every(who => targetValid(who === "customer" ? customerCfg : adminCfg));
+  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && targets.every(who => targetValid(who === "customer" ? customerCfg : adminCfg));
 
   async function save(controlOverride: "auto" | "off") {
-    if (!currentRow) return;
+    if (!currentRow?.triggerKey) return;
     setSaving(true);
     setError("");
     setNotice("");
-    const actionKey = currentRow.triggerKey || currentRow.id;
-    const scope = { kind: scopeKind, ...(scopeKind === "package" ? { packageSlug } : {}) };
+    const actionKey = currentRow.triggerKey;
+    const scope = supportsScope ? { kind: scopeKind, ...(scopeKind === "package" ? { packageSlug } : {}) } : { kind: "all" };
 
     const buildPayload = (who: "customer" | "admin") => {
       const cfg = who === "customer" ? customerCfg : adminCfg;
@@ -305,14 +342,45 @@ export function ActionRuleForm({
 
         <div className={s.factRow}>
           <dt>2. Action</dt>
-          <dd style={{ display: "grid", gap: 4, width: "100%" }}>
-            <select value={selectedActionId} onChange={e => { setSelectedActionId(e.target.value); setEditingId(null); }}>
-              <option value="">Choose an action…</option>
-              {actionOptions.map(item => (
-                <option key={item.id} value={item.id}>{item.id} — {item.title}</option>
+          <dd style={{ display: "grid", gap: 8, width: "100%" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <select aria-label="Filter action category" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+                <option value="all">All categories</option>
+                {actionCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+              <input type="search" aria-label="Search action" placeholder="Search by name, description, ID or endpoint…"
+                value={actionSearch} onChange={e => setActionSearch(e.target.value)} style={{ flex: "1 1 220px", minWidth: 180 }} />
+              <label style={{ fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <input type="checkbox" checked={readyOnly} onChange={e => setReadyOnly(e.target.checked)} /> Ready for rules only
+              </label>
+            </div>
+
+            <select value={selectedActionId} onChange={e => selectAction(e.target.value)}>
+              <option value="">Choose an action ({filteredActions.length} matching)…</option>
+              {groupedActions.map(group => (
+                <optgroup key={group.category} label={group.category}>
+                  {group.items.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.id} — {item.title}{item.rules?.length ? ` (${item.rules.length} rule${item.rules.length > 1 ? "s" : ""})` : ""}{!item.triggerKey ? " [no signal]" : ""}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
-            {currentRow && <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))", fontFamily: "monospace" }}>{currentRow.method} {currentRow.endpoint}</span>}
+
+            {currentRow && (
+              <div style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, display: "grid", gap: 3 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <strong>{currentRow.category || "Action"} · {currentRow.id}</strong>
+                  <span style={{ color: currentRow.triggerKey ? "var(--brand-link)" : "crimson", fontWeight: 600 }}>
+                    {currentRow.triggerKey ? `Ready (${currentRow.triggerKey})` : "Signal not wired yet — select a Ready action"}
+                  </span>
+                </div>
+                {currentRow.what && <div>{currentRow.what}</div>}
+                {currentRow.when && <div style={{ color: "var(--pn-muted, var(--muted))" }}>{currentRow.when}</div>}
+                <div style={{ fontFamily: "monospace", color: "var(--pn-muted, var(--muted))" }}>{currentRow.method} {currentRow.endpoint}</div>
+              </div>
+            )}
           </dd>
         </div>
 
@@ -326,36 +394,38 @@ export function ActionRuleForm({
         </div>
 
         <div className={s.factRow}>
-          <dt>4. Condition <InfoTip label="Only if"><p>Send only when payment is pending (unpaid) or only when already paid — useful when a plan starts with or without payment.</p></InfoTip></dt>
+          <dt>4. Condition <InfoTip label="Only if"><p>Conditions available for the chosen action.</p></InfoTip></dt>
           <dd>
             <select value={condition} onChange={e => setCondition(e.target.value as RuleCondition)}>
-              <option value="anytime">Anytime (always)</option>
-              <option value="unpaid">Only if payment is pending (unpaid)</option>
-              <option value="paid">Only if already paid</option>
+              {availableConditions.map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
             </select>
           </dd>
         </div>
 
-        <div className={s.factRow}>
-          <dt>Applies to <InfoTip label="Scope"><p>Apply to all packages/plans, only monthly plans, only one-time packages, or one specific package.</p></InfoTip></dt>
-          <dd style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <select value={scopeKind} onChange={e => setScopeKind(e.target.value as RuleScopeKind)}>
-              <option value="all">All packages &amp; plans</option>
-              <option value="monthly">Monthly plans only</option>
-              <option value="one_time">One-time packages only</option>
-              <option value="package">Specific package…</option>
-            </select>
-            {scopeKind === "package" && (
-              packages.length > 0 ? (
-                <select value={packageSlug} onChange={e => setPackageSlug(e.target.value)}>
-                  {packages.map(pkg => <option key={pkg.slug} value={pkg.slug}>{pkg.name} ({pkg.slug})</option>)}
-                </select>
-              ) : (
-                <input value={packageSlug} onChange={e => setPackageSlug(e.target.value)} placeholder="e.g. digital-growth-package" />
-              )
-            )}
-          </dd>
-        </div>
+        {supportsScope && (
+          <div className={s.factRow}>
+            <dt>Applies to <InfoTip label="Scope"><p>Apply to all packages/plans, only monthly plans, only one-time packages, or one specific package.</p></InfoTip></dt>
+            <dd style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <select value={scopeKind} onChange={e => setScopeKind(e.target.value as RuleScopeKind)}>
+                <option value="all">All packages &amp; plans</option>
+                <option value="monthly">Monthly plans only</option>
+                <option value="one_time">One-time packages only</option>
+                <option value="package">Specific package…</option>
+              </select>
+              {scopeKind === "package" && (
+                packages.length > 0 ? (
+                  <select value={packageSlug} onChange={e => setPackageSlug(e.target.value)}>
+                    {packages.map(pkg => <option key={pkg.slug} value={pkg.slug}>{pkg.name} ({pkg.slug})</option>)}
+                  </select>
+                ) : (
+                  <input value={packageSlug} onChange={e => setPackageSlug(e.target.value)} placeholder="e.g. digital-growth-package" />
+                )
+              )}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {/* Placeholders helper */}

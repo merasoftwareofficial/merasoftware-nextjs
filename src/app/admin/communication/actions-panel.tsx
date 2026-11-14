@@ -28,6 +28,8 @@ type ActionRow = {
   deleted: boolean;
   changed: boolean;
   triggerKey?: string | null;
+  supportsScope?: boolean;
+  conditions?: { key: string; label: string }[];
   rules?: ActionRuleRecord[];
 };
 type Category = { name: string; meaning: string };
@@ -68,6 +70,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<View>("all");
   const [messageFilter, setMessageFilter] = useState<MessageFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -150,12 +153,13 @@ export function ActionsPanel({ active }: { active: boolean }) {
         : messageFilter === "template" ? status.template > 0
           : messageFilter === "reminder" ? status.reminder > 0
             : status.template === 0 && status.reminder === 0;
-      return inView && inMessageFilter && (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle));
+      const inCategory = categoryFilter === "all" || row.category === categoryFilter;
+      return inView && inMessageFilter && inCategory && (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle));
     });
     return (data?.categories ?? [])
       .map(category => ({ category, rows: rows.filter(row => row.category === category.name).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })) }))
       .filter(group => group.rows.length);
-  }, [all, data, view, messageFilter, query]);
+  }, [all, data, view, messageFilter, categoryFilter, query]);
   const shown = groups.reduce((sum, group) => sum + group.rows.length, 0);
 
   const reloadActions = () => {
@@ -207,6 +211,11 @@ export function ActionsPanel({ active }: { active: boolean }) {
 
       <div className={c.toolbar}>
         <input className={c.search} type="search" aria-label="Find an action" placeholder="Find by name, description or endpoint" value={query} onChange={event => setQuery(event.target.value)} />
+        <select aria-label="Filter by category" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}
+          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--pn-line, var(--line))", background: "var(--pn-field, var(--paper))", color: "inherit", font: "inherit", fontSize: 13 }}>
+          <option value="all">All categories</option>
+          {(data?.categories ?? []).map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
+        </select>
         <span className={c.count}>Showing {shown} {shown === 1 ? "action" : "actions"} in {groups.length} {groups.length === 1 ? "heading" : "headings"}</span>
       </div>
 
@@ -259,7 +268,10 @@ export function ActionsPanel({ active }: { active: boolean }) {
 // or "+ Add message" when nothing is attached yet.
 function MessageStatus({ row, onAdd, onEdit }: { row: ActionRow; onAdd: () => void; onEdit: (rule: ActionRuleRecord) => void }) {
   const rules = row.rules || [];
-  if (!rules.length) return <button type="button" className={c.messageNone} onClick={onAdd}>+ Add message</button>;
+  if (!rules.length) {
+    if (!row.triggerKey) return <span className={c.count} title="Backend signal not wired yet">No signal yet</span>;
+    return <button type="button" className={c.messageNone} onClick={onAdd}>+ Add message</button>;
+  }
   return (
     <div className={c.messageTags}>
       {rules.map((rule, idx) => {
