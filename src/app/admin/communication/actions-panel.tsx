@@ -5,6 +5,7 @@ import { useCommunicationRefresh } from "@/lib/communication-live";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
 import { ActionRuleForm, type ActionRuleRecord } from "./action-rule-form";
+import { ActionScheduledPanel } from "./action-scheduled-panel";
 import c from "./actions-panel.module.css";
 
 /**
@@ -77,6 +78,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
   const [newRule, setNewRule] = useState(false);
   const [newRuleFor, setNewRuleFor] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<ActionRuleRecord | null>(null);
+  const [showScheduled, setShowScheduled] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -167,6 +169,13 @@ export function ActionsPanel({ active }: { active: boolean }) {
     void load(controller.signal);
   };
 
+  if (showScheduled) {
+    return (
+      <section hidden={!active}>
+        <ActionScheduledPanel onBack={() => setShowScheduled(false)} />
+      </section>
+    );
+  }
   if (editingRule) {
     return (
       <section hidden={!active}>
@@ -195,7 +204,10 @@ export function ActionsPanel({ active }: { active: boolean }) {
     {notice && <p role="status" className={c.notice}>{notice}</p>}
 
     {!data ? !error && <Loader label="Loading actions…" /> : <>
-      <div className={styles.actions}><button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add reminder or template</button></div>
+      <div className={styles.actions} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add reminder or template</button>
+        <button type="button" onClick={() => setShowScheduled(true)}>Scheduled reminders</button>
+      </div>
 
       <div role="tablist" aria-label="Show actions" className={c.segment}>
         {VIEWS.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => { setView(item.id); setMenuFor(null); }}>
