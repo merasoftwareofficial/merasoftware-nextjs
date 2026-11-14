@@ -717,7 +717,7 @@ test('actions API: admin only; lists every action; saves a move, archive and del
   assert.equal((await request('/api/auto-reply/actions/A01', 'PUT', admin, 'admin', { surface: 'Other' })).status, 400);
 });
 
-test('browser: Communication → Actions → Where and Category change in the row; Manage menu archives, deletes, restores and resets', { timeout: 120000 }, async () => {
+test('browser: Communication → Actions → list grouped under category headings; Manage moves filter and category, archives, deletes and resets', { timeout: 120000 }, async () => {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
@@ -725,33 +725,45 @@ test('browser: Communication → Actions → Where and Category change in the ro
     await openPanel(page, '?panel=actions');
     const region = page.getByRole('region', { name: 'Actions list' });
     for (const name of ['All', 'Admin panel', 'Client portal', 'Website', 'System', 'Archived', 'Deleted']) await region.getByRole('tab', { name: new RegExp(`^${name}`) }).waitFor();
-    const endpoint = '/api/admin/my-settings';
-    const rowOf = () => region.locator('tbody tr', { hasText: endpoint });
-    const tab = name => region.getByRole('tab', { name: new RegExp(`^${name}`) });
-    const openMenu = async () => { await rowOf().getByRole('button', { name: /^Manage / }).click(); return page.getByRole('menu', { name: 'Manage A01' }); };
+    // Header: Name, Description, ID, Method, Endpoint, Category, Note, Manage (no Where, no Status).
     await region.getByRole('table', { name: 'Actions table' }).waitFor();
-    assert.ok(await region.getByRole('columnheader', { name: /Endpoint/ }).count());
+    const headers = await region.getByRole('columnheader').allInnerTexts();
+    assert.deepEqual(headers, ['Name', 'Description', 'ID', 'Method', 'Endpoint', 'Category', 'Note', 'Manage']);
+    const tab = name => region.getByRole('tab', { name: new RegExp(`^${name}`) });
+    const rowOf = () => region.locator('tr', { hasText: 'Save my admin settings' });
+    const group = name => region.getByRole('rowgroup', { name });
+    const openMenu = async () => { await rowOf().getByRole('button', { name: /^Manage / }).click(); return page.getByRole('menu', { name: 'Manage A01' }); };
+    // Admin tab: a heading with its count starts the group, and A01 sits under it with its description and endpoint.
     await tab('Admin panel').click();
-    await rowOf().waitFor();
-    // Where: change it right in the row.
-    await rowOf().getByRole('combobox', { name: 'Where A01' }).selectOption('Website');
+    await group('Admin settings (3)').waitFor();
+    const text = await rowOf().innerText();
+    assert.match(text, /A01/);
+    assert.match(text, /PATCH/);
+    assert.match(text, /\/api\/admin\/my-settings/);
+    assert.match(text, /Admin settings/);
+    // Manage → Move to filter ▸ Website.
+    let menu = await openMenu();
+    await menu.getByRole('menuitem', { name: /^Move to filter/ }).click();
+    await page.getByRole('menu', { name: 'Move to filter' }).getByRole('menuitemradio', { name: 'Website' }).click();
     await region.getByRole('status').getByText('Moved to Website.').waitFor();
-    assert.equal(await rowOf().count(), 0, 'moved action leaves the Admin view');
+    assert.equal(await rowOf().count(), 0, 'moved action leaves the Admin tab');
+    await group('Admin settings (2)').waitFor();
     await tab('Website').click();
     await rowOf().waitFor();
-    assert.match(await rowOf().innerText(), /Changed/);
-    // Category: click the cell, type, press Enter.
-    await rowOf().getByRole('button', { name: 'Admin settings' }).click();
-    await rowOf().getByLabel('Category for A01').fill('Browser test');
-    await rowOf().getByLabel('Category for A01').press('Enter');
-    await region.getByRole('status').getByText('Category saved.').waitFor();
-    assert.match(await rowOf().innerText(), /Browser test/);
-    // Manage menu: Escape closes it.
-    let menu = await openMenu();
+    // Manage → Change category ▸ + New category.
+    menu = await openMenu();
+    await menu.getByRole('menuitem', { name: /^Change category/ }).click();
+    await page.getByRole('menu', { name: 'Change category' }).getByRole('menuitem', { name: '+ New category' }).click();
+    await page.getByLabel('New category name').fill('Browser test');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await region.getByRole('status').getByText('Moved to the heading Browser test.').waitFor();
+    await group('Browser test (1)').waitFor();
+    // Escape closes the menu.
+    menu = await openMenu();
     await menu.waitFor();
     await page.keyboard.press('Escape');
     await menu.waitFor({ state: 'detached' });
-    // Archive from the menu, then restore from Archived.
+    // Archive, then restore from Archived.
     menu = await openMenu();
     await menu.getByRole('menuitem', { name: /^Archive/ }).click();
     await region.getByRole('status').getByText('Action archived.').waitFor();
@@ -766,24 +778,23 @@ test('browser: Communication → Actions → Where and Category change in the ro
     await tab('Website').click();
     await rowOf().waitFor();
     menu = await openMenu();
-    await menu.getByRole('menuitem', { name: 'Delete from list' }).click();
+    await menu.getByRole('menuitem', { name: /^Delete from list/ }).click();
     await region.getByRole('status').getByText('Action removed from the list. The code stays.').waitFor();
     await tab('Deleted').click();
     await rowOf().waitFor();
     menu = await openMenu();
-    await menu.getByRole('menuitem', { name: 'Restore' }).click();
+    await menu.getByRole('menuitem', { name: /^Restore/ }).click();
     await region.getByRole('status').getByText('Action restored.').waitFor();
-    // Reset to original: back under Admin with its original category and no Changed badge.
+    // Reset to original: back in the Admin tab, under Admin settings (3); the test heading is gone.
     await tab('Website').click();
     await rowOf().waitFor();
     menu = await openMenu();
-    await menu.getByRole('menuitem', { name: 'Reset to original' }).click();
-    await region.getByRole('status').getByText('Action reset to its original place.').waitFor();
+    await menu.getByRole('menuitem', { name: /^Reset to original/ }).click();
+    await region.getByRole('status').getByText('Action reset to its original tab and heading.').waitFor();
     await tab('Admin panel').click();
+    await group('Admin settings (3)').waitFor();
     await rowOf().waitFor();
-    const text = await rowOf().innerText();
-    assert.match(text, /Admin settings/);
-    assert.doesNotMatch(text, /Browser test|Changed/);
+    assert.equal(await group('Browser test (1)').count(), 0);
   } finally {
     await browser.close();
   }

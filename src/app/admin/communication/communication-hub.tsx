@@ -53,7 +53,7 @@ const PANELS: Record<PanelId, Panel> = {
     description: "Messages waiting to go, the rules that pace them, and every finished message." },
   "email-templates": { group: "Email", title: "Message Templates", whatsapp: false, tabs: APPS,
     description: "Each job’s mails: who decides, the default template and the editor. WhatsApp sends the same text." },
-  "actions": { group: "Email", title: "Actions", whatsapp: false, tabs: [], description: "Every action that changes data, by where it happens (Admin, Client, Website, System). Read-only for now." },
+  "actions": { group: "Email", title: "Actions", whatsapp: false, tabs: [], description: "Every action that changes data, grouped by the part of the website or portal it belongs to." },
   "email-review": { group: "Email", title: "Email Review", whatsapp: false,
     tabs: [{ id: "review", label: "Review" }, { id: "outbox", label: "Outbox" }, { id: "history", label: "History" }],
     description: "Mails waiting for Send / Don’t send, the Outbox and every decision." },
