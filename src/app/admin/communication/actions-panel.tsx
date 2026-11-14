@@ -4,7 +4,9 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
+import { ActionRuleForm } from "./action-rule-form";
 import c from "./actions-panel.module.css";
+import s from "./communication.module.css";
 
 /**
  * Communication > Actions: every action that changes data, shown like a document.
@@ -42,7 +44,9 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "archived", label: "Archived" },
   { id: "deleted", label: "Deleted" },
 ];
-const COLUMNS = 8;
+const COLUMNS = 9;
+// UI-only mock: how many rules an action already has, for the badge. Real counts come with the backend wiring.
+const MOCK_RULE_COUNTS: Record<string, number> = {};
 
 export function ActionsPanel({ active }: { active: boolean }) {
   const [data, setData] = useState<ActionsData | null>(null);
@@ -52,6 +56,8 @@ export function ActionsPanel({ active }: { active: boolean }) {
   const [query, setQuery] = useState("");
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [messagesFor, setMessagesFor] = useState<ActionRow | null>(null);
+  const [newRule, setNewRule] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -124,12 +130,17 @@ export function ActionsPanel({ active }: { active: boolean }) {
   }, [all, data, view, query]);
   const shown = groups.reduce((sum, group) => sum + group.rows.length, 0);
 
+  if (messagesFor) return <section hidden={!active}><ActionMessages row={messagesFor} back={() => setMessagesFor(null)} /></section>;
+  if (newRule) return <section hidden={!active}><ActionRuleForm onBack={() => setNewRule(false)} /></section>;
+
   return <section className={styles.section} aria-label="Actions list" hidden={!active}>
     <p className={styles.muted}>Use Manage on a row to move it to another tab or heading, archive it or remove it from the list.</p>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {notice && <p role="status" className={c.notice}>{notice}</p>}
 
     {!data ? !error && <Loader label="Loading actions…" /> : <>
+      <div className={styles.actions}><button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add reminder or template</button></div>
+
       <div role="tablist" aria-label="Show actions" className={c.segment}>
         {VIEWS.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => { setView(item.id); setMenuFor(null); }}>
           {item.label} <span className={c.badge}>({counts[item.id]})</span>
@@ -151,6 +162,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
             <th scope="col">Endpoint</th>
             <th scope="col">Category</th>
             <th scope="col">Note</th>
+            <th scope="col">Messages</th>
             <th scope="col" className={c.right}>Manage</th>
           </tr></thead>
           {groups.map(({ category, rows }) => <Fragment key={category.name}>
@@ -169,6 +181,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
                 <td className={`${c.mono} ${c.endpoint}`}>{row.endpoint}</td>
                 <td>{row.category}</td>
                 <td className={c.note}>{row.note || "—"}</td>
+                <td><button type="button" className={s.link} onClick={() => setMessagesFor(row)}>Messages{MOCK_RULE_COUNTS[row.id] ? ` (${MOCK_RULE_COUNTS[row.id]})` : ""}</button></td>
                 <td className={c.right}>
                   <ManageMenu row={row} data={data} open={menuFor === row.id} saving={saving}
                     onToggle={() => setMenuFor(menuFor === row.id ? null : row.id)}
@@ -274,4 +287,23 @@ function ManageMenu({ row, data, open, saving, onToggle, onClose, onAction }: {
       </button>}
     </div>}
   </div>;
+}
+
+/**
+ * One action's rules (Reminder.md §4). UI-only: no rules exist yet, so this always shows the
+ * empty state plus "+ Add message", which opens the same form with the action already chosen.
+ * Note: the action row's ID (e.g. "A29") is the Actions-list ID, not an action-rule trigger key
+ * (e.g. "invoice.created", helpers/actionEvents.js). The two are mapped only once the backend is
+ * wired (phase 2); until then the form here opens with no action pre-selected.
+ */
+function ActionMessages({ row, back }: { row: ActionRow; back: () => void }) {
+  const [adding, setAdding] = useState(false);
+  if (adding) return <ActionRuleForm onBack={() => setAdding(false)} />;
+  return <section aria-label="Action messages" className={s.workSection}>
+    <div><button type="button" className={s.link} onClick={back}>← All actions</button></div>
+    <div className={s.workToolbar}><h3>{row.title}</h3></div>
+    <p className={styles.muted}>{row.what}</p>
+    <p>No rules yet for this action.</p>
+    <button type="button" className="admin-button" onClick={() => setAdding(true)}>+ Add message</button>
+  </section>;
 }
