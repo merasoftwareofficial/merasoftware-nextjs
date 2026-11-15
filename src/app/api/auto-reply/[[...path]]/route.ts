@@ -14,7 +14,8 @@ async function handle(request: Request, context: Context) {
     if (session.user.role !== "admin" || !session.portalRoles.includes("admin")) throw new AuthError("Admin access required.", 403);
     const token = (await cookies()).get("token")?.value;
     if (!token) throw new AuthError("Sign in again to manage Auto Reply.", 401);
-    const body = request.method === "POST" || request.method === "PUT" ? await request.json() : undefined;
+    const rawBody = request.method === "POST" || request.method === "PUT" ? await request.text() : "";
+    const body = rawBody.trim() ? JSON.parse(rawBody) : undefined;
     const page = ["payment-reminders", "reminder-runs", "legacy-reminder-history"].includes(path) ? new URL(request.url).searchParams.get("page") : null;
     const view = ["reminder-runs", "payment-reminders"].includes(path) ? new URL(request.url).searchParams.get("view") : null;
     const params = new URLSearchParams();
