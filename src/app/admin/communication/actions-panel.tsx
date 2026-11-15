@@ -92,6 +92,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showScheduled, setShowScheduled] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -183,6 +184,45 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     const controller = new AbortController();
     void load(controller.signal);
   };
+
+  async function runCleanup() {
+    setCleaning(true);
+    setError("");
+    setNotice("");
+    try {
+      const previewRes = await fetch("/api/auto-reply/action-rules/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+        cache: "no-store",
+      });
+      const previewData = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(previewData.error || previewData.message || "Could not preview cleanup.");
+      const preview = previewData.data || {};
+      const dups = Number(preview.duplicatesRemoved || 0);
+      const pairs = Number(preview.pairsLinked || 0);
+      if (dups === 0 && pairs === 0) {
+        setNotice("No duplicate or unpaired rules found.");
+        return;
+      }
+      if (!window.confirm(`Remove ${dups} duplicate rule(s) and link ${pairs} unpaired Both pair(s)?`)) return;
+      const applyRes = await fetch("/api/auto-reply/action-rules/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+        cache: "no-store",
+      });
+      const applyData = await applyRes.json().catch(() => ({}));
+      if (!applyRes.ok) throw new Error(applyData.error || applyData.message || "Cleanup failed.");
+      const applied = applyData.data || {};
+      setNotice(`Cleaned ${Number(applied.duplicatesRemoved || 0)} duplicate(s) and linked ${Number(applied.pairsLinked || 0)} pair(s).`);
+      reloadActions();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not run cleanup.");
+    } finally {
+      setCleaning(false);
+    }
+  }
 
   async function toggleRuleEnabled(rule: ActionRuleRecord) {
     const id = rule._id || rule.id;
@@ -287,6 +327,9 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       <div className={styles.actions} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         <button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add reminder or template</button>
         <button type="button" onClick={() => setShowScheduled(true)}>Scheduled reminders</button>
+        <button type="button" disabled={cleaning} onClick={() => void runCleanup()}>
+          {cleaning ? "Cleaning…" : "Clean up duplicates"}
+        </button>
       </div>
 
       <div role="tablist" aria-label="Show actions" className={c.segment}>
