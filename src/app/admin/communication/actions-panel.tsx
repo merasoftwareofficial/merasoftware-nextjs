@@ -4,9 +4,10 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
-import { ActionRuleForm, type ActionRuleRecord, type BuiltInInfo } from "./action-rule-form";
+import { ActionRuleForm, originLabel, type ActionRuleRecord, type BuiltInInfo } from "./action-rule-form";
 import { ActionScheduledPanel } from "./action-scheduled-panel";
 import c from "./actions-panel.module.css";
+import s from "./communication.module.css";
 
 /**
  * Communication > Actions: every action that changes data, shown like a document.
@@ -86,6 +87,8 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   const [newRule, setNewRule] = useState(false);
   const [newRuleFor, setNewRuleFor] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<ActionRuleRecord | null>(null);
+  const [detailActionId, setDetailActionId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [showScheduled, setShowScheduled] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
@@ -179,10 +182,35 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     void load(controller.signal);
   };
 
+  async function toggleRuleEnabled(rule: ActionRuleRecord) {
+    const id = rule._id || rule.id;
+    if (!id) return;
+    setTogglingId(id);
+    setError("");
+    try {
+      const response = await fetch(`/api/auto-reply/action-rules/${id}/enabled`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !rule.enabled }),
+        cache: "no-store",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || result.message || "Could not update rule.");
+      reloadActions();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not update rule.");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   if (showScheduled) {
     return (
       <section hidden={!active}>
-        <ActionScheduledPanel onBack={() => setShowScheduled(false)} />
+        <ActionScheduledPanel
+          onBack={() => setShowScheduled(false)}
+          onEditRule={rule => { setShowScheduled(false); setEditingRule(rule); }}
+        />
       </section>
     );
   }
@@ -204,6 +232,24 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     return (
       <section hidden={!active}>
         <ActionRuleForm actions={all} initialActionId={newRuleFor} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRuleFor(null)} />
+      </section>
+    );
+  }
+  const detailRow = detailActionId ? all.find(a => a.id === detailActionId) : null;
+  if (detailRow) {
+    return (
+      <section hidden={!active}>
+        <ActionDetailView
+          row={detailRow}
+          togglingId={togglingId}
+          error={error}
+          onBack={() => setDetailActionId(null)}
+          onAdd={() => setNewRuleFor(detailRow.id)}
+          onEdit={rule => setEditingRule({ ...rule, actionId: detailRow.id })}
+          onToggle={rule => void toggleRuleEnabled(rule)}
+          onOpenTemplate={onOpenTemplate}
+          onOpenPanel={onOpenPanel}
+        />
       </section>
     );
   }
@@ -270,7 +316,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
                 <td className={`${c.mono} ${c.endpoint}`}>{row.endpoint}</td>
                 <td>{row.category}</td>
                 <td className={c.note}>{row.note || "—"}</td>
-                <td><MessageStatus row={row} onAdd={() => setNewRuleFor(row.id)} onEdit={rule => setEditingRule({ ...rule, actionId: row.id })} onOpenTemplate={onOpenTemplate} onOpenPanel={onOpenPanel} /></td>
+                <td><MessageStatus row={row} onOpen={() => setDetailActionId(row.id)} /></td>
                 <td className={c.right}>
                   <ManageMenu row={row} data={data} open={menuFor === row.id} saving={saving}
                     onToggle={() => setMenuFor(menuFor === row.id ? null : row.id)}
@@ -286,55 +332,158 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   </section>;
 }
 
-// Shows built-in templates/reminders (deep-linking to their editors) alongside new Action Rules,
-// "+ Add message" when a trigger signal is wired, or "No signal yet" otherwise.
-function MessageStatus({ row, onAdd, onEdit, onOpenTemplate, onOpenPanel }: {
+function ruleSummaryLine(rule: ActionRuleRecord) {
+  const who = rule.audience === "admin" ? "To Admin" : "To Customer";
+  const scope = rule.scope?.kind === "package" && rule.scope.packageSlug ? ` · ${rule.scope.packageSlug}`
+    : rule.scope?.kind === "monthly" ? " · Monthly"
+      : rule.scope?.kind === "one_time" ? " · One-time" : "";
+  const cond = rule.condition === "unpaid" ? " · If unpaid" : rule.condition === "paid" ? " · If paid" : "";
+  const timings = (rule.steps || []).map(st => {
+    if (rule.kind === "template") return "immediately";
+    if (st.timingRef === "on_due") return "on due date";
+    if (st.timingRef === "before_due") return `${st.days}d before due`;
+    if (st.timingRef === "after_due") return `${st.days}d after due`;
+    return st.days ? `after ${st.days}d` : "immediately";
+  }).join(", ");
+  const repeat = rule.kind === "reminder" && rule.repeat?.times ? ` · repeat ${rule.repeat.times}x every ${rule.repeat.everyDays}d` : "";
+  const stop = rule.kind === "reminder" && rule.stopOn?.length ? ` · stops on ${rule.stopOn.join(", ")}` : "";
+  return `${who}${scope}${cond} · ${timings || "immediately"}${repeat}${stop}`;
+}
+
+function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) {
+  const rules = row.rules || [];
+  const builtInCount = (row.builtIn?.templates?.length || 0) + (row.builtIn?.reminders?.length || 0);
+  const parts: string[] = [];
+  if (rules.length) {
+    const autoCount = rules.filter(r => r.enabled && r.control === "auto").length;
+    const reviewCount = rules.filter(r => r.enabled && r.control === "review").length;
+    const offCount = rules.length - autoCount - reviewCount;
+    const states = [
+      autoCount ? `${autoCount} Auto` : "",
+      reviewCount ? `${reviewCount} Review` : "",
+      offCount ? `${offCount} Off` : "",
+    ].filter(Boolean).join(", ");
+    parts.push(`${rules.length} rule${rules.length > 1 ? "s" : ""}${states ? ` (${states})` : ""}`);
+  }
+  if (builtInCount) parts.push(`${builtInCount} Built-in (Old)`);
+
+  if (!parts.length && !row.triggerKey) {
+    return <span className={c.count} title="Backend signal not wired yet">No signal yet</span>;
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <span className={c.count}>{parts.length ? parts.join(" · ") : "No message"}</span>
+      <button type="button" className={parts.length ? c.manage : c.messageNone} onClick={onOpen}>
+        {parts.length ? "Open" : "+ Add / Open"}
+      </button>
+    </div>
+  );
+}
+
+function ActionDetailView({ row, togglingId, error, onBack, onAdd, onEdit, onToggle, onOpenTemplate, onOpenPanel }: {
   row: ActionRow;
+  togglingId: string | null;
+  error: string;
+  onBack: () => void;
   onAdd: () => void;
   onEdit: (rule: ActionRuleRecord) => void;
+  onToggle: (rule: ActionRuleRecord) => void;
   onOpenTemplate?: (event: string, app: "portal" | "website") => void;
   onOpenPanel?: (panel: string) => void;
 }) {
   const rules = row.rules || [];
   const builtInTemplates = row.builtIn?.templates || [];
   const builtInReminders = row.builtIn?.reminders || [];
-  const hasAny = rules.length > 0 || builtInTemplates.length > 0 || builtInReminders.length > 0;
 
-  if (!hasAny) {
-    if (!row.triggerKey) return <span className={c.count} title="Backend signal not wired yet">No signal yet</span>;
-    return <button type="button" className={c.messageNone} onClick={onAdd}>+ Add message</button>;
-  }
   return (
-    <div className={c.messageTags}>
-      {rules.map((rule, idx) => {
-        const who = rule.audience === "admin" ? "Admin" : "Customer";
-        const scopeLabel = rule.scope?.kind === "package" && rule.scope.packageSlug ? ` · ${rule.scope.packageSlug}`
-          : rule.scope?.kind === "monthly" ? " · monthly"
-            : rule.scope?.kind === "one_time" ? " · one-time" : "";
-        const stateLabel = rule.control === "off" ? " · Off" : rule.control === "review" ? " · Review" : "";
-        const label = rule.kind === "template" ? `Edit template (${who}${scopeLabel})` : `Edit reminder (${who}${scopeLabel})`;
-        return (
-          <button key={rule._id || rule.id || idx} type="button" className={rule.kind === "template" ? c.tagTemplate : c.tagReminder} onClick={() => onEdit(rule)}>
-            {label}{stateLabel}
+    <section aria-label={`Action details for ${row.title}`} className={s.workSection}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button type="button" className={s.link} onClick={onBack}>← Back to Actions</button>
+        {row.triggerKey && (
+          <button type="button" className="admin-button" onClick={onAdd}>
+            + Add message or reminder
           </button>
-        );
-      })}
-      {row.triggerKey && <button type="button" className={c.messageNone} onClick={onAdd} title="Add another message or reminder">+ Add</button>}
-      {builtInTemplates.map(tpl => (
-        <button key={`bt-${tpl.event}`} type="button" className={c.tagTemplate}
-          title={`Edit built-in: ${tpl.label}`}
-          onClick={() => tpl.panel === "broadcast" ? onOpenPanel?.("broadcast") : onOpenTemplate?.(tpl.event, tpl.app)}>
-          {builtInTemplates.length === 1 ? "Edit built-in" : `Built-in: ${tpl.label}`}
-        </button>
-      ))}
-      {builtInReminders.map(rem => (
-        <button key={`br-${rem.panel}-${rem.label}`} type="button" className={c.tagReminder}
-          title={`Open ${rem.label}`}
-          onClick={() => onOpenPanel?.(rem.panel)}>
-          {`Built-in: ${rem.label}`}
-        </button>
-      ))}
-    </div>
+        )}
+      </div>
+
+      <div className={s.workToolbar}>
+        <h3>{row.title} <span className={c.mono} style={{ fontSize: 13 }}>({row.id})</span></h3>
+      </div>
+      <p className={styles.muted}>{row.what}{row.when ? ` — ${row.when}` : ""}</p>
+      {error && <p className={styles.error} role="alert">{error}</p>}
+
+      {!rules.length && !builtInTemplates.length && !builtInReminders.length ? (
+        <p>{row.triggerKey ? "No messages or reminders set for this action yet." : "Backend signal not wired yet for this action."}</p>
+      ) : (
+        <div className={c.tableWrap}>
+          <table className={c.table} aria-label="Action messages and reminders">
+            <thead>
+              <tr>
+                <th scope="col">Type &amp; Origin</th>
+                <th scope="col">How it works</th>
+                <th scope="col">Status</th>
+                <th scope="col" className={c.right}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((rule, idx) => {
+                const rid = rule._id || rule.id || String(idx);
+                const statusLabel = !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
+                return (
+                  <tr key={rid} className={c.row}>
+                    <td>
+                      <div className={c.name}>{rule.kind === "template" ? "Template" : "Reminder"}</div>
+                      <div className={c.when}>Origin: <strong>{originLabel(rule.origin)}</strong></div>
+                    </td>
+                    <td className={c.description}>{ruleSummaryLine(rule)}</td>
+                    <td><strong>{statusLabel}</strong></td>
+                    <td className={c.right}>
+                      <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <button type="button" className="admin-button" onClick={() => onEdit(rule)}>Edit</button>
+                        <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => onToggle(rule)}>
+                          {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {builtInTemplates.map(tpl => (
+                <tr key={`bt-${tpl.event}`} className={c.row}>
+                  <td>
+                    <div className={c.name}>Template</div>
+                    <div className={c.when}>Origin: <strong>Built-in (Old)</strong></div>
+                  </td>
+                  <td className={c.description}>{tpl.label} ({tpl.event})</td>
+                  <td>Built-in</td>
+                  <td className={c.right}>
+                    <button type="button" className={c.manage}
+                      onClick={() => tpl.panel === "broadcast" ? onOpenPanel?.("broadcast") : onOpenTemplate?.(tpl.event, tpl.app)}>
+                      Open old editor
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {builtInReminders.map(rem => (
+                <tr key={`br-${rem.panel}-${rem.label}`} className={c.row}>
+                  <td>
+                    <div className={c.name}>Reminder</div>
+                    <div className={c.when}>Origin: <strong>Built-in (Old)</strong></div>
+                  </td>
+                  <td className={c.description}>{rem.label}</td>
+                  <td>Built-in</td>
+                  <td className={c.right}>
+                    <button type="button" className={c.manage} onClick={() => onOpenPanel?.(rem.panel)}>
+                      Open old editor
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

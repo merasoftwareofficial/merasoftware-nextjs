@@ -367,49 +367,14 @@ test('browser: Communication → Reservation → running reservations with time 
     await reminders.getByRole('region', { name: 'Existing reminders' }).getByText('Reserving Customer', { exact: true }).first().waitFor();
     await reminders.getByText('This is not a complete schedule of upcoming reminders.', { exact: false }).waitFor();
     await reminders.getByRole('button', { name: 'Rules', exact: true }).click();
-    await reminders.getByRole('button', { name: 'Create draft' }).click();
-    await reminders.getByLabel('Rule name').fill('Test monthly reminder');
-    await reminders.getByLabel('Days for reminder 1').fill('-3');
-    await reminders.getByLabel('Subject', { exact: true }).fill('Payment due soon');
-    await reminders.getByLabel('Message', { exact: true }).fill('Hello {{name}}, please pay {{amount}}.');
-    await reminders.getByRole('button', { name: 'Save draft' }).click();
-    await reminders.getByText('Draft saved. It is not active and will not send messages.').waitFor();
-    const draft = await ReminderDraft.findOne({ name: 'Test monthly reminder' });
-    assert.equal(draft.enabled, false);
-    assert.equal(draft.revision, 1);
-    await reminders.locator('article', { hasText: 'Test monthly reminder' }).getByRole('button', { name: 'Edit draft' }).click();
-    await reminders.getByLabel('Subject', { exact: true }).fill('Payment due very soon');
-    await reminders.getByRole('button', { name: 'Save draft' }).click();
-    await reminders.getByText('Draft saved. It is not active and will not send messages.').waitFor();
-    const edited = await ReminderDraft.findById(draft._id);
-    assert.equal(edited.name, 'Test monthly reminder');
-    assert.equal(edited.steps[0].subject, 'Payment due very soon');
-    assert.equal(edited.revision, 2);
-    assert.equal(edited.enabled, false);
-    await reminders.getByRole('button', { name: 'Create draft' }).click();
-    await reminders.getByLabel('Rule name').fill('Broadcast follow-up');
-    await reminders.locator('form').getByRole('combobox').first().selectOption('broadcast');
-    await reminders.getByLabel('Subject', { exact: true }).fill('Following up');
-    await reminders.getByLabel('Message', { exact: true }).fill('Hello {{name}}');
-    await reminders.getByRole('button', { name: 'Save draft' }).click();
-    await reminders.getByRole('button', { name: 'Preview broadcast rule' }).click();
-    await reminders.getByRole('region', { name: 'Reminder rule preview' }).getByText('Future broadcasts only').waitFor();
-    const oldJobs = process.env.COMMUNICATION_REMINDER_JOBS_ENABLED, oldCrons = process.env.ENABLE_CRONS;
-    try {
-      process.env.COMMUNICATION_REMINDER_JOBS_ENABLED = 'true'; process.env.ENABLE_CRONS = 'true';
-      const broadcastRule = reminders.locator('article').filter({ hasText: 'Broadcast follow-up' });
-      page.once('dialog', dialog => dialog.accept());
-      await broadcastRule.getByRole('button', { name: 'Activate', exact: true }).click();
-      await broadcastRule.getByRole('button', { name: 'Stop reminders' }).waitFor();
-      assert.equal((await ReminderDraft.findOne({ name: 'Broadcast follow-up' })).enabled, true);
-      page.once('dialog', dialog => dialog.accept());
-      await broadcastRule.getByRole('button', { name: 'Stop reminders' }).click();
-      await broadcastRule.getByRole('button', { name: 'Activate', exact: true }).waitFor();
-      assert.equal((await ReminderDraft.findOne({ name: 'Broadcast follow-up' })).enabled, false);
-    } finally {
-      if (oldJobs === undefined) delete process.env.COMMUNICATION_REMINDER_JOBS_ENABLED; else process.env.COMMUNICATION_REMINDER_JOBS_ENABLED = oldJobs;
-      if (oldCrons === undefined) delete process.env.ENABLE_CRONS; else process.env.ENABLE_CRONS = oldCrons;
-    }
+    await reminders.getByRole('button', { name: 'Open Actions →' }).waitFor();
+    const draft = await ReminderDraft.create({
+      name: 'Test monthly reminder',
+      source: 'monthly_package',
+      enabled: false,
+      createdBy: new mongoose.Types.ObjectId(),
+      steps: [{ offsetDays: -3, channel: 'whatsapp', subject: 'Payment due soon', text: 'Hello {{name}}' }],
+    });
     await ReminderRun.create({ ruleId: draft._id, ruleRevision: 1, source: 'monthly_package', occurrenceKey: `${orderId}:2`, step: 0, entityId: orderId, clientId: customer._id, dueAt: new Date(now + hour), subject: 'Reminder', text: 'Test', channel: 'both', status: 'queued', channelOutcomes: { email: 'sent', whatsapp: 'queued' } });
     await reminders.getByRole('button', { name: 'Reminder activity', exact: true }).click();
     await reminders.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
@@ -692,7 +657,7 @@ test('work summary counts distinct customers with upcoming offer-payment and res
 test('actions API: admin only; lists every action; saves a move, archive and delete; reset restores the original', async () => {
   const list = await request('/api/auto-reply/actions');
   assert.equal(list.status, 200);
-  assert.equal(list.data.actions.length, 178);
+  assert.equal(list.data.actions.length, 179);
   assert.deepEqual(list.data.surfaces, ['Admin', 'Client', 'Website', 'System']);
   assert.equal((await request('/api/auto-reply/actions', 'GET', member)).status, 403);
   assert.equal((await request('/api/auto-reply/actions/A01', 'PUT', member, 'admin', { archived: true })).status, 403);
@@ -724,12 +689,13 @@ test('browser: Communication → Actions → list grouped under category heading
     await page.goto(websiteBase);
     await openPanel(page, '?panel=actions');
     const region = page.getByRole('region', { name: 'Actions list' });
-    for (const name of ['All', 'Admin panel', 'Client portal', 'Website', 'System', 'Archived', 'Deleted']) await region.getByRole('tab', { name: new RegExp(`^${name}`) }).waitFor();
-    // Header: Name, Description, ID, Method, Endpoint, Category, Note, Manage (no Where, no Status).
+    const showTabs = region.getByRole('tablist', { name: 'Show actions' });
+    for (const name of ['All', 'Admin panel', 'Client portal', 'Website', 'System', 'Archived', 'Deleted']) await showTabs.getByRole('tab', { name: new RegExp(`^${name}`) }).waitFor();
+    // Header: Name, Description, ID, Method, Endpoint, Category, Note, Message, Manage.
     await region.getByRole('table', { name: 'Actions table' }).waitFor();
     const headers = await region.getByRole('columnheader').allInnerTexts();
-    assert.deepEqual(headers, ['Name', 'Description', 'ID', 'Method', 'Endpoint', 'Category', 'Note', 'Manage']);
-    const tab = name => region.getByRole('tab', { name: new RegExp(`^${name}`) });
+    assert.deepEqual(headers, ['Name', 'Description', 'ID', 'Method', 'Endpoint', 'Category', 'Note', 'Messages', 'Manage']);
+    const tab = name => showTabs.getByRole('tab', { name: new RegExp(`^${name}`) });
     const rowOf = () => region.locator('tr', { hasText: 'Save my admin settings' });
     const group = name => region.getByRole('rowgroup', { name });
     const openMenu = async () => { await rowOf().getByRole('button', { name: /^Manage / }).click(); return page.getByRole('menu', { name: 'Manage A01' }); };

@@ -20,6 +20,9 @@ export type RuleCondition = "anytime" | "unpaid" | "paid";
 export type RuleScopeKind = "all" | "monthly" | "one_time" | "package";
 export type DoAlsoType = "change_lead_stage" | "add_lead_note" | "stop_reminders";
 export type DoAlsoStep = { type: DoAlsoType; stage?: string; note?: string };
+export type RuleOrigin = "new" | "migrated" | "migrated_edited";
+export const originLabel = (origin?: RuleOrigin) =>
+  origin === "migrated_edited" ? "Migrated · Edited" : origin === "migrated" ? "Migrated" : "New";
 export type ActionRuleRecord = {
   _id?: string;
   id?: string;
@@ -35,6 +38,8 @@ export type ActionRuleRecord = {
   doAlso?: DoAlsoStep[];
   control: "auto" | "review" | "off";
   enabled: boolean;
+  origin?: RuleOrigin;
+  migratedFrom?: string;
   revision?: number;
 };
 
@@ -406,7 +411,11 @@ export function ActionRuleForm({
     <section aria-label="Message and reminder rule form" className={s.workSection}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <button type="button" className={s.link} onClick={onBack}>← Back to Actions</button>
-        {editingId && <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>Editing existing rule — saves as a new version</span>}
+        {editingId && (
+          <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+            Origin: <strong>{originLabel(editingRule?.origin)}</strong> · Saves as a new version
+          </span>
+        )}
       </div>
 
       <div className={s.workToolbar}>

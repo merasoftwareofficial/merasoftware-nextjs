@@ -233,7 +233,10 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
           {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={work => setReminderWork(work)} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} back={() => setReminderWork(null)}
             openMessage={event => go({ panel: "email-templates", tab: "portal", app: null, event })} openBroadcast={() => go({ panel: "broadcast", tab: null, app: null })} openWhatsappHistory={() => go({ panel: "whatsapp-queue", tab: "history", app: null })} />}
         </div>
-        <div hidden={reminderSection !== "rules"}><ReminderDrafts active={part("reminders").shown && reminderSection === "rules"} openSource={source => source === 'broadcast' ? go({ panel: 'broadcast', tab: null, app: null }) : go({ panel: 'email-templates', tab: 'portal', app: null, event: 'plan.started' })} /></div>
+        <div hidden={reminderSection !== "rules"}>
+          <p>Reminder rules have moved to the unified <strong>Actions</strong> system so every rule can be created, tracked, and edited in one place.</p>
+          <p><button type="button" className="admin-button" onClick={() => go({ panel: "actions", tab: null, app: null })}>Open Actions →</button></p>
+        </div>
         <div hidden={reminderSection !== "activity"}>
           <ReminderHistory active={part("reminders").shown && reminderSection === "activity"} />
           <LegacyReminderHistory source="all" defaultOpen active={part("reminders").shown && reminderSection === "activity"} title="Offer and reservation message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />

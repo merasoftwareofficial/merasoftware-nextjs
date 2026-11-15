@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
+import { originLabel, type ActionRuleRecord, type RuleOrigin } from "./action-rule-form";
 import c from "./actions-panel.module.css";
 import s from "./communication.module.css";
 
@@ -12,6 +13,8 @@ type ScheduledRun = {
   action: string;
   actionLabel?: string;
   ruleName?: string;
+  origin?: RuleOrigin;
+  rule?: ActionRuleRecord | null;
   audience?: "customer" | "admin";
   dueAt: string;
   channel: "whatsapp" | "email" | "both";
@@ -20,7 +23,7 @@ type ScheduledRun = {
   customer?: { name: string; email: string; phone: string };
 };
 
-export function ActionScheduledPanel({ onBack }: { onBack: () => void }) {
+export function ActionScheduledPanel({ onBack, onEditRule }: { onBack: () => void; onEditRule?: (rule: ActionRuleRecord) => void }) {
   const [runs, setRuns] = useState<ScheduledRun[] | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
@@ -123,7 +126,7 @@ export function ActionScheduledPanel({ onBack }: { onBack: () => void }) {
                       <tr key={run._id} className={c.row}>
                         <td className={c.mono}>{formatIndiaDateTime(run.dueAt)}</td>
                         <td>
-                          <div className={c.name}>{run.actionLabel || run.action}</div>
+                          <div className={c.name}>{run.actionLabel || run.action} <span className={c.count}>· {originLabel(run.origin || run.rule?.origin)}</span></div>
                           <div className={c.when}>{run.ruleName}</div>
                         </td>
                         <td>{who}</td>
@@ -133,9 +136,16 @@ export function ActionScheduledPanel({ onBack }: { onBack: () => void }) {
                           <div>{run.text}</div>
                         </td>
                         <td className={c.right}>
-                          <button type="button" className={c.manage} disabled={cancellingId === run._id} onClick={() => void cancelRun(run._id)}>
-                            {cancellingId === run._id ? "Cancelling…" : "Cancel"}
-                          </button>
+                          <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            {run.rule && onEditRule && (
+                              <button type="button" className={c.manage} onClick={() => onEditRule(run.rule!)}>
+                                Edit rule
+                              </button>
+                            )}
+                            <button type="button" className={c.manage} disabled={cancellingId === run._id} onClick={() => void cancelRun(run._id)}>
+                              {cancellingId === run._id ? "Cancelling…" : "Cancel"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
