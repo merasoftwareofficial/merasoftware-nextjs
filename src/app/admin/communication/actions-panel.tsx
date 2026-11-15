@@ -444,6 +444,41 @@ function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) 
   );
 }
 
+function ruleStatusLabel(rule: ActionRuleRecord) {
+  return !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
+}
+
+function rulePreviewText(rule: ActionRuleRecord) {
+  const raw = (rule.steps?.[0]?.text || "").replace(/\s+/g, " ").trim();
+  return raw.length > 90 ? `${raw.slice(0, 90)}…` : raw;
+}
+
+/** Groups Customer+Admin rules that share a non-empty `pairId` into one visual row (Customer first). */
+function groupRulesByPair(rules: ActionRuleRecord[]): ActionRuleRecord[][] {
+  const groups: ActionRuleRecord[][] = [];
+  const byPair = new Map<string, ActionRuleRecord[]>();
+  for (const rule of rules) {
+    const pid = (rule.pairId || "").trim();
+    if (!pid) {
+      groups.push([rule]);
+      continue;
+    }
+    const existing = byPair.get(pid);
+    if (existing) existing.push(rule);
+    else {
+      const bucket = [rule];
+      byPair.set(pid, bucket);
+      groups.push(bucket);
+    }
+  }
+  for (const bucket of groups) {
+    if (bucket.length > 1) {
+      bucket.sort((a, b) => (a.audience === "customer" ? 0 : 1) - (b.audience === "customer" ? 0 : 1));
+    }
+  }
+  return groups;
+}
+
 function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, onEdit, onToggle, onDelete, onOpenTemplate, onOpenPanel }: {
   row: ActionRow;
   togglingId: string | null;
@@ -457,7 +492,7 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
   onOpenTemplate?: (event: string, app: "portal" | "website") => void;
   onOpenPanel?: (panel: string) => void;
 }) {
-  const rules = row.rules || [];
+  const ruleGroups = groupRulesByPair(row.rules || []);
   const builtInTemplates = row.builtIn?.templates || [];
   const builtInReminders = row.builtIn?.reminders || [];
 
@@ -478,7 +513,7 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
       <p className={styles.muted}>{row.what}{row.when ? ` — ${row.when}` : ""}</p>
       {error && <p className={styles.error} role="alert">{error}</p>}
 
-      {!rules.length && !builtInTemplates.length && !builtInReminders.length ? (
+      {!ruleGroups.length && !builtInTemplates.length && !builtInReminders.length ? (
         <p>{row.triggerKey ? "No messages or reminders set for this action yet." : "Backend signal not wired yet for this action."}</p>
       ) : (
         <div className={c.tableWrap}>
@@ -492,33 +527,68 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
               </tr>
             </thead>
             <tbody>
-              {rules.map((rule, idx) => {
-                const rid = rule._id || rule.id || String(idx);
-                const statusLabel = !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
-                const previewText = (rule.steps?.[0]?.text || "").replace(/\s+/g, " ").trim();
-                const preview = previewText.length > 90 ? `${previewText.slice(0, 90)}…` : previewText;
+              {ruleGroups.map((group, idx) => {
+                const primary = group[0];
+                const isPaired = group.length > 1;
+                const gid = primary._id || primary.id || String(idx);
+                const latestEdited = group
+                  .map(r => r.updatedAt)
+                  .filter((d): d is string => Boolean(d))
+                  .sort((a, b) => +new Date(b) - +new Date(a))[0];
+
                 return (
-                  <tr key={rid} className={c.row}>
+                  <tr key={gid} className={c.row}>
                     <td>
-                      <div className={c.name}>{rule.kind === "template" ? "Template" : "Reminder"}{rule.pairId ? " (Both)" : ""}</div>
-                      <div className={c.when}>Origin: <strong>{originLabel(rule.origin)}</strong></div>
-                      {rule.createdAt && <div className={c.when}>Created: {formatIndiaDateTime(rule.createdAt)}</div>}
-                      {rule.updatedAt && <div className={c.when}>Edited: {formatIndiaDateTime(rule.updatedAt)}</div>}
+                      <div className={c.name}>{primary.kind === "template" ? "Template" : "Reminder"}{isPaired ? " (Both)" : ""}</div>
+                      <div className={c.when}>Origin: <strong>{originLabel(primary.origin)}</strong></div>
+                      {primary.createdAt && <div className={c.when}>Created: {formatIndiaDateTime(primary.createdAt)}</div>}
+                      {latestEdited && <div className={c.when}>Edited: {formatIndiaDateTime(latestEdited)}</div>}
                     </td>
                     <td className={c.description}>
-                      <div>{ruleSummaryLine(rule)}</div>
-                      {preview && <div className={c.when}>Message: &ldquo;{preview}&rdquo;</div>}
+                      <div style={{ display: "grid", gap: isPaired ? 10 : 0 }}>
+                        {group.map((rule, rIdx) => {
+                          const rid = rule._id || rule.id || `${gid}-${rIdx}`;
+                          const preview = rulePreviewText(rule);
+                          return (
+                            <div key={rid} style={isPaired && rIdx > 0 ? { borderTop: "1px solid var(--pn-line, var(--line))", paddingTop: 8 } : undefined}>
+                              <div>{ruleSummaryLine(rule)}</div>
+                              {preview && <div className={c.when}>Message: &ldquo;{preview}&rdquo;</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </td>
-                    <td><strong>{statusLabel}</strong></td>
+                    <td>
+                      <div style={{ display: "grid", gap: isPaired ? 8 : 0 }}>
+                        {group.map((rule, rIdx) => {
+                          const rid = rule._id || rule.id || `${gid}-${rIdx}`;
+                          const who = rule.audience === "admin" ? "Admin" : "Customer";
+                          return (
+                            <div key={rid}>
+                              <strong>{isPaired ? `${who}: ${ruleStatusLabel(rule)}` : ruleStatusLabel(rule)}</strong>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
                     <td className={c.right}>
-                      <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                        <button type="button" className="admin-button" onClick={() => onEdit(rule)}>Edit</button>
-                        <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => onToggle(rule)}>
-                          {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
-                        </button>
-                        <button type="button" className={c.manage} disabled={deletingId === rid} onClick={() => onDelete(rule)}>
-                          {deletingId === rid ? "Deleting…" : "Delete"}
-                        </button>
+                      <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
+                        <button type="button" className="admin-button" onClick={() => onEdit(primary)}>Edit</button>
+                        {group.map((rule, rIdx) => {
+                          const rid = rule._id || rule.id || `${gid}-${rIdx}`;
+                          const who = rule.audience === "admin" ? "Admin" : "Customer";
+                          return (
+                            <div key={rid} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                              {isPaired && <span className={c.when} style={{ margin: 0 }}>{who}:</span>}
+                              <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => onToggle(rule)}>
+                                {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
+                              </button>
+                              <button type="button" className={c.manage} disabled={deletingId === rid} onClick={() => onDelete(rule)}>
+                                {deletingId === rid ? "Deleting…" : "Delete"}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </td>
                   </tr>
