@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
+import { formatIndiaDateTime } from "@/lib/date-time";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
 import { ActionRuleForm, originLabel, type ActionRuleRecord, type BuiltInInfo } from "./action-rule-form";
@@ -454,13 +455,20 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
               {rules.map((rule, idx) => {
                 const rid = rule._id || rule.id || String(idx);
                 const statusLabel = !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
+                const previewText = (rule.steps?.[0]?.text || "").replace(/\s+/g, " ").trim();
+                const preview = previewText.length > 90 ? `${previewText.slice(0, 90)}…` : previewText;
                 return (
                   <tr key={rid} className={c.row}>
                     <td>
-                      <div className={c.name}>{rule.kind === "template" ? "Template" : "Reminder"}</div>
+                      <div className={c.name}>{rule.kind === "template" ? "Template" : "Reminder"}{rule.pairId ? " (Both)" : ""}</div>
                       <div className={c.when}>Origin: <strong>{originLabel(rule.origin)}</strong></div>
+                      {rule.createdAt && <div className={c.when}>Created: {formatIndiaDateTime(rule.createdAt)}</div>}
+                      {rule.updatedAt && <div className={c.when}>Edited: {formatIndiaDateTime(rule.updatedAt)}</div>}
                     </td>
-                    <td className={c.description}>{ruleSummaryLine(rule)}</td>
+                    <td className={c.description}>
+                      <div>{ruleSummaryLine(rule)}</div>
+                      {preview && <div className={c.when}>Message: &ldquo;{preview}&rdquo;</div>}
+                    </td>
                     <td><strong>{statusLabel}</strong></td>
                     <td className={c.right}>
                       <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>

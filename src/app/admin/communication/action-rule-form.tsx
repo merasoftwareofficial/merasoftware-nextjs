@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { formatIndiaDateTime } from "@/lib/date-time";
 import s from "./communication.module.css";
 import { InfoTip } from "./reminder-info";
 
@@ -40,6 +41,9 @@ export type ActionRuleRecord = {
   enabled: boolean;
   origin?: RuleOrigin;
   migratedFrom?: string;
+  pairId?: string;
+  createdAt?: string;
+  updatedAt?: string;
   revision?: number;
 };
 
@@ -145,39 +149,49 @@ export function ActionRuleForm({
   const targetActionId = editingRule?.actionId || initialActionId;
   const initialRow = (targetActionId ? actionOptions.find(a => a.id === targetActionId) : undefined)
     || (editingRule?.action ? actionOptions.find(a => a.triggerKey === editingRule.action) : undefined);
+  const editingRuleId = editingRule?._id || editingRule?.id || null;
+  const initialPartner = editingRule?.pairId && initialRow?.rules
+    ? initialRow.rules.find(r => (r._id || r.id) !== editingRuleId && r.pairId === editingRule.pairId && r.audience !== editingRule.audience) || null
+    : null;
+  const toTargetCfg = (rule: ActionRuleRecord): TargetConfig => ({
+    steps: rule.steps.length ? rule.steps.map(st => ({ ...st })) : [blankStep()],
+    repeatTimes: rule.repeat?.times || 0,
+    repeatEvery: rule.repeat?.everyDays || 2,
+    stopOn: [...(rule.stopOn || [])],
+  });
+  const initCustomerRule = editingRule?.audience === "customer" ? editingRule : initialPartner?.audience === "customer" ? initialPartner : null;
+  const initAdminRule = editingRule?.audience === "admin" ? editingRule : initialPartner?.audience === "admin" ? initialPartner : null;
+  const initUniversal = Boolean(
+    initCustomerRule && initAdminRule && editingRule?.kind === "reminder" &&
+    initAdminRule.steps.length > 1 &&
+    initAdminRule.steps.every(st => st.channel === initAdminRule.steps[0].channel && st.subject === initAdminRule.steps[0].subject && st.text === initAdminRule.steps[0].text),
+  );
 
-  const [editingId, setEditingId] = useState<string | null>(editingRule?._id || editingRule?.id || null);
+  const [editingId, setEditingId] = useState<string | null>(editingRuleId);
+  const [companionId, setCompanionId] = useState<string | null>(initialPartner?._id || initialPartner?.id || null);
   const [editingAudience, setEditingAudience] = useState<"customer" | "admin">(editingRule?.audience || "customer");
+  const [activePairId, setActivePairId] = useState<string>(editingRule?.pairId || "");
   const [kind, setKind] = useState<"template" | "reminder">(editingRule?.kind || "template");
   const [selectedActionId, setSelectedActionId] = useState<string>(initialRow?.id || "");
   const [readyOnly, setReadyOnly] = useState<boolean>(initialRow ? !!initialRow.triggerKey : true);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [actionSearch, setActionSearch] = useState<string>("");
-  const [audienceChoice, setAudienceChoice] = useState<AudienceChoice>(editingRule?.audience || "customer");
+  const [audienceChoice, setAudienceChoice] = useState<AudienceChoice>(initialPartner ? "both" : (editingRule?.audience || "customer"));
   const [condition, setCondition] = useState<RuleCondition>(editingRule?.condition || "anytime");
   const [scopeKind, setScopeKind] = useState<RuleScopeKind>(editingRule?.scope?.kind || "all");
   const [packageSlug, setPackageSlug] = useState<string>(editingRule?.scope?.packageSlug || packages[0]?.slug || "digital-growth-package");
   const [doAlso, setDoAlso] = useState<DoAlsoStep[]>(editingRule?.doAlso ? editingRule.doAlso.map(d => ({ ...d })) : []);
   const [control, setControl] = useState<"auto" | "review" | "off">(editingRule?.control || "auto");
-  const [adminSyncMode, setAdminSyncMode] = useState<"separate" | "universal">("separate");
+  const [adminSyncMode, setAdminSyncMode] = useState<"separate" | "universal">(initUniversal ? "universal" : "separate");
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [lastFocused, setLastFocused] = useState<{ who: "customer" | "admin"; idx: number }>({ who: editingRule?.audience || "customer", idx: 0 });
+  const [lastFocused, setLastFocused] = useState<{ who: "customer" | "admin"; idx: number }>({ who: initCustomerRule ? "customer" : (editingRule?.audience || "customer"), idx: 0 });
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
-  const initialTargetCfg: TargetConfig = editingRule
-    ? {
-        steps: editingRule.steps.length ? editingRule.steps.map(st => ({ ...st })) : [blankStep()],
-        repeatTimes: editingRule.repeat?.times || 0,
-        repeatEvery: editingRule.repeat?.everyDays || 2,
-        stopOn: [...(editingRule.stopOn || [])],
-      }
-    : blankTarget(false);
-
-  const [customerCfg, setCustomerCfg] = useState<TargetConfig>(editingRule?.audience === "admin" ? blankTarget(false) : initialTargetCfg);
-  const [adminCfg, setAdminCfg] = useState<TargetConfig>(editingRule?.audience === "admin" ? initialTargetCfg : blankTarget(false));
+  const [customerCfg, setCustomerCfg] = useState<TargetConfig>(initCustomerRule ? toTargetCfg(initCustomerRule) : blankTarget(false));
+  const [adminCfg, setAdminCfg] = useState<TargetConfig>(initAdminRule ? toTargetCfg(initAdminRule) : blankTarget(false));
 
   const currentRow = actionOptions.find(a => a.id === selectedActionId);
   const existingRules = currentRow?.rules || [];
@@ -236,6 +250,8 @@ export function ActionRuleForm({
   function selectAction(nextId: string) {
     setSelectedActionId(nextId);
     setEditingId(null);
+    setCompanionId(null);
+    setActivePairId("");
     const nextRow = actionOptions.find(a => a.id === nextId);
     const nextConds = (nextRow?.conditions || [{ key: "anytime" }]).map(c => c.key);
     if (!nextConds.includes(condition)) setCondition("anytime");
@@ -243,24 +259,26 @@ export function ActionRuleForm({
   }
 
   function loadExistingRule(rule: ActionRuleRecord) {
-    setEditingId(rule._id || rule.id || null);
+    const rid = rule._id || rule.id || null;
+    const partner = rule.pairId
+      ? existingRules.find(r => (r._id || r.id) !== rid && r.pairId === rule.pairId && r.audience !== rule.audience) || null
+      : null;
+    setEditingId(rid);
+    setCompanionId(partner?._id || partner?.id || null);
     setEditingAudience(rule.audience);
+    setActivePairId(rule.pairId || "");
     setKind(rule.kind);
-    setAudienceChoice(rule.audience);
+    setAudienceChoice(partner ? "both" : rule.audience);
     setCondition(rule.condition || "anytime");
     setScopeKind(rule.scope?.kind || "all");
     setPackageSlug(rule.scope?.packageSlug || "digital-growth-package");
     setDoAlso(rule.doAlso ? rule.doAlso.map(d => ({ ...d })) : []);
     setControl(rule.control || "auto");
     setAdminSyncMode("separate");
-    const cfg: TargetConfig = {
-      steps: rule.steps.length ? rule.steps.map(st => ({ ...st })) : [blankStep()],
-      repeatTimes: rule.repeat?.times || 0,
-      repeatEvery: rule.repeat?.everyDays || 2,
-      stopOn: [...(rule.stopOn || [])],
-    };
-    if (rule.audience === "admin") setAdminCfg(cfg);
-    else setCustomerCfg(cfg);
+    const cRule = rule.audience === "customer" ? rule : partner?.audience === "customer" ? partner : null;
+    const aRule = rule.audience === "admin" ? rule : partner?.audience === "admin" ? partner : null;
+    if (cRule) setCustomerCfg(toTargetCfg(cRule));
+    if (aRule) setAdminCfg(toTargetCfg(aRule));
     setError("");
     setNotice("");
   }
@@ -356,6 +374,9 @@ export function ActionRuleForm({
     const actionKey = currentRow.triggerKey;
     const scope = supportsScope ? { kind: scopeKind, ...(scopeKind === "package" ? { packageSlug } : {}) } : { kind: "all" };
 
+    const nextPairId = audienceChoice === "both"
+      ? (activePairId || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `pair-${Date.now()}`))
+      : "";
     const buildPayload = (who: "customer" | "admin") => {
       const cfg = who === "customer" ? customerCfg : resolvedAdminCfg();
       return {
@@ -363,6 +384,7 @@ export function ActionRuleForm({
         action: actionKey,
         actionId: currentRow.id,
         audience: who,
+        pairId: nextPairId,
         condition,
         scope,
         steps: cfg.steps.map(st => ({
@@ -386,6 +408,8 @@ export function ActionRuleForm({
         if (editingId) {
           if (targets.length === 1 || who === editingAudience) {
             targetId = editingId;
+          } else if (companionId) {
+            targetId = companionId;
           } else {
             const companion = existingRules.find(r =>
               (r._id || r.id) !== editingId &&
@@ -428,7 +452,10 @@ export function ActionRuleForm({
         <button type="button" className={s.link} onClick={onBack}>← Back to Actions</button>
         {editingId && (
           <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
-            Origin: <strong>{originLabel(editingRule?.origin)}</strong> · Saves as a new version
+            Origin: <strong>{originLabel(editingRule?.origin)}</strong>
+            {editingRule?.createdAt ? ` · Created ${formatIndiaDateTime(editingRule.createdAt)}` : ""}
+            {editingRule?.updatedAt ? ` · Edited ${formatIndiaDateTime(editingRule.updatedAt)}` : ""}
+            {" · Saves as a new version"}
           </span>
         )}
       </div>
