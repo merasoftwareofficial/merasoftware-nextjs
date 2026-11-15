@@ -145,6 +145,7 @@ export function ActionRuleForm({
   const initialRow = actionOptions.find(a => a.id === (editingRule?.actionId || initialActionId) || (editingRule?.action && a.triggerKey === editingRule.action));
 
   const [editingId, setEditingId] = useState<string | null>(editingRule?._id || editingRule?.id || null);
+  const [editingAudience, setEditingAudience] = useState<"customer" | "admin">(editingRule?.audience || "customer");
   const [kind, setKind] = useState<"template" | "reminder">(editingRule?.kind || "template");
   const [selectedActionId, setSelectedActionId] = useState<string>(initialRow?.id || "");
   const [readyOnly, setReadyOnly] = useState<boolean>(initialRow ? !!initialRow.triggerKey : true);
@@ -241,6 +242,7 @@ export function ActionRuleForm({
 
   function loadExistingRule(rule: ActionRuleRecord) {
     setEditingId(rule._id || rule.id || null);
+    setEditingAudience(rule.audience);
     setKind(rule.kind);
     setAudienceChoice(rule.audience);
     setCondition(rule.condition || "anytime");
@@ -376,26 +378,36 @@ export function ActionRuleForm({
     };
 
     try {
-      if (editingId && targets.length === 1) {
-        const response = await fetch(`/api/auto-reply/action-rules/${editingId}`, {
-          method: "PUT",
+      const saveTarget = async (who: "customer" | "admin") => {
+        let targetId: string | null = null;
+        if (editingId) {
+          if (targets.length === 1 || who === editingAudience) {
+            targetId = editingId;
+          } else {
+            const companion = existingRules.find(r =>
+              (r._id || r.id) !== editingId &&
+              r.audience === who &&
+              r.kind === kind &&
+              (r.condition || "anytime") === condition &&
+              (r.scope?.kind || "all") === scopeKind &&
+              (scopeKind !== "package" || (r.scope?.packageSlug || "") === packageSlug),
+            );
+            targetId = companion?._id || companion?.id || null;
+          }
+        }
+        const url = targetId ? `/api/auto-reply/action-rules/${targetId}` : "/api/auto-reply/action-rules";
+        const method = targetId ? "PUT" : "POST";
+        const response = await fetch(url, {
+          method,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildPayload(targets[0])),
+          body: JSON.stringify(buildPayload(who)),
           cache: "no-store",
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || result.message || "Could not update rule.");
-      } else {
-        for (const who of targets) {
-          const response = await fetch("/api/auto-reply/action-rules", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildPayload(who)),
-            cache: "no-store",
-          });
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(result.error || result.message || "Could not save rule.");
-        }
+        if (!response.ok) throw new Error(result.error || result.message || `Could not ${targetId ? "update" : "save"} rule.`);
+      };
+      for (const who of targets) {
+        await saveTarget(who);
       }
       onSaved?.();
       onBack();
@@ -516,6 +528,11 @@ export function ActionRuleForm({
             <label style={{ cursor: "pointer" }}><input type="radio" name="audience" checked={audienceChoice === "customer"} onChange={() => setAudienceChoice("customer")} /> Customer</label>
             <label style={{ cursor: "pointer" }}><input type="radio" name="audience" checked={audienceChoice === "admin"} onChange={() => setAudienceChoice("admin")} /> Admin / Team</label>
             <label style={{ cursor: "pointer" }}><input type="radio" name="audience" checked={audienceChoice === "both"} onChange={() => setAudienceChoice("both")} /> Both (different messages)</label>
+            {audienceChoice === "both" && (
+              <span style={{ display: "block", width: "100%", fontSize: 12, color: "var(--pn-muted, var(--muted))", marginTop: 4 }}>
+                Saves 2 separate rules (one for Customer, one for Admin) so each can be edited or paused independently.
+              </span>
+            )}
           </dd>
         </div>
 
