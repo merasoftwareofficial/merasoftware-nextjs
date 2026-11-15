@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
-import { ActionRuleForm, type ActionRuleRecord } from "./action-rule-form";
+import { ActionRuleForm, type ActionRuleRecord, type BuiltInInfo } from "./action-rule-form";
 import { ActionScheduledPanel } from "./action-scheduled-panel";
 import c from "./actions-panel.module.css";
 
@@ -31,6 +31,7 @@ type ActionRow = {
   triggerKey?: string | null;
   supportsScope?: boolean;
   conditions?: { key: string; label: string }[];
+  builtIn?: BuiltInInfo;
   rules?: ActionRuleRecord[];
 };
 type Category = { name: string; meaning: string };
@@ -59,13 +60,19 @@ const MESSAGE_FILTERS: { id: MessageFilter; label: string }[] = [
 const COLUMNS = 9;
 const ruleStatus = (row: ActionRow) => {
   const rules = row.rules || [];
+  const builtInTemplates = row.builtIn?.templates?.length || 0;
+  const builtInReminders = row.builtIn?.reminders?.length || 0;
   return {
-    template: rules.filter(r => r.kind === "template").length,
-    reminder: rules.filter(r => r.kind === "reminder").length,
+    template: rules.filter(r => r.kind === "template").length + builtInTemplates,
+    reminder: rules.filter(r => r.kind === "reminder").length + builtInReminders,
   };
 };
 
-export function ActionsPanel({ active }: { active: boolean }) {
+export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
+  active: boolean;
+  onOpenTemplate?: (event: string, app: "portal" | "website") => void;
+  onOpenPanel?: (panel: string) => void;
+}) {
   const [data, setData] = useState<ActionsData | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -260,7 +267,7 @@ export function ActionsPanel({ active }: { active: boolean }) {
                 <td className={`${c.mono} ${c.endpoint}`}>{row.endpoint}</td>
                 <td>{row.category}</td>
                 <td className={c.note}>{row.note || "—"}</td>
-                <td><MessageStatus row={row} onAdd={() => setNewRuleFor(row.id)} onEdit={rule => setEditingRule({ ...rule, actionId: row.id })} /></td>
+                <td><MessageStatus row={row} onAdd={() => setNewRuleFor(row.id)} onEdit={rule => setEditingRule({ ...rule, actionId: row.id })} onOpenTemplate={onOpenTemplate} onOpenPanel={onOpenPanel} /></td>
                 <td className={c.right}>
                   <ManageMenu row={row} data={data} open={menuFor === row.id} saving={saving}
                     onToggle={() => setMenuFor(menuFor === row.id ? null : row.id)}
@@ -276,16 +283,40 @@ export function ActionsPanel({ active }: { active: boolean }) {
   </section>;
 }
 
-// Shows "Edit template (Customer/Admin)" / "Edit reminder (Customer/Admin)" when rules exist,
-// or "+ Add message" when nothing is attached yet.
-function MessageStatus({ row, onAdd, onEdit }: { row: ActionRow; onAdd: () => void; onEdit: (rule: ActionRuleRecord) => void }) {
+// Shows built-in templates/reminders (deep-linking to their editors) alongside new Action Rules,
+// "+ Add message" when a trigger signal is wired, or "No signal yet" otherwise.
+function MessageStatus({ row, onAdd, onEdit, onOpenTemplate, onOpenPanel }: {
+  row: ActionRow;
+  onAdd: () => void;
+  onEdit: (rule: ActionRuleRecord) => void;
+  onOpenTemplate?: (event: string, app: "portal" | "website") => void;
+  onOpenPanel?: (panel: string) => void;
+}) {
   const rules = row.rules || [];
-  if (!rules.length) {
+  const builtInTemplates = row.builtIn?.templates || [];
+  const builtInReminders = row.builtIn?.reminders || [];
+  const hasAny = rules.length > 0 || builtInTemplates.length > 0 || builtInReminders.length > 0;
+
+  if (!hasAny) {
     if (!row.triggerKey) return <span className={c.count} title="Backend signal not wired yet">No signal yet</span>;
     return <button type="button" className={c.messageNone} onClick={onAdd}>+ Add message</button>;
   }
   return (
     <div className={c.messageTags}>
+      {builtInTemplates.map(tpl => (
+        <button key={`bt-${tpl.event}`} type="button" className={c.tagTemplate}
+          title={`Edit built-in: ${tpl.label}`}
+          onClick={() => tpl.panel === "broadcast" ? onOpenPanel?.("broadcast") : onOpenTemplate?.(tpl.event, tpl.app)}>
+          {builtInTemplates.length === 1 ? "Edit built-in" : `Built-in: ${tpl.label}`}
+        </button>
+      ))}
+      {builtInReminders.map(rem => (
+        <button key={`br-${rem.panel}-${rem.label}`} type="button" className={c.tagReminder}
+          title={`Open ${rem.label}`}
+          onClick={() => onOpenPanel?.(rem.panel)}>
+          {`Built-in: ${rem.label}`}
+        </button>
+      ))}
       {rules.map((rule, idx) => {
         const who = rule.audience === "admin" ? "Admin" : "Customer";
         const label = rule.kind === "template" ? `Edit template (${who})` : `Edit reminder (${who})`;
@@ -295,7 +326,7 @@ function MessageStatus({ row, onAdd, onEdit }: { row: ActionRow; onAdd: () => vo
           </button>
         );
       })}
-      <button type="button" className={c.messageNone} onClick={onAdd} title="Add another message or reminder">+ Add</button>
+      {row.triggerKey && <button type="button" className={c.messageNone} onClick={onAdd} title="Add another message or reminder">+ Add</button>}
     </div>
   );
 }

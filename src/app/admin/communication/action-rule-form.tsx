@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import s from "./communication.module.css";
 import { InfoTip } from "./reminder-info";
 
@@ -39,6 +39,10 @@ export type ActionRuleRecord = {
 };
 
 export type ConditionOption = { key: string; label: string };
+export type BuiltInInfo = {
+  templates: { event: string; label: string; app: "portal" | "website"; panel?: "email-templates" | "broadcast" }[];
+  reminders: { panel: string; label: string }[];
+};
 export type FormActionOption = {
   id: string;
   title: string;
@@ -50,6 +54,7 @@ export type FormActionOption = {
   triggerKey?: string | null;
   supportsScope?: boolean;
   conditions?: ConditionOption[];
+  builtIn?: BuiltInInfo;
   rules?: ActionRuleRecord[];
 };
 
@@ -147,6 +152,7 @@ export function ActionRuleForm({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [lastFocused, setLastFocused] = useState<{ who: "customer" | "admin"; idx: number }>({ who: editingRule?.audience || "customer", idx: 0 });
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   const initialTargetCfg: TargetConfig = editingRule
     ? {
@@ -228,12 +234,26 @@ export function ActionRuleForm({
 
   function insertPlaceholder(ph: string) {
     const who = audienceChoice === "both" ? lastFocused.who : audienceChoice;
-    updateTarget(who, prev => {
-      const idx = Math.min(lastFocused.idx, prev.steps.length - 1);
-      return {
-        ...prev,
-        steps: prev.steps.map((st, i) => (i === idx ? { ...st, text: (st.text ? `${st.text} ` : "") + ph } : st)),
-      };
+    const targetCfg = who === "customer" ? customerCfg : adminCfg;
+    const idx = Math.min(lastFocused.idx, targetCfg.steps.length - 1);
+    const key = `${who}:${idx}`;
+    const el = textareaRefs.current[key];
+    const currentText = targetCfg.steps[idx]?.text ?? "";
+    const start = typeof el?.selectionStart === "number" ? el.selectionStart : currentText.length;
+    const end = typeof el?.selectionEnd === "number" ? el.selectionEnd : currentText.length;
+    const nextText = (currentText.slice(0, start) + ph + currentText.slice(end)).slice(0, 10000);
+    const nextPos = Math.min(start + ph.length, 10000);
+
+    updateTarget(who, prev => ({
+      ...prev,
+      steps: prev.steps.map((st, i) => (i === idx ? { ...st, text: nextText } : st)),
+    }));
+    requestAnimationFrame(() => {
+      const targetEl = textareaRefs.current[key];
+      if (targetEl) {
+        targetEl.focus();
+        targetEl.setSelectionRange(nextPos, nextPos);
+      }
     });
   }
 
@@ -395,6 +415,15 @@ export function ActionRuleForm({
                 {currentRow.what && <div>{currentRow.what}</div>}
                 {currentRow.when && <div style={{ color: "var(--pn-muted, var(--muted))" }}>{currentRow.when}</div>}
                 <div style={{ fontFamily: "monospace", color: "var(--pn-muted, var(--muted))" }}>{currentRow.method} {currentRow.endpoint}</div>
+                {((currentRow.builtIn?.templates.length ?? 0) > 0 || (currentRow.builtIn?.reminders.length ?? 0) > 0) && (
+                  <div style={{ marginTop: 4, padding: "6px 8px", borderRadius: 6, background: "color-mix(in srgb, #b26a00 12%, transparent)", color: "inherit" }}>
+                    <strong>Built-in message already active:</strong>{" "}
+                    {[
+                      ...(currentRow.builtIn?.templates.map(t => t.label) ?? []),
+                      ...(currentRow.builtIn?.reminders.map(r => r.label) ?? []),
+                    ].join(", ")}. Adding a rule here sends alongside it.
+                  </div>
+                )}
               </div>
             )}
           </dd>
@@ -513,6 +542,7 @@ export function ActionRuleForm({
                     )}
 
                     <textarea rows={3} placeholder={`Write ${who} message…`} value={step.text} maxLength={10000}
+                      ref={el => { textareaRefs.current[`${who}:${idx}`] = el; }}
                       onFocus={() => setLastFocused({ who, idx })}
                       onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, text: e.target.value } : st) }))} />
                   </div>

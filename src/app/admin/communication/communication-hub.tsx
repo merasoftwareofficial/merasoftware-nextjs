@@ -259,7 +259,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     ] as [string, React.ReactNode][]);
     return <>
       {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}
-      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), ["actions", <ActionsPanel key="actions" active={part("actions").shown} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
+      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), ["actions", <ActionsPanel key="actions" active={part("actions").shown} onOpenTemplate={(event, app) => go({ panel: "email-templates", tab: app, app: null, event })} onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
     </>;
   }
 
