@@ -80,7 +80,11 @@ const LEAD_STAGES = [
   { value: "Dead", label: "Dead" },
   { value: "Wrong", label: "Wrong" },
 ];
-const PLACEHOLDERS = ["{name}", "{amount}", "{dueDate}", "{invoiceLink}", "{project}", "{planName}", "{duration}"];
+const PLACEHOLDERS = [
+  "{{name}}", "{{amount}}", "{{dueDate}}", "{{invoiceLink}}", "{{projectLink}}",
+  "{{packageLink}}", "{{portalLink}}", "{{project}}", "{{planName}}", "{{duration}}",
+  "{{email}}", "{{phone}}",
+];
 
 const PAY_CONDS: ConditionOption[] = [
   { key: "anytime", label: "Anytime (always)" },
@@ -232,28 +236,60 @@ export function ActionRuleForm({
     else setAdminCfg(updater);
   }
 
-  function insertPlaceholder(ph: string) {
-    const who = audienceChoice === "both" ? lastFocused.who : audienceChoice;
+  function applyToTextarea(
+    who: "customer" | "admin",
+    idx: number,
+    transform: (text: string, start: number, end: number) => { text: string; cursorStart: number; cursorEnd?: number },
+  ) {
     const targetCfg = who === "customer" ? customerCfg : adminCfg;
-    const idx = Math.min(lastFocused.idx, targetCfg.steps.length - 1);
-    const key = `${who}:${idx}`;
+    const safeIdx = Math.min(idx, targetCfg.steps.length - 1);
+    const key = `${who}:${safeIdx}`;
     const el = textareaRefs.current[key];
-    const currentText = targetCfg.steps[idx]?.text ?? "";
+    const currentText = targetCfg.steps[safeIdx]?.text ?? "";
     const start = typeof el?.selectionStart === "number" ? el.selectionStart : currentText.length;
     const end = typeof el?.selectionEnd === "number" ? el.selectionEnd : currentText.length;
-    const nextText = (currentText.slice(0, start) + ph + currentText.slice(end)).slice(0, 10000);
-    const nextPos = Math.min(start + ph.length, 10000);
+    const res = transform(currentText, start, end);
+    const nextText = res.text.slice(0, 10000);
+    const nextStart = Math.min(res.cursorStart, nextText.length);
+    const nextEnd = Math.min(res.cursorEnd ?? res.cursorStart, nextText.length);
 
     updateTarget(who, prev => ({
       ...prev,
-      steps: prev.steps.map((st, i) => (i === idx ? { ...st, text: nextText } : st)),
+      steps: prev.steps.map((st, i) => (i === safeIdx ? { ...st, text: nextText } : st)),
     }));
     requestAnimationFrame(() => {
       const targetEl = textareaRefs.current[key];
       if (targetEl) {
         targetEl.focus();
-        targetEl.setSelectionRange(nextPos, nextPos);
+        targetEl.setSelectionRange(nextStart, nextEnd);
       }
+    });
+  }
+
+  function insertPlaceholder(ph: string) {
+    const who = audienceChoice === "both" ? lastFocused.who : audienceChoice;
+    applyToTextarea(who, lastFocused.idx, (text, start, end) => ({
+      text: text.slice(0, start) + ph + text.slice(end),
+      cursorStart: start + ph.length,
+    }));
+  }
+
+  function formatStepText(who: "customer" | "admin", idx: number, mode: "bold" | "italic" | "list") {
+    applyToTextarea(who, idx, (text, start, end) => {
+      const selected = text.slice(start, end);
+      if (mode === "list") {
+        const prefix = start > 0 && text[start - 1] !== "\n" ? "\n- " : "- ";
+        const body = selected ? selected.replace(/\n/g, "\n- ") : "";
+        return { text: text.slice(0, start) + prefix + body + text.slice(end), cursorStart: start + prefix.length + body.length };
+      }
+      const mark = mode === "bold" ? "**" : "_";
+      const inner = selected || (mode === "bold" ? "bold text" : "italic text");
+      const wrapped = `${mark}${inner}${mark}`;
+      return {
+        text: text.slice(0, start) + wrapped + text.slice(end),
+        cursorStart: selected ? start + wrapped.length : start + mark.length,
+        cursorEnd: selected ? start + wrapped.length : start + mark.length + inner.length,
+      };
     });
   }
 
@@ -483,7 +519,7 @@ export function ActionRuleForm({
       {showPlaceholders && (
         <div className={s.facts} style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
           {PLACEHOLDERS.map(ph => (
-            <button key={ph} type="button" onClick={() => insertPlaceholder(ph)}
+            <button key={ph} type="button" onMouseDown={e => e.preventDefault()} onClick={() => insertPlaceholder(ph)}
               style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontFamily: "monospace", fontSize: 12, cursor: "pointer" }}>
               {ph}
             </button>
@@ -540,6 +576,24 @@ export function ActionRuleForm({
                       <input type="text" placeholder="Email subject" value={step.subject} maxLength={300}
                         onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, subject: e.target.value } : st) }))} />
                     )}
+
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} role="toolbar" aria-label="Text formatting">
+                      <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => formatStepText(who, idx, "bold")}
+                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        title="Bold (works in Email & WhatsApp)">
+                        B
+                      </button>
+                      <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => formatStepText(who, idx, "italic")}
+                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, fontStyle: "italic", cursor: "pointer" }}
+                        title="Italic (works in Email & WhatsApp)">
+                        I
+                      </button>
+                      <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => formatStepText(who, idx, "list")}
+                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, cursor: "pointer" }}
+                        title="Bullet list">
+                        • List
+                      </button>
+                    </div>
 
                     <textarea rows={3} placeholder={`Write ${who} message…`} value={step.text} maxLength={10000}
                       ref={el => { textareaRefs.current[`${who}:${idx}`] = el; }}
