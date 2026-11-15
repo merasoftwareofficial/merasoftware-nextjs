@@ -183,9 +183,10 @@ export function ActionRuleForm({
   const [doAlso, setDoAlso] = useState<DoAlsoStep[]>(editingRule?.doAlso ? editingRule.doAlso.map(d => ({ ...d })) : []);
   const [control, setControl] = useState<"auto" | "review" | "off">(editingRule?.control || "auto");
   const initRepeat = initCustomerRule?.repeat || editingRule?.repeat;
-  const [repeatTimes, setRepeatTimes] = useState<number>(initRepeat?.times || 0);
-  const [repeatEvery, setRepeatEvery] = useState<number>(initRepeat?.everyDays || 2);
+  const [repeatForDays, setRepeatForDays] = useState<number>(initRepeat?.times ? initRepeat.times * (initRepeat.everyDays || 1) : 0);
+  const [repeatEvery, setRepeatEvery] = useState<number>(initRepeat?.everyDays || 1);
   const [repeatPerDay, setRepeatPerDay] = useState<number>(initRepeat?.perDay || 1);
+  const repeatTimes = repeatForDays > 0 ? Math.floor(repeatForDays / Math.max(1, repeatEvery)) : 0;
   const [adminSyncMode, setAdminSyncMode] = useState<"separate" | "universal">(initUniversal ? "universal" : "separate");
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -221,8 +222,11 @@ export function ActionRuleForm({
     };
   };
 
-  function copyTimingsFrom(source: { steps: { timingRef: TimingRef; days: number; channel: RuleStep["channel"] }[]; repeatTimes: number; repeatEvery: number; stopOn: string[] }) {
+  function copyTimingsFrom(source: { steps: { timingRef: TimingRef; days: number; channel: RuleStep["channel"] }[]; repeatTimes: number; repeatEvery: number; repeatPerDay?: number; stopOn: string[] }) {
     setAdminSyncMode("separate");
+    setRepeatForDays(source.repeatTimes * source.repeatEvery);
+    setRepeatEvery(source.repeatEvery);
+    setRepeatPerDay(source.repeatPerDay || 1);
     setAdminCfg(prev => ({
       steps: source.steps.map((st, idx) => ({
         timingRef: st.timingRef,
@@ -231,8 +235,8 @@ export function ActionRuleForm({
         subject: prev.steps[idx]?.subject || "",
         text: prev.steps[idx]?.text || "",
       })),
-      repeatTimes,
-      repeatEvery,
+      repeatTimes: source.repeatTimes,
+      repeatEvery: source.repeatEvery,
       stopOn: [...source.stopOn],
     }));
   }
@@ -368,8 +372,9 @@ export function ActionRuleForm({
     return stepsOk && stopOk && totalOk;
   };
 
+  const repeatInvalidGap = isRem && repeatForDays > 0 && repeatTimes === 0;
   const doAlsoValid = doAlso.every(d => d.type !== "add_lead_note" || (d.note || "").trim().length > 0);
-  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : resolvedAdminCfg()));
+  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && !repeatInvalidGap && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : resolvedAdminCfg()));
 
   async function save(controlOverride: "auto" | "review" | "off") {
     if (!currentRow?.triggerKey) return;
@@ -654,7 +659,8 @@ export function ActionRuleForm({
                       <button type="button" onClick={() => copyTimingsFrom({
                         steps: existingCustomerRem.steps,
                         repeatTimes: existingCustomerRem.repeat?.times || 0,
-                        repeatEvery: existingCustomerRem.repeat?.everyDays || 2,
+                        repeatEvery: existingCustomerRem.repeat?.everyDays || 1,
+                        repeatPerDay: existingCustomerRem.repeat?.perDay || 1,
                         stopOn: existingCustomerRem.stopOn || [],
                       })}>
                         Copy timings from existing Customer rule ({existingCustomerRem.steps.length} steps)
@@ -776,14 +782,14 @@ export function ActionRuleForm({
             <dd style={{ display: "grid", gap: 6 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
                 <label style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>How many times</span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>For (days)</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <input type="number" min={0} max={60} value={repeatTimes} style={{ width: 64 }}
-                      onChange={e => setRepeatTimes(Math.min(60, Math.max(0, Number(e.target.value || 0))))} />
-                    <span>times</span>
+                    <input type="number" min={0} max={180} value={repeatForDays} style={{ width: 64 }}
+                      onChange={e => setRepeatForDays(Math.min(180, Math.max(0, Number(e.target.value || 0))))} />
+                    <span>days</span>
                   </span>
                 </label>
-                {repeatTimes > 0 && (
+                {repeatForDays > 0 && (
                   <>
                     <label style={{ display: "grid", gap: 4 }}>
                       <span style={{ fontSize: 12, fontWeight: 600 }}>Every (days)</span>
@@ -805,10 +811,13 @@ export function ActionRuleForm({
                   </>
                 )}
               </div>
-              {repeatTimes > 0 && (
+              {repeatForDays > 0 && repeatTimes > 0 && (
                 <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
-                  {repeatTimes}x · every {repeatEvery}d · {repeatPerDay}x/day ({repeatTimes * repeatPerDay} extra send{repeatTimes * repeatPerDay === 1 ? "" : "s"} over {repeatTimes * repeatEvery}d{targets.length > 1 ? " · Customer & Admin" : ""})
+                  For {repeatForDays}d · every {repeatEvery}d · {repeatPerDay}x/day ({repeatTimes * repeatPerDay} extra send{repeatTimes * repeatPerDay === 1 ? "" : "s"}{targets.length > 1 ? " · Customer & Admin" : ""})
                 </span>
+              )}
+              {repeatInvalidGap && (
+                <span style={{ color: "crimson", fontSize: 12 }}>Every (days) cannot be greater than For (days).</span>
               )}
               {targets.some(w => (w === "customer" ? customerCfg : resolvedAdminCfg()).steps.length + repeatTimes * repeatPerDay > 60) && (
                 <span style={{ color: "crimson", fontSize: 12 }}>Total messages (steps + repeats) cannot exceed 60 per receiver.</span>
