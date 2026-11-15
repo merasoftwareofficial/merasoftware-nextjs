@@ -41,7 +41,7 @@ type PackageOption = { slug: string; name: string };
 type ActionsData = { actions: ActionRow[]; surfaces: Surface[]; categories: Category[]; packages?: PackageOption[] };
 type View = "all" | Surface | "archived" | "deleted";
 type Change = Record<string, unknown>;
-type MessageFilter = "all" | "custom" | "template" | "reminder" | "none";
+type MessageFilter = "all" | "template" | "reminder" | "none";
 
 const SURFACE_TITLES: Record<Surface, string> = { Admin: "Admin panel", Client: "Client portal", Website: "Website", System: "System" };
 const VIEWS: { id: View; label: string }[] = [
@@ -55,7 +55,6 @@ const VIEWS: { id: View; label: string }[] = [
 ];
 const MESSAGE_FILTERS: { id: MessageFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "custom", label: "Custom rules" },
   { id: "template", label: "Has template" },
   { id: "reminder", label: "Has reminder" },
   { id: "none", label: "No message" },
@@ -151,11 +150,10 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   }, [all]);
   const messageCounts = useMemo(() => {
     const live = all.filter(row => !row.archived && !row.deleted);
-    const custom = live.filter(row => (row.rules?.length || 0) > 0).length;
     const template = live.filter(row => ruleStatus(row).template > 0).length;
     const reminder = live.filter(row => ruleStatus(row).reminder > 0).length;
     const none = live.filter(row => { const status = ruleStatus(row); return status.template === 0 && status.reminder === 0; }).length;
-    return { all: live.length, custom, template, reminder, none } as Record<MessageFilter, number>;
+    return { all: live.length, template, reminder, none } as Record<MessageFilter, number>;
   }, [all]);
 
   // Rows of the chosen tab and search, grouped under their category heading, in the heading order.
@@ -167,10 +165,9 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           : !row.archived && !row.deleted && (view === "all" || row.surface === view);
       const status = ruleStatus(row);
       const inMessageFilter = messageFilter === "all" ? true
-        : messageFilter === "custom" ? (row.rules?.length || 0) > 0
-          : messageFilter === "template" ? status.template > 0
-            : messageFilter === "reminder" ? status.reminder > 0
-              : status.template === 0 && status.reminder === 0;
+        : messageFilter === "template" ? status.template > 0
+          : messageFilter === "reminder" ? status.reminder > 0
+            : status.template === 0 && status.reminder === 0;
       const inCategory = categoryFilter === "all" || row.category === categoryFilter;
       return inView && inMessageFilter && inCategory && (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle));
     });
