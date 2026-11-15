@@ -33,7 +33,7 @@ export type ActionRuleRecord = {
   repeat: { times: number; everyDays: number };
   stopOn: string[];
   doAlso?: DoAlsoStep[];
-  control: "auto" | "off";
+  control: "auto" | "review" | "off";
   enabled: boolean;
   revision?: number;
 };
@@ -150,7 +150,8 @@ export function ActionRuleForm({
   const [scopeKind, setScopeKind] = useState<RuleScopeKind>(editingRule?.scope?.kind || "all");
   const [packageSlug, setPackageSlug] = useState<string>(editingRule?.scope?.packageSlug || packages[0]?.slug || "digital-growth-package");
   const [doAlso, setDoAlso] = useState<DoAlsoStep[]>(editingRule?.doAlso ? editingRule.doAlso.map(d => ({ ...d })) : []);
-  const [control, setControl] = useState<"auto" | "off">(editingRule?.control || "auto");
+  const [control, setControl] = useState<"auto" | "review" | "off">(editingRule?.control || "auto");
+  const [adminSyncMode, setAdminSyncMode] = useState<"separate" | "universal">("separate");
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -172,8 +173,43 @@ export function ActionRuleForm({
 
   const currentRow = actionOptions.find(a => a.id === selectedActionId);
   const existingRules = currentRow?.rules || [];
+  const existingCustomerRem = existingRules.find(r => r.kind === "reminder" && r.audience === "customer");
   const targets: ("customer" | "admin")[] = audienceChoice === "both" ? ["customer", "admin"] : [audienceChoice];
   const isRem = kind === "reminder";
+  const isAdminUniversal = audienceChoice === "both" && isRem && adminSyncMode === "universal";
+
+  const resolvedAdminCfg = (): TargetConfig => {
+    if (!isAdminUniversal) return adminCfg;
+    const base = adminCfg.steps[0] || blankStep();
+    return {
+      steps: customerCfg.steps.map(st => ({
+        timingRef: st.timingRef,
+        days: st.days,
+        channel: base.channel,
+        subject: base.subject,
+        text: base.text,
+      })),
+      repeatTimes: customerCfg.repeatTimes,
+      repeatEvery: customerCfg.repeatEvery,
+      stopOn: [...customerCfg.stopOn],
+    };
+  };
+
+  function copyTimingsFrom(source: { steps: { timingRef: TimingRef; days: number; channel: RuleStep["channel"] }[]; repeatTimes: number; repeatEvery: number; stopOn: string[] }) {
+    setAdminSyncMode("separate");
+    setAdminCfg(prev => ({
+      steps: source.steps.map((st, idx) => ({
+        timingRef: st.timingRef,
+        days: st.days,
+        channel: prev.steps[idx]?.channel || st.channel,
+        subject: prev.steps[idx]?.subject || "",
+        text: prev.steps[idx]?.text || "",
+      })),
+      repeatTimes: source.repeatTimes,
+      repeatEvery: source.repeatEvery,
+      stopOn: [...source.stopOn],
+    }));
+  }
   const availableConditions = currentRow?.conditions?.length ? currentRow.conditions : [{ key: "anytime", label: "Anytime (always)" }];
   const supportsScope = !!currentRow?.supportsScope;
   const actionCategories = [...new Set(actionOptions.map(a => a.category || "Other"))].sort();
@@ -300,9 +336,9 @@ export function ActionRuleForm({
   };
 
   const doAlsoValid = doAlso.every(d => d.type !== "add_lead_note" || (d.note || "").trim().length > 0);
-  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : adminCfg));
+  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : resolvedAdminCfg()));
 
-  async function save(controlOverride: "auto" | "off") {
+  async function save(controlOverride: "auto" | "review" | "off") {
     if (!currentRow?.triggerKey) return;
     setSaving(true);
     setError("");
@@ -311,7 +347,7 @@ export function ActionRuleForm({
     const scope = supportsScope ? { kind: scopeKind, ...(scopeKind === "package" ? { packageSlug } : {}) } : { kind: "all" };
 
     const buildPayload = (who: "customer" | "admin") => {
-      const cfg = who === "customer" ? customerCfg : adminCfg;
+      const cfg = who === "customer" ? customerCfg : resolvedAdminCfg();
       return {
         kind,
         action: actionKey,
@@ -531,16 +567,46 @@ export function ActionRuleForm({
       {targets.map(who => {
         const cfg = who === "customer" ? customerCfg : adminCfg;
         const label = who === "customer" ? "Message for Customer" : "Message for Admin / Team";
+        const adminUniversal = who === "admin" && isAdminUniversal;
+        const visibleSteps = adminUniversal ? [cfg.steps[0] || blankStep()] : cfg.steps;
         return (
           <dl key={who} className={s.facts}>
             <div className={s.factRow}>
               <dt>{label}</dt>
               <dd style={{ display: "grid", gap: 12, width: "100%" }}>
-                {cfg.steps.map((step, idx) => (
+                {who === "admin" && isRem && (audienceChoice === "both" || existingCustomerRem) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12 }}>
+                    {audienceChoice === "both" && (
+                      <>
+                        <label style={{ cursor: "pointer" }}>
+                          <input type="radio" name="adminSync" checked={adminSyncMode === "separate"} onChange={() => setAdminSyncMode("separate")} /> Separate message per timing
+                        </label>
+                        <label style={{ cursor: "pointer" }}>
+                          <input type="radio" name="adminSync" checked={adminSyncMode === "universal"} onChange={() => setAdminSyncMode("universal")} /> 1 universal message (same timings as Customer)
+                        </label>
+                        {adminSyncMode === "separate" && (
+                          <button type="button" onClick={() => copyTimingsFrom(customerCfg)}>Copy timings from Customer</button>
+                        )}
+                      </>
+                    )}
+                    {audienceChoice === "admin" && existingCustomerRem && (
+                      <button type="button" onClick={() => copyTimingsFrom({
+                        steps: existingCustomerRem.steps,
+                        repeatTimes: existingCustomerRem.repeat?.times || 0,
+                        repeatEvery: existingCustomerRem.repeat?.everyDays || 2,
+                        stopOn: existingCustomerRem.stopOn || [],
+                      })}>
+                        Copy timings from existing Customer rule ({existingCustomerRem.steps.length} steps)
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {visibleSteps.map((step, idx) => (
                   <div key={idx} style={{ display: "grid", gap: 8, padding: 10, border: "1px solid var(--line)", borderRadius: 8 }}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
-                      <strong style={{ fontSize: 12 }}>{isRem ? `Message ${idx + 1}` : "Message"}</strong>
-                      {isRem && cfg.steps.length > 1 && (
+                      <strong style={{ fontSize: 12 }}>{adminUniversal ? "Universal Admin message (all Customer timings)" : isRem ? `Message ${idx + 1}` : "Message"}</strong>
+                      {isRem && !adminUniversal && cfg.steps.length > 1 && (
                         <button type="button" className={s.link} onClick={() => updateTarget(who, p => ({ ...p, steps: p.steps.filter((_, i) => i !== idx) }))}>
                           Remove
                         </button>
@@ -548,7 +614,7 @@ export function ActionRuleForm({
                     </div>
 
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-                      {isRem && (
+                      {isRem && !adminUniversal && (
                         <>
                           {step.timingRef !== "on_due" && (
                             <input type="number" min={0} max={365} value={step.days} style={{ width: 65 }}
@@ -602,7 +668,7 @@ export function ActionRuleForm({
                   </div>
                 ))}
 
-                {isRem && cfg.steps.length < 10 && (
+                {isRem && !adminUniversal && cfg.steps.length < 10 && (
                   <div>
                     <button type="button" onClick={() => updateTarget(who, p => ({ ...p, steps: [...p.steps, blankStep("after_due", 2)] }))}>
                       + Add another follow-up for {who === "customer" ? "Customer" : "Admin"}
@@ -612,7 +678,16 @@ export function ActionRuleForm({
               </dd>
             </div>
 
-            {isRem && (
+            {isRem && adminUniversal && (
+              <div className={s.factRow}>
+                <dt>Timing &amp; Stop</dt>
+                <dd style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+                  Uses the same {customerCfg.steps.length} timing step{customerCfg.steps.length === 1 ? "" : "s"}, repeat, and stop conditions as Customer.
+                </dd>
+              </div>
+            )}
+
+            {isRem && !adminUniversal && (
               <>
                 <div className={s.factRow}>
                   <dt>Repeat ({who})</dt>
@@ -682,11 +757,18 @@ export function ActionRuleForm({
         </div>
 
         <div className={s.factRow}>
-          <dt>7. Control <InfoTip label="Control"><p>Auto sends automatically. Review (approval before sending) is coming soon. Off saves without sending.</p></InfoTip></dt>
-          <dd>
-            <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "auto"} onChange={() => setControl("auto")} /> Auto</label>
-            <label style={{ opacity: 0.6 }} title="Coming soon"><input type="radio" name="control" disabled /> Review (coming soon)</label>
-            <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "off"} onChange={() => setControl("off")} /> Off</label>
+          <dt>7. Control <InfoTip label="Control"><p>Auto sends automatically. Review holds messages in Email Review until you click Send. Off saves without sending.</p></InfoTip></dt>
+          <dd style={{ display: "grid", gap: 6 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "auto"} onChange={() => setControl("auto")} /> Auto</label>
+              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "review"} onChange={() => setControl("review")} /> Review (approve before sending)</label>
+              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "off"} onChange={() => setControl("off")} /> Off</label>
+            </div>
+            {control === "review" && (
+              <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+                Messages will wait in Communication → Review &amp; delivery → Review until you click Send.
+              </span>
+            )}
           </dd>
         </div>
 
@@ -694,7 +776,7 @@ export function ActionRuleForm({
           <dt>Summary Preview</dt>
           <dd style={{ display: "grid", gap: 4 }}>
             {targets.map(who => {
-              const cfg = who === "customer" ? customerCfg : adminCfg;
+              const cfg = who === "customer" ? customerCfg : resolvedAdminCfg();
               const first = cfg.steps[0];
               const when = timingSummary(first, isRem);
               const condText = condition === "unpaid" ? "if unpaid" : condition === "paid" ? "if paid" : "";
@@ -706,7 +788,7 @@ export function ActionRuleForm({
                   {isRem && cfg.repeatTimes > 0 ? ` · repeat ${cfg.repeatTimes}x every ${cfg.repeatEvery}d` : ""}
                   {isRem && cfg.stopOn.length ? ` · stop when ${cfg.stopOn.map(k => STOP_CHOICES.find(c => c.key === k)?.label || k).join(", ")}` : ""}
                   {(who === "customer" || targets.length === 1) && doAlso.length > 0 ? ` · then ${doAlso.map(d => d.type === "change_lead_stage" ? `stage → ${LEAD_STAGES.find(l => l.value === d.stage)?.label || d.stage}` : d.type === "add_lead_note" ? "add note" : "stop reminders").join(", ")}` : ""}
-                  {` · ${control === "auto" ? "Auto" : "Off"}`}
+                  {` · ${control === "auto" ? "Auto" : control === "review" ? "Review" : "Off"}`}
                 </div>
               );
             })}
@@ -718,8 +800,8 @@ export function ActionRuleForm({
         <button type="button" disabled={!canSave} onClick={() => void save("off")}>
           {saving ? "Saving…" : "Save as draft (Off)"}
         </button>
-        <button type="button" className="admin-button" disabled={!canSave} onClick={() => void save("auto")}>
-          {saving ? "Saving…" : "Save & Activate"}
+        <button type="button" className="admin-button" disabled={!canSave} onClick={() => void save(control === "review" ? "review" : "auto")}>
+          {saving ? "Saving…" : control === "review" ? "Save in Review mode" : "Save & Activate"}
         </button>
       </div>
     </section>

@@ -39,7 +39,7 @@ type PackageOption = { slug: string; name: string };
 type ActionsData = { actions: ActionRow[]; surfaces: Surface[]; categories: Category[]; packages?: PackageOption[] };
 type View = "all" | Surface | "archived" | "deleted";
 type Change = Record<string, unknown>;
-type MessageFilter = "all" | "template" | "reminder" | "none";
+type MessageFilter = "all" | "custom" | "template" | "reminder" | "none";
 
 const SURFACE_TITLES: Record<Surface, string> = { Admin: "Admin panel", Client: "Client portal", Website: "Website", System: "System" };
 const VIEWS: { id: View; label: string }[] = [
@@ -53,6 +53,7 @@ const VIEWS: { id: View; label: string }[] = [
 ];
 const MESSAGE_FILTERS: { id: MessageFilter; label: string }[] = [
   { id: "all", label: "All" },
+  { id: "custom", label: "Custom rules" },
   { id: "template", label: "Has template" },
   { id: "reminder", label: "Has reminder" },
   { id: "none", label: "No message" },
@@ -144,10 +145,11 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   }, [all]);
   const messageCounts = useMemo(() => {
     const live = all.filter(row => !row.archived && !row.deleted);
+    const custom = live.filter(row => (row.rules?.length || 0) > 0).length;
     const template = live.filter(row => ruleStatus(row).template > 0).length;
     const reminder = live.filter(row => ruleStatus(row).reminder > 0).length;
     const none = live.filter(row => { const status = ruleStatus(row); return status.template === 0 && status.reminder === 0; }).length;
-    return { all: live.length, template, reminder, none } as Record<MessageFilter, number>;
+    return { all: live.length, custom, template, reminder, none } as Record<MessageFilter, number>;
   }, [all]);
 
   // Rows of the chosen tab and search, grouped under their category heading, in the heading order.
@@ -159,9 +161,10 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           : !row.archived && !row.deleted && (view === "all" || row.surface === view);
       const status = ruleStatus(row);
       const inMessageFilter = messageFilter === "all" ? true
-        : messageFilter === "template" ? status.template > 0
-          : messageFilter === "reminder" ? status.reminder > 0
-            : status.template === 0 && status.reminder === 0;
+        : messageFilter === "custom" ? (row.rules?.length || 0) > 0
+          : messageFilter === "template" ? status.template > 0
+            : messageFilter === "reminder" ? status.reminder > 0
+              : status.template === 0 && status.reminder === 0;
       const inCategory = categoryFilter === "all" || row.category === categoryFilter;
       return inView && inMessageFilter && inCategory && (!needle || `${row.title} ${row.what} ${row.when} ${row.id} ${row.endpoint} ${row.category}`.toLowerCase().includes(needle));
     });
@@ -303,6 +306,20 @@ function MessageStatus({ row, onAdd, onEdit, onOpenTemplate, onOpenPanel }: {
   }
   return (
     <div className={c.messageTags}>
+      {rules.map((rule, idx) => {
+        const who = rule.audience === "admin" ? "Admin" : "Customer";
+        const scopeLabel = rule.scope?.kind === "package" && rule.scope.packageSlug ? ` · ${rule.scope.packageSlug}`
+          : rule.scope?.kind === "monthly" ? " · monthly"
+            : rule.scope?.kind === "one_time" ? " · one-time" : "";
+        const stateLabel = rule.control === "off" ? " · Off" : rule.control === "review" ? " · Review" : "";
+        const label = rule.kind === "template" ? `Edit template (${who}${scopeLabel})` : `Edit reminder (${who}${scopeLabel})`;
+        return (
+          <button key={rule._id || rule.id || idx} type="button" className={rule.kind === "template" ? c.tagTemplate : c.tagReminder} onClick={() => onEdit(rule)}>
+            {label}{stateLabel}
+          </button>
+        );
+      })}
+      {row.triggerKey && <button type="button" className={c.messageNone} onClick={onAdd} title="Add another message or reminder">+ Add</button>}
       {builtInTemplates.map(tpl => (
         <button key={`bt-${tpl.event}`} type="button" className={c.tagTemplate}
           title={`Edit built-in: ${tpl.label}`}
@@ -317,16 +334,6 @@ function MessageStatus({ row, onAdd, onEdit, onOpenTemplate, onOpenPanel }: {
           {`Built-in: ${rem.label}`}
         </button>
       ))}
-      {rules.map((rule, idx) => {
-        const who = rule.audience === "admin" ? "Admin" : "Customer";
-        const label = rule.kind === "template" ? `Edit template (${who})` : `Edit reminder (${who})`;
-        return (
-          <button key={rule._id || rule.id || idx} type="button" className={rule.kind === "template" ? c.tagTemplate : c.tagReminder} onClick={() => onEdit(rule)}>
-            {label}{rule.control === "off" ? " · Off" : ""}
-          </button>
-        );
-      })}
-      {row.triggerKey && <button type="button" className={c.messageNone} onClick={onAdd} title="Add another message or reminder">+ Add</button>}
     </div>
   );
 }

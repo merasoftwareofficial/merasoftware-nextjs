@@ -252,6 +252,28 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     }
     finally { setBusy(false); }
   }
+  async function quickDecide(row: EmailDraft, choice: "send" | "skip") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const body = row.doc ? { choice, subject: row.subject, doc: row.doc } : { choice, subject: row.subject, text: row.text };
+      const result = await request<{ status: string; delivery?: { email: string; whatsapp: string; failure?: string } }>(`/drafts/${row._id}/decision`, "POST", body);
+      if (result.status === "failed") {
+        setError(`Email: ${result.delivery?.email} · WhatsApp: ${result.delivery?.whatsapp}. ${result.delivery?.failure || ""}`);
+      } else {
+        setNotice(choice !== "send" ? "Message skipped. The original request is saved." : result.delivery
+          ? [result.delivery.email === "sent" ? "Email sent." : "", result.delivery.whatsapp === "queued" ? "WhatsApp queued." : ""].filter(Boolean).join(" ") : "Email sent.");
+      }
+      await load();
+    } catch (err) {
+      setError(reason(err));
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
   const drafts = data?.drafts.filter(row => ["pending", "failed", "sending"].includes(row.status)) || [];
   const status = (row: { status: string; expiresAt: string }) => ["pending", "failed", "sending"].includes(row.status) && Date.parse(row.expiresAt) <= (serverNow ?? observedAt) ? "expired" : row.status;
   const history = data?.history.filter(row => historyFilter === "all" || status(row) === historyFilter) || [];
@@ -422,7 +444,32 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     {showReview && <section className={styles.section}><h2>Pending email review</h2><p className={styles.muted}>Drafts expire after 23 hours. Delivery failures can be retried without repeating the original action.</p>
       {!data ? !error && <Loader label="Loading mails to review…" /> : <>
         {!drafts.length && <p>No emails awaiting review.</p>}
-        {drafts.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{data.events.find(event => event.key === row.event)?.label} · {row.status}</small>{row.failure && <p className={styles.error}>{row.failure}</p>}</div><button className="admin-action" disabled={busy || row.status === "sending"} onClick={() => void review(row._id)}>{row.status === "failed" ? "Review / retry" : row.status === "sending" ? "Sending…" : "Review email"}</button></article>)}
+        {drafts.map(row => {
+          const snippet = String(row.text || "").replace(/\s+/g, " ").trim().slice(0, 120);
+          const recipient = row.to.length ? row.to.join(", ") : "—";
+          const locked = busy || row.status === "sending";
+          return (
+            <article className={styles.card} key={row._id} style={{ padding: "10px 12px", gap: 10 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong>{row.subject}</strong>
+                <p style={{ margin: "2px 0", fontSize: 13 }}>{recipient}{snippet ? ` — ${snippet}${row.text && row.text.length > 120 ? "…" : ""}` : ""}</p>
+                <small>{data.events.find(event => event.key === row.event)?.label || row.event} · {row.status}</small>
+                {row.failure && <p className={styles.error}>{row.failure}</p>}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                {row.status === "pending" && (
+                  <>
+                    <button type="button" className="admin-button" disabled={locked} onClick={() => void quickDecide(row, "send")}>Send</button>
+                    <button type="button" disabled={locked} onClick={() => void quickDecide(row, "skip")}>Don’t send</button>
+                  </>
+                )}
+                <button type="button" className="admin-action" disabled={locked} onClick={() => void review(row._id)}>
+                  {row.status === "failed" ? "Review / retry" : row.status === "sending" ? "Sending…" : "Edit / Preview"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </>}
     </section>}
     {showOutbox && <EmailOutbox key={application} application={application} revision={revision} active={active} />}
