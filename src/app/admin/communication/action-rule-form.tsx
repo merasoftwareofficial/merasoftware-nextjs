@@ -142,7 +142,9 @@ export function ActionRuleForm({
   onBack: () => void;
 }) {
   const actionOptions = actions.length ? actions : FALLBACK_ACTIONS;
-  const initialRow = actionOptions.find(a => a.id === (editingRule?.actionId || initialActionId) || (editingRule?.action && a.triggerKey === editingRule.action));
+  const targetActionId = editingRule?.actionId || initialActionId;
+  const initialRow = (targetActionId ? actionOptions.find(a => a.id === targetActionId) : undefined)
+    || (editingRule?.action ? actionOptions.find(a => a.triggerKey === editingRule.action) : undefined);
 
   const [editingId, setEditingId] = useState<string | null>(editingRule?._id || editingRule?.id || null);
   const [editingAudience, setEditingAudience] = useState<"customer" | "admin">(editingRule?.audience || "customer");
@@ -250,6 +252,7 @@ export function ActionRuleForm({
     setPackageSlug(rule.scope?.packageSlug || "digital-growth-package");
     setDoAlso(rule.doAlso ? rule.doAlso.map(d => ({ ...d })) : []);
     setControl(rule.control || "auto");
+    setAdminSyncMode("separate");
     const cfg: TargetConfig = {
       steps: rule.steps.length ? rule.steps.map(st => ({ ...st })) : [blankStep()],
       repeatTimes: rule.repeat?.times || 0,
@@ -373,7 +376,7 @@ export function ActionRuleForm({
         stopOn: isRem ? cfg.stopOn : [],
         doAlso: who === "customer" || targets.length === 1 ? doAlso.map(d => ({ type: d.type, ...(d.type === "change_lead_stage" ? { stage: d.stage || "Positive" } : {}), ...(d.type === "add_lead_note" ? { note: (d.note || "").trim() } : {}) })) : [],
         control: controlOverride,
-        enabled: controlOverride === "auto",
+        enabled: controlOverride !== "off",
       };
     };
 

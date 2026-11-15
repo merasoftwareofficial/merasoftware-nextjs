@@ -89,6 +89,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   const [editingRule, setEditingRule] = useState<ActionRuleRecord | null>(null);
   const [detailActionId, setDetailActionId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showScheduled, setShowScheduled] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
@@ -204,6 +205,26 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     }
   }
 
+  async function deleteRule(rule: ActionRuleRecord) {
+    const id = rule._id || rule.id;
+    if (!id || !window.confirm("Delete this rule permanently?")) return;
+    setDeletingId(id);
+    setError("");
+    try {
+      const response = await fetch(`/api/auto-reply/action-rules/${id}/delete`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || result.message || "Could not delete rule.");
+      reloadActions();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not delete rule.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (showScheduled) {
     return (
       <section hidden={!active}>
@@ -242,11 +263,13 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
         <ActionDetailView
           row={detailRow}
           togglingId={togglingId}
+          deletingId={deletingId}
           error={error}
           onBack={() => setDetailActionId(null)}
           onAdd={() => setNewRuleFor(detailRow.id)}
           onEdit={rule => setEditingRule({ ...rule, actionId: detailRow.id })}
           onToggle={rule => void toggleRuleEnabled(rule)}
+          onDelete={rule => void deleteRule(rule)}
           onOpenTemplate={onOpenTemplate}
           onOpenPanel={onOpenPanel}
         />
@@ -380,14 +403,16 @@ function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) 
   );
 }
 
-function ActionDetailView({ row, togglingId, error, onBack, onAdd, onEdit, onToggle, onOpenTemplate, onOpenPanel }: {
+function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, onEdit, onToggle, onDelete, onOpenTemplate, onOpenPanel }: {
   row: ActionRow;
   togglingId: string | null;
+  deletingId: string | null;
   error: string;
   onBack: () => void;
   onAdd: () => void;
   onEdit: (rule: ActionRuleRecord) => void;
   onToggle: (rule: ActionRuleRecord) => void;
+  onDelete: (rule: ActionRuleRecord) => void;
   onOpenTemplate?: (event: string, app: "portal" | "website") => void;
   onOpenPanel?: (panel: string) => void;
 }) {
@@ -442,6 +467,9 @@ function ActionDetailView({ row, togglingId, error, onBack, onAdd, onEdit, onTog
                         <button type="button" className="admin-button" onClick={() => onEdit(rule)}>Edit</button>
                         <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => onToggle(rule)}>
                           {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
+                        </button>
+                        <button type="button" className={c.manage} disabled={deletingId === rid} onClick={() => onDelete(rule)}>
+                          {deletingId === rid ? "Deleting…" : "Delete"}
                         </button>
                       </div>
                     </td>
