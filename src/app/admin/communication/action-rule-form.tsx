@@ -677,6 +677,7 @@ export function ActionRuleForm({
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                       {isRem && !adminUniversal && (
                         <>
+                          <span style={{ fontSize: 12, fontWeight: 600 }}>When:</span>
                           {step.timingRef !== "on_due" && (
                             <input type="number" min={0} max={365} value={step.days} style={{ width: 65 }}
                               onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, days: Math.max(0, Number(e.target.value || 0)) } : st) }))} />
@@ -691,6 +692,7 @@ export function ActionRuleForm({
                         </>
                       )}
 
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>Via:</span>
                       <select value={step.channel}
                         onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, channel: e.target.value as RuleStep["channel"] } : st) }))}>
                         <option value="whatsapp">WhatsApp only</option>
@@ -772,19 +774,32 @@ export function ActionRuleForm({
           <div className={s.factRow}>
             <dt>Repeat (last message) <InfoTip label="Repeat"><p>Repeats the last message for {targets.length > 1 ? "both Customer and Admin" : targets[0] === "admin" ? "Admin" : "Customer"} until a stop action happens.</p></InfoTip></dt>
             <dd style={{ display: "grid", gap: 6 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-                <label>Repeat <input type="number" min={0} max={60} value={repeatTimes} style={{ width: 64 }}
-                  onChange={e => setRepeatTimes(Math.min(60, Math.max(0, Number(e.target.value || 0))))} /> times</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>How many times</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <input type="number" min={0} max={60} value={repeatTimes} style={{ width: 64 }}
+                      onChange={e => setRepeatTimes(Math.min(60, Math.max(0, Number(e.target.value || 0))))} />
+                    <span>times</span>
+                  </span>
+                </label>
                 {repeatTimes > 0 && (
                   <>
-                    <label>every <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
-                      onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} /> days</label>
-                    <label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>Every (days)</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
+                          onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} />
+                        <span>days <span style={{ fontSize: 11, color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
+                      </span>
+                    </label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>Per day</span>
                       <select value={repeatPerDay} onChange={e => setRepeatPerDay(Number(e.target.value || 1))}>
-                        <option value={1}>1 time a day</option>
-                        <option value={2}>2 times a day (every 12h)</option>
-                        <option value={3}>3 times a day (every 8h)</option>
-                        <option value={4}>4 times a day (every 6h)</option>
+                        <option value={1}>1x / day</option>
+                        <option value={2}>2x / day (12h)</option>
+                        <option value={3}>3x / day (8h)</option>
+                        <option value={4}>4x / day (6h)</option>
                       </select>
                     </label>
                   </>
@@ -792,7 +807,7 @@ export function ActionRuleForm({
               </div>
               {repeatTimes > 0 && (
                 <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
-                  Repeats the last message {repeatTimes} time{repeatTimes === 1 ? "" : "s"}, every {repeatEvery} day{repeatEvery === 1 ? "" : "s"}, {repeatPerDay}x/day ({repeatTimes * repeatPerDay} extra send{repeatTimes * repeatPerDay === 1 ? "" : "s"} over {repeatTimes * repeatEvery} day{repeatTimes * repeatEvery === 1 ? "" : "s"}{targets.length > 1 ? " — applies to both Customer & Admin" : ""}).
+                  {repeatTimes}x · every {repeatEvery}d · {repeatPerDay}x/day ({repeatTimes * repeatPerDay} extra send{repeatTimes * repeatPerDay === 1 ? "" : "s"} over {repeatTimes * repeatEvery}d{targets.length > 1 ? " · Customer & Admin" : ""})
                 </span>
               )}
               {targets.some(w => (w === "customer" ? customerCfg : resolvedAdminCfg()).steps.length + repeatTimes * repeatPerDay > 60) && (
@@ -840,9 +855,9 @@ export function ActionRuleForm({
           <dt>7. Control <InfoTip label="Control"><p>Auto sends automatically. Review holds messages in Email Review until you click Send. Off saves without sending.</p></InfoTip></dt>
           <dd style={{ display: "grid", gap: 6 }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "auto"} onChange={() => setControl("auto")} /> Auto</label>
-              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "review"} onChange={() => setControl("review")} /> Review (approve before sending)</label>
-              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "off"} onChange={() => setControl("off")} /> Off</label>
+              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "auto"} onChange={() => setControl("auto")} /> Auto (send directly)</label>
+              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "review"} onChange={() => setControl("review")} /> Review (approve first)</label>
+              <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "off"} onChange={() => setControl("off")} /> Off (draft)</label>
             </div>
             {control === "review" && (
               <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
