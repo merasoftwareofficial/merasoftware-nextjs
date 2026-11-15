@@ -409,7 +409,8 @@ function ruleSummaryLine(rule: ActionRuleRecord) {
     if (st.timingRef === "after_due") return `${st.days}d after due`;
     return st.days ? `after ${st.days}d` : "immediately";
   }).join(", ");
-  const repeat = rule.kind === "reminder" && rule.repeat?.times ? ` · repeat ${rule.repeat.times}x every ${rule.repeat.everyDays}d` : "";
+  const perDayText = (rule.repeat?.perDay || 1) > 1 ? ` (${rule.repeat?.perDay}x/day)` : "";
+  const repeat = rule.kind === "reminder" && rule.repeat?.times ? ` · repeat ${rule.repeat.times}x every ${rule.repeat.everyDays}d${perDayText}` : "";
   const stop = rule.kind === "reminder" && rule.stopOn?.length ? ` · stops on ${rule.stopOn.join(", ")}` : "";
   return `${who}${scope}${cond} · ${timings || "immediately"}${repeat}${stop}`;
 }

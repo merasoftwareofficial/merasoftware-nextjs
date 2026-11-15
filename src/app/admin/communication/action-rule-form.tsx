@@ -34,7 +34,7 @@ export type ActionRuleRecord = {
   condition: RuleCondition;
   scope: { kind: RuleScopeKind; packageSlug?: string };
   steps: RuleStep[];
-  repeat: { times: number; everyDays: number };
+  repeat: { times: number; everyDays: number; perDay?: number };
   stopOn: string[];
   doAlso?: DoAlsoStep[];
   control: "auto" | "review" | "off";
@@ -182,6 +182,10 @@ export function ActionRuleForm({
   const [packageSlug, setPackageSlug] = useState<string>(editingRule?.scope?.packageSlug || packages[0]?.slug || "digital-growth-package");
   const [doAlso, setDoAlso] = useState<DoAlsoStep[]>(editingRule?.doAlso ? editingRule.doAlso.map(d => ({ ...d })) : []);
   const [control, setControl] = useState<"auto" | "review" | "off">(editingRule?.control || "auto");
+  const initRepeat = initCustomerRule?.repeat || editingRule?.repeat;
+  const [repeatTimes, setRepeatTimes] = useState<number>(initRepeat?.times || 0);
+  const [repeatEvery, setRepeatEvery] = useState<number>(initRepeat?.everyDays || 2);
+  const [repeatPerDay, setRepeatPerDay] = useState<number>(initRepeat?.perDay || 1);
   const [adminSyncMode, setAdminSyncMode] = useState<"separate" | "universal">(initUniversal ? "universal" : "separate");
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -211,8 +215,8 @@ export function ActionRuleForm({
         subject: base.subject,
         text: base.text,
       })),
-      repeatTimes: customerCfg.repeatTimes,
-      repeatEvery: customerCfg.repeatEvery,
+      repeatTimes,
+      repeatEvery,
       stopOn: [...customerCfg.stopOn],
     };
   };
@@ -227,8 +231,8 @@ export function ActionRuleForm({
         subject: prev.steps[idx]?.subject || "",
         text: prev.steps[idx]?.text || "",
       })),
-      repeatTimes: source.repeatTimes,
-      repeatEvery: source.repeatEvery,
+      repeatTimes,
+      repeatEvery,
       stopOn: [...source.stopOn],
     }));
   }
@@ -360,7 +364,8 @@ export function ActionRuleForm({
   const targetValid = (cfg: TargetConfig) => {
     const stepsOk = cfg.steps.every(st => st.text.trim() && (st.channel === "whatsapp" || st.subject.trim()));
     const stopOk = !isRem || cfg.stopOn.length > 0;
-    return stepsOk && stopOk;
+    const totalOk = !isRem || cfg.steps.length + repeatTimes * repeatPerDay <= 60;
+    return stepsOk && stopOk && totalOk;
   };
 
   const doAlsoValid = doAlso.every(d => d.type !== "add_lead_note" || (d.note || "").trim().length > 0);
@@ -394,7 +399,7 @@ export function ActionRuleForm({
           subject: st.channel === "whatsapp" ? "" : st.subject.trim(),
           text: st.text.trim(),
         })),
-        repeat: isRem && cfg.repeatTimes > 0 ? { times: cfg.repeatTimes, everyDays: cfg.repeatEvery } : { times: 0, everyDays: 2 },
+        repeat: isRem && repeatTimes > 0 ? { times: repeatTimes, everyDays: repeatEvery, perDay: repeatPerDay } : { times: 0, everyDays: 2, perDay: 1 },
         stopOn: isRem ? cfg.stopOn : [],
         doAlso: who === "customer" || targets.length === 1 ? doAlso.map(d => ({ type: d.type, ...(d.type === "change_lead_stage" ? { stage: d.stage || "Positive" } : {}), ...(d.type === "add_lead_note" ? { note: (d.note || "").trim() } : {}) })) : [],
         control: controlOverride,
@@ -744,39 +749,58 @@ export function ActionRuleForm({
             )}
 
             {isRem && !adminUniversal && (
-              <>
-                <div className={s.factRow}>
-                  <dt>Repeat ({who})</dt>
-                  <dd>
-                    <label>Repeat <input type="number" min={0} max={10} value={cfg.repeatTimes} style={{ width: 60 }}
-                      onChange={e => updateTarget(who, p => ({ ...p, repeatTimes: Math.max(0, Number(e.target.value || 0)) }))} /> times</label>
-                    {cfg.repeatTimes > 0 && (
-                      <label>every <input type="number" min={1} max={90} value={cfg.repeatEvery} style={{ width: 60 }}
-                        onChange={e => updateTarget(who, p => ({ ...p, repeatEvery: Math.max(1, Number(e.target.value || 1)) }))} /> days</label>
-                    )}
-                  </dd>
-                </div>
-
-                <div className={s.factRow}>
-                  <dt>Stop when ({who}) <InfoTip label="Stop when"><p>Stops immediately when the stop action happens for the same record, and also re-checks the database right before every send.</p></InfoTip></dt>
-                  <dd style={{ display: "grid", gap: 4 }}>
-                    {STOP_CHOICES.map(item => (
-                      <label key={item.key} style={{ cursor: "pointer" }}>
-                        <input type="checkbox" checked={cfg.stopOn.includes(item.key)}
-                          onChange={() => updateTarget(who, p => ({ ...p, stopOn: p.stopOn.includes(item.key) ? p.stopOn.filter(k => k !== item.key) : [...p.stopOn, item.key] }))} /> {item.label}
-                      </label>
-                    ))}
-                    {cfg.stopOn.length === 0 && <span style={{ color: "crimson", fontSize: 12 }}>Select at least one stop action.</span>}
-                  </dd>
-                </div>
-              </>
+              <div className={s.factRow}>
+                <dt>Stop when ({who}) <InfoTip label="Stop when"><p>Stops immediately when the stop action happens for the same record, and also re-checks the database right before every send.</p></InfoTip></dt>
+                <dd style={{ display: "grid", gap: 4 }}>
+                  {STOP_CHOICES.map(item => (
+                    <label key={item.key} style={{ cursor: "pointer" }}>
+                      <input type="checkbox" checked={cfg.stopOn.includes(item.key)}
+                        onChange={() => updateTarget(who, p => ({ ...p, stopOn: p.stopOn.includes(item.key) ? p.stopOn.filter(k => k !== item.key) : [...p.stopOn, item.key] }))} /> {item.label}
+                    </label>
+                  ))}
+                  {cfg.stopOn.length === 0 && <span style={{ color: "crimson", fontSize: 12 }}>Select at least one stop action.</span>}
+                </dd>
+              </div>
             )}
           </dl>
         );
       })}
 
-      {/* Do also, Control & Preview */}
+      {/* Shared Repeat, Do also, Control & Preview */}
       <dl className={s.facts}>
+        {isRem && (
+          <div className={s.factRow}>
+            <dt>Repeat (last message) <InfoTip label="Repeat"><p>Repeats the last message for {targets.length > 1 ? "both Customer and Admin" : targets[0] === "admin" ? "Admin" : "Customer"} until a stop action happens.</p></InfoTip></dt>
+            <dd style={{ display: "grid", gap: 6 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                <label>Repeat <input type="number" min={0} max={60} value={repeatTimes} style={{ width: 64 }}
+                  onChange={e => setRepeatTimes(Math.min(60, Math.max(0, Number(e.target.value || 0))))} /> times</label>
+                {repeatTimes > 0 && (
+                  <>
+                    <label>every <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
+                      onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} /> days</label>
+                    <label>
+                      <select value={repeatPerDay} onChange={e => setRepeatPerDay(Number(e.target.value || 1))}>
+                        <option value={1}>1 time a day</option>
+                        <option value={2}>2 times a day (every 12h)</option>
+                        <option value={3}>3 times a day (every 8h)</option>
+                        <option value={4}>4 times a day (every 6h)</option>
+                      </select>
+                    </label>
+                  </>
+                )}
+              </div>
+              {repeatTimes > 0 && (
+                <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+                  Repeats the last message {repeatTimes} time{repeatTimes === 1 ? "" : "s"}, every {repeatEvery} day{repeatEvery === 1 ? "" : "s"}, {repeatPerDay}x/day ({repeatTimes * repeatPerDay} extra send{repeatTimes * repeatPerDay === 1 ? "" : "s"} over {repeatTimes * repeatEvery} day{repeatTimes * repeatEvery === 1 ? "" : "s"}{targets.length > 1 ? " — applies to both Customer & Admin" : ""}).
+                </span>
+              )}
+              {targets.some(w => (w === "customer" ? customerCfg : resolvedAdminCfg()).steps.length + repeatTimes * repeatPerDay > 60) && (
+                <span style={{ color: "crimson", fontSize: 12 }}>Total messages (steps + repeats) cannot exceed 60 per receiver.</span>
+              )}
+            </dd>
+          </div>
+        )}
         <div className={s.factRow}>
           <dt>6. Do also (optional) <InfoTip label="Do also"><p>Fixed automatic steps that run right after the first message goes out (never touches Matured/Won leads&apos; stage).</p></InfoTip></dt>
           <dd style={{ display: "grid", gap: 8 }}>
@@ -841,7 +865,7 @@ export function ActionRuleForm({
                 <div key={who}>
                   <strong>{currentRow?.title || "Choose an action"}</strong> → {who === "admin" ? "Admin" : "Customer"} · {when}
                   {condText ? ` · ${condText}` : ""}{scopeText ? ` · ${scopeText}` : ""}
-                  {isRem && cfg.repeatTimes > 0 ? ` · repeat ${cfg.repeatTimes}x every ${cfg.repeatEvery}d` : ""}
+                  {isRem && repeatTimes > 0 ? ` · repeat ${repeatTimes}x every ${repeatEvery}d${repeatPerDay > 1 ? ` (${repeatPerDay}x/day)` : ""}` : ""}
                   {isRem && cfg.stopOn.length ? ` · stop when ${cfg.stopOn.map(k => STOP_CHOICES.find(c => c.key === k)?.label || k).join(", ")}` : ""}
                   {(who === "customer" || targets.length === 1) && doAlso.length > 0 ? ` · then ${doAlso.map(d => d.type === "change_lead_stage" ? `stage → ${LEAD_STAGES.find(l => l.value === d.stage)?.label || d.stage}` : d.type === "add_lead_note" ? "add note" : "stop reminders").join(", ")}` : ""}
                   {` · ${control === "auto" ? "Auto" : control === "review" ? "Review" : "Off"}`}
