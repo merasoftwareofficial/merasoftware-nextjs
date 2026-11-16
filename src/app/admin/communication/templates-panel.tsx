@@ -38,12 +38,14 @@ export function TemplatesPanel({
 }) {
   const [data, setData] = useState<ActionsData | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
   const [newRule, setNewRule] = useState(false);
   const [editingRule, setEditingRule] = useState<ActionRuleRecord | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -181,6 +183,44 @@ export function TemplatesPanel({
     }
   }
 
+  async function runMigrate() {
+    setMigrating(true);
+    setError("");
+    setNotice("");
+    try {
+      const previewRes = await fetch("/api/auto-reply/action-rules/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+        cache: "no-store",
+      });
+      const previewJson = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(previewJson.error || previewJson.message || "Could not preview migration.");
+      const p = previewJson.data || {};
+      const count = Number(p.migrated || 0);
+      if (count === 0) {
+        setNotice(`All supported built-in templates are already migrated (${Number(p.skipped || 0)} skipped).`);
+        return;
+      }
+      if (!window.confirm(`Migrate ${count} built-in item(s) to Action rules? (${Number(p.skipped || 0)} already migrated will be skipped.)`)) return;
+      const applyRes = await fetch("/api/auto-reply/action-rules/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+        cache: "no-store",
+      });
+      const applyJson = await applyRes.json().catch(() => ({}));
+      if (!applyRes.ok) throw new Error(applyJson.error || applyJson.message || "Migration failed.");
+      const a = applyJson.data || {};
+      setNotice(`Migration complete: ${Number(a.migrated || 0)} migrated, ${Number(a.skipped || 0)} already existed.`);
+      reload();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Migration failed.");
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   if (editingRule) {
     return (
       <section hidden={!active}>
@@ -214,11 +254,17 @@ export function TemplatesPanel({
         All automatic message templates from Actions (plus any remaining built-in templates) in one place. Adding or editing here updates Actions directly.
       </p>
       {error && <p className={styles.error} role="alert">{error}</p>}
+      {notice && <p role="status" className={c.notice}>{notice}</p>}
 
       {!data ? !error && <Loader label="Loading automatic messages…" /> : (
         <>
           <div className={styles.actions} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             <button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add automatic message</button>
+            {builtInEntries.length > 0 && (
+              <button type="button" disabled={migrating} onClick={() => void runMigrate()}>
+                {migrating ? "Migrating…" : `Migrate built-in templates (${builtInEntries.length})`}
+              </button>
+            )}
           </div>
 
           <div role="tablist" aria-label="Filter automatic messages by status" className={c.segment}>
