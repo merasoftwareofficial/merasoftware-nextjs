@@ -256,7 +256,13 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["whatsapp-queue:history", <WhatsappPanel key="h" view="messages" show={historyShow} active={part("whatsapp-queue:history").shown} />],
     ];
     const emailParts: [string, React.ReactNode][] = apps.flatMap(app => [
-      [`email-templates:${app}`, <EmailControlPanel workspace key={`t-${app}`} initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: 'reminders', tab: null, app: null })} />],
+      [`email-templates:${app}`, <div key={`t-${app}`}>
+        <div className={s.workToolbar}>
+          <p>Migrated message templates are now managed in <strong>Actions</strong>.</p>
+          <button type="button" className="admin-action" onClick={() => go({ panel: "actions", tab: null, app: null })}>Open Actions →</button>
+        </div>
+        <EmailControlPanel workspace initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: 'reminders', tab: null, app: null })} />
+      </div>],
       [`email-review:${app}`, <EmailControlPanel workspace key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
     ] as [string, React.ReactNode][]);
     return <>
