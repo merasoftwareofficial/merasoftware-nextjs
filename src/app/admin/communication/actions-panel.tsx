@@ -92,6 +92,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showScheduled, setShowScheduled] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const [migrating, setMigrating] = useState(false);
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -221,6 +222,45 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     }
   }
 
+  async function runMigrate() {
+    setMigrating(true);
+    setError("");
+    setNotice("");
+    try {
+      const previewRes = await fetch("/api/auto-reply/action-rules/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+        cache: "no-store",
+      });
+      const previewData = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(previewData.error || previewData.message || "Could not preview migration.");
+      const preview = previewData.data || {};
+      const migrated = Number(preview.migrated || 0);
+      const disabledLegacy = Number(preview.disabledLegacy || 0);
+      if (migrated === 0 && disabledLegacy === 0) {
+        setNotice("No legacy reminders left to migrate.");
+        return;
+      }
+      if (!window.confirm(`Migrate ${migrated} legacy reminder rule(s) to Action rules and turn off ${disabledLegacy} active legacy rule(s)?`)) return;
+      const applyRes = await fetch("/api/auto-reply/action-rules/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+        cache: "no-store",
+      });
+      const applyData = await applyRes.json().catch(() => ({}));
+      if (!applyRes.ok) throw new Error(applyData.error || applyData.message || "Migration failed.");
+      const applied = applyData.data || {};
+      setNotice(`Migrated ${Number(applied.migrated || 0)} rule(s), disabled ${Number(applied.disabledLegacy || 0)} active legacy rule(s), and cancelled ${Number(applied.cancelledRuns || 0)} pending legacy run(s).`);
+      reloadActions();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not run migration.");
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   async function toggleRuleEnabled(rule: ActionRuleRecord) {
     const id = rule._id || rule.id;
     if (!id) return;
@@ -326,6 +366,9 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
         <button type="button" onClick={() => setShowScheduled(true)}>Scheduled reminders</button>
         <button type="button" disabled={cleaning} onClick={() => void runCleanup()}>
           {cleaning ? "Cleaning…" : "Clean up duplicates"}
+        </button>
+        <button type="button" disabled={migrating} onClick={() => void runMigrate()}>
+          {migrating ? "Migrating…" : "Migrate legacy reminders"}
         </button>
       </div>
 
