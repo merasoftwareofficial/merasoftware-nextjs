@@ -6,6 +6,7 @@ import { Loader } from "@/app/admin/email-control/loader";
 import { phoneLabel } from "@/app/admin/whatsapp/whatsapp-panel";
 import { formatIndiaDate } from "@/lib/date-time";
 import s from "./broadcast.module.css";
+import c from "./actions-panel.module.css";
 import a from "./auto-reply.module.css";
 
 type Reply = { _id: string; phone: string | null; name: string; subjectKind?: "lead" | "client"; lastReplyAt?: string; lastReplyText?: string };
@@ -25,7 +26,7 @@ const CHOICES: { id: Choice; label: string; done: string }[] = [
   { id: "keep", label: "Keep Negative", done: "Kept in Negative." },
 ];
 
-// The wait, what doesn't count as a reply, and the replies waiting for the admin. The message is the "Final message" action in Message Templates, and goes from the portal's review popup.
+// The wait, what doesn't count as a reply, and the replies waiting for the admin. The message is the "Final message" action in Actions / Automatic messages, and goes from the portal's review popup.
 export function FinalMessagePanel({ active = true }: { active?: boolean }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [draft, setDraft] = useState<string | null>(null); // null = not being edited
@@ -70,18 +71,28 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
       <h3>Needs decision{status ? ` (${status.needsDecision.length.toLocaleString("en-IN")})` : ""}</h3>
       {lines.length > 0 && <p className={s.note}>{lines.map(([count, label]) => `${count.toLocaleString("en-IN")} ${label}`).join(" · ")}</p>}
       {!status ? <Loader label="Loading…" /> : !status.needsDecision.length ? <p className={s.note}>No replies waiting for you.</p>
-        : <ul>{status.needsDecision.map(row => <li key={row._id}>
-            <div className={a.who}>
-              <strong>{row.name || (row.phone ? phoneLabel(row.phone) : "No name")}</strong>
-              <span>{row.subjectKind === "client" ? "Matured client" : "Lead"}</span>
-              {row.name && row.phone && <span>{phoneLabel(row.phone)}</span>}
-              {row.lastReplyAt && <time>{formatIndiaDate(row.lastReplyAt, { year: undefined, hour: "numeric", minute: "2-digit", hour12: true })}</time>}
-            </div>
-            <p>{row.lastReplyText || "Message"}</p>
-            <div className={s.actions}>
-              {CHOICES.map(choice => <button key={choice.id} type="button" disabled={busy} onClick={() => void decide(row, choice)}>{choice.label}</button>)}
-            </div>
-          </li>)}</ul>}
+        : <div className={c.tableWrap}>
+            <table className={c.table}>
+              <thead><tr><th>Person</th><th>Reply</th><th>Time</th><th>Decision</th></tr></thead>
+              <tbody>
+                {status.needsDecision.map(row => (
+                  <tr key={row._id}>
+                    <td>
+                      <strong>{row.name || (row.phone ? phoneLabel(row.phone) : "No name")}</strong>
+                      <div className={s.subMeta}>{row.subjectKind === "client" ? "Matured client" : "Lead"}{row.name && row.phone ? ` · ${phoneLabel(row.phone)}` : ""}</div>
+                    </td>
+                    <td>{row.lastReplyText || "Message"}</td>
+                    <td className={s.subMeta}>{row.lastReplyAt ? formatIndiaDate(row.lastReplyAt, { year: undefined, hour: "numeric", minute: "2-digit", hour12: true }) : "—"}</td>
+                    <td>
+                      <div className={c.rowActions}>
+                        {CHOICES.map(choice => <button key={choice.id} type="button" className={c.smallBtn} disabled={busy} onClick={() => void decide(row, choice)}>{choice.label}</button>)}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
     </div>
 
     <label className={s.field}>Time limit, in hours
@@ -100,6 +111,6 @@ export function FinalMessagePanel({ active = true }: { active?: boolean }) {
       <button type="button" disabled={busy || !status || ignoredDraft === null || ignoredDraft === savedIgnored} onClick={() => void saveIgnored()}>{busy ? "Working…" : "Save list"}</button>
     </div>
 
-    <p className={s.note}>Choose Send or Don&apos;t Send in the portal when a lead or client is marked Negative. For those already Negative, use Final message on the Leads page. Edit the words in Message Templates → Portal → Final message. Only WhatsApp and Both are followed; replies to email can&apos;t be read here. Every message goes through the WhatsApp queue.</p>
+    <p className={s.note}>Choose Send or Don&apos;t Send in the portal when a lead or client is marked Negative. For those already Negative, use Final message on the Leads page. Edit the words in Actions / Automatic messages → Final message. Only WhatsApp and Both are followed; replies to email can&apos;t be read here. Every message goes through the WhatsApp queue.</p>
   </section>;
 }

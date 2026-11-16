@@ -11,13 +11,6 @@
 .reply{min-width:0}
 .detected{border-top:1px solid var(--line);padding-top:16px}
 .detected h3{margin:0 0 10px;font-size:15px}
-.detected ul{display:grid;gap:10px;margin:0;padding:0;list-style:none}
-.detected li{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
-.detected li p{margin:0;font-size: var(--fs-ui);line-height:1.5;overflow-wrap:anywhere}
-.who{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-size: var(--fs-ui)}
-.who span,.who time{font-size: var(--fs-ui);color:var(--muted)}
-.who time{margin-left:auto}
 .tags{display:flex;flex-wrap:wrap;gap:6px}
 .tags span{padding:2px 8px;border-radius:999px;background:var(--surface);color:var(--muted);font-size: var(--fs-meta)}
 .tags span[data-tone=warn]{background:#f8dfdb;color:#8b2a21}
-@media(max-width:640px){.who time{margin-left:0;width:100%}}

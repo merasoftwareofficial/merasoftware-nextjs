@@ -8,6 +8,7 @@ import { Loader } from "@/app/admin/email-control/loader";
 import { phoneLabel } from "@/app/admin/whatsapp/whatsapp-panel";
 import { formatIndiaDate } from "@/lib/date-time";
 import s from "./broadcast.module.css";
+import c from "./actions-panel.module.css";
 import a from "./auto-reply.module.css";
 
 type Row = { _id: string; phone: string | null; text: string; profileName?: string | null; deliveredAs?: "notify" | "append"; sentAt?: string; createdAt: string; status: string; outcome?: string; replyStatus?: string; adMarker?: { externalAdReply?: boolean } };
@@ -110,23 +111,34 @@ export function AutoReplyPanel({ active = true, onOpenActions }: { active?: bool
       <h3>Recognised messages{counts ? ` (${counts.total.toLocaleString("en-IN")})` : ""}</h3>
       {counts && counts.total > 0 && <p className={s.note}>{counts.newLeads.toLocaleString("en-IN")} added to leads · {counts.repliesSent.toLocaleString("en-IN")} {counts.repliesSent === 1 ? "reply" : "replies"} sent · {counts.repliesWaiting.toLocaleString("en-IN")} waiting</p>}
       {!status ? <Loader label="Loading…" /> : !status.detected.rows.length ? <p className={s.note}>No messages recognised yet.</p>
-        : <ul>{status.detected.rows.map(row => <li key={row._id}>
-            <div className={a.who}>
-              <strong>{row.phone ? phoneLabel(row.phone) : "Number not found"}</strong>
-              {row.profileName && <span>{row.profileName}</span>}
-              <time>{formatIndiaDate(row.sentAt || row.createdAt, { year: undefined, hour: "numeric", minute: "2-digit", hour12: true })}</time>
-            </div>
-            <p>{row.text}</p>
-            <div className={a.tags}>
-              <span>{row.adMarker?.externalAdReply ? "From an ad" : "Ad not shown by WhatsApp"}</span>
-              {row.deliveredAs === "append" && <span>Arrived while the service was restarting</span>}
-              {row.status === "needs-attention" && <span data-tone="warn">Needs attention</span>}
-              {row.outcome && OUTCOME[row.outcome] && !row.replyStatus && <span>{OUTCOME[row.outcome]}</span>}
-              {row.outcome?.startsWith("lead") && row.replyStatus && <span>Added to leads</span>}
-              {row.outcome?.startsWith("updated") && row.replyStatus && <span>Lead updated</span>}
-              {row.replyStatus && REPLY[row.replyStatus] && <span>{REPLY[row.replyStatus]}</span>}
-            </div>
-          </li>)}</ul>}
+        : <div className={c.tableWrap}>
+            <table className={c.table}>
+              <thead><tr><th>Contact</th><th>Message</th><th>Time</th><th>Status &amp; outcome</th></tr></thead>
+              <tbody>
+                {status.detected.rows.map(row => (
+                  <tr key={row._id}>
+                    <td>
+                      <strong>{row.phone ? phoneLabel(row.phone) : "Number not found"}</strong>
+                      {row.profileName && <div className={s.subMeta}>{row.profileName}</div>}
+                    </td>
+                    <td>{row.text}</td>
+                    <td className={s.subMeta}>{formatIndiaDate(row.sentAt || row.createdAt, { year: undefined, hour: "numeric", minute: "2-digit", hour12: true })}</td>
+                    <td>
+                      <div className={a.tags}>
+                        <span>{row.adMarker?.externalAdReply ? "From an ad" : "Ad not shown by WhatsApp"}</span>
+                        {row.deliveredAs === "append" && <span>Arrived while the service was restarting</span>}
+                        {row.status === "needs-attention" && <span data-tone="warn">Needs attention</span>}
+                        {row.outcome && OUTCOME[row.outcome] && !row.replyStatus && <span>{OUTCOME[row.outcome]}</span>}
+                        {row.outcome?.startsWith("lead") && row.replyStatus && <span>Added to leads</span>}
+                        {row.outcome?.startsWith("updated") && row.replyStatus && <span>Lead updated</span>}
+                        {row.replyStatus && REPLY[row.replyStatus] && <span>{REPLY[row.replyStatus]}</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
     </div>
   </section>;
 }
