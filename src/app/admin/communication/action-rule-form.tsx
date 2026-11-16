@@ -12,13 +12,15 @@ import { InfoTip } from "./reminder-info";
 export type TimingRef = "after_action" | "before_due" | "on_due" | "after_due";
 export type RuleStep = {
   timingRef: TimingRef;
+  unit?: "days" | "hours";
   days: number;
+  hours?: number;
   channel: "whatsapp" | "email" | "both";
   subject: string;
   text: string;
 };
 export type RuleCondition = "anytime" | "unpaid" | "paid";
-export type RuleScopeKind = "all" | "monthly" | "one_time" | "package";
+export type RuleScopeKind = "all" | "monthly" | "one_time" | "package" | "offer_payment";
 export type DoAlsoType = "change_lead_stage" | "add_lead_note" | "stop_reminders";
 export type DoAlsoStep = { type: DoAlsoType; stage?: string; note?: string };
 export type RuleOrigin = "new" | "migrated" | "migrated_edited";
@@ -79,7 +81,12 @@ const STOP_CHOICES = [
   { key: "payment.received", label: "Payment received" },
   { key: "plan.started", label: "Plan started" },
   { key: "project.completed", label: "Project completed" },
+  { key: "project.created", label: "Project created" },
+  { key: "start_request.closed", label: "Start request closed" },
+  { key: "reservation.expired", label: "Reservation expired" },
+  { key: "reservation.start_requested", label: "Reservation start requested" },
   { key: "whatsapp.ad_received", label: "WhatsApp reply received" },
+  { key: "final_message.stopped", label: "Final message stopped" },
 ];
 const LEAD_STAGES = [
   { value: "Contacted", label: "Neutral" },
@@ -404,7 +411,9 @@ export function ActionRuleForm({
         scope,
         steps: cfg.steps.map(st => ({
           timingRef: isRem ? st.timingRef : "after_action",
-          days: isRem && st.timingRef !== "on_due" ? st.days : 0,
+          unit: isRem && st.unit === "hours" ? "hours" : "days",
+          days: isRem && st.timingRef !== "on_due" && st.unit !== "hours" ? st.days : 0,
+          hours: isRem && st.timingRef !== "on_due" && st.unit === "hours" ? (st.hours ?? 0) : 0,
           channel: st.channel,
           subject: st.channel === "whatsapp" ? "" : st.subject.trim(),
           text: st.text.trim(),
@@ -600,8 +609,12 @@ export function ActionRuleForm({
                 <option value="all">All packages &amp; plans</option>
                 <option value="monthly">Monthly plans only</option>
                 <option value="one_time">One-time packages only</option>
+                <option value="offer_payment">Offer payment orders (uses saved offsets)</option>
                 <option value="package">Specific package…</option>
               </select>
+              {scopeKind === "offer_payment" && (
+                <small style={{ color: "var(--muted)" }}>Timing follows each order&apos;s saved offer offsets; message, channel &amp; control apply from this rule.</small>
+              )}
               {scopeKind === "package" && (
                 packages.length > 0 ? (
                   <select value={packageSlug} onChange={e => setPackageSlug(e.target.value)}>
@@ -690,15 +703,46 @@ export function ActionRuleForm({
                         <>
                           <span style={{ fontSize: 12, fontWeight: 600 }}>When:</span>
                           {step.timingRef !== "on_due" && (
-                            <input type="number" min={0} max={365} value={step.days} style={{ width: 65 }}
-                              onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, days: Math.max(0, Number(e.target.value || 0)) } : st) }))} />
+                            <>
+                              <input
+                                type="number"
+                                min={0}
+                                max={step.unit === "hours" ? 720 : 365}
+                                value={step.unit === "hours" ? (step.hours ?? 0) : step.days}
+                                style={{ width: 65 }}
+                                onChange={e => {
+                                  const val = Math.max(0, Number(e.target.value || 0));
+                                  updateTarget(who, p => ({
+                                    ...p,
+                                    steps: p.steps.map((st, i) => i === idx ? (st.unit === "hours" ? { ...st, hours: val } : { ...st, days: val }) : st),
+                                  }));
+                                }}
+                              />
+                              <select
+                                value={step.unit === "hours" ? "hours" : "days"}
+                                onChange={e => {
+                                  const nextUnit = e.target.value as "days" | "hours";
+                                  updateTarget(who, p => ({
+                                    ...p,
+                                    steps: p.steps.map((st, i) => i === idx ? {
+                                      ...st,
+                                      unit: nextUnit,
+                                      ...(nextUnit === "hours" ? { hours: st.hours ?? st.days ?? 0 } : { days: st.days ?? st.hours ?? 0 }),
+                                    } : st),
+                                  }));
+                                }}
+                              >
+                                <option value="days">days</option>
+                                <option value="hours">hours</option>
+                              </select>
+                            </>
                           )}
                           <select value={step.timingRef}
                             onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, timingRef: e.target.value as TimingRef } : st) }))}>
-                            <option value="before_due">days before due date</option>
+                            <option value="before_due">before due / deadline</option>
                             <option value="on_due">on due date</option>
-                            <option value="after_due">days after due date</option>
-                            <option value="after_action">days after action</option>
+                            <option value="after_due">after due date</option>
+                            <option value="after_action">after action</option>
                           </select>
                         </>
                       )}

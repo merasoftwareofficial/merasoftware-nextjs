@@ -59,10 +59,12 @@ export function ReminderWorkDetail({ work, active, portalUrl, back, openMessage,
     )}
     {rule && <ReminderHistory compact key={work} active={active} source={work} />}
     {work === "offer_payment" && <>
+      {openActions && <div className={s.workToolbar}><p>Offer payment reminder messages are managed in <strong>Actions</strong>.</p><button type="button" className="admin-action" onClick={openActions}>Open in Actions →</button></div>}
       <OfferPaymentReminders compact portalUrl={portalUrl} active={active} openAction={() => openMessage("offer.payment.reminder")} />
       <LegacyReminderHistory compact source="offer_payment" active={active} defaultOpen title="Message history" openAction={openMessage} />
     </>}
     {work === "reservation" && <>
+      {openActions && <div className={s.workToolbar}><p>Reservation countdown &amp; team start alert rules are managed in <strong>Actions</strong>.</p><button type="button" className="admin-action" onClick={openActions}>Open in Actions →</button></div>}
       <ReservationPanel compact active={active} portalUrl={portalUrl} openAction={openMessage} />
       <LegacyReminderHistory compact source="reservation" active={active} defaultOpen title="Reservation message history" openAction={openMessage} />
       <LegacyReminderHistory compact source="package_request" active={active} defaultOpen title="Package start request history" openAction={openMessage} />
