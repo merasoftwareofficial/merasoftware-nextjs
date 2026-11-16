@@ -105,6 +105,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
   const [query, setQuery] = useState("");
   const [reminderSection, setReminderSection] = useState<"reminders" | "live" | "history">("reminders");
+  const [liveSection, setLiveSection] = useState<"offer" | "reservation">("offer");
   const [templateSection, setTemplateSection] = useState<"templates" | "legacy">("templates");
   const activeTemplateSection = view.event ? "legacy" : templateSection;
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
@@ -233,8 +234,16 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
           <RemindersPanel active={part("reminders").shown && reminderSection === "reminders"} />
         </div>
         <div hidden={reminderSection !== "live"}>
-          <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "live"} openAction={() => go({ panel: "actions", tab: null, app: null })} />
-          <ReservationPanel active={part("reminders").shown && reminderSection === "live"} portalUrl={portalUrl} openAction={() => go({ panel: "actions", tab: null, app: null })} />
+          <div className={s.subNav} role="group" aria-label="Live offer and reservation view">
+            <button type="button" aria-pressed={liveSection === "offer"} onClick={() => setLiveSection("offer")}>Offer Invoices</button>
+            <button type="button" aria-pressed={liveSection === "reservation"} onClick={() => setLiveSection("reservation")}>Offer Reservations</button>
+          </div>
+          <div hidden={liveSection !== "offer"}>
+            <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "live" && liveSection === "offer"} openAction={() => go({ panel: "actions", tab: null, app: null })} />
+          </div>
+          <div hidden={liveSection !== "reservation"}>
+            <ReservationPanel active={part("reminders").shown && reminderSection === "live" && liveSection === "reservation"} portalUrl={portalUrl} openAction={() => go({ panel: "actions", tab: null, app: null })} />
+          </div>
         </div>
         <div hidden={reminderSection !== "history"}>
           <ReminderHistory active={part("reminders").shown && reminderSection === "history"} />

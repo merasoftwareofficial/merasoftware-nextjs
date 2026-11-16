@@ -2,9 +2,10 @@
 
 import { useRef, useState } from "react";
 import styles from "../email-control/email-control.module.css";
+import c from "./actions-panel.module.css";
 
 export type ReminderControlSource = "reservation" | "reservation_team" | "package_request" | "offer_payment";
-export function ReminderPauseControl({ source, entityId, paused, label, onChanged }: { source: ReminderControlSource; entityId: string; paused: boolean; label: string; onChanged: () => Promise<void> }) {
+export function ReminderPauseControl({ source, entityId, paused, label, onChanged, compact = false }: { source: ReminderControlSource; entityId: string; paused: boolean; label: string; onChanged: () => Promise<void>; compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
@@ -19,6 +20,14 @@ export function ReminderPauseControl({ source, entityId, paused, label, onChange
       await onChanged();
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not update reminders."); }
     finally { pending.current = false; setBusy(false); }
+  }
+  if (compact) {
+    return <>
+      <button type="button" className={c.manage} disabled={busy} onClick={() => void change()}>
+        {busy ? "Saving…" : paused ? "Resume" : "Pause"}
+      </button>
+      {error && <span className={styles.error} role="alert">{error}</span>}
+    </>;
   }
   return <div>
     <div className={styles.actions}><span>{label.charAt(0).toUpperCase() + label.slice(1)}: {paused ? "Paused" : "On"}</span><button type="button" disabled={busy} onClick={() => void change()}>{busy ? "Saving…" : `${paused ? "Resume" : "Pause"} ${label}`}</button></div>
