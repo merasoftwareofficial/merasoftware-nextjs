@@ -49,7 +49,7 @@ export type ActionRuleRecord = {
 
 export type ConditionOption = { key: string; label: string };
 export type BuiltInInfo = {
-  templates: { event: string; label: string; app: "portal" | "website"; panel?: "email-templates" | "broadcast" }[];
+  templates: { event: string; label: string; app: "portal" | "website"; panel?: "email-templates" | "broadcast"; mode?: "auto" | "review" | "off"; active?: boolean }[];
   reminders: { panel: string; label: string }[];
 };
 export type FormActionOption = {
@@ -548,11 +548,11 @@ export function ActionRuleForm({
                 {currentRow.what && <div>{currentRow.what}</div>}
                 {currentRow.when && <div style={{ color: "var(--pn-muted, var(--muted))" }}>{currentRow.when}</div>}
                 <div style={{ fontFamily: "monospace", color: "var(--pn-muted, var(--muted))" }}>{currentRow.method} {currentRow.endpoint}</div>
-                {((currentRow.builtIn?.templates.length ?? 0) > 0 || (currentRow.builtIn?.reminders.length ?? 0) > 0) && (
+                {(((currentRow.builtIn?.templates.filter(t => t.active !== false && t.mode !== "off").length ?? 0) > 0) || (currentRow.builtIn?.reminders.length ?? 0) > 0) && (
                   <div style={{ marginTop: 4, padding: "6px 8px", borderRadius: 6, background: "color-mix(in srgb, #b26a00 12%, transparent)", color: "inherit" }}>
                     <strong>Built-in message already active:</strong>{" "}
                     {[
-                      ...(currentRow.builtIn?.templates.map(t => t.label) ?? []),
+                      ...(currentRow.builtIn?.templates.filter(t => t.active !== false && t.mode !== "off").map(t => t.label) ?? []),
                       ...(currentRow.builtIn?.reminders.map(r => r.label) ?? []),
                     ].join(", ")}. Adding a rule here sends alongside it.
                   </div>
@@ -844,7 +844,7 @@ export function ActionRuleForm({
                   </select>
                 )}
                 {step.type === "add_lead_note" && (
-                  <input type="text" placeholder="Note (e.g. Auto-replied to {name})" value={step.note || ""} maxLength={500} style={{ minWidth: 240 }}
+                  <input type="text" placeholder="Note (e.g. Auto-replied to {{name}})" value={step.note || ""} maxLength={500} style={{ minWidth: 240 }}
                     onChange={e => setDoAlso(prev => prev.map((it, i) => i === idx ? { ...it, note: e.target.value } : it))} />
                 )}
                 <button type="button" className={s.link} onClick={() => setDoAlso(prev => prev.filter((_, i) => i !== idx))}>Remove</button>

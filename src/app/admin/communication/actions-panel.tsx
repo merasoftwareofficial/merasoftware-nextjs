@@ -62,7 +62,7 @@ const MESSAGE_FILTERS: { id: MessageFilter; label: string }[] = [
 const COLUMNS = 9;
 const ruleStatus = (row: ActionRow) => {
   const rules = row.rules || [];
-  const builtInTemplates = row.builtIn?.templates?.length || 0;
+  const builtInTemplates = (row.builtIn?.templates || []).filter(t => t.active !== false && t.mode !== "off").length;
   const builtInReminders = row.builtIn?.reminders?.length || 0;
   return {
     template: rules.filter(r => r.kind === "template").length + builtInTemplates,
@@ -460,7 +460,7 @@ function ruleSummaryLine(rule: ActionRuleRecord) {
 
 function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) {
   const rules = row.rules || [];
-  const builtInCount = (row.builtIn?.templates?.length || 0) + (row.builtIn?.reminders?.length || 0);
+  const builtInCount = (row.builtIn?.templates || []).filter(t => t.active !== false && t.mode !== "off").length + (row.builtIn?.reminders?.length || 0);
   const parts: string[] = [];
   if (rules.length) {
     const autoCount = rules.filter(r => r.enabled && r.control === "auto").length;
@@ -645,7 +645,7 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
                     <div className={c.when}>Origin: <strong>Built-in (Old)</strong></div>
                   </td>
                   <td className={c.description}>{tpl.label} ({tpl.event})</td>
-                  <td>Built-in</td>
+                  <td>{tpl.mode === "off" || tpl.active === false ? "Built-in · Off" : tpl.mode === "auto" ? "Built-in · Auto" : tpl.mode === "review" ? "Built-in · Review" : "Built-in"}</td>
                   <td className={c.right}>
                     <button type="button" className={c.manage}
                       onClick={() => tpl.panel === "broadcast" ? onOpenPanel?.("broadcast") : onOpenTemplate?.(tpl.event, tpl.app)}>
