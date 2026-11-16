@@ -90,6 +90,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   const [detailActionId, setDetailActionId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [enrollingId, setEnrollingId] = useState<string | null>(null);
   const [showScheduled, setShowScheduled] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [migrating, setMigrating] = useState(false);
@@ -303,6 +304,48 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     }
   }
 
+  async function enrollPending(rule: ActionRuleRecord) {
+    const id = rule._id || rule.id;
+    if (!id) return;
+    setEnrollingId(id);
+    setError("");
+    setNotice("");
+    try {
+      const previewRes = await fetch(`/api/auto-reply/action-rules/${id}/enroll-pending`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+        cache: "no-store",
+      });
+      const previewData = await previewRes.json().catch(() => ({}));
+      if (!previewRes.ok) throw new Error(previewData.error || previewData.message || "Could not preview pending invoices.");
+      const preview = previewData.data || {};
+      const count = Number(preview.count || 0);
+      if (count === 0) {
+        setNotice("No pending unpaid invoices left to enroll for this rule.");
+        return;
+      }
+      const sampleText = Array.isArray(preview.samples) && preview.samples.length
+        ? `\nExamples:\n${preview.samples.map((s: { customer: string; amount: number }) => `• ${s.customer} (₹${Number(s.amount || 0).toLocaleString("en-IN")})`).join("\n")}`
+        : "";
+      if (!window.confirm(`Enroll ${count} pending unpaid invoice(s) into this reminder rule?${sampleText}\n\nOnly the latest due/overdue reminder will be sent (no burst of older steps).`)) return;
+      const applyRes = await fetch(`/api/auto-reply/action-rules/${id}/enroll-pending`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+        cache: "no-store",
+      });
+      const applyData = await applyRes.json().catch(() => ({}));
+      if (!applyRes.ok) throw new Error(applyData.error || applyData.message || "Could not enroll pending invoices.");
+      const applied = applyData.data || {};
+      setNotice(`Enrolled ${Number(applied.enrolled || 0)} pending unpaid invoice(s).`);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not enroll pending invoices.");
+    } finally {
+      setEnrollingId(null);
+    }
+  }
+
   if (showScheduled) {
     return (
       <section hidden={!active}>
@@ -342,12 +385,15 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           row={detailRow}
           togglingId={togglingId}
           deletingId={deletingId}
+          enrollingId={enrollingId}
+          notice={notice}
           error={error}
           onBack={() => setDetailActionId(null)}
           onAdd={() => setNewRuleFor(detailRow.id)}
           onEdit={rule => setEditingRule({ ...rule, actionId: detailRow.id })}
           onToggle={rule => void toggleRuleEnabled(rule)}
           onDelete={rule => void deleteRule(rule)}
+          onEnrollPending={rule => void enrollPending(rule)}
           onOpenTemplate={onOpenTemplate}
           onOpenPanel={onOpenPanel}
         />
@@ -523,16 +569,19 @@ function groupRulesByPair(rules: ActionRuleRecord[]): ActionRuleRecord[][] {
   return groups;
 }
 
-function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, onEdit, onToggle, onDelete, onOpenTemplate, onOpenPanel }: {
+function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, error, onBack, onAdd, onEdit, onToggle, onDelete, onEnrollPending, onOpenTemplate, onOpenPanel }: {
   row: ActionRow;
   togglingId: string | null;
   deletingId: string | null;
+  enrollingId: string | null;
+  notice: string;
   error: string;
   onBack: () => void;
   onAdd: () => void;
   onEdit: (rule: ActionRuleRecord) => void;
   onToggle: (rule: ActionRuleRecord) => void;
   onDelete: (rule: ActionRuleRecord) => void;
+  onEnrollPending: (rule: ActionRuleRecord) => void;
   onOpenTemplate?: (event: string, app: "portal" | "website") => void;
   onOpenPanel?: (panel: string) => void;
 }) {
@@ -555,6 +604,7 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
         <h3>{row.title} <span className={c.mono} style={{ fontSize: 13 }}>({row.id})</span></h3>
       </div>
       <p className={styles.muted}>{row.what}{row.when ? ` — ${row.when}` : ""}</p>
+      {notice && <p className={styles.notice} role="status">{notice}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}
 
       {!ruleGroups.length && !builtInTemplates.length && !builtInReminders.length ? (
@@ -627,6 +677,11 @@ function ActionDetailView({ row, togglingId, deletingId, error, onBack, onAdd, o
                               <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => onToggle(rule)}>
                                 {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
                               </button>
+                              {rule.kind === "reminder" && rule.action === "invoice.created" && rule.condition === "unpaid" && rule.enabled && rule.control !== "off" && (
+                                <button type="button" className={c.manage} disabled={enrollingId === rid} onClick={() => onEnrollPending(rule)}>
+                                  {enrollingId === rid ? "Checking…" : "Enroll pending"}
+                                </button>
+                              )}
                               <button type="button" className={c.manage} disabled={deletingId === rid} onClick={() => onDelete(rule)}>
                                 {deletingId === rid ? "Deleting…" : "Delete"}
                               </button>
