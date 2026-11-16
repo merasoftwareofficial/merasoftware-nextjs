@@ -142,6 +142,7 @@ export function ActionRuleForm({
   actions = [],
   initialActionId = "",
   editingRule = null,
+  defaultKind = "template",
   packages = [],
   onSaved,
   onBack,
@@ -149,6 +150,7 @@ export function ActionRuleForm({
   actions?: FormActionOption[];
   initialActionId?: string;
   editingRule?: ActionRuleRecord | null;
+  defaultKind?: "template" | "reminder";
   packages?: { slug: string; name: string }[];
   onSaved?: () => void;
   onBack: () => void;
@@ -179,7 +181,7 @@ export function ActionRuleForm({
   const [companionId, setCompanionId] = useState<string | null>(initialPartner?._id || initialPartner?.id || null);
   const [editingAudience, setEditingAudience] = useState<"customer" | "admin">(editingRule?.audience || "customer");
   const [activePairId, setActivePairId] = useState<string>(editingRule?.pairId || "");
-  const [kind, setKind] = useState<"template" | "reminder">(editingRule?.kind || "template");
+  const [kind, setKind] = useState<"template" | "reminder">(editingRule?.kind || defaultKind);
   const [selectedActionId, setSelectedActionId] = useState<string>(initialRow?.id || "");
   const [readyOnly, setReadyOnly] = useState<boolean>(initialRow ? !!initialRow.triggerKey : true);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");

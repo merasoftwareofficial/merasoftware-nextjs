@@ -19,8 +19,7 @@ import { OfferPaymentReminders } from "./offer-payment-reminders";
 import { LegacyReminderHistory } from "./legacy-reminder-history";
 import { BusinessActivity } from "./business-activity";
 import { ReminderHistory } from "./reminder-history";
-import { ReminderWorkList } from "./reminder-work-list";
-import { ReminderWorkDetail } from "./reminder-work-detail";
+import { RemindersPanel } from "./reminders-panel";
 import { ActionsPanel } from "./actions-panel";
 
 /**
@@ -104,8 +103,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [mounted, setMounted] = useState(() => new Set(view.panel ? [partOf(view)] : []));
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
   const [query, setQuery] = useState("");
-  const [reminderSection, setReminderSection] = useState<"work" | "rules" | "activity" | "existing">("work");
-  const [reminderWork, setReminderWork] = useState<"monthly_package" | "offer_payment" | "reservation" | "broadcast" | null>(null);
+  const [reminderSection, setReminderSection] = useState<"reminders" | "live" | "history">("reminders");
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
@@ -224,30 +222,20 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} onOpenActions={() => go({ panel: "actions", tab: null, app: null })} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
       ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
-      ["reminders", <section key="reminders" aria-label="Existing reminders">
+      ["reminders", <section key="reminders" aria-label="Reminders">
         <div className={s.subNav} role="group" aria-label="Reminder sections">
-          {([ ["work", "By work"], ["activity", "Reminder activity"], ["rules", "Rules"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
+          {([ ["reminders", "Reminders"], ["live", "Live Offer & Reservation"], ["history", "History"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
         </div>
-        <div hidden={reminderSection !== "work"}>
-          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={work => setReminderWork(work)} openActions={() => go({ panel: "actions", tab: null, app: null })} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} back={() => setReminderWork(null)}
-            openMessage={event => go({ panel: "email-templates", tab: "portal", app: null, event })} openBroadcast={() => go({ panel: "broadcast", tab: null, app: null })} openWhatsappHistory={() => go({ panel: "whatsapp-queue", tab: "history", app: null })} openActions={() => go({ panel: "actions", tab: null, app: null })} />}
+        <div hidden={reminderSection !== "reminders"}>
+          <RemindersPanel active={part("reminders").shown && reminderSection === "reminders"} />
         </div>
-        <div hidden={reminderSection !== "rules"}>
-          <p>Reminder rules have moved to the unified <strong>Actions</strong> system so every rule can be created, tracked, and edited in one place.</p>
-          <p><button type="button" className="admin-button" onClick={() => go({ panel: "actions", tab: null, app: null })}>Open Actions →</button></p>
+        <div hidden={reminderSection !== "live"}>
+          <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "live"} openAction={() => go({ panel: "actions", tab: null, app: null })} />
+          <ReservationPanel active={part("reminders").shown && reminderSection === "live"} portalUrl={portalUrl} openAction={() => go({ panel: "actions", tab: null, app: null })} />
         </div>
-        <div hidden={reminderSection !== "activity"}>
-          <ReminderHistory active={part("reminders").shown && reminderSection === "activity"} />
-          <LegacyReminderHistory source="all" defaultOpen active={part("reminders").shown && reminderSection === "activity"} title="Offer and reservation message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
-        </div>
-        <div hidden={reminderSection !== "existing"}>
-          <p>Existing reminder schedules continue to follow each offer&apos;s saved agreement and the reservation system. This is not a complete schedule of upcoming reminders.</p>
-          <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })}>Offer payment reminder settings →</button></p>
-          <p><button type="button" className={s.link} onClick={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.reservation.reminder" })}>Reservation reminder message →</button></p>
-          <p><button type="button" className={s.link} onClick={() => go({ panel: "whatsapp-queue", tab: "history", app: null })}>WhatsApp delivery history →</button></p>
-          <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "existing"} openAction={() => go({ panel: "email-templates", tab: "portal", app: null, event: "offer.payment.reminder" })} />
-          <LegacyReminderHistory source="all" active={part("reminders").shown && reminderSection === "existing"} title="All existing reminder message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
-          <ReservationPanel active={part("reminders").shown && reminderSection === "existing"} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
+        <div hidden={reminderSection !== "history"}>
+          <ReminderHistory active={part("reminders").shown && reminderSection === "history"} />
+          <LegacyReminderHistory source="all" defaultOpen active={part("reminders").shown && reminderSection === "history"} title="Offer and reservation message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
         </div>
       </section>],
       ["whatsapp-connection", <WhatsappPanel key="c" view="connection" active={part("whatsapp-connection").shown} />],

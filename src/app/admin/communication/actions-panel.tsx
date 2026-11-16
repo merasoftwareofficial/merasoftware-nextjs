@@ -5,7 +5,19 @@ import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import styles from "../email-control/email-control.module.css";
 import { Loader } from "../email-control/loader";
-import { ActionRuleForm, originLabel, type ActionRuleRecord, type BuiltInInfo } from "./action-rule-form";
+import { ActionRuleForm, originLabel, type ActionRuleRecord } from "./action-rule-form";
+import {
+  deleteActionRule,
+  enrollPendingActionRule,
+  groupRulesByPair,
+  rulePreviewText,
+  ruleStatusLabel,
+  ruleSummaryLine,
+  setActionRuleEnabled,
+  type ActionRow,
+  type ActionsData,
+  type ActionSurface as Surface,
+} from "./action-rule-helpers";
 import { ActionScheduledPanel } from "./action-scheduled-panel";
 import c from "./actions-panel.module.css";
 import s from "./communication.module.css";
@@ -16,29 +28,6 @@ import s from "./communication.module.css";
  * category headings (a part of the UI, such as Projects), each with its count and meaning.
  * The row itself is read-only: the tab and the heading change only from Manage.
  */
-type Surface = "Admin" | "Client" | "Website" | "System";
-type ActionRow = {
-  id: string;
-  title: string;
-  what: string;
-  when: string;
-  method: string;
-  endpoint: string;
-  note: string;
-  surface: Surface;
-  category: string;
-  archived: boolean;
-  deleted: boolean;
-  changed: boolean;
-  triggerKey?: string | null;
-  supportsScope?: boolean;
-  conditions?: { key: string; label: string }[];
-  builtIn?: BuiltInInfo;
-  rules?: ActionRuleRecord[];
-};
-type Category = { name: string; meaning: string };
-type PackageOption = { slug: string; name: string };
-type ActionsData = { actions: ActionRow[]; surfaces: Surface[]; categories: Category[]; packages?: PackageOption[] };
 type View = "all" | Surface | "archived" | "deleted";
 type Change = Record<string, unknown>;
 type MessageFilter = "all" | "template" | "reminder" | "none";
@@ -188,14 +177,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setTogglingId(id);
     setError("");
     try {
-      const response = await fetch(`/api/auto-reply/action-rules/${id}/enabled`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !rule.enabled }),
-        cache: "no-store",
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || result.message || "Could not update rule.");
+      await setActionRuleEnabled(id, !rule.enabled);
       reloadActions();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not update rule.");
@@ -210,12 +192,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setDeletingId(id);
     setError("");
     try {
-      const response = await fetch(`/api/auto-reply/action-rules/${id}/delete`, {
-        method: "POST",
-        cache: "no-store",
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || result.message || "Could not delete rule.");
+      await deleteActionRule(id);
       reloadActions();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not delete rule.");
@@ -231,34 +208,8 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setError("");
     setNotice("");
     try {
-      const previewRes = await fetch(`/api/auto-reply/action-rules/${id}/enroll-pending`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: true }),
-        cache: "no-store",
-      });
-      const previewData = await previewRes.json().catch(() => ({}));
-      if (!previewRes.ok) throw new Error(previewData.error || previewData.message || "Could not preview pending invoices.");
-      const preview = previewData.data || {};
-      const count = Number(preview.count || 0);
-      if (count === 0) {
-        setNotice("No pending unpaid invoices left to enroll for this rule.");
-        return;
-      }
-      const sampleText = Array.isArray(preview.samples) && preview.samples.length
-        ? `\nExamples:\n${preview.samples.map((s: { customer: string; amount: number }) => `• ${s.customer} (₹${Number(s.amount || 0).toLocaleString("en-IN")})`).join("\n")}`
-        : "";
-      if (!window.confirm(`Enroll ${count} pending unpaid invoice(s) into this reminder rule?${sampleText}\n\nOnly the latest due/overdue reminder will be sent (no burst of older steps).`)) return;
-      const applyRes = await fetch(`/api/auto-reply/action-rules/${id}/enroll-pending`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: false }),
-        cache: "no-store",
-      });
-      const applyData = await applyRes.json().catch(() => ({}));
-      if (!applyRes.ok) throw new Error(applyData.error || applyData.message || "Could not enroll pending invoices.");
-      const applied = applyData.data || {};
-      setNotice(`Enrolled ${Number(applied.enrolled || 0)} pending unpaid invoice(s).`);
+      const msg = await enrollPendingActionRule(id);
+      if (msg) setNotice(msg);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not enroll pending invoices.");
     } finally {
@@ -399,25 +350,6 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   </section>;
 }
 
-function ruleSummaryLine(rule: ActionRuleRecord) {
-  const who = rule.audience === "admin" ? "To Admin" : "To Customer";
-  const scope = rule.scope?.kind === "package" && rule.scope.packageSlug ? ` · ${rule.scope.packageSlug}`
-    : rule.scope?.kind === "monthly" ? " · Monthly"
-      : rule.scope?.kind === "one_time" ? " · One-time" : "";
-  const cond = rule.condition === "unpaid" ? " · If unpaid" : rule.condition === "paid" ? " · If paid" : "";
-  const timings = (rule.steps || []).map(st => {
-    if (rule.kind === "template") return "immediately";
-    if (st.timingRef === "on_due") return "on due date";
-    if (st.timingRef === "before_due") return `${st.days}d before due`;
-    if (st.timingRef === "after_due") return `${st.days}d after due`;
-    return st.days ? `after ${st.days}d` : "immediately";
-  }).join(", ");
-  const perDayText = (rule.repeat?.perDay || 1) > 1 ? ` (${rule.repeat?.perDay}x/day)` : "";
-  const repeat = rule.kind === "reminder" && rule.repeat?.times ? ` · repeat ${rule.repeat.times}x every ${rule.repeat.everyDays}d${perDayText}` : "";
-  const stop = rule.kind === "reminder" && rule.stopOn?.length ? ` · stops on ${rule.stopOn.join(", ")}` : "";
-  return `${who}${scope}${cond} · ${timings || "immediately"}${repeat}${stop}`;
-}
-
 function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) {
   const rules = row.rules || [];
   const builtInCount = (row.builtIn?.templates || []).filter(t => t.active !== false && t.mode !== "off").length + (row.builtIn?.reminders?.length || 0);
@@ -446,41 +378,6 @@ function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) 
       </button>
     </div>
   );
-}
-
-function ruleStatusLabel(rule: ActionRuleRecord) {
-  return !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
-}
-
-function rulePreviewText(rule: ActionRuleRecord) {
-  const raw = (rule.steps?.[0]?.text || "").replace(/\s+/g, " ").trim();
-  return raw.length > 90 ? `${raw.slice(0, 90)}…` : raw;
-}
-
-/** Groups Customer+Admin rules that share a non-empty `pairId` into one visual row (Customer first). */
-function groupRulesByPair(rules: ActionRuleRecord[]): ActionRuleRecord[][] {
-  const groups: ActionRuleRecord[][] = [];
-  const byPair = new Map<string, ActionRuleRecord[]>();
-  for (const rule of rules) {
-    const pid = (rule.pairId || "").trim();
-    if (!pid) {
-      groups.push([rule]);
-      continue;
-    }
-    const existing = byPair.get(pid);
-    if (existing) existing.push(rule);
-    else {
-      const bucket = [rule];
-      byPair.set(pid, bucket);
-      groups.push(bucket);
-    }
-  }
-  for (const bucket of groups) {
-    if (bucket.length > 1) {
-      bucket.sort((a, b) => (a.audience === "customer" ? 0 : 1) - (b.audience === "customer" ? 0 : 1));
-    }
-  }
-  return groups;
 }
 
 function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, error, onBack, onAdd, onEdit, onToggle, onDelete, onEnrollPending, onOpenTemplate, onOpenPanel }: {
