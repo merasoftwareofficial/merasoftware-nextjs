@@ -452,7 +452,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
             <article className={styles.card} key={row._id} style={{ padding: "10px 12px", gap: 10 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <strong>{row.subject}</strong>
-                <p style={{ margin: "2px 0", fontSize: 13 }}>{recipient}{snippet ? ` — ${snippet}${row.text && row.text.length > 120 ? "…" : ""}` : ""}</p>
+                <p style={{ margin: "2px 0", fontSize: "var(--fs-ui)" }}>{recipient}{snippet ? ` — ${snippet}${row.text && row.text.length > 120 ? "…" : ""}` : ""}</p>
                 <small>{data.events.find(event => event.key === row.event)?.label || row.event} · {row.status}</small>
                 {row.failure && <p className={styles.error}>{row.failure}</p>}
               </div>

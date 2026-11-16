@@ -347,7 +347,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       <div className={c.toolbar}>
         <input className={c.search} type="search" aria-label="Find an action" placeholder="Find by name, description or endpoint" value={query} onChange={event => setQuery(event.target.value)} />
         <select aria-label="Filter by category" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}
-          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--pn-line, var(--line))", background: "var(--pn-field, var(--paper))", color: "inherit", font: "inherit", fontSize: 13 }}>
+          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--pn-line, var(--line))", background: "var(--pn-field, var(--paper))", color: "inherit", font: "inherit", fontSize: "var(--fs-ui)" }}>
           <option value="all">All categories</option>
           {(data?.categories ?? []).map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
         </select>
@@ -515,7 +515,7 @@ function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, er
       </div>
 
       <div className={s.workToolbar}>
-        <h3>{row.title} <span className={c.mono} style={{ fontSize: 13 }}>({row.id})</span></h3>
+        <h3>{row.title} <span className={c.mono} style={{ fontSize: "var(--fs-ui)" }}>({row.id})</span></h3>
       </div>
       <p className={styles.muted}>{row.what}{row.when ? ` — ${row.when}` : ""}</p>
       {notice && <p className={styles.notice} role="status">{notice}</p>}

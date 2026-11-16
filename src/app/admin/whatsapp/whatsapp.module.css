@@ -9,7 +9,7 @@
 .toggle { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
 .toggle small { opacity:.7; }
 .fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
-.field { display:grid; gap:6px; align-content:start; font-size:14px; }
+.field { display:grid; gap:6px; align-content:start; font-size: var(--fs-ui); }
 .field > span:first-child { font-weight:600; }
 .field small { opacity:.7; line-height:1.5; font-size:12.5px; }
 .inputRow { display:flex; align-items:center; gap:8px; }

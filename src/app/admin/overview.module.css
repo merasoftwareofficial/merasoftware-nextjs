@@ -1,9 +1,9 @@
 .overview{min-width:0}
 .overview :global(.admin-page-header){display:flex;align-items:start;justify-content:space-between;gap:20px;margin-bottom:24px}
 .overview :global(.admin-page-header h1){font-size:32px;line-height:1.2;margin:8px 0}
-.overview :global(.admin-subtitle){font-size:14px;line-height:1.6;margin:0;max-width:600px}
+.overview :global(.admin-subtitle){font-size: var(--fs-ui);line-height:1.6;margin:0;max-width:600px}
 .actions{display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0}
-.actions a{font-size:13px;white-space:nowrap}
+.actions a{font-size: var(--fs-ui);white-space:nowrap}
 .section+.section{margin-top:24px}
 .section h2{font-size:18px;letter-spacing:0;margin:0 0 12px}
 .attention{border:1px solid var(--pn-line);border-radius:8px;overflow:hidden;background:var(--pn-card)}
@@ -11,15 +11,15 @@
 .pending+.pending{border-top:1px solid var(--pn-line)}
 .count{font-size:24px;min-width:40px;color:var(--pn-accent);font-variant-numeric:tabular-nums}
 .detail{display:grid;gap:5px;min-width:0}
-.detail strong{font-size:14px;font-weight:650}
-.detail>span,.empty,.summaryNote{font-size:14px;color:var(--pn-muted);line-height:1.5}
-.destination{margin-left:auto;font-size:13px;color:var(--pn-accent);white-space:nowrap}
+.detail strong{font-size: var(--fs-ui);font-weight:650}
+.detail>span,.empty,.summaryNote{font-size: var(--fs-ui);color:var(--pn-muted);line-height:1.5}
+.destination{margin-left:auto;font-size: var(--fs-ui);color:var(--pn-accent);white-space:nowrap}
 .empty{padding:16px 18px;background:var(--pn-card);border:1px solid var(--pn-line);border-radius:8px;margin:0}
 .shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .shortcut{display:flex;justify-content:space-between;align-items:start;gap:12px;padding:16px;background:var(--pn-card);border:1px solid var(--pn-line);border-radius:8px;color:var(--pn-text)}
 .arrow{color:var(--pn-accent)}
 .summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.summary>a,.summary>div{display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--pn-card);border:1px solid var(--pn-line);border-radius:8px;color:var(--pn-text);font-size:14px}
+.summary>a,.summary>div{display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--pn-card);border:1px solid var(--pn-line);border-radius:8px;color:var(--pn-text);font-size: var(--fs-ui)}
 .summary strong{font-size:24px;font-variant-numeric:tabular-nums}
 .summaryNote{display:block;margin-top:3px}
 .summary .arrow{margin-left:auto}

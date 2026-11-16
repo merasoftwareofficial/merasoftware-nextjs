@@ -475,7 +475,7 @@ export function ActionRuleForm({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <button type="button" className={s.link} onClick={onBack}>← Back to Actions</button>
         {editingId && (
-          <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+          <span style={{ fontSize: "var(--fs-meta)", color: "var(--pn-muted, var(--muted))" }}>
             Origin: <strong>{originLabel(editingRule?.origin)}</strong>
             {editingRule?.createdAt ? ` · Created ${formatIndiaDateTime(editingRule.createdAt)}` : ""}
             {editingRule?.updatedAt ? ` · Edited ${formatIndiaDateTime(editingRule.updatedAt)}` : ""}
@@ -488,8 +488,8 @@ export function ActionRuleForm({
         <h3>{editingId ? `Edit ${kind} — ${currentRow?.title || selectedActionId}` : "Add message or reminder"}</h3>
       </div>
 
-      {error && <p style={{ color: "crimson", margin: 0, fontSize: 13 }} role="alert">{error}</p>}
-      {notice && <p style={{ color: "var(--brand-link)", margin: 0, fontSize: 13 }} role="status">{notice}</p>}
+      {error && <p style={{ color: "crimson", margin: 0, fontSize: "var(--fs-ui)" }} role="alert">{error}</p>}
+      {notice && <p style={{ color: "var(--brand-link)", margin: 0, fontSize: "var(--fs-ui)" }} role="status">{notice}</p>}
 
       {existingRules.length > 0 && (
         <div className={s.facts}>
@@ -533,7 +533,7 @@ export function ActionRuleForm({
               </select>
               <input type="search" aria-label="Search action" placeholder="Search by name, description, ID or endpoint…"
                 value={actionSearch} onChange={e => setActionSearch(e.target.value)} style={{ flex: "1 1 220px", minWidth: 180 }} />
-              <label style={{ fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <label style={{ fontSize: "var(--fs-meta)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
                 <input type="checkbox" checked={readyOnly} onChange={e => setReadyOnly(e.target.checked)} /> Ready for rules only
               </label>
             </div>
@@ -552,7 +552,7 @@ export function ActionRuleForm({
             </select>
 
             {currentRow && (
-              <div style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, display: "grid", gap: 3 }}>
+              <div style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", display: "grid", gap: 3 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                   <strong>{currentRow.category || "Action"} · {currentRow.id}</strong>
                   <span style={{ color: currentRow.triggerKey ? "var(--brand-link)" : "crimson", fontWeight: 600 }}>
@@ -583,7 +583,7 @@ export function ActionRuleForm({
             <label style={{ cursor: "pointer" }}><input type="radio" name="audience" checked={audienceChoice === "admin"} onChange={() => setAudienceChoice("admin")} /> Admin / Team</label>
             <label style={{ cursor: "pointer" }}><input type="radio" name="audience" checked={audienceChoice === "both"} onChange={() => setAudienceChoice("both")} /> Both (different messages)</label>
             {audienceChoice === "both" && (
-              <span style={{ display: "block", width: "100%", fontSize: 12, color: "var(--pn-muted, var(--muted))", marginTop: 4 }}>
+              <span style={{ display: "block", width: "100%", fontSize: "var(--fs-meta)", color: "var(--pn-muted, var(--muted))", marginTop: 4 }}>
                 Saves 2 separate rules (one for Customer, one for Admin) so each can be edited or paused independently.
               </span>
             )}
@@ -631,7 +631,7 @@ export function ActionRuleForm({
 
       {/* Placeholders helper */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <strong style={{ fontSize: 14 }}>5. Messages &amp; timing</strong>
+        <strong style={{ fontSize: "var(--fs-text)" }}>5. Messages &amp; timing</strong>
         <button type="button" className={s.link} onClick={() => setShowPlaceholders(v => !v)}>
           {showPlaceholders ? "Hide placeholders" : "(i) Show placeholders"}
         </button>
@@ -640,7 +640,7 @@ export function ActionRuleForm({
         <div className={s.facts} style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
           {PLACEHOLDERS.map(ph => (
             <button key={ph} type="button" onMouseDown={e => e.preventDefault()} onClick={() => insertPlaceholder(ph)}
-              style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontFamily: "monospace", fontSize: 12, cursor: "pointer" }}>
+              style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontFamily: "monospace", fontSize: "var(--fs-meta)", cursor: "pointer" }}>
               {ph}
             </button>
           ))}
@@ -659,7 +659,7 @@ export function ActionRuleForm({
               <dt>{label}</dt>
               <dd style={{ display: "grid", gap: 12, width: "100%" }}>
                 {who === "admin" && isRem && (audienceChoice === "both" || existingCustomerRem) && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)" }}>
                     {audienceChoice === "both" && (
                       <>
                         <label style={{ cursor: "pointer" }}>
@@ -690,7 +690,7 @@ export function ActionRuleForm({
                 {visibleSteps.map((step, idx) => (
                   <div key={idx} style={{ display: "grid", gap: 8, padding: 10, border: "1px solid var(--line)", borderRadius: 8 }}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
-                      <strong style={{ fontSize: 12 }}>{adminUniversal ? "Universal Admin message (all Customer timings)" : isRem ? `Message ${idx + 1}` : "Message"}</strong>
+                      <strong style={{ fontSize: "var(--fs-meta)" }}>{adminUniversal ? "Universal Admin message (all Customer timings)" : isRem ? `Message ${idx + 1}` : "Message"}</strong>
                       {isRem && !adminUniversal && cfg.steps.length > 1 && (
                         <button type="button" className={s.link} onClick={() => updateTarget(who, p => ({ ...p, steps: p.steps.filter((_, i) => i !== idx) }))}>
                           Remove
@@ -701,7 +701,7 @@ export function ActionRuleForm({
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                       {isRem && !adminUniversal && (
                         <>
-                          <span style={{ fontSize: 12, fontWeight: 600 }}>When:</span>
+                          <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>When:</span>
                           {step.timingRef !== "on_due" && (
                             <>
                               <input
@@ -747,7 +747,7 @@ export function ActionRuleForm({
                         </>
                       )}
 
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>Via:</span>
+                      <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>Via:</span>
                       <select value={step.channel}
                         onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, channel: e.target.value as RuleStep["channel"] } : st) }))}>
                         <option value="whatsapp">WhatsApp only</option>
@@ -763,17 +763,17 @@ export function ActionRuleForm({
 
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} role="toolbar" aria-label="Text formatting">
                       <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => formatStepText(who, idx, "bold")}
-                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", fontWeight: 700, cursor: "pointer" }}
                         title="Bold (works in Email & WhatsApp)">
                         B
                       </button>
                       <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => formatStepText(who, idx, "italic")}
-                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, fontStyle: "italic", cursor: "pointer" }}
+                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", fontStyle: "italic", cursor: "pointer" }}
                         title="Italic (works in Email & WhatsApp)">
                         I
                       </button>
                       <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => formatStepText(who, idx, "list")}
-                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: 12, cursor: "pointer" }}
+                        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", cursor: "pointer" }}
                         title="Bullet list">
                         • List
                       </button>
@@ -799,7 +799,7 @@ export function ActionRuleForm({
             {isRem && adminUniversal && (
               <div className={s.factRow}>
                 <dt>Timing &amp; Stop</dt>
-                <dd style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+                <dd style={{ fontSize: "var(--fs-meta)", color: "var(--pn-muted, var(--muted))" }}>
                   Uses the same {customerCfg.steps.length} timing step{customerCfg.steps.length === 1 ? "" : "s"}, repeat, and stop conditions as Customer.
                 </dd>
               </div>
@@ -815,7 +815,7 @@ export function ActionRuleForm({
                         onChange={() => updateTarget(who, p => ({ ...p, stopOn: p.stopOn.includes(item.key) ? p.stopOn.filter(k => k !== item.key) : [...p.stopOn, item.key] }))} /> {item.label}
                     </label>
                   ))}
-                  {cfg.stopOn.length === 0 && <span style={{ color: "crimson", fontSize: 12 }}>Select at least one stop action.</span>}
+                  {cfg.stopOn.length === 0 && <span style={{ color: "crimson", fontSize: "var(--fs-meta)" }}>Select at least one stop action.</span>}
                 </dd>
               </div>
             )}
@@ -831,23 +831,23 @@ export function ActionRuleForm({
             <dd style={{ display: "grid", gap: 6 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
                 <label style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>For (days)</span>
+                  <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>For (days)</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <input type="number" min={0} max={180} value={repeatForDays} style={{ width: 64 }}
                       onChange={e => setRepeatForDays(Math.min(180, Math.max(0, Number(e.target.value || 0))))} />
-                    <span>days <span style={{ fontSize: 11, color: "var(--pn-muted, var(--muted))" }}>(0 = off)</span></span>
+                    <span>days <span style={{ fontSize: "var(--fs-tag)", color: "var(--pn-muted, var(--muted))" }}>(0 = off)</span></span>
                   </span>
                 </label>
                 <label style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Every (days)</span>
+                  <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>Every (days)</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
                       onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} />
-                    <span>days <span style={{ fontSize: 11, color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
+                    <span>days <span style={{ fontSize: "var(--fs-tag)", color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
                   </span>
                 </label>
                 <label style={{ display: "grid", gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Per day</span>
+                  <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>Per day</span>
                   <select value={repeatPerDay} onChange={e => setRepeatPerDay(Number(e.target.value || 1))}>
                     <option value={1}>1x / day</option>
                     <option value={2}>2x / day (12h)</option>
@@ -857,15 +857,15 @@ export function ActionRuleForm({
                 </label>
               </div>
               {repeatForDays > 0 && repeatTimes > 0 && (
-                <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+                <span style={{ fontSize: "var(--fs-meta)", color: "var(--pn-muted, var(--muted))" }}>
                   For {repeatForDays}d · every {repeatEvery}d · {repeatPerDay}x/day ({repeatTimes * repeatPerDay} extra send{repeatTimes * repeatPerDay === 1 ? "" : "s"}{targets.length > 1 ? " · Customer & Admin" : ""})
                 </span>
               )}
               {repeatInvalidGap && (
-                <span style={{ color: "crimson", fontSize: 12 }}>Every (days) cannot be greater than For (days).</span>
+                <span style={{ color: "crimson", fontSize: "var(--fs-meta)" }}>Every (days) cannot be greater than For (days).</span>
               )}
               {targets.some(w => (w === "customer" ? customerCfg : resolvedAdminCfg()).steps.length + repeatTimes * repeatPerDay > 60) && (
-                <span style={{ color: "crimson", fontSize: 12 }}>Total messages (steps + repeats) cannot exceed 60 per receiver.</span>
+                <span style={{ color: "crimson", fontSize: "var(--fs-meta)" }}>Total messages (steps + repeats) cannot exceed 60 per receiver.</span>
               )}
             </dd>
           </div>
@@ -914,7 +914,7 @@ export function ActionRuleForm({
               <label style={{ cursor: "pointer" }}><input type="radio" name="control" checked={control === "off"} onChange={() => setControl("off")} /> Off (draft)</label>
             </div>
             {control === "review" && (
-              <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>
+              <span style={{ fontSize: "var(--fs-meta)", color: "var(--pn-muted, var(--muted))" }}>
                 Messages will wait in Communication → Review &amp; delivery → Review until you click Send.
               </span>
             )}

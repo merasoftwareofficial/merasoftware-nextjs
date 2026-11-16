@@ -608,7 +608,8 @@ html{scroll-padding-top:var(--header-height,0px)}
 @media(max-width:1024px){.site-header .mobile-menu-group{display:flex;flex-direction:column;border-bottom:1px solid var(--line);padding:15px 0 4px}.site-header .mobile-menu-group>span{font-size:16px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}.site-header .mobile-menu-panel .mobile-menu-group a{padding:12px 0 12px 14px;font-size:17px;border-bottom:0}}
 
 /* Admin explanatory copy: keep guidance readable without changing public content or previews. */
-.admin-shell{--admin-copy-size:14px;--admin-copy-leading:1.5}
+/* Admin Typography SSOT (min 13px): all admin modules & components must use var(--fs-tag | --fs-label | --fs-meta | --fs-ui | --fs-input | --fs-text). */
+.admin-shell{--fs-tag:13px;--fs-label:13px;--fs-meta:14px;--fs-ui:15px;--fs-input:15px;--fs-text:16px;--fs-lead:19px;--admin-copy-size:15px;--admin-copy-leading:1.5}
 .admin-shell :is(.admin-subtitle,.admin-panel p,.media-drop p){line-height:var(--admin-copy-leading)}
 .admin-shell :is(.admin-empty,.seo-hint,.homepage-image-slot-head p,.homepage-image-heading p,.homepage-section-overview>p,.homepage-copy-form .admin-seo>p,.homepage-image-recommendation,.homepage-image-resolution,.homepage-low-resolution-confirm p,.homepage-section-overview nav button small,.link-picker>small,.tag-picker>small,.media-picker small,.media-card .field-hint,.media-card .form-error,.portfolio-source,.portfolio-admin-section>p,.portfolio-editor-save p,.staff-alerts p){font-size:var(--admin-copy-size);line-height:var(--admin-copy-leading)}
 
