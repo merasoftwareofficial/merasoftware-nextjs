@@ -3,16 +3,15 @@ import s from "./communication.module.css";
 import { InfoTip } from "./reminder-info";
 import { LegacyReminderHistory } from "./legacy-reminder-history";
 import { OfferPaymentReminders } from "./offer-payment-reminders";
-import { ReminderDrafts } from "./reminder-drafts";
 import { ReminderHistory } from "./reminder-history";
 import { WORK_INFO, statusLine, useReminderSummary, type Work } from "./reminder-work-info";
 import { ReservationPanel } from "./reservation-panel";
 
 // One reminder work, opened. Short facts in a plain list; the explanations sit in (i) popups. Below them, the
 // existing data lists for this work (nothing here recreates their data).
-export function ReminderWorkDetail({ work, active, portalUrl, back, openMessage, openBroadcast, openWhatsappHistory }: {
+export function ReminderWorkDetail({ work, active, portalUrl, back, openMessage, openBroadcast, openWhatsappHistory, openActions }: {
   work: Work; active: boolean; portalUrl: string; back: () => void;
-  openMessage: (event: string) => void; openBroadcast: () => void; openWhatsappHistory: () => void;
+  openMessage: (event: string) => void; openBroadcast: () => void; openWhatsappHistory: () => void; openActions?: () => void;
 }) {
   const info = WORK_INFO[work];
   const { summary } = useReminderSummary(active);
@@ -49,7 +48,15 @@ export function ReminderWorkDetail({ work, active, portalUrl, back, openMessage,
         <dd><button type="button" onClick={openWhatsappHistory}>Delivery history →</button></dd>
       </div>
     </dl>
-    {rule && <ReminderDrafts compact active={active} source={work} openSource={source => source === "broadcast" ? openBroadcast() : openMessage("plan.started")} />}
+    {rule && (
+      <div className={s.workToolbar}>
+        <p>Reminder rules for this work are managed in <strong>Actions</strong>.</p>
+        {openActions && <button type="button" className="admin-action" onClick={openActions}>Open in Actions →</button>}
+        <button type="button" className={s.link} onClick={() => work === "broadcast" ? openBroadcast() : openMessage("plan.started")}>
+          {work === "broadcast" ? "Open Broadcast →" : "Plan-start message settings →"}
+        </button>
+      </div>
+    )}
     {rule && <ReminderHistory compact key={work} active={active} source={work} />}
     {work === "offer_payment" && <>
       <OfferPaymentReminders compact portalUrl={portalUrl} active={active} openAction={() => openMessage("offer.payment.reminder")} />

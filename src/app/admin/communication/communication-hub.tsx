@@ -18,7 +18,6 @@ import { BroadcastPanel } from "./broadcast-panel";
 import { OfferPaymentReminders } from "./offer-payment-reminders";
 import { LegacyReminderHistory } from "./legacy-reminder-history";
 import { BusinessActivity } from "./business-activity";
-import { ReminderDrafts } from "./reminder-drafts";
 import { ReminderHistory } from "./reminder-history";
 import { ReminderWorkList } from "./reminder-work-list";
 import { ReminderWorkDetail } from "./reminder-work-detail";
@@ -230,8 +229,8 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
           {([ ["work", "By work"], ["activity", "Reminder activity"], ["rules", "Rules"], ["existing", "Existing offer & reservation reminders"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
         </div>
         <div hidden={reminderSection !== "work"}>
-          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={work => setReminderWork(work)} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} back={() => setReminderWork(null)}
-            openMessage={event => go({ panel: "email-templates", tab: "portal", app: null, event })} openBroadcast={() => go({ panel: "broadcast", tab: null, app: null })} openWhatsappHistory={() => go({ panel: "whatsapp-queue", tab: "history", app: null })} />}
+          {!reminderWork ? <ReminderWorkList active={part("reminders").shown && reminderSection === "work"} open={work => setReminderWork(work)} openActions={() => go({ panel: "actions", tab: null, app: null })} /> : <ReminderWorkDetail work={reminderWork} active={part("reminders").shown && reminderSection === "work"} portalUrl={portalUrl} back={() => setReminderWork(null)}
+            openMessage={event => go({ panel: "email-templates", tab: "portal", app: null, event })} openBroadcast={() => go({ panel: "broadcast", tab: null, app: null })} openWhatsappHistory={() => go({ panel: "whatsapp-queue", tab: "history", app: null })} openActions={() => go({ panel: "actions", tab: null, app: null })} />}
         </div>
         <div hidden={reminderSection !== "rules"}>
           <p>Reminder rules have moved to the unified <strong>Actions</strong> system so every rule can be created, tracked, and edited in one place.</p>

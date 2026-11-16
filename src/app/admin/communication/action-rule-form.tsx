@@ -79,6 +79,7 @@ const STOP_CHOICES = [
   { key: "payment.received", label: "Payment received" },
   { key: "plan.started", label: "Plan started" },
   { key: "project.completed", label: "Project completed" },
+  { key: "whatsapp.ad_received", label: "WhatsApp reply received" },
 ];
 const LEAD_STAGES = [
   { value: "Contacted", label: "Neutral" },
@@ -285,6 +286,10 @@ export function ActionRuleForm({
     setAdminSyncMode("separate");
     const cRule = rule.audience === "customer" ? rule : partner?.audience === "customer" ? partner : null;
     const aRule = rule.audience === "admin" ? rule : partner?.audience === "admin" ? partner : null;
+    const rep = cRule?.repeat || rule.repeat;
+    setRepeatForDays(rep?.times ? rep.times * (rep.everyDays || 1) : 0);
+    setRepeatEvery(rep?.everyDays || 1);
+    setRepeatPerDay(rep?.perDay || 1);
     if (cRule) setCustomerCfg(toTargetCfg(cRule));
     if (aRule) setAdminCfg(toTargetCfg(aRule));
     setError("");
@@ -786,30 +791,26 @@ export function ActionRuleForm({
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <input type="number" min={0} max={180} value={repeatForDays} style={{ width: 64 }}
                       onChange={e => setRepeatForDays(Math.min(180, Math.max(0, Number(e.target.value || 0))))} />
-                    <span>days</span>
+                    <span>days <span style={{ fontSize: 11, color: "var(--pn-muted, var(--muted))" }}>(0 = off)</span></span>
                   </span>
                 </label>
-                {repeatForDays > 0 && (
-                  <>
-                    <label style={{ display: "grid", gap: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>Every (days)</span>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
-                          onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} />
-                        <span>days <span style={{ fontSize: 11, color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
-                      </span>
-                    </label>
-                    <label style={{ display: "grid", gap: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>Per day</span>
-                      <select value={repeatPerDay} onChange={e => setRepeatPerDay(Number(e.target.value || 1))}>
-                        <option value={1}>1x / day</option>
-                        <option value={2}>2x / day (12h)</option>
-                        <option value={3}>3x / day (8h)</option>
-                        <option value={4}>4x / day (6h)</option>
-                      </select>
-                    </label>
-                  </>
-                )}
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Every (days)</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
+                      onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} />
+                    <span>days <span style={{ fontSize: 11, color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
+                  </span>
+                </label>
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Per day</span>
+                  <select value={repeatPerDay} onChange={e => setRepeatPerDay(Number(e.target.value || 1))}>
+                    <option value={1}>1x / day</option>
+                    <option value={2}>2x / day (12h)</option>
+                    <option value={3}>3x / day (8h)</option>
+                    <option value={4}>4x / day (6h)</option>
+                  </select>
+                </label>
               </div>
               {repeatForDays > 0 && repeatTimes > 0 && (
                 <span style={{ fontSize: 12, color: "var(--pn-muted, var(--muted))" }}>

@@ -1,14 +1,10 @@
 "use client";
-import { useState } from "react";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import s from "./communication.module.css";
 import { InfoTip } from "./reminder-info";
-import { ReminderForm } from "./reminder-form";
 import { WORKS, WORK_INFO, statusLine, useReminderSummary, type Work } from "./reminder-work-info";
 
-export function ReminderWorkList({ active, open }: { active: boolean; open: (work: Work) => void }) {
-  const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState("");
+export function ReminderWorkList({ active, open, openActions }: { active: boolean; open: (work: Work) => void; openActions?: () => void }) {
   const { summary, error } = useReminderSummary(active);
   return <section aria-label="Reminders by work" className={s.workSection}>
     <div className={s.workToolbar}>
@@ -17,10 +13,8 @@ export function ReminderWorkList({ active, open }: { active: boolean; open: (wor
         <p>Counts are a snapshot of saved schedules, not a promise that a message will be sent. Eligibility is checked again before sending.</p>
         {summary?.legacyAsOf && <p>Offer and reservation counts as of {formatIndiaDateTime(summary.legacyAsOf)} (IST).</p>}
       </InfoTip>
-      <button type="button" className="admin-action" onClick={() => { setNotice(""); setAdding(true); }}>Add Reminder</button>
+      {openActions && <button type="button" className="admin-action" onClick={openActions}>Manage in Actions →</button>}
     </div>
-    {notice && <p role="status">{notice}</p>}
-    {adding && <ReminderForm onClose={() => setAdding(false)} onSaved={message => { setAdding(false); setNotice(message); }} />}
     {error && <p role="status">Summary unavailable. Open a work to see its details.</p>}
     <ul className={s.workList}>
       {WORKS.map(id => <li key={id}>
