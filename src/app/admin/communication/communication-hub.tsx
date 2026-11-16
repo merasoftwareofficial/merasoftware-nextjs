@@ -20,6 +20,7 @@ import { LegacyReminderHistory } from "./legacy-reminder-history";
 import { BusinessActivity } from "./business-activity";
 import { ReminderHistory } from "./reminder-history";
 import { RemindersPanel } from "./reminders-panel";
+import { TemplatesPanel } from "./templates-panel";
 import { ActionsPanel } from "./actions-panel";
 
 /**
@@ -49,8 +50,8 @@ const PANELS: Record<PanelId, Panel> = {
   "whatsapp-queue": { group: "WhatsApp", title: "WhatsApp Queue", whatsapp: true,
     tabs: [{ id: "queue", label: "Queue" }, { id: "rules", label: "Sending rules" }, { id: "history", label: "History" }],
     description: "Messages waiting to go, the rules that pace them, and every finished message." },
-  "email-templates": { group: "Email", title: "Message Templates", whatsapp: false, tabs: APPS,
-    description: "Each job’s mails: who decides, the default template and the editor. WhatsApp sends the same text." },
+  "email-templates": { group: "Email", title: "Automatic messages", whatsapp: false, tabs: [],
+    description: "Every automatic message template from Actions, plus any remaining built-in templates." },
   "actions": { group: "Email", title: "Actions", whatsapp: false, tabs: [], description: "Every action that changes data, grouped by the part of the website or portal it belongs to." },
   "email-review": { group: "Email", title: "Email Review", whatsapp: false,
     tabs: [{ id: "review", label: "Review" }, { id: "outbox", label: "Outbox" }, { id: "history", label: "History" }],
@@ -62,16 +63,16 @@ type View = { panel: PanelId | null; tab: string; app: Application; show: Histor
 function normalize(state: HubState, portalAdmin: boolean): View {
   const panel = IDS.find(id => id === state.panel) ?? null;
   const tabs = panel ? PANELS[panel].tabs : [];
-  let tab = tabs.find(item => item.id === state.tab)?.id ?? tabs[0]?.id ?? "";
-  if (panel === "email-templates" && tab === "portal" && !portalAdmin) tab = "website";
+  const tab = tabs.find(item => item.id === state.tab)?.id ?? tabs[0]?.id ?? "";
+  const appSource = panel === "email-templates" ? (state.tab || state.app) : state.app;
   const show = panel === "whatsapp-queue" && tab === "history" && state.show === "not-sent" ? "not-sent" : null;
-  return { panel, tab, app: state.app === "portal" && portalAdmin ? "portal" : "website", show, event: panel === "email-templates" && /^[\w.]{1,100}$/.test(state.event || "") ? state.event! : null };
+  return { panel, tab, app: appSource === "portal" && portalAdmin ? "portal" : "website", show, event: panel === "email-templates" && /^[\w.]{1,100}$/.test(state.event || "") ? state.event! : null };
 }
 function href(view: View) {
   if (!view.panel) return "/admin/communication";
   const params = new URLSearchParams({ panel: view.panel });
   if (view.tab && view.tab !== PANELS[view.panel].tabs[0]?.id) params.set("tab", view.tab);
-  if (view.panel === "email-review" && view.app === "portal") params.set("app", "portal");
+  if ((view.panel === "email-review" || (view.panel === "email-templates" && view.event)) && view.app === "portal") params.set("app", "portal");
   if (view.show) params.set("show", view.show);
   if (view.event) params.set("event", view.event);
   return `/admin/communication?${params}`;
@@ -104,6 +105,8 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
   const [query, setQuery] = useState("");
   const [reminderSection, setReminderSection] = useState<"reminders" | "live" | "history">("reminders");
+  const [templateSection, setTemplateSection] = useState<"templates" | "legacy">("templates");
+  const activeTemplateSection = view.event ? "legacy" : templateSection;
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
@@ -243,19 +246,40 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["whatsapp-queue:rules", <WhatsappPanel key="r" view="rules" />],
       ["whatsapp-queue:history", <WhatsappPanel key="h" view="messages" show={historyShow} active={part("whatsapp-queue:history").shown} />],
     ];
-    const emailParts: [string, React.ReactNode][] = apps.flatMap(app => [
-      [`email-templates:${app}`, <div key={`t-${app}`}>
-        <div className={s.workToolbar}>
-          <p>Migrated message templates are now managed in <strong>Actions</strong>.</p>
-          <button type="button" className="admin-action" onClick={() => go({ panel: "actions", tab: null, app: null })}>Open Actions →</button>
+    const emailParts: [string, React.ReactNode][] = apps.map(app => [
+      `email-review:${app}`,
+      <EmailControlPanel workspace key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />,
+    ]);
+    const templatesPart: [string, React.ReactNode] = [
+      "email-templates",
+      <section key="email-templates" aria-label="Automatic messages">
+        <div className={s.subNav} role="group" aria-label="Automatic message sections">
+          <button type="button" aria-pressed={activeTemplateSection === "templates"} onClick={() => { setTemplateSection("templates"); if (view.event) go({ ...view, event: null }); }}>Automatic messages</button>
+          <button type="button" aria-pressed={activeTemplateSection === "legacy"} onClick={() => setTemplateSection("legacy")}>Legacy templates (Old)</button>
         </div>
-        <EmailControlPanel workspace initialApplication={app} active={part(`email-templates:${app}`).shown} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: 'reminders', tab: null, app: null })} />
-      </div>],
-      [`email-review:${app}`, <EmailControlPanel workspace key={`r-${app}`} initialApplication={app} active={part(`email-review:${app}`).shown} canManagePortal={portalAdmin} view={(view.panel === "email-review" ? view.tab : "review") as EmailView} showTabs={false} onReviewCount={app === "website" ? websiteReview : portalReview} />],
-    ] as [string, React.ReactNode][]);
+        <div hidden={activeTemplateSection !== "templates"}>
+          <TemplatesPanel
+            active={part("email-templates").shown && activeTemplateSection === "templates"}
+            onOpenLegacyTemplate={(event, app) => { setTemplateSection("legacy"); go({ panel: "email-templates", tab: null, app, event }); }}
+            onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })}
+          />
+        </div>
+        <div hidden={activeTemplateSection !== "legacy"}>
+          <div className={s.tabBar}>
+            {portalAdmin && (
+              <div className={s.switch} role="group" aria-label="Application">
+                {APPS.map(app => <button key={app.id} type="button" aria-pressed={view.app === app.id} onClick={() => go({ ...view, app: app.id })}>{app.label}</button>)}
+              </div>
+            )}
+            <input className={s.search} type="search" aria-label="Find a message" placeholder="Find a message" value={query} onChange={event => setQuery(event.target.value)} />
+          </div>
+          <EmailControlPanel workspace key={`t-${view.app}`} initialApplication={view.app} active={part("email-templates").shown && activeTemplateSection === "legacy"} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: "reminders", tab: null, app: null })} />
+        </div>
+      </section>,
+    ];
     return <>
       {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}
-      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), ["actions", <ActionsPanel key="actions" active={part("actions").shown} onOpenTemplate={(event, app) => go({ panel: "email-templates", tab: app, app: null, event })} onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
+      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), templatesPart, ["actions", <ActionsPanel key="actions" active={part("actions").shown} onOpenTemplate={(event, app) => go({ panel: "email-templates", tab: app, app: null, event })} onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
     </>;
   }
 
@@ -311,8 +335,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
         </div>}
         {(open.tabs.length > 0 || view.panel === "email-review") && <div className={s.tabBar}>
           {view.panel === "email-review" && portalAdmin && <div className={s.switch} role="group" aria-label="Application">{APPS.map(app => <button key={app.id} type="button" aria-pressed={view.app === app.id} onClick={() => go({ ...view, app: app.id })}>{app.label}</button>)}</div>}
-          <div className={s.tabs} role="tablist" aria-label={`${open.title} sections`}>{open.tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view.tab === tab.id} disabled={view.panel === "email-templates" && tab.id === "portal" && !portalAdmin} onClick={() => go({ ...view, tab: tab.id, show: null, event: null })}>{tab.label}</button>)}</div>
-          {view.panel === "email-templates" && <input className={s.search} type="search" aria-label="Find a message" placeholder="Find a message" value={query} onChange={event => setQuery(event.target.value)} />}
+          <div className={s.tabs} role="tablist" aria-label={`${open.title} sections`}>{open.tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view.tab === tab.id} onClick={() => go({ ...view, tab: tab.id, show: null, event: null })}>{tab.label}</button>)}</div>
         </div>}
       </>}
       <div className={s.workspaceBody}>{body()}</div>
