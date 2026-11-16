@@ -103,11 +103,8 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [view, setView] = useState(() => normalize(initial, portalAdmin));
   const [mounted, setMounted] = useState(() => new Set(view.panel ? [partOf(view)] : []));
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
-  const [query, setQuery] = useState("");
   const [reminderSection, setReminderSection] = useState<"reminders" | "live" | "history">("reminders");
   const [liveSection, setLiveSection] = useState<"offer" | "reservation">("offer");
-  const [templateSection, setTemplateSection] = useState<"templates" | "legacy">("templates");
-  const activeTemplateSection = view.event ? "legacy" : templateSection;
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
@@ -222,10 +219,10 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   function body() {
     const whatsappParts: [string, React.ReactNode][] = [
       ["broadcast", <BroadcastPanel key="b" active={part("broadcast").shown} />],
-      ["business-activity", <BusinessActivity key="activity" active={part("business-activity").shown} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
+      ["business-activity", <BusinessActivity key="activity" active={part("business-activity").shown} openAction={() => go({ panel: "actions", tab: null, app: null })} />],
       ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} onOpenActions={() => go({ panel: "actions", tab: null, app: null })} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
-      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />],
+      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={() => go({ panel: "actions", tab: null, app: null })} />],
       ["reminders", <section key="reminders" aria-label="Reminders">
         <div className={s.subNav} role="group" aria-label="Reminder sections">
           {([ ["reminders", "Reminders"], ["live", "Live Offer & Reservation"], ["history", "History"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
@@ -247,7 +244,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
         </div>
         <div hidden={reminderSection !== "history"}>
           <ReminderHistory active={part("reminders").shown && reminderSection === "history"} />
-          <LegacyReminderHistory source="all" defaultOpen active={part("reminders").shown && reminderSection === "history"} title="Offer and reservation message history" openAction={event => go({ panel: "email-templates", tab: "portal", app: null, event })} />
+          <LegacyReminderHistory source="all" defaultOpen active={part("reminders").shown && reminderSection === "history"} title="Offer and reservation message history" openAction={() => go({ panel: "actions", tab: null, app: null })} />
         </div>
       </section>],
       ["whatsapp-connection", <WhatsappPanel key="c" view="connection" active={part("whatsapp-connection").shown} />],
@@ -262,28 +259,10 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     const templatesPart: [string, React.ReactNode] = [
       "email-templates",
       <section key="email-templates" aria-label="Automatic messages">
-        <div className={s.subNav} role="group" aria-label="Automatic message sections">
-          <button type="button" aria-pressed={activeTemplateSection === "templates"} onClick={() => { setTemplateSection("templates"); if (view.event) go({ ...view, event: null }); }}>Automatic messages</button>
-          <button type="button" aria-pressed={activeTemplateSection === "legacy"} onClick={() => setTemplateSection("legacy")}>Legacy templates (Old)</button>
-        </div>
-        <div hidden={activeTemplateSection !== "templates"}>
-          <TemplatesPanel
-            active={part("email-templates").shown && activeTemplateSection === "templates"}
-            onOpenLegacyTemplate={(event, app) => { setTemplateSection("legacy"); go({ panel: "email-templates", tab: null, app, event }); }}
-            onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })}
-          />
-        </div>
-        <div hidden={activeTemplateSection !== "legacy"}>
-          <div className={s.tabBar}>
-            {portalAdmin && (
-              <div className={s.switch} role="group" aria-label="Application">
-                {APPS.map(app => <button key={app.id} type="button" aria-pressed={view.app === app.id} onClick={() => go({ ...view, app: app.id })}>{app.label}</button>)}
-              </div>
-            )}
-            <input className={s.search} type="search" aria-label="Find a message" placeholder="Find a message" value={query} onChange={event => setQuery(event.target.value)} />
-          </div>
-          <EmailControlPanel workspace key={`t-${view.app}`} initialApplication={view.app} active={part("email-templates").shown && activeTemplateSection === "legacy"} canManagePortal={portalAdmin} view="actions" showTabs={false} query={query} eventKey={view.event} onClearEvent={() => go({ ...view, event: null })} onOpenReminders={() => go({ panel: "reminders", tab: null, app: null })} />
-        </div>
+        <TemplatesPanel
+          active={part("email-templates").shown}
+          onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })}
+        />
       </section>,
     ];
     return <>

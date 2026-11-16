@@ -29,11 +29,9 @@ type StatusFilter = "all" | "active" | "off";
  */
 export function TemplatesPanel({
   active,
-  onOpenLegacyTemplate,
   onOpenPanel,
 }: {
   active: boolean;
-  onOpenLegacyTemplate?: (event: string, app: "portal" | "website") => void;
   onOpenPanel?: (panel: string) => void;
 }) {
   const [data, setData] = useState<ActionsData | null>(null);
@@ -395,9 +393,9 @@ export function TemplatesPanel({
                         <button
                           type="button"
                           className={c.manage}
-                          onClick={() => tpl.panel === "broadcast" ? onOpenPanel?.("broadcast") : onOpenLegacyTemplate?.(tpl.event, tpl.app)}
+                          onClick={() => onOpenPanel?.(tpl.panel === "broadcast" ? "broadcast" : "actions")}
                         >
-                          Open old editor
+                          {tpl.panel === "broadcast" ? "Open Broadcast" : "Open in Actions"}
                         </button>
                       </td>
                     </tr>
