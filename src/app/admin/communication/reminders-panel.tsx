@@ -22,12 +22,13 @@ import c from "./actions-panel.module.css";
 
 type ReminderEntry = ActionRuleRecord & { actionTitle: string; actionCode: string };
 type StatusFilter = "all" | "active" | "off";
+export type ReminderFocusRule = { action?: string; scopeKind?: string; nonce: number };
 
 /**
  * Communication > Reminders: unified list of every Reminder rule from Actions (SSOT),
  * with "+ Add reminder" opening ActionRuleForm defaulted to kind="reminder".
  */
-export function RemindersPanel({ active }: { active: boolean }) {
+export function RemindersPanel({ active, focusRule }: { active: boolean; focusRule?: ReminderFocusRule | null }) {
   const [data, setData] = useState<ActionsData | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -35,6 +36,7 @@ export function RemindersPanel({ active }: { active: boolean }) {
   const [query, setQuery] = useState("");
   const [newRule, setNewRule] = useState(false);
   const [editingRule, setEditingRule] = useState<ActionRuleRecord | null>(null);
+  const [dismissedFocusNonce, setDismissedFocusNonce] = useState<number | null>(null);
   const [showScheduled, setShowScheduled] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -151,7 +153,18 @@ export function RemindersPanel({ active }: { active: boolean }) {
     }
   }
 
-  if (showScheduled) {
+  const activeFocus = focusRule && focusRule.nonce !== dismissedFocusNonce ? focusRule : null;
+  const focusedRule = useMemo(() => {
+    if (!activeFocus) return null;
+    return reminderEntries.find(rule => {
+      if (activeFocus.action && rule.action !== activeFocus.action) return false;
+      if (activeFocus.scopeKind && rule.scope?.kind !== activeFocus.scopeKind) return false;
+      return true;
+    }) || null;
+  }, [activeFocus, reminderEntries]);
+  const activeEditingRule = editingRule || focusedRule;
+
+  if (showScheduled && !activeEditingRule && !newRule) {
     return (
       <section hidden={!active}>
         <ActionScheduledPanel
@@ -161,15 +174,18 @@ export function RemindersPanel({ active }: { active: boolean }) {
       </section>
     );
   }
-  if (editingRule) {
+  if (activeEditingRule) {
     return (
       <section hidden={!active}>
         <ActionRuleForm
           actions={allActions}
-          editingRule={editingRule}
+          editingRule={activeEditingRule}
           packages={data?.packages}
           onSaved={reload}
-          onBack={() => setEditingRule(null)}
+          onBack={() => {
+            setEditingRule(null);
+            if (activeFocus) setDismissedFocusNonce(activeFocus.nonce);
+          }}
         />
       </section>
     );

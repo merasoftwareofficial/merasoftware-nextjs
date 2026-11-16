@@ -19,7 +19,7 @@ import { OfferPaymentReminders } from "./offer-payment-reminders";
 import { LegacyReminderHistory } from "./legacy-reminder-history";
 import { BusinessActivity } from "./business-activity";
 import { ReminderHistory } from "./reminder-history";
-import { RemindersPanel } from "./reminders-panel";
+import { RemindersPanel, type ReminderFocusRule } from "./reminders-panel";
 import { TemplatesPanel } from "./templates-panel";
 import { ActionsPanel } from "./actions-panel";
 
@@ -105,6 +105,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   const [historyShow, setHistoryShow] = useState<HistoryGroup>(view.show ?? "sent");
   const [reminderSection, setReminderSection] = useState<"reminders" | "live" | "history">("reminders");
   const [liveSection, setLiveSection] = useState<"offer" | "reservation">("offer");
+  const [reminderFocus, setReminderFocus] = useState<ReminderFocusRule | null>(null);
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Partial<Record<Application, EmailSummary>>>({});
@@ -119,6 +120,12 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     if (value.panel === "whatsapp-queue" && value.tab === "history") setHistoryShow(value.show ?? "sent");
     if (push) window.history.pushState(null, "", href(value));
   }, [portalAdmin]);
+
+  const openReminderRule = useCallback((target: { action?: string; scopeKind?: string }) => {
+    setReminderFocus({ ...target, nonce: Date.now() });
+    setReminderSection("reminders");
+    go({ panel: "reminders", tab: null, app: null });
+  }, [go]);
 
   // Back / Forward move between panels like pages.
   useEffect(() => {
@@ -222,13 +229,13 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["business-activity", <BusinessActivity key="activity" active={part("business-activity").shown} openAction={() => go({ panel: "actions", tab: null, app: null })} />],
       ["auto-reply", <AutoReplyPanel key="a" active={part("auto-reply").shown} onOpenActions={() => go({ panel: "actions", tab: null, app: null })} />],
       ["final-message", <FinalMessagePanel key="f" active={part("final-message").shown} />],
-      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={() => go({ panel: "actions", tab: null, app: null })} />],
+      ["reservation", <ReservationPanel key="v" active={part("reservation").shown} portalUrl={portalUrl} openAction={event => openReminderRule(event === "package.start.request.admin" ? { action: "package.start_requested" } : { action: "reservation.created" })} />],
       ["reminders", <section key="reminders" aria-label="Reminders">
         <div className={s.subNav} role="group" aria-label="Reminder sections">
           {([ ["reminders", "Reminders"], ["live", "Live Offer & Reservation"], ["history", "History"] ] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={reminderSection === id} onClick={() => setReminderSection(id)}>{label}</button>)}
         </div>
         <div hidden={reminderSection !== "reminders"}>
-          <RemindersPanel active={part("reminders").shown && reminderSection === "reminders"} />
+          <RemindersPanel active={part("reminders").shown && reminderSection === "reminders"} focusRule={reminderFocus} />
         </div>
         <div hidden={reminderSection !== "live"}>
           <div className={s.subNav} role="group" aria-label="Live offer and reservation view">
@@ -236,10 +243,10 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
             <button type="button" aria-pressed={liveSection === "reservation"} onClick={() => setLiveSection("reservation")}>Offer Reservations</button>
           </div>
           <div hidden={liveSection !== "offer"}>
-            <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "live" && liveSection === "offer"} openAction={() => go({ panel: "actions", tab: null, app: null })} />
+            <OfferPaymentReminders portalUrl={portalUrl} active={part("reminders").shown && reminderSection === "live" && liveSection === "offer"} openAction={() => openReminderRule({ action: "invoice.created", scopeKind: "offer_payment" })} />
           </div>
           <div hidden={liveSection !== "reservation"}>
-            <ReservationPanel active={part("reminders").shown && reminderSection === "live" && liveSection === "reservation"} portalUrl={portalUrl} openAction={() => go({ panel: "actions", tab: null, app: null })} />
+            <ReservationPanel active={part("reminders").shown && reminderSection === "live" && liveSection === "reservation"} portalUrl={portalUrl} openAction={event => openReminderRule(event === "package.start.request.admin" ? { action: "package.start_requested" } : { action: "reservation.created" })} />
           </div>
         </div>
         <div hidden={reminderSection !== "history"}>
