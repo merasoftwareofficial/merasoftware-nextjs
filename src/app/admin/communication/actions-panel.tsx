@@ -242,17 +242,17 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
 
   const triggers = useMemo(() => data?.triggers ?? [], [data]);
   const triggerFormOptions = useMemo(() => triggersToFormOptions(triggers), [triggers]);
-  const formActions = displayMode === "triggers" && triggerFormOptions.length ? triggerFormOptions : all;
+  const formActions = triggerFormOptions.length ? triggerFormOptions : all;
   const triggerAsRow = (t: TriggerGroup): ActionRow => ({
     id: t.triggerKey,
     title: t.label,
-    what: t.origins.length ? `Triggers from: ${t.origins.map(o => `${o.surface} (${o.id}: ${o.title})`).join(", ")}` : `System trigger: ${t.triggerKey}`,
-    when: "",
-    method: "TRIGGER",
+    what: t.origins.length ? `Combined actions (${t.origins.length}): ${t.origins.map(o => `${o.surface} (${o.id}: ${o.title})`).join(", ")}` : `System work group: ${t.label}`,
+    when: t.when || "",
+    method: "GROUP",
     endpoint: t.triggerKey,
     note: "",
     surface: t.origins[0]?.surface || "System",
-    category: "Business triggers",
+    category: t.folder || "Business triggers",
     archived: false,
     deleted: false,
     changed: false,
@@ -274,7 +274,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       if (messageFilter === "none" && tplCount + remCount > 0) return false;
       if (!q) return true;
       const originText = t.origins.map(o => `${o.id} ${o.title} ${o.surface} ${o.endpoint}`).join(" ");
-      return `${t.label} ${t.triggerKey} ${originText}`.toLowerCase().includes(q);
+      return `${t.label} ${t.folder || ""} ${t.when || ""} ${t.triggerKey} ${originText}`.toLowerCase().includes(q);
     });
   }, [triggers, messageFilter, query]);
 
@@ -291,21 +291,21 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   if (editingRule) {
     return (
       <section hidden={!active}>
-        <ActionRuleForm actions={formActions} editingRule={editingRule} packages={data?.packages} onSaved={reloadActions} onBack={() => setEditingRule(null)} />
+        <ActionRuleForm actions={formActions} editingRule={editingRule} packages={data?.packages} stopChoices={data?.stopChoices} onSaved={reloadActions} onBack={() => setEditingRule(null)} />
       </section>
     );
   }
   if (newRule) {
     return (
       <section hidden={!active}>
-        <ActionRuleForm actions={formActions} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRule(false)} />
+        <ActionRuleForm actions={formActions} packages={data?.packages} stopChoices={data?.stopChoices} onSaved={reloadActions} onBack={() => setNewRule(false)} />
       </section>
     );
   }
   if (newRuleFor) {
     return (
       <section hidden={!active}>
-        <ActionRuleForm actions={formActions} initialActionId={newRuleFor} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRuleFor(null)} />
+        <ActionRuleForm actions={formActions} initialActionId={newRuleFor} packages={data?.packages} stopChoices={data?.stopChoices} onSaved={reloadActions} onBack={() => setNewRuleFor(null)} />
       </section>
     );
   }

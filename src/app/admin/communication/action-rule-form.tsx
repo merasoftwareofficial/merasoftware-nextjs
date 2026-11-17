@@ -19,7 +19,7 @@ export type RuleStep = {
   subject: string;
   text: string;
 };
-export type RuleCondition = "anytime" | "unpaid" | "paid" | "upload_pending";
+export type RuleCondition = "anytime" | "unpaid" | "paid" | "installment_due" | "upload_pending";
 export type RuleScopeKind = "all" | "monthly" | "one_time" | "package" | "offer_payment";
 export type DoAlsoType = "change_lead_stage" | "add_lead_note" | "stop_reminders";
 export type DoAlsoStep = { type: DoAlsoType; stage?: string; note?: string };
@@ -36,6 +36,8 @@ export type ActionRuleRecord = {
   originFilter?: string[];
   audience: "customer" | "admin";
   condition: RuleCondition;
+  minProgress?: number;
+  maxRemainingLimit?: number | null;
   scope: { kind: RuleScopeKind; packageSlug?: string };
   steps: RuleStep[];
   repeat: { times: number; everyDays: number; perDay?: number };
@@ -66,6 +68,9 @@ export type FormActionOption = {
   endpoint: string;
   triggerKey?: string | null;
   supportsScope?: boolean;
+  supportsProgress?: boolean;
+  supportsLimit?: boolean;
+  defaultStopOn?: string[];
   conditions?: ConditionOption[];
   builtIn?: BuiltInInfo;
   rules?: ActionRuleRecord[];
@@ -101,6 +106,8 @@ type GoalPreset = {
   kind: "template" | "reminder";
   triggerKey: string;
   condition: RuleCondition;
+  minProgress?: number;
+  maxRemainingLimit?: number | null;
   scopeKind: RuleScopeKind;
   stopOn: string[];
   step: Partial<RuleStep>;
@@ -117,6 +124,29 @@ const GOAL_PRESETS: GoalPreset[] = [
     scopeKind: "monthly",
     stopOn: ["payment.received"],
     step: { timingRef: "before_due", days: 3, channel: "whatsapp", text: "Hi {{name}}, your {{package}} payment of {{amount}} is due on {{dueDate}}. Pay here: {{invoiceLink}}" },
+  },
+  {
+    id: "onetime-unpaid",
+    label: "Single-Time Unpaid Project",
+    purpose: "One-time Unpaid Project Reminder",
+    kind: "reminder",
+    triggerKey: "invoice.created",
+    condition: "unpaid",
+    scopeKind: "one_time",
+    stopOn: ["payment.received"],
+    step: { timingRef: "after_action", days: 1, channel: "whatsapp", text: "Hi {{name}}, your project payment of {{amount}} for {{project}} is pending. Pay here: {{invoiceLink}}" },
+  },
+  {
+    id: "installment-progress",
+    label: "Installment Due (Progress %)",
+    purpose: "Installment Progress Milestone Reminder",
+    kind: "reminder",
+    triggerKey: "project.step_updated",
+    condition: "installment_due",
+    minProgress: 30,
+    scopeKind: "all",
+    stopOn: ["payment.received"],
+    step: { timingRef: "after_action", days: 0, channel: "whatsapp", text: "Hi {{name}}, your project {{project}} has reached {{progress}} progress. Your due installment of {{amount}} is now payable to unlock uploads: {{invoiceLink}}" },
   },
   {
     id: "onetime-upload",
@@ -164,7 +194,7 @@ const LEAD_STAGES = [
 const PLACEHOLDERS = [
   "{{name}}", "{{amount}}", "{{dueDate}}", "{{invoiceLink}}", "{{projectLink}}",
   "{{packageLink}}", "{{portalLink}}", "{{project}}", "{{planName}}", "{{duration}}",
-  "{{email}}", "{{phone}}",
+  "{{progress}}", "{{remainingLimit}}", "{{email}}", "{{phone}}",
 ];
 
 const PAY_CONDS: ConditionOption[] = [
@@ -208,6 +238,7 @@ export function ActionRuleForm({
   editingRule = null,
   defaultKind = "template",
   packages = [],
+  stopChoices,
   onSaved,
   onBack,
 }: {
@@ -216,12 +247,17 @@ export function ActionRuleForm({
   editingRule?: ActionRuleRecord | null;
   defaultKind?: "template" | "reminder";
   packages?: { slug: string; name: string }[];
+  stopChoices?: { key: string; label: string }[];
   onSaved?: () => void;
   onBack: () => void;
 }) {
+  const effectiveStopChoices = stopChoices?.length ? stopChoices : STOP_CHOICES;
   const actionOptions = actions.length ? actions : FALLBACK_ACTIONS;
+  const allAreGroups = actionOptions.every(a => a.isTriggerGroup);
   const targetActionId = editingRule?.actionId || initialActionId;
-  const initialRow = (targetActionId ? actionOptions.find(a => a.id === targetActionId) : undefined)
+  const initialRow = (targetActionId
+    ? actionOptions.find(a => a.id === targetActionId || a.origins?.some(o => o.id === targetActionId))
+    : undefined)
     || (editingRule?.action ? actionOptions.find(a => a.triggerKey === editingRule.action) : undefined);
   const editingRuleId = editingRule?._id || editingRule?.id || null;
   const initialPartner = editingRule?.pairId && initialRow?.rules
@@ -254,6 +290,10 @@ export function ActionRuleForm({
   const [purpose, setPurpose] = useState<string>(editingRule?.purpose || "");
   const [originFilter, setOriginFilter] = useState<string[] | null>(editingRule?.originFilter?.length ? editingRule.originFilter : null);
   const [condition, setCondition] = useState<RuleCondition>(editingRule?.condition || "anytime");
+  const [minProgress, setMinProgress] = useState<number>(editingRule?.minProgress ?? 0);
+  const [maxRemainingLimit, setMaxRemainingLimit] = useState<string>(
+    editingRule?.maxRemainingLimit !== null && editingRule?.maxRemainingLimit !== undefined ? String(editingRule.maxRemainingLimit) : "",
+  );
   const [scopeKind, setScopeKind] = useState<RuleScopeKind>(editingRule?.scope?.kind || "all");
   const [packageSlug, setPackageSlug] = useState<string>(editingRule?.scope?.packageSlug || packages[0]?.slug || "digital-growth-package");
   const [doAlso, setDoAlso] = useState<DoAlsoStep[]>(editingRule?.doAlso ? editingRule.doAlso.map(d => ({ ...d })) : []);
@@ -341,6 +381,12 @@ export function ActionRuleForm({
     const nextConds = (nextRow?.conditions || [{ key: "anytime" }]).map(c => c.key);
     if (!nextConds.includes(condition)) setCondition("anytime");
     if (!nextRow?.supportsScope) setScopeKind("all");
+    if (!nextRow?.supportsProgress) setMinProgress(0);
+    if (!nextRow?.supportsLimit) setMaxRemainingLimit("");
+    if (nextRow?.defaultStopOn?.length) {
+      setCustomerCfg(prev => (prev.stopOn.length === 0 ? { ...prev, stopOn: [...nextRow.defaultStopOn!] } : prev));
+      setAdminCfg(prev => (prev.stopOn.length === 0 ? { ...prev, stopOn: [...nextRow.defaultStopOn!] } : prev));
+    }
   }
 
   function applyGoalPreset(preset: GoalPreset) {
@@ -349,6 +395,8 @@ export function ActionRuleForm({
     setPurpose(preset.purpose);
     setKind(preset.kind);
     setCondition(preset.condition);
+    setMinProgress(preset.minProgress ?? 0);
+    setMaxRemainingLimit(preset.maxRemainingLimit !== null && preset.maxRemainingLimit !== undefined ? String(preset.maxRemainingLimit) : "");
     setScopeKind(preset.scopeKind);
     setOriginFilter(null);
     setCustomerCfg(prev => ({
@@ -372,6 +420,8 @@ export function ActionRuleForm({
     setKind(rule.kind);
     setAudienceChoice(partner ? "both" : rule.audience);
     setCondition(rule.condition || "anytime");
+    setMinProgress(rule.minProgress ?? 0);
+    setMaxRemainingLimit(rule.maxRemainingLimit !== null && rule.maxRemainingLimit !== undefined ? String(rule.maxRemainingLimit) : "");
     setScopeKind(rule.scope?.kind || "all");
     setPackageSlug(rule.scope?.packageSlug || "digital-growth-package");
     setDoAlso(rule.doAlso ? rule.doAlso.map(d => ({ ...d })) : []);
@@ -486,7 +536,7 @@ export function ActionRuleForm({
     const scope = supportsScope ? { kind: scopeKind, ...(scopeKind === "package" ? { packageSlug } : {}) } : { kind: "all" };
 
     const nextPairId = audienceChoice === "both"
-      ? (activePairId || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `pair-${Date.now()}`))
+      ? (activePairId || crypto.randomUUID())
       : "";
     const buildPayload = (who: "customer" | "admin") => {
       const cfg = who === "customer" ? customerCfg : resolvedAdminCfg();
@@ -499,6 +549,10 @@ export function ActionRuleForm({
         audience: who,
         pairId: nextPairId,
         condition,
+        minProgress: currentRow.supportsProgress ? Math.min(100, Math.max(0, Math.floor(Number(minProgress) || 0))) : 0,
+        maxRemainingLimit: currentRow.supportsLimit && maxRemainingLimit.trim() !== ""
+          ? Math.min(1000, Math.max(0, Math.floor(Number(maxRemainingLimit) || 0)))
+          : null,
         scope,
         steps: cfg.steps.map(st => ({
           timingRef: isRem ? st.timingRef : "after_action",
@@ -672,27 +726,32 @@ export function ActionRuleForm({
         </div>
 
         <div className={s.factRow}>
-          <dt>2. Action</dt>
+          <dt>2. Work Group</dt>
           <dd style={{ display: "grid", gap: 8, width: "100%" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <select aria-label="Filter action category" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-                <option value="all">All categories</option>
+              <select aria-label="Filter work folder" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+                <option value="all">All folders ({actionCategories.length})</option>
                 {actionCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
-              <input type="search" aria-label="Search action" placeholder="Search by name, description, ID or endpoint…"
+              <input type="search" aria-label="Search work group" placeholder="Search by work, meaning, or action (e.g. payment, installment, login, banner)…"
                 value={actionSearch} onChange={e => setActionSearch(e.target.value)} style={{ flex: "1 1 220px", minWidth: 180 }} />
-              <label style={{ fontSize: "var(--fs-meta)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <input type="checkbox" checked={readyOnly} onChange={e => setReadyOnly(e.target.checked)} /> Ready for rules only
-              </label>
+              {!allAreGroups && (
+                <label style={{ fontSize: "var(--fs-meta)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <input type="checkbox" checked={readyOnly} onChange={e => setReadyOnly(e.target.checked)} /> Ready for rules only
+                </label>
+              )}
             </div>
 
             <select value={selectedActionId} onChange={e => selectAction(e.target.value)}>
-              <option value="">Choose an action ({filteredActions.length} matching)…</option>
+              <option value="">Choose a work group ({filteredActions.length} matching)…</option>
               {groupedActions.map(group => (
                 <optgroup key={group.category} label={group.category}>
                   {group.items.map(item => (
                     <option key={item.id} value={item.id}>
-                      {item.id} — {item.title}{item.rules?.length ? ` (${item.rules.length} rule${item.rules.length > 1 ? "s" : ""})` : ""}{!item.triggerKey ? " [no signal]" : ""}
+                      {item.isTriggerGroup ? item.title : `${item.id} — ${item.title}`}
+                      {item.origins?.length ? ` (${item.origins.length} action${item.origins.length > 1 ? "s" : ""})` : ""}
+                      {item.rules?.length ? ` · ${item.rules.length} rule${item.rules.length > 1 ? "s" : ""}` : ""}
+                      {!item.triggerKey ? " [no signal]" : ""}
                     </option>
                   ))}
                 </optgroup>
@@ -700,16 +759,20 @@ export function ActionRuleForm({
             </select>
 
             {currentRow && (
-              <div style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", display: "grid", gap: 3 }}>
+              <div style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", display: "grid", gap: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                  <strong>{currentRow.category || "Action"} · {currentRow.id}</strong>
+                  <strong>{currentRow.category || "Work Group"} · {currentRow.title}</strong>
                   <span style={{ color: currentRow.triggerKey ? "var(--brand-link)" : "crimson", fontWeight: 600 }}>
-                    {currentRow.triggerKey ? `Ready (${currentRow.triggerKey})` : "Signal not wired yet — select a Ready action"}
+                    {currentRow.triggerKey ? `SSOT Group (${currentRow.triggerKey})` : "Signal not wired yet"}
                   </span>
                 </div>
-                {currentRow.what && <div>{currentRow.what}</div>}
-                {currentRow.when && <div style={{ color: "var(--pn-muted, var(--muted))" }}>{currentRow.when}</div>}
-                <div style={{ fontFamily: "monospace", color: "var(--pn-muted, var(--muted))" }}>{currentRow.method} {currentRow.endpoint}</div>
+                {currentRow.when && <div><strong>When it runs:</strong> {currentRow.when}</div>}
+                {currentRow.what && <div style={{ color: "var(--pn-muted, var(--muted))" }}>{currentRow.what}</div>}
+                {isRem && (currentRow.defaultStopOn?.length ?? 0) > 0 && (
+                  <div style={{ color: "var(--pn-muted, var(--muted))" }}>
+                    <strong>Suggested stop:</strong> {currentRow.defaultStopOn!.join(", ")}
+                  </div>
+                )}
                 {(((currentRow.builtIn?.templates.filter(t => t.active !== false && t.mode !== "off").length ?? 0) > 0) || (currentRow.builtIn?.reminders.length ?? 0) > 0) && (
                   <div style={{ marginTop: 4, padding: "6px 8px", borderRadius: 6, background: "color-mix(in srgb, #b26a00 12%, transparent)", color: "inherit" }}>
                     <strong>Built-in message already active:</strong>{" "}
@@ -739,13 +802,42 @@ export function ActionRuleForm({
         </div>
 
         <div className={s.factRow}>
-          <dt>4. Condition <InfoTip label="Only if"><p>Conditions available for the chosen action.</p></InfoTip></dt>
-          <dd>
+          <dt>4. Condition <InfoTip label="Only if"><p>Self-serve checks: payment state, installment due, minimum progress %, or remaining upload limit.</p></InfoTip></dt>
+          <dd style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <select value={condition} onChange={e => setCondition(e.target.value as RuleCondition)}>
               {availableConditions.map(opt => (
                 <option key={opt.key} value={opt.key}>{opt.label}</option>
               ))}
             </select>
+            {currentRow?.supportsProgress && (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-meta)" }}>
+                <span>Progress &gt;=</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={minProgress}
+                  onChange={e => setMinProgress(Math.min(100, Math.max(0, Number(e.target.value || 0))))}
+                  style={{ width: 64 }}
+                />
+                <span>% <span style={{ color: "var(--pn-muted, var(--muted))" }}>(0 = any, e.g. 30, 60, 100)</span></span>
+              </label>
+            )}
+            {currentRow?.supportsLimit && (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-meta)" }}>
+                <span>Remaining limit &lt;=</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={1000}
+                  placeholder="Any"
+                  value={maxRemainingLimit}
+                  onChange={e => setMaxRemainingLimit(e.target.value)}
+                  style={{ width: 68 }}
+                />
+                <span style={{ color: "var(--pn-muted, var(--muted))" }}>(leave blank for any)</span>
+              </label>
+            )}
           </dd>
         </div>
 
@@ -957,7 +1049,7 @@ export function ActionRuleForm({
               <div className={s.factRow}>
                 <dt>Stop when ({who}) <InfoTip label="Stop when"><p>Stops immediately when the stop action happens for the same record, and also re-checks the database right before every send.</p></InfoTip></dt>
                 <dd style={{ display: "grid", gap: 4 }}>
-                  {STOP_CHOICES.map(item => (
+                  {effectiveStopChoices.map(item => (
                     <label key={item.key} style={{ cursor: "pointer" }}>
                       <input type="checkbox" checked={cfg.stopOn.includes(item.key)}
                         onChange={() => updateTarget(who, p => ({ ...p, stopOn: p.stopOn.includes(item.key) ? p.stopOn.filter(k => k !== item.key) : [...p.stopOn, item.key] }))} /> {item.label}

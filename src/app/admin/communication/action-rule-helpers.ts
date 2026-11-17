@@ -13,7 +13,13 @@ export type TriggerOrigin = {
 export type TriggerGroup = {
   triggerKey: string;
   label: string;
+  folder?: string;
+  when?: string;
   supportsScope?: boolean;
+  supportsProgress?: boolean;
+  supportsLimit?: boolean;
+  canStop?: boolean;
+  defaultStopOn?: string[];
   conditions?: { key: string; label: string }[];
   origins: TriggerOrigin[];
   builtIn?: BuiltInInfo;
@@ -45,6 +51,8 @@ export type ActionPackageOption = { slug: string; name: string };
 export type ActionsData = {
   actions: ActionRow[];
   triggers?: TriggerGroup[];
+  folders?: string[];
+  stopChoices?: { key: string; label: string }[];
   surfaces: ActionSurface[];
   categories: ActionCategory[];
   packages?: ActionPackageOption[];
@@ -55,14 +63,19 @@ export function triggersToFormOptions(triggers: TriggerGroup[]): FormActionOptio
     id: t.triggerKey,
     title: t.label,
     what: t.origins.length
-      ? `Triggers from: ${t.origins.map(o => `${o.surface} (${o.id}: ${o.title})`).join(", ")}`
-      : `System trigger: ${t.triggerKey}`,
-    category: "Business triggers",
-    method: "TRIGGER",
+      ? `Combined actions (${t.origins.length}): ${t.origins.map(o => `${o.surface} (${o.id}: ${o.title})`).join(", ")}`
+      : `System work group: ${t.label}`,
+    when: t.when || "",
+    category: t.folder || "Business triggers",
+    method: "GROUP",
     endpoint: t.triggerKey,
     triggerKey: t.triggerKey,
     supportsScope: !!t.supportsScope,
+    supportsProgress: !!t.supportsProgress,
+    supportsLimit: !!t.supportsLimit,
+    defaultStopOn: t.defaultStopOn || [],
     conditions: t.conditions,
+    builtIn: t.builtIn,
     rules: t.rules,
     isTriggerGroup: true,
     origins: t.origins,
@@ -87,7 +100,10 @@ export function ruleSummaryLine(rule: ActionRuleRecord) {
         : rule.scope?.kind === "offer_payment" ? " · Offer payment" : "";
   const cond = rule.condition === "unpaid" ? " · If unpaid"
     : rule.condition === "paid" ? " · If paid"
-      : rule.condition === "upload_pending" ? " · If upload pending" : "";
+      : rule.condition === "installment_due" ? " · If installment due"
+        : rule.condition === "upload_pending" ? " · If upload pending" : "";
+  const prog = (rule.minProgress ?? 0) > 0 ? ` · Progress >= ${rule.minProgress}%` : "";
+  const lim = rule.maxRemainingLimit !== null && rule.maxRemainingLimit !== undefined ? ` · Limit <= ${rule.maxRemainingLimit}` : "";
   const origins = rule.originFilter?.length ? ` · Only ${rule.originFilter.join(", ")}` : "";
   const timings = (rule.steps || []).map(st => {
     if (rule.kind === "template") return "immediately";
@@ -101,7 +117,7 @@ export function ruleSummaryLine(rule: ActionRuleRecord) {
   const perDayText = (rule.repeat?.perDay || 1) > 1 ? ` (${rule.repeat?.perDay}x/day)` : "";
   const repeat = rule.kind === "reminder" && rule.repeat?.times ? ` · repeat ${rule.repeat.times}x every ${rule.repeat.everyDays}d${perDayText}` : "";
   const stop = rule.kind === "reminder" && rule.stopOn?.length ? ` · stops on ${rule.stopOn.join(", ")}` : "";
-  return `${who}${scope}${cond}${origins} · ${timings || "immediately"}${repeat}${stop}`;
+  return `${who}${scope}${cond}${prog}${lim}${origins} · ${timings || "immediately"}${repeat}${stop}`;
 }
 
 /** Groups Customer+Admin rules that share a non-empty `pairId` into one visual row (Customer first). */

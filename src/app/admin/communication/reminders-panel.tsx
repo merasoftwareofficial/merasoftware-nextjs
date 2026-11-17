@@ -221,6 +221,7 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
           actions={formActions}
           editingRule={activeEditingRule}
           packages={data?.packages}
+          stopChoices={data?.stopChoices}
           onSaved={reload}
           onBack={() => {
             setEditingRule(null);
@@ -237,6 +238,7 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
           actions={formActions}
           defaultKind="reminder"
           packages={data?.packages}
+          stopChoices={data?.stopChoices}
           onSaved={reload}
           onBack={() => setNewRule(false)}
         />

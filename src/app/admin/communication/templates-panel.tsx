@@ -13,6 +13,7 @@ import {
   ruleStatusLabel,
   ruleSummaryLine,
   setActionRuleEnabled,
+  triggersToFormOptions,
   type ActionRow,
   type ActionsData,
 } from "./action-rule-helpers";
@@ -64,10 +65,31 @@ export function TemplatesPanel({
   };
 
   const allActions: ActionRow[] = useMemo(() => data?.actions ?? [], [data]);
+  const triggers = useMemo(() => data?.triggers ?? [], [data]);
+  const formActions = useMemo(
+    () => (triggers.length ? triggersToFormOptions(triggers) : allActions),
+    [triggers, allActions],
+  );
 
-  // Deduplicate shared-trigger rules across actions (preferring the row matching rule.actionId).
+  // Deduplicate shared-trigger rules across Work Groups (or fallback actions).
   const templateEntries = useMemo<TemplateEntry[]>(() => {
     const byId = new Map<string, TemplateEntry>();
+    if (triggers.length) {
+      for (const trigger of triggers) {
+        for (const rule of trigger.rules || []) {
+          if (rule.kind !== "template") continue;
+          const rid = rule._id || rule.id;
+          if (!rid || byId.has(rid)) continue;
+          byId.set(rid, {
+            ...rule,
+            actionId: "",
+            actionTitle: rule.purpose || trigger.label,
+            actionCode: trigger.triggerKey,
+          });
+        }
+      }
+      return [...byId.values()];
+    }
     for (const row of allActions) {
       for (const rule of row.rules || []) {
         if (rule.kind !== "template") continue;
@@ -78,14 +100,14 @@ export function TemplatesPanel({
           byId.set(rid, {
             ...rule,
             actionId: rule.actionId || row.id,
-            actionTitle: row.title,
+            actionTitle: rule.purpose || row.title,
             actionCode: row.id,
           });
         }
       }
     }
     return [...byId.values()];
-  }, [allActions]);
+  }, [triggers, allActions]);
 
   // Deduplicate any remaining unmigrated Built-in (Old) templates by event key.
   const builtInEntries = useMemo<BuiltInTemplateEntry[]>(() => {
@@ -223,9 +245,10 @@ export function TemplatesPanel({
     return (
       <section hidden={!active}>
         <ActionRuleForm
-          actions={allActions}
+          actions={formActions}
           editingRule={editingRule}
           packages={data?.packages}
+          stopChoices={data?.stopChoices}
           onSaved={reload}
           onBack={() => setEditingRule(null)}
         />
@@ -236,9 +259,10 @@ export function TemplatesPanel({
     return (
       <section hidden={!active}>
         <ActionRuleForm
-          actions={allActions}
+          actions={formActions}
           defaultKind="template"
           packages={data?.packages}
+          stopChoices={data?.stopChoices}
           onSaved={reload}
           onBack={() => setNewRule(false)}
         />
