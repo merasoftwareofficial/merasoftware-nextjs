@@ -73,3 +73,7 @@
 .newCategory { display: flex; gap: 6px; padding: 6px; }
 .newCategory input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--brand-link); border-radius: 7px; background: var(--pn-field, var(--paper)); color: inherit; font: inherit; font-size: var(--fs-ui); }
 .menu .saveSmall { width: auto; padding: 6px 12px; background: var(--inverse, var(--pn-text)); color: var(--inverse-text, var(--pn-card)); font-weight: 600; font-size: var(--fs-ui); }
+
+.originList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.originPill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--pn-line, var(--line)); background: var(--pn-bg, var(--paper)); font-size: var(--fs-meta); white-space: nowrap; }
+.originSurface { font-weight: 700; }

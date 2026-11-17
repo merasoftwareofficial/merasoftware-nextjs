@@ -14,9 +14,11 @@ import {
   ruleStatusLabel,
   ruleSummaryLine,
   setActionRuleEnabled,
+  triggersToFormOptions,
   type ActionRow,
   type ActionsData,
   type ActionSurface as Surface,
+  type TriggerGroup,
 } from "./action-rule-helpers";
 import { ActionScheduledPanel } from "./action-scheduled-panel";
 import c from "./actions-panel.module.css";
@@ -29,6 +31,7 @@ import s from "./communication.module.css";
  * The row itself is read-only: the tab and the heading change only from Manage.
  */
 type View = "all" | Surface | "archived" | "deleted";
+type DisplayMode = "triggers" | "catalog";
 type Change = Record<string, unknown>;
 type MessageFilter = "all" | "template" | "reminder" | "none";
 
@@ -68,6 +71,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<View>("all");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("triggers");
   const [messageFilter, setMessageFilter] = useState<MessageFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
@@ -217,6 +221,44 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     }
   }
 
+  const triggers = useMemo(() => data?.triggers ?? [], [data]);
+  const triggerFormOptions = useMemo(() => triggersToFormOptions(triggers), [triggers]);
+  const formActions = displayMode === "triggers" && triggerFormOptions.length ? triggerFormOptions : all;
+  const triggerAsRow = (t: TriggerGroup): ActionRow => ({
+    id: t.triggerKey,
+    title: t.label,
+    what: t.origins.length ? `Triggers from: ${t.origins.map(o => `${o.surface} (${o.id}: ${o.title})`).join(", ")}` : `System trigger: ${t.triggerKey}`,
+    when: "",
+    method: "TRIGGER",
+    endpoint: t.triggerKey,
+    note: "",
+    surface: t.origins[0]?.surface || "System",
+    category: "Business triggers",
+    archived: false,
+    deleted: false,
+    changed: false,
+    triggerKey: t.triggerKey,
+    supportsScope: t.supportsScope,
+    conditions: t.conditions,
+    builtIn: t.builtIn,
+    rules: t.rules,
+  });
+  const filteredTriggers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return triggers.filter(t => {
+      const rules = t.rules || [];
+      const builtInTpl = (t.builtIn?.templates || []).filter(tp => tp.active !== false && tp.mode !== "off").length;
+      const tplCount = rules.filter(r => r.kind === "template").length + builtInTpl;
+      const remCount = rules.filter(r => r.kind === "reminder").length;
+      if (messageFilter === "template" && tplCount === 0) return false;
+      if (messageFilter === "reminder" && remCount === 0) return false;
+      if (messageFilter === "none" && tplCount + remCount > 0) return false;
+      if (!q) return true;
+      const originText = t.origins.map(o => `${o.id} ${o.title} ${o.surface} ${o.endpoint}`).join(" ");
+      return `${t.label} ${t.triggerKey} ${originText}`.toLowerCase().includes(q);
+    });
+  }, [triggers, messageFilter, query]);
+
   if (showScheduled) {
     return (
       <section hidden={!active}>
@@ -230,25 +272,26 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   if (editingRule) {
     return (
       <section hidden={!active}>
-        <ActionRuleForm actions={all} editingRule={editingRule} packages={data?.packages} onSaved={reloadActions} onBack={() => setEditingRule(null)} />
+        <ActionRuleForm actions={formActions} editingRule={editingRule} packages={data?.packages} onSaved={reloadActions} onBack={() => setEditingRule(null)} />
       </section>
     );
   }
   if (newRule) {
     return (
       <section hidden={!active}>
-        <ActionRuleForm actions={all} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRule(false)} />
+        <ActionRuleForm actions={formActions} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRule(false)} />
       </section>
     );
   }
   if (newRuleFor) {
     return (
       <section hidden={!active}>
-        <ActionRuleForm actions={all} initialActionId={newRuleFor} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRuleFor(null)} />
+        <ActionRuleForm actions={formActions} initialActionId={newRuleFor} packages={data?.packages} onSaved={reloadActions} onBack={() => setNewRuleFor(null)} />
       </section>
     );
   }
-  const detailRow = detailActionId ? all.find(a => a.id === detailActionId) : null;
+  const detailTrigger = detailActionId ? triggers.find(t => t.triggerKey === detailActionId) : null;
+  const detailRow = detailTrigger ? triggerAsRow(detailTrigger) : (detailActionId ? all.find(a => a.id === detailActionId) : null);
   if (detailRow) {
     return (
       <section hidden={!active}>
@@ -261,7 +304,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           error={error}
           onBack={() => setDetailActionId(null)}
           onAdd={() => setNewRuleFor(detailRow.id)}
-          onEdit={rule => setEditingRule({ ...rule, actionId: detailRow.id })}
+          onEdit={rule => setEditingRule(detailTrigger ? { ...rule, actionId: "" } : { ...rule, actionId: detailRow.id })}
           onToggle={rule => void toggleRuleEnabled(rule)}
           onDelete={rule => void deleteRule(rule)}
           onEnrollPending={rule => void enrollPending(rule)}
@@ -273,7 +316,11 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
   }
 
   return <section className={styles.section} aria-label="Actions list" hidden={!active}>
-    <p className={styles.muted}>Use Manage on a row to move it to another tab or heading, archive it or remove it from the list.</p>
+    <p className={styles.muted}>
+      {displayMode === "triggers"
+        ? "Rules are grouped by business work (kaam). Each row shows every origin (Admin, Client, Website, System) that fires that trigger."
+        : "Use Manage on a row to move it to another tab or heading, archive it or remove it from the list."}
+    </p>
     {error && <p className={styles.error} role="alert">{error}</p>}
     {notice && <p role="status" className={c.notice}>{notice}</p>}
 
@@ -281,31 +328,103 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       <div className={styles.actions} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         <button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add reminder or template</button>
         <button type="button" onClick={() => setShowScheduled(true)}>Scheduled reminders</button>
+        <div role="tablist" aria-label="View mode" className={c.segment} style={{ marginLeft: "auto" }}>
+          <button type="button" role="tab" aria-selected={displayMode === "triggers"} onClick={() => setDisplayMode("triggers")}>
+            By Work (Triggers) <span className={c.badge}>({triggers.length})</span>
+          </button>
+          <button type="button" role="tab" aria-selected={displayMode === "catalog"} onClick={() => setDisplayMode("catalog")}>
+            All Actions (Catalog) <span className={c.badge}>({all.length})</span>
+          </button>
+        </div>
       </div>
 
-      <div role="tablist" aria-label="Show actions" className={c.segment}>
-        {VIEWS.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => { setView(item.id); setMenuFor(null); }}>
-          {item.label} <span className={c.badge}>({counts[item.id]})</span>
-        </button>)}
-      </div>
+      {displayMode === "catalog" && (
+        <div role="tablist" aria-label="Show actions" className={c.segment}>
+          {VIEWS.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} onClick={() => { setView(item.id); setMenuFor(null); }}>
+            {item.label} <span className={c.badge}>({counts[item.id]})</span>
+          </button>)}
+        </div>
+      )}
 
       <div role="tablist" aria-label="Filter by message" className={c.segment}>
         {MESSAGE_FILTERS.map(item => <button key={item.id} type="button" role="tab" aria-selected={messageFilter === item.id} onClick={() => { setMessageFilter(item.id); setMenuFor(null); }}>
-          {item.label} <span className={c.badge}>({messageCounts[item.id]})</span>
+          {item.label} {displayMode === "catalog" && <span className={c.badge}>({messageCounts[item.id]})</span>}
         </button>)}
       </div>
 
       <div className={c.toolbar}>
-        <input className={c.search} type="search" aria-label="Find an action" placeholder="Find by name, description or endpoint" value={query} onChange={event => setQuery(event.target.value)} />
-        <select aria-label="Filter by category" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}
-          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--pn-line, var(--line))", background: "var(--pn-field, var(--paper))", color: "inherit", font: "inherit", fontSize: "var(--fs-ui)" }}>
-          <option value="all">All categories</option>
-          {(data?.categories ?? []).map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
-        </select>
-        <span className={c.count}>Showing {shown} {shown === 1 ? "action" : "actions"} in {groups.length} {groups.length === 1 ? "heading" : "headings"}</span>
+        <input className={c.search} type="search" aria-label="Find an action" placeholder={displayMode === "triggers" ? "Find by work, trigger or origin (e.g. B41, A29, plan)" : "Find by name, description or endpoint"} value={query} onChange={event => setQuery(event.target.value)} />
+        {displayMode === "catalog" && (
+          <select aria-label="Filter by category" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}
+            style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--pn-line, var(--line))", background: "var(--pn-field, var(--paper))", color: "inherit", font: "inherit", fontSize: "var(--fs-ui)" }}>
+            <option value="all">All categories</option>
+            {(data?.categories ?? []).map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
+          </select>
+        )}
+        <span className={c.count}>
+          {displayMode === "triggers"
+            ? `Showing ${filteredTriggers.length} ${filteredTriggers.length === 1 ? "trigger" : "triggers"}`
+            : `Showing ${shown} ${shown === 1 ? "action" : "actions"} in ${groups.length} ${groups.length === 1 ? "heading" : "headings"}`}
+        </span>
       </div>
 
-      {!groups.length ? <p>No actions here.</p> : <div className={c.tableWrap}>
+      {displayMode === "triggers" ? (
+        !filteredTriggers.length ? <p>No triggers match your filter.</p> : <div className={c.tableWrap}>
+          <table className={c.table} aria-label="Triggers by work">
+            <thead><tr>
+              <th>Work / Trigger</th>
+              <th>Trigger Origins (where it fires)</th>
+              <th>Messages</th>
+              <th className={c.right}>Action</th>
+            </tr></thead>
+            <tbody>
+              {filteredTriggers.map(trigger => {
+                const row = triggerAsRow(trigger);
+                const msg = ruleStatus(row);
+                const hasMessages = msg.template + msg.reminder > 0;
+                return (
+                  <tr key={trigger.triggerKey} className={c.row}>
+                    <td>
+                      <div className={c.name}>{trigger.label}</div>
+                      <div className={c.mono}>{trigger.triggerKey}</div>
+                    </td>
+                    <td>
+                      {!trigger.origins.length ? (
+                        <span className={c.when}>System / internal event</span>
+                      ) : (
+                        <div className={c.originList}>
+                          {trigger.origins.map(o => (
+                            <span key={o.id} className={c.originPill} title={`${o.method} ${o.endpoint}`}>
+                              <span className={c.originSurface}>{o.surface}</span>
+                              <span>· {o.id}: {o.title}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {!hasMessages ? (
+                        <button type="button" className={c.messageNone} onClick={() => setNewRuleFor(trigger.triggerKey)}>+ Add</button>
+                      ) : (
+                        <button type="button" className={c.messageTags} onClick={() => setDetailActionId(trigger.triggerKey)}>
+                          {msg.template > 0 && <span className={c.tagTemplate}>{msg.template} template{msg.template === 1 ? "" : "s"}</span>}
+                          {msg.reminder > 0 && <span className={c.tagReminder}>{msg.reminder} reminder{msg.reminder === 1 ? "" : "s"}</span>}
+                        </button>
+                      )}
+                    </td>
+                    <td className={c.right}>
+                      <div style={{ display: "inline-flex", gap: 6 }}>
+                        <button type="button" className={c.manage} onClick={() => setDetailActionId(trigger.triggerKey)}>Manage</button>
+                        <button type="button" className="admin-button" onClick={() => setNewRuleFor(trigger.triggerKey)}>+ Rule</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : !groups.length ? <p>No actions here.</p> : <div className={c.tableWrap}>
         <table className={c.table} aria-label="Actions table">
           <thead><tr>
             <th scope="col">Name</th>

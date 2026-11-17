@@ -67,6 +67,8 @@ export type FormActionOption = {
   conditions?: ConditionOption[];
   builtIn?: BuiltInInfo;
   rules?: ActionRuleRecord[];
+  isTriggerGroup?: boolean;
+  origins?: { id: string; title: string; surface: string; method: string; endpoint: string }[];
 };
 
 type AudienceChoice = "customer" | "admin" | "both";
@@ -406,7 +408,7 @@ export function ActionRuleForm({
       return {
         kind,
         action: actionKey,
-        actionId: currentRow.id,
+        actionId: currentRow.isTriggerGroup ? "" : currentRow.id,
         audience: who,
         pairId: nextPairId,
         condition,
@@ -489,6 +491,21 @@ export function ActionRuleForm({
       <div className={s.workToolbar}>
         <h3>{editingId ? `Edit ${kind} — ${currentRow?.title || selectedActionId}` : "Add message or reminder"}</h3>
       </div>
+
+      {currentRow?.origins && currentRow.origins.length > 0 && (
+        <div className={s.facts}>
+          <div className={s.factRow}>
+            <dt>Triggers from</dt>
+            <dd style={{ gap: 6, flexWrap: "wrap" }}>
+              {currentRow.origins.map(o => (
+                <span key={o.id} style={{ padding: "3px 9px", borderRadius: 999, border: "1px solid var(--pn-line, var(--line))", fontSize: "var(--fs-meta)" }}>
+                  <strong>{o.surface}</strong> · {o.id}: {o.title}
+                </span>
+              ))}
+            </dd>
+          </div>
+        </div>
+      )}
 
       {error && <p style={{ color: "crimson", margin: 0, fontSize: "var(--fs-ui)" }} role="alert">{error}</p>}
       {notice && <p style={{ color: "var(--brand-link)", margin: 0, fontSize: "var(--fs-ui)" }} role="status">{notice}</p>}

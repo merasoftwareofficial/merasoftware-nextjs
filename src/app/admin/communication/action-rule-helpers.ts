@@ -1,6 +1,24 @@
-import type { ActionRuleRecord, BuiltInInfo } from "./action-rule-form";
+import type { ActionRuleRecord, BuiltInInfo, FormActionOption } from "./action-rule-form";
 
 export type ActionSurface = "Admin" | "Client" | "Website" | "System";
+
+export type TriggerOrigin = {
+  id: string;
+  title: string;
+  surface: ActionSurface;
+  method: string;
+  endpoint: string;
+};
+
+export type TriggerGroup = {
+  triggerKey: string;
+  label: string;
+  supportsScope?: boolean;
+  conditions?: { key: string; label: string }[];
+  origins: TriggerOrigin[];
+  builtIn?: BuiltInInfo;
+  rules?: ActionRuleRecord[];
+};
 
 export type ActionRow = {
   id: string;
@@ -26,10 +44,30 @@ export type ActionCategory = { name: string; meaning: string };
 export type ActionPackageOption = { slug: string; name: string };
 export type ActionsData = {
   actions: ActionRow[];
+  triggers?: TriggerGroup[];
   surfaces: ActionSurface[];
   categories: ActionCategory[];
   packages?: ActionPackageOption[];
 };
+
+export function triggersToFormOptions(triggers: TriggerGroup[]): FormActionOption[] {
+  return triggers.map(t => ({
+    id: t.triggerKey,
+    title: t.label,
+    what: t.origins.length
+      ? `Triggers from: ${t.origins.map(o => `${o.surface} (${o.id}: ${o.title})`).join(", ")}`
+      : `System trigger: ${t.triggerKey}`,
+    category: "Business triggers",
+    method: "TRIGGER",
+    endpoint: t.triggerKey,
+    triggerKey: t.triggerKey,
+    supportsScope: !!t.supportsScope,
+    conditions: t.conditions,
+    rules: t.rules,
+    isTriggerGroup: true,
+    origins: t.origins,
+  }));
+}
 
 export function ruleStatusLabel(rule: ActionRuleRecord) {
   return !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
