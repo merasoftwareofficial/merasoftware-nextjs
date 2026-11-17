@@ -14,11 +14,13 @@ import {
   ruleStatusLabel,
   ruleSummaryLine,
   setActionRuleEnabled,
+  switchActionRuleToAuto,
   triggersToFormOptions,
   type ActionRow,
   type ActionsData,
   type ActionSurface as Surface,
   type TriggerGroup,
+  type TriggerOrigin,
 } from "./action-rule-helpers";
 import { ActionScheduledPanel } from "./action-scheduled-panel";
 import c from "./actions-panel.module.css";
@@ -221,6 +223,23 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     }
   }
 
+  async function switchToAuto(rule: ActionRuleRecord) {
+    const id = rule._id || rule.id;
+    if (!id) return;
+    setTogglingId(id);
+    setError("");
+    setNotice("");
+    try {
+      await switchActionRuleToAuto(rule);
+      setNotice("Switched to Auto — new messages will send automatically.");
+      reloadActions();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not switch rule to Auto.");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   const triggers = useMemo(() => data?.triggers ?? [], [data]);
   const triggerFormOptions = useMemo(() => triggersToFormOptions(triggers), [triggers]);
   const formActions = displayMode === "triggers" && triggerFormOptions.length ? triggerFormOptions : all;
@@ -297,6 +316,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       <section hidden={!active}>
         <ActionDetailView
           row={detailRow}
+          origins={detailTrigger?.origins}
           togglingId={togglingId}
           deletingId={deletingId}
           enrollingId={enrollingId}
@@ -306,6 +326,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           onAdd={() => setNewRuleFor(detailRow.id)}
           onEdit={rule => setEditingRule(detailTrigger ? { ...rule, actionId: "" } : { ...rule, actionId: detailRow.id })}
           onToggle={rule => void toggleRuleEnabled(rule)}
+          onSwitchToAuto={rule => void switchToAuto(rule)}
           onDelete={rule => void deleteRule(rule)}
           onEnrollPending={rule => void enrollPending(rule)}
           onOpenTemplate={onOpenTemplate}
@@ -499,8 +520,9 @@ function MessageStatus({ row, onOpen }: { row: ActionRow; onOpen: () => void }) 
   );
 }
 
-function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, error, onBack, onAdd, onEdit, onToggle, onDelete, onEnrollPending, onOpenTemplate, onOpenPanel }: {
+function ActionDetailView({ row, origins, togglingId, deletingId, enrollingId, notice, error, onBack, onAdd, onEdit, onToggle, onSwitchToAuto, onDelete, onEnrollPending, onOpenTemplate, onOpenPanel }: {
   row: ActionRow;
+  origins?: TriggerOrigin[];
   togglingId: string | null;
   deletingId: string | null;
   enrollingId: string | null;
@@ -510,6 +532,7 @@ function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, er
   onAdd: () => void;
   onEdit: (rule: ActionRuleRecord) => void;
   onToggle: (rule: ActionRuleRecord) => void;
+  onSwitchToAuto: (rule: ActionRuleRecord) => void;
   onDelete: (rule: ActionRuleRecord) => void;
   onEnrollPending: (rule: ActionRuleRecord) => void;
   onOpenTemplate?: (event: string, app: "portal" | "website") => void;
@@ -533,7 +556,18 @@ function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, er
       <div className={s.workToolbar}>
         <h3>{row.title} <span className={c.mono} style={{ fontSize: "var(--fs-ui)" }}>({row.id})</span></h3>
       </div>
-      <p className={styles.muted}>{row.what}{row.when ? ` — ${row.when}` : ""}</p>
+      {origins?.length ? (
+        <div className={c.originList} style={{ marginBottom: 8 }}>
+          {origins.map(o => (
+            <span key={`${o.surface}-${o.id}-${o.title}`} className={c.originPill} title={`${o.method} ${o.endpoint}`}>
+              <span className={c.originSurface}>{o.surface}</span>
+              <span>· {o.id}: {o.title}</span>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className={styles.muted}>{row.what}{row.when ? ` — ${row.when}` : ""}</p>
+      )}
       {notice && <p className={styles.notice} role="status">{notice}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}
 
@@ -604,6 +638,11 @@ function ActionDetailView({ row, togglingId, deletingId, enrollingId, notice, er
                           return (
                             <div key={rid} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                               {isPaired && <span className={c.when} style={{ margin: 0 }}>{who}:</span>}
+                              {rule.enabled && rule.control === "review" && (
+                                <button type="button" className="admin-button" disabled={togglingId === rid} onClick={() => onSwitchToAuto(rule)}>
+                                  {togglingId === rid ? "Saving…" : "Switch to Auto"}
+                                </button>
+                              )}
                               <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => onToggle(rule)}>
                                 {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
                               </button>

@@ -70,7 +70,8 @@ export function triggersToFormOptions(triggers: TriggerGroup[]): FormActionOptio
 }
 
 export function ruleStatusLabel(rule: ActionRuleRecord) {
-  return !rule.enabled || rule.control === "off" ? "Off" : rule.control === "review" ? "Review" : "Auto";
+  if (!rule.enabled || rule.control === "off") return "Off (paused)";
+  return rule.control === "review" ? "Review (holds in Review & delivery)" : "Auto (sends automatically)";
 }
 
 export function rulePreviewText(rule: ActionRuleRecord) {
@@ -84,7 +85,10 @@ export function ruleSummaryLine(rule: ActionRuleRecord) {
     : rule.scope?.kind === "monthly" ? " · Monthly"
       : rule.scope?.kind === "one_time" ? " · One-time"
         : rule.scope?.kind === "offer_payment" ? " · Offer payment" : "";
-  const cond = rule.condition === "unpaid" ? " · If unpaid" : rule.condition === "paid" ? " · If paid" : "";
+  const cond = rule.condition === "unpaid" ? " · If unpaid"
+    : rule.condition === "paid" ? " · If paid"
+      : rule.condition === "upload_pending" ? " · If upload pending" : "";
+  const origins = rule.originFilter?.length ? ` · Only ${rule.originFilter.join(", ")}` : "";
   const timings = (rule.steps || []).map(st => {
     if (rule.kind === "template") return "immediately";
     const unit = st.unit === "hours" ? "h" : "d";
@@ -97,7 +101,7 @@ export function ruleSummaryLine(rule: ActionRuleRecord) {
   const perDayText = (rule.repeat?.perDay || 1) > 1 ? ` (${rule.repeat?.perDay}x/day)` : "";
   const repeat = rule.kind === "reminder" && rule.repeat?.times ? ` · repeat ${rule.repeat.times}x every ${rule.repeat.everyDays}d${perDayText}` : "";
   const stop = rule.kind === "reminder" && rule.stopOn?.length ? ` · stops on ${rule.stopOn.join(", ")}` : "";
-  return `${who}${scope}${cond} · ${timings || "immediately"}${repeat}${stop}`;
+  return `${who}${scope}${cond}${origins} · ${timings || "immediately"}${repeat}${stop}`;
 }
 
 /** Groups Customer+Admin rules that share a non-empty `pairId` into one visual row (Customer first). */
@@ -135,6 +139,19 @@ export async function setActionRuleEnabled(id: string, enabled: boolean) {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || result.message || "Could not update rule.");
+}
+
+export async function switchActionRuleToAuto(rule: ActionRuleRecord) {
+  const id = rule._id || rule.id;
+  if (!id) throw new Error("Rule ID is missing.");
+  const response = await fetch(`/api/auto-reply/action-rules/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...rule, actionId: "", control: "auto", enabled: true }),
+    cache: "no-store",
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || result.message || "Could not switch rule to Auto.");
 }
 
 export async function deleteActionRule(id: string) {

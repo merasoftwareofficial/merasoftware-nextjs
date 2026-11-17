@@ -14,6 +14,8 @@ import {
   ruleStatusLabel,
   ruleSummaryLine,
   setActionRuleEnabled,
+  switchActionRuleToAuto,
+  triggersToFormOptions,
   type ActionRow,
   type ActionsData,
 } from "./action-rule-helpers";
@@ -61,10 +63,31 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
   };
 
   const allActions: ActionRow[] = useMemo(() => data?.actions ?? [], [data]);
+  const triggers = useMemo(() => data?.triggers ?? [], [data]);
+  const formActions = useMemo(
+    () => (triggers.length ? triggersToFormOptions(triggers) : allActions),
+    [triggers, allActions],
+  );
 
-  // Deduplicate shared-trigger rules across actions (preferring the row matching rule.actionId).
+  // Deduplicate shared-trigger rules across triggers (or fallback actions).
   const reminderEntries = useMemo<ReminderEntry[]>(() => {
     const byId = new Map<string, ReminderEntry>();
+    if (triggers.length) {
+      for (const trigger of triggers) {
+        for (const rule of trigger.rules || []) {
+          if (rule.kind !== "reminder") continue;
+          const rid = rule._id || rule.id;
+          if (!rid || byId.has(rid)) continue;
+          byId.set(rid, {
+            ...rule,
+            actionId: "",
+            actionTitle: rule.purpose || trigger.label,
+            actionCode: trigger.triggerKey,
+          });
+        }
+      }
+      return [...byId.values()];
+    }
     for (const row of allActions) {
       for (const rule of row.rules || []) {
         if (rule.kind !== "reminder") continue;
@@ -75,14 +98,14 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
           byId.set(rid, {
             ...rule,
             actionId: rule.actionId || row.id,
-            actionTitle: row.title,
+            actionTitle: rule.purpose || row.title,
             actionCode: row.id,
           });
         }
       }
     }
     return [...byId.values()];
-  }, [allActions]);
+  }, [triggers, allActions]);
 
   const groups = useMemo(() => {
     const paired = groupRulesByPair(reminderEntries);
@@ -153,6 +176,23 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
     }
   }
 
+  async function switchToAuto(rule: ActionRuleRecord) {
+    const id = rule._id || rule.id;
+    if (!id) return;
+    setTogglingId(id);
+    setError("");
+    setNotice("");
+    try {
+      await switchActionRuleToAuto(rule);
+      setNotice("Switched to Auto — reminders will send automatically.");
+      reload();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not switch reminder to Auto.");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   const activeFocus = focusRule && focusRule.nonce !== dismissedFocusNonce ? focusRule : null;
   const focusedRule = useMemo(() => {
     if (!activeFocus) return null;
@@ -178,7 +218,7 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
     return (
       <section hidden={!active}>
         <ActionRuleForm
-          actions={allActions}
+          actions={formActions}
           editingRule={activeEditingRule}
           packages={data?.packages}
           onSaved={reload}
@@ -194,7 +234,7 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
     return (
       <section hidden={!active}>
         <ActionRuleForm
-          actions={allActions}
+          actions={formActions}
           defaultKind="reminder"
           packages={data?.packages}
           onSaved={reload}
@@ -250,7 +290,7 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
               <table className={c.table} aria-label="Reminders table">
                 <thead>
                   <tr>
-                    <th scope="col">Action &amp; Origin</th>
+                    <th scope="col">Purpose &amp; Trigger</th>
                     <th scope="col">How it works</th>
                     <th scope="col">Status</th>
                     <th scope="col" className={c.right}>Action</th>
@@ -313,6 +353,11 @@ export function RemindersPanel({ active, focusRule }: { active: boolean; focusRu
                               return (
                                 <div key={rid} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                   {isPaired && <span className={c.when} style={{ margin: 0 }}>{who}:</span>}
+                                  {rule.enabled && rule.control === "review" && (
+                                    <button type="button" className="admin-button" disabled={togglingId === rid} onClick={() => void switchToAuto(rule)}>
+                                      {togglingId === rid ? "Saving…" : "Switch to Auto"}
+                                    </button>
+                                  )}
                                   <button type="button" className={c.manage} disabled={togglingId === rid} onClick={() => void toggleRule(rule)}>
                                     {togglingId === rid ? "Saving…" : rule.enabled && rule.control !== "off" ? "Turn Off" : "Turn On"}
                                   </button>

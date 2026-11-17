@@ -19,7 +19,7 @@ export type RuleStep = {
   subject: string;
   text: string;
 };
-export type RuleCondition = "anytime" | "unpaid" | "paid";
+export type RuleCondition = "anytime" | "unpaid" | "paid" | "upload_pending";
 export type RuleScopeKind = "all" | "monthly" | "one_time" | "package" | "offer_payment";
 export type DoAlsoType = "change_lead_stage" | "add_lead_note" | "stop_reminders";
 export type DoAlsoStep = { type: DoAlsoType; stage?: string; note?: string };
@@ -29,9 +29,11 @@ export const originLabel = (origin?: RuleOrigin) =>
 export type ActionRuleRecord = {
   _id?: string;
   id?: string;
+  purpose?: string;
   kind: "template" | "reminder";
   action: string;
   actionId?: string;
+  originFilter?: string[];
   audience: "customer" | "admin";
   condition: RuleCondition;
   scope: { kind: RuleScopeKind; packageSlug?: string };
@@ -81,6 +83,7 @@ type TargetConfig = {
 
 const STOP_CHOICES = [
   { key: "payment.received", label: "Payment received" },
+  { key: "upload.completed", label: "Client uploaded data" },
   { key: "plan.started", label: "Plan started" },
   { key: "project.completed", label: "Project completed" },
   { key: "project.created", label: "Project created" },
@@ -89,6 +92,65 @@ const STOP_CHOICES = [
   { key: "reservation.start_requested", label: "Reservation start requested" },
   { key: "whatsapp.ad_received", label: "WhatsApp reply received" },
   { key: "final_message.stopped", label: "Final message stopped" },
+];
+
+type GoalPreset = {
+  id: string;
+  label: string;
+  purpose: string;
+  kind: "template" | "reminder";
+  triggerKey: string;
+  condition: RuleCondition;
+  scopeKind: RuleScopeKind;
+  stopOn: string[];
+  step: Partial<RuleStep>;
+};
+
+const GOAL_PRESETS: GoalPreset[] = [
+  {
+    id: "monthly-due",
+    label: "Monthly Payment Due",
+    purpose: "Monthly Payment Due Reminder",
+    kind: "reminder",
+    triggerKey: "invoice.created",
+    condition: "unpaid",
+    scopeKind: "monthly",
+    stopOn: ["payment.received"],
+    step: { timingRef: "before_due", days: 3, channel: "whatsapp", text: "Hi {{name}}, your {{package}} payment of {{amount}} is due on {{dueDate}}. Pay here: {{invoiceLink}}" },
+  },
+  {
+    id: "onetime-upload",
+    label: "One-time Data Upload Pending",
+    purpose: "One-time Package Data Upload Reminder",
+    kind: "reminder",
+    triggerKey: "package.purchased",
+    condition: "upload_pending",
+    scopeKind: "one_time",
+    stopOn: ["upload.completed", "project.completed"],
+    step: { timingRef: "after_action", days: 1, channel: "whatsapp", text: "Hi {{name}}, please upload your project data for {{package}} so our team can start: {{portalLink}}" },
+  },
+  {
+    id: "monthly-upload-limit",
+    label: "Portal Upload Limit (5d before due)",
+    purpose: "Monthly Portal Upload Reminder",
+    kind: "reminder",
+    triggerKey: "plan.started",
+    condition: "upload_pending",
+    scopeKind: "monthly",
+    stopOn: ["upload.completed"],
+    step: { timingRef: "before_due", days: 5, channel: "whatsapp", text: "Hi {{name}}, your {{package}} monthly upload cycle ends on {{dueDate}}. Upload your pending files here: {{planLink}}" },
+  },
+  {
+    id: "plan-welcome",
+    label: "Package / Plan Welcome",
+    purpose: "Package / Plan Started Welcome",
+    kind: "template",
+    triggerKey: "plan.started",
+    condition: "anytime",
+    scopeKind: "all",
+    stopOn: [],
+    step: { timingRef: "after_action", days: 0, channel: "whatsapp", text: "Welcome {{name}}! Your {{package}} has started. View details: {{planLink}}" },
+  },
 ];
 const LEAD_STAGES = [
   { value: "Contacted", label: "Neutral" },
@@ -189,6 +251,8 @@ export function ActionRuleForm({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [actionSearch, setActionSearch] = useState<string>("");
   const [audienceChoice, setAudienceChoice] = useState<AudienceChoice>(initialPartner ? "both" : (editingRule?.audience || "customer"));
+  const [purpose, setPurpose] = useState<string>(editingRule?.purpose || "");
+  const [originFilter, setOriginFilter] = useState<string[] | null>(editingRule?.originFilter?.length ? editingRule.originFilter : null);
   const [condition, setCondition] = useState<RuleCondition>(editingRule?.condition || "anytime");
   const [scopeKind, setScopeKind] = useState<RuleScopeKind>(editingRule?.scope?.kind || "all");
   const [packageSlug, setPackageSlug] = useState<string>(editingRule?.scope?.packageSlug || packages[0]?.slug || "digital-growth-package");
@@ -272,10 +336,26 @@ export function ActionRuleForm({
     setEditingId(null);
     setCompanionId(null);
     setActivePairId("");
+    setOriginFilter(null);
     const nextRow = actionOptions.find(a => a.id === nextId);
     const nextConds = (nextRow?.conditions || [{ key: "anytime" }]).map(c => c.key);
     if (!nextConds.includes(condition)) setCondition("anytime");
     if (!nextRow?.supportsScope) setScopeKind("all");
+  }
+
+  function applyGoalPreset(preset: GoalPreset) {
+    const match = actionOptions.find(a => a.triggerKey === preset.triggerKey || a.id === preset.triggerKey);
+    if (match) setSelectedActionId(match.id);
+    setPurpose(preset.purpose);
+    setKind(preset.kind);
+    setCondition(preset.condition);
+    setScopeKind(preset.scopeKind);
+    setOriginFilter(null);
+    setCustomerCfg(prev => ({
+      ...prev,
+      steps: [{ ...blankStep(preset.step.timingRef || "after_action", preset.step.days ?? 0), ...preset.step }],
+      stopOn: [...preset.stopOn],
+    }));
   }
 
   function loadExistingRule(rule: ActionRuleRecord) {
@@ -287,6 +367,8 @@ export function ActionRuleForm({
     setCompanionId(partner?._id || partner?.id || null);
     setEditingAudience(rule.audience);
     setActivePairId(rule.pairId || "");
+    setPurpose(rule.purpose || "");
+    setOriginFilter(rule.originFilter?.length ? rule.originFilter : null);
     setKind(rule.kind);
     setAudienceChoice(partner ? "both" : rule.audience);
     setCondition(rule.condition || "anytime");
@@ -388,9 +470,12 @@ export function ActionRuleForm({
     return stepsOk && stopOk && totalOk;
   };
 
+  const allOriginSurfaces = [...new Set((currentRow?.origins || []).map(o => o.surface))];
+  const effectiveOrigins = originFilter === null ? allOriginSurfaces : originFilter;
+  const originsValid = allOriginSurfaces.length === 0 || effectiveOrigins.length > 0;
   const repeatInvalidGap = isRem && repeatForDays > 0 && repeatTimes === 0;
   const doAlsoValid = doAlso.every(d => d.type !== "add_lead_note" || (d.note || "").trim().length > 0);
-  const canSave = !!selectedActionId && !!currentRow?.triggerKey && !saving && !repeatInvalidGap && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : resolvedAdminCfg()));
+  const canSave = !!selectedActionId && !!currentRow?.triggerKey && originsValid && !saving && !repeatInvalidGap && doAlsoValid && targets.every(who => targetValid(who === "customer" ? customerCfg : resolvedAdminCfg()));
 
   async function save(controlOverride: "auto" | "review" | "off") {
     if (!currentRow?.triggerKey) return;
@@ -406,9 +491,11 @@ export function ActionRuleForm({
     const buildPayload = (who: "customer" | "admin") => {
       const cfg = who === "customer" ? customerCfg : resolvedAdminCfg();
       return {
+        purpose: purpose.trim(),
         kind,
         action: actionKey,
         actionId: currentRow.isTriggerGroup ? "" : currentRow.id,
+        originFilter: allOriginSurfaces.length > 0 && effectiveOrigins.length < allOriginSurfaces.length ? effectiveOrigins : [],
         audience: who,
         pairId: nextPairId,
         condition,
@@ -489,19 +576,47 @@ export function ActionRuleForm({
       </div>
 
       <div className={s.workToolbar}>
-        <h3>{editingId ? `Edit ${kind} — ${currentRow?.title || selectedActionId}` : "Add message or reminder"}</h3>
+        <h3>{editingId ? `Edit ${kind} — ${purpose || currentRow?.title || selectedActionId}` : "Add message or reminder"}</h3>
       </div>
+
+      {!editingId && (
+        <div className={s.facts}>
+          <div className={s.factRow}>
+            <dt>Ready-to-use goals</dt>
+            <dd style={{ gap: 8, flexWrap: "wrap" }}>
+              {GOAL_PRESETS.map(preset => (
+                <button key={preset.id} type="button" onClick={() => applyGoalPreset(preset)}>
+                  {preset.label}
+                </button>
+              ))}
+            </dd>
+          </div>
+        </div>
+      )}
 
       {currentRow?.origins && currentRow.origins.length > 0 && (
         <div className={s.facts}>
           <div className={s.factRow}>
             <dt>Triggers from</dt>
-            <dd style={{ gap: 6, flexWrap: "wrap" }}>
-              {currentRow.origins.map(o => (
-                <span key={o.id} style={{ padding: "3px 9px", borderRadius: 999, border: "1px solid var(--pn-line, var(--line))", fontSize: "var(--fs-meta)" }}>
-                  <strong>{o.surface}</strong> · {o.id}: {o.title}
-                </span>
-              ))}
+            <dd style={{ gap: 8, flexWrap: "wrap" }}>
+              {allOriginSurfaces.map(surface => {
+                const checked = effectiveOrigins.includes(surface);
+                const matching = currentRow.origins!.filter(o => o.surface === surface).map(o => `${o.id}: ${o.title}`).join(" | ");
+                return (
+                  <label key={surface} title={matching} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, border: "1px solid var(--pn-line, var(--line))", fontSize: "var(--fs-meta)" }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = checked ? effectiveOrigins.filter(s => s !== surface) : [...effectiveOrigins, surface];
+                        setOriginFilter(next.length === allOriginSurfaces.length ? null : next);
+                      }}
+                    />
+                    <span><strong>{surface}</strong> ({currentRow.origins!.filter(o => o.surface === surface).map(o => o.id).join(", ")})</span>
+                  </label>
+                );
+              })}
+              {!originsValid && <span style={{ color: "crimson", fontSize: "var(--fs-meta)" }}>Select at least one origin.</span>}
             </dd>
           </div>
         </div>
@@ -530,6 +645,20 @@ export function ActionRuleForm({
 
       {/* 1-4: Core choices */}
       <dl className={s.facts}>
+        <div className={s.factRow}>
+          <dt>Purpose</dt>
+          <dd style={{ width: "100%" }}>
+            <input
+              type="text"
+              maxLength={120}
+              value={purpose}
+              onChange={e => setPurpose(e.target.value)}
+              placeholder="Optional goal name (e.g. Monthly Payment Due, Data Upload Pending)"
+              style={{ width: "100%", maxWidth: 520 }}
+            />
+          </dd>
+        </div>
+
         <div className={s.factRow}>
           <dt>1. Type</dt>
           <dd>
@@ -947,7 +1076,7 @@ export function ActionRuleForm({
               const cfg = who === "customer" ? customerCfg : resolvedAdminCfg();
               const first = cfg.steps[0];
               const when = timingSummary(first, isRem);
-              const condText = condition === "unpaid" ? "if unpaid" : condition === "paid" ? "if paid" : "";
+              const condText = condition === "unpaid" ? "if unpaid" : condition === "paid" ? "if paid" : condition === "upload_pending" ? "if upload pending" : "";
               const scopeText = scopeKind === "package" ? packageSlug : scopeKind === "monthly" ? "monthly" : scopeKind === "one_time" ? "one-time" : "";
               return (
                 <div key={who}>
