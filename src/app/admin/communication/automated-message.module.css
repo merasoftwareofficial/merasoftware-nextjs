@@ -13,24 +13,33 @@
 
 .overlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px}
 .backdrop{position:absolute;inset:0;background:rgb(0 0 0 / .5)}
-.dialog{position:relative;display:flex;flex-direction:column;width:min(920px,100%);max-height:94vh;border:1px solid var(--line);border-radius:14px;background:var(--paper,#fff);color:var(--ink,inherit);box-shadow:0 24px 60px rgb(0 0 0 / .3)}
+.dialog{position:relative;display:flex;flex-direction:column;width:min(940px,100%);max-height:94vh;border:1px solid var(--line);border-radius:14px;background:var(--paper,#fff);color:var(--ink,inherit);box-shadow:0 24px 60px rgb(0 0 0 / .3)}
 .dialogHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
 .dialogHead h2{margin:0;font-size:18px}
 .dialogHead p{margin:4px 0 0;font-size:var(--fs-ui);opacity:.7}
-.dialogBody{display:grid;gap:16px;padding:18px 22px;overflow-y:auto}
+.dialogBody{display:grid;gap:14px;padding:18px 22px;overflow-y:auto}
 .dialogFoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 22px;border-top:1px solid var(--line)}
 .dialogFoot span{display:flex;gap:8px}
 .dialogFoot small{opacity:.65}
 
-.step{display:grid;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.step h3{display:flex;align-items:center;gap:10px;margin:0;font-size:15px}
-.step h3 span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--inverse,#111);color:var(--inverse-text,#fff);font-size:13px}
+.scopeBar{display:grid;gap:10px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.stage{display:grid;gap:14px;padding:16px;border:2px solid var(--line);border-radius:12px;background:var(--surface)}
+.stageHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.stageTitle{display:flex;align-items:flex-start;gap:10px}
+.stageTitle h3{margin:0;font-size:15px}
+.stageTitle p{margin:2px 0 0;font-size:13px;opacity:.75}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:var(--inverse,#111);color:var(--inverse-text,#fff);font-size:12px;font-weight:700;white-space:nowrap}
+
+.chainLink{display:flex;align-items:center;justify-content:center;padding:4px 12px;font-size:13px;font-weight:600;color:var(--brand-link,inherit)}
+
+.subSection{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.subHead{font-size:var(--fs-ui)}
 
 .line{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:var(--fs-ui)}
 .line>span:first-child{min-width:130px;font-weight:600}
 .line em{font-style:normal;opacity:.7}
 .line select,.line input[type=number]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit;font:inherit;font-size:var(--fs-ui)}
-.line select{min-width:190px;max-width:100%}
+.line select{min-width:210px;max-width:100%}
 .line input[type=number]{width:74px}
 .check{display:flex;align-items:center;gap:8px;font-size:var(--fs-ui);font-weight:600;cursor:pointer}
 
@@ -39,18 +48,17 @@
 .chips legend{padding:0 6px;font-weight:600}
 .chips label{display:flex;align-items:center;gap:6px}
 
-.reminder{display:grid;gap:14px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.reminder{display:grid;gap:14px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
 .reminder>header{display:flex;justify-content:space-between;align-items:center}
 
 .segment{display:flex;flex-wrap:wrap;gap:6px}
 .segment button{padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit;font:inherit;font-size:var(--fs-ui);cursor:pointer}
 .segment button[aria-pressed=true]{background:var(--inverse,#111);color:var(--inverse-text,#fff);border-color:var(--inverse,#111);font-weight:600}
 
-.syncBar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:var(--fs-ui)}
-.syncBar label{display:flex;align-items:center;gap:6px;cursor:pointer}
-
 .side{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
-.sideHead{font-size:var(--fs-ui)}
+.sideHeadRow{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px 12px;font-size:var(--fs-ui)}
+.syncBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:13px}
+.syncBar label{display:flex;align-items:center;gap:5px;cursor:pointer}
 .sideBody{display:grid;gap:10px}
 
 .msgCard{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
@@ -64,7 +72,11 @@
 
 .repeatBox,.stopBox,.tailRules{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .tailRules small{font-size:12px;opacity:.7}
-.chipList{display:flex;flex-wrap:wrap;gap:8px}
-.tag{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-size:13px}
-.tag button{padding:0 3px;border:0;background:none;color:inherit;cursor:pointer;opacity:.65}
-.tag button:hover{opacity:1}
+
+.stopCards{display:grid;gap:8px}
+.stopCard{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.stopCardMain{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-ui)}
+.stopCardChain{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.chainBtn{padding:7px 12px;border:1px dashed var(--brand-link,currentColor);border-radius:8px;background:var(--surface);color:var(--brand-link,inherit);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.chainBtn:hover{background:var(--paper)}
+.linkedBadge{font-size:13px;font-weight:600;opacity:.85}

@@ -1,7 +1,7 @@
 /**
  * UI-preview options for the Automated message system form.
- * Every list here is sample data. When the form is connected, each list is replaced by real data
- * (works from the backend, packages from the catalogue, placeholders from actionEvents).
+ * Single unified Works / Trigger Points list used everywhere in the trail:
+ * Stage start trigger, Reminder start trigger, Reminder stop trigger, and Chained next-stage trigger.
  */
 
 export type Unit = "hours" | "days";
@@ -10,12 +10,12 @@ export type TimingRef = "before_due" | "on_due" | "after_due" | "after_action";
 
 export const WORK_GROUPS: { group: string; works: string[] }[] = [
   {
-    group: "Client / Website works",
+    group: "Client / Website works (Trigger points)",
     works: [
       "Package or Plan Bought",
-      "Project Start Requested",
       "Bill / Order Created (Payment Pending)",
-      "Payment Submitted (UPI)",
+      "Payment Submitted by Client (UPI / Proof)",
+      "Project Start Requested",
       "Client Uploaded Data",
       "Offer Reserved",
       "Plan / Quote Requested",
@@ -26,30 +26,35 @@ export const WORK_GROUPS: { group: string; works: string[] }[] = [
     ],
   },
   {
-    group: "Admin works",
+    group: "Admin works (Trigger points)",
     works: [
+      "Payment Recorded / Approved",
+      "Payment Rejected",
       "Project Created",
       "Project Progress / Step Updated",
       "Project Cancelled",
-      "Payment Approved",
-      "Payment Rejected",
+      "Start Request Closed",
+      "Plan Work Update Posted",
+      "Upload Status Updated",
+      "Comment Approved / Moderated",
       "Invoice Resent",
       "Proposal Sent",
       "Message Sent to Lead",
       "Final Follow-up Started",
+      "Final Follow-up Stopped",
       "Reservation Extended",
-      "Upload Status Updated",
-      "Comment Approved",
     ],
   },
   {
-    group: "System works (happen automatically)",
+    group: "System works (Automatic trigger points)",
     works: [
+      "Installment Became Due",
       "Project Completed (100%)",
-      "Plan / Package Expired",
+      "Plan / Package Expired (Upload Limit Left)",
       "Reservation Expired",
-      "Broadcast Sent",
       "Monthly Renewal Bill Created",
+      "Broadcast Sent",
+      "WhatsApp Ad Reply Received",
     ],
   },
 ];
@@ -68,32 +73,6 @@ export const PACKAGE_NAMES = [
   "Website Pro (one-time)",
   "Store Setup (one-time)",
 ];
-
-/** Clear, human-readable trigger points that START a reminder branch. */
-export const START_TRIGGERS = [
-  { id: "main_work", label: "As soon as the main work happens" },
-  { id: "payment_pending", label: "Client has not paid yet (payment pending)" },
-  { id: "upi_submitted", label: "Client submitted UPI, waiting for admin approval" },
-  { id: "installment_due", label: "Installment becomes due" },
-  { id: "upload_pending", label: "Client has not uploaded project data yet" },
-  { id: "progress_reached", label: "Project progress reaches a milestone (%)" },
-  { id: "plan_expired_unused", label: "Plan / package expired while upload limit is still left" },
-  { id: "comment_unapproved", label: "Website comment posted and not yet approved by admin" },
-  { id: "reservation_active", label: "Offer reserved and payment is still pending" },
-] as const;
-
-/** Clear, human-readable trigger points that STOP a reminder branch. */
-export const STOP_TRIGGERS = [
-  { id: "payment_received", label: "Payment is received / approved" },
-  { id: "upi_submitted", label: "Client submits UPI / payment proof" },
-  { id: "payment_rejected", label: "Admin rejects the payment" },
-  { id: "plan_cancelled", label: "Plan or project is cancelled" },
-  { id: "upload_completed", label: "Client completes data upload" },
-  { id: "project_completed", label: "Project reaches 100% completion" },
-  { id: "comment_approved", label: "Admin approves or moderates the comment" },
-  { id: "plan_renewed", label: "Client renews the plan / package" },
-  { id: "reservation_expired", label: "Reservation expires" },
-] as const;
 
 export const TRIGGERS: { id: TimingRef; label: string }[] = [
   { id: "after_action", label: "after the start trigger happens" },
