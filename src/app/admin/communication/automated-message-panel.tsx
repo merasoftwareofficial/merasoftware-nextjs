@@ -8,10 +8,9 @@ import {
 
 /**
  * Automated message system (UI preview only).
- * Implements the Owner's Chain / Trail architecture:
- * - Every trigger point (Stage trigger, Reminder start trigger, Reminder stop trigger) comes from the same unified Works list.
- * - On any Stop Trigger that ends a reminder, the admin can chain the next Stage (another Auto Msg and/or another Reminder)
- *   and grow the trail as long as needed.
+ * Preserves the original 3-step form (Step 1 Work & Packages -> Step 2 Instant Message -> Step 3 Reminders)
+ * with the live website Reminder rule UI, unified human-readable Works/Triggers dropdowns,
+ * and an infinite "+" chaining loop directly on every Stop Trigger.
  */
 
 type MessageStep = { timingRef: TimingRef; amount: number; unit: Unit; channel: Channel; subject: string; text: string };
@@ -20,8 +19,15 @@ type AudienceChoice = "client" | "admin" | "both";
 type MessageMode = "separate" | "universal";
 type RepeatMode = "permanent" | "limited";
 
-type ReminderRule = {
-  on: boolean;
+type StopChain = {
+  mode: "auto_msg" | "reminder";
+  clientNow: InstantMsg;
+  adminNow: InstantMsg;
+  reminders: Reminder[];
+};
+
+type Reminder = {
+  id: number;
   startTrigger: string;
   audience: AudienceChoice;
   clientMode: MessageMode;
@@ -33,65 +39,53 @@ type ReminderRule = {
   repeatEveryDays: number;
   repeatPerDay: number;
   stopOn: string[];
+  stopChains: Record<string, StopChain>;
   countDaysFrom: TimingRef;
   condition: string;
   conditionValue: number;
 };
 
-type TrailStage = {
-  id: number;
-  fromPreviousStop: boolean;
-  work: string;
-  clientNow: InstantMsg;
-  adminNow: InstantMsg;
-  reminder: ReminderRule;
-};
-
 type Form = {
+  work: string;
   scope: string;
   include: string[];
   exclude: string[];
-  stages: TrailStage[];
+  clientNow: InstantMsg;
+  adminNow: InstantMsg;
+  reminders: Reminder[];
 };
 
 const blankStep = (timingRef: TimingRef = "before_due", amount = 3): MessageStep => ({
   timingRef, amount, unit: "days", channel: "whatsapp", subject: "", text: "",
 });
-const blankInstant = (on = false): InstantMsg => ({ on, channel: "whatsapp", subject: "", text: "" });
-
-let nextStageId = 1;
-const newReminderRule = (on = true, defaultStop = "Payment Recorded / Approved"): ReminderRule => ({
-  on,
-  startTrigger: "__stage_work__",
+const blankInstant = (): InstantMsg => ({ on: false, channel: "whatsapp", subject: "", text: "" });
+let nextId = 1;
+const newReminder = (defaultStop = ""): Reminder => ({
+  id: nextId++,
+  startTrigger: "__main_work__",
   audience: "client",
   clientMode: "separate",
   adminMode: "separate",
-  clientSteps: [blankStep("after_action", 1)],
-  adminSteps: [blankStep("after_action", 1)],
+  clientSteps: [blankStep("before_due", 3)],
+  adminSteps: [blankStep("before_due", 3)],
   repeatMode: "permanent",
   repeatForDays: 7,
   repeatEveryDays: 2,
   repeatPerDay: 1,
   stopOn: defaultStop ? [defaultStop] : [],
+  stopChains: {},
   countDaysFrom: "after_action",
   condition: "any",
   conditionValue: 50,
 });
-
-const newStage = (work = "Package or Plan Bought", fromPreviousStop = false): TrailStage => ({
-  id: nextStageId++,
-  fromPreviousStop,
-  work,
-  clientNow: blankInstant(true),
-  adminNow: blankInstant(false),
-  reminder: newReminderRule(true, work === "Package or Plan Bought" ? "Payment Recorded / Approved" : ""),
+const newStopChain = (mode: "auto_msg" | "reminder"): StopChain => ({
+  mode,
+  clientNow: blankInstant(),
+  adminNow: blankInstant(),
+  reminders: mode === "reminder" ? [newReminder()] : [],
 });
-
 const emptyForm = (): Form => ({
-  scope: "all",
-  include: [],
-  exclude: [],
-  stages: [newStage("Package or Plan Bought", false)],
+  work: "", scope: "all", include: [], exclude: [], clientNow: blankInstant(), adminNow: blankInstant(), reminders: [],
 });
 
 function toggle(list: string[], value: string) {
@@ -156,7 +150,7 @@ function MessageEditor({
           <option value="before_due">before due / deadline</option>
           <option value="on_due">on due date</option>
           <option value="after_due">after due date</option>
-          <option value="after_action">after trigger</option>
+          <option value="after_action">after action</option>
         </select>
       </>}
       <span>Via</span>
@@ -195,6 +189,35 @@ function MessageEditor({
   </div>;
 }
 
+function InstantAutoMsgBlock({
+  clientNow, adminNow, onClientChange, onAdminChange,
+}: {
+  clientNow: InstantMsg;
+  adminNow: InstantMsg;
+  onClientChange: (next: InstantMsg) => void;
+  onAdminChange: (next: InstantMsg) => void;
+}) {
+  return <div className={s.instantBlock}>
+    <label className={s.check}>
+      <input type="checkbox" checked={clientNow.on} onChange={e => onClientChange({ ...clientNow, on: e.target.checked })} />
+      Message the client right away
+    </label>
+    {clientNow.on && (
+      <MessageEditor title="Client instant message" step={{ timingRef: "after_action", amount: 0, unit: "days", ...clientNow }}
+        showTiming={false} onChange={patch => onClientChange({ ...clientNow, ...patch })} />
+    )}
+
+    <label className={s.check}>
+      <input type="checkbox" checked={adminNow.on} onChange={e => onAdminChange({ ...adminNow, on: e.target.checked })} />
+      Message the admin right away
+    </label>
+    {adminNow.on && (
+      <MessageEditor title="Admin instant message" step={{ timingRef: "after_action", amount: 0, unit: "days", ...adminNow }}
+        showTiming={false} onChange={patch => onAdminChange({ ...adminNow, ...patch })} />
+    )}
+  </div>;
+}
+
 function AudienceBlock({
   who, title, mode, steps, canCopyClient, onModeChange, onCopyClient, onUpdateSteps,
 }: {
@@ -208,14 +231,14 @@ function AudienceBlock({
   onUpdateSteps: (next: MessageStep[]) => void;
 }) {
   const universal = mode === "universal";
-  const visible = universal ? [steps[0] || blankStep("after_action", 1)] : steps;
+  const visible = universal ? [steps[0] || blankStep("before_due", 3)] : steps;
   return <div className={s.side}>
     <div className={s.sideHeadRow}>
       <strong>{title}</strong>
       <div className={s.syncBar}>
         <label>
           <input type="radio" checked={mode === "separate"} onChange={() => onModeChange("separate")} />
-          Separate message per day / timing
+          Separate message per timing
         </label>
         <label>
           <input type="radio" checked={mode === "universal"} onChange={() => onModeChange("universal")} />
@@ -230,7 +253,7 @@ function AudienceBlock({
       {visible.map((step, idx) => (
         <MessageEditor
           key={idx}
-          title={universal ? `Universal ${who === "client" ? "Client" : "Admin"} message` : `Day / Step ${idx + 1} Message`}
+          title={universal ? `Universal ${who === "client" ? "Client" : "Admin"} message` : `Message ${idx + 1}`}
           step={step}
           showTiming={!(who === "admin" && canCopyClient && universal)}
           canRemove={!universal && steps.length > 1}
@@ -240,239 +263,275 @@ function AudienceBlock({
       ))}
       {!universal && steps.length < 10 && (
         <button type="button" className={s.ghost} onClick={() => onUpdateSteps([...steps, blankStep("after_due", 2)])}>
-          + Add another day / follow-up for {who === "client" ? "Client" : "Admin"}
+          + Add another follow-up for {who === "client" ? "Client" : "Admin"}
         </button>
       )}
     </div>
   </div>;
 }
 
-function StageCard({
-  index, stage, allStages, onChange, onRemove, onChainFromStop,
+function ReminderCard({
+  index, reminder, inheritedTrigger, mainWork, onChange, onRemove,
 }: {
   index: number;
-  stage: TrailStage;
-  allStages: TrailStage[];
-  onChange: (next: TrailStage) => void;
-  onRemove?: () => void;
-  onChainFromStop: (stopWork: string) => void;
+  reminder: Reminder;
+  inheritedTrigger?: string;
+  mainWork: string;
+  onChange: (reminder: Reminder) => void;
+  onRemove: () => void;
 }) {
-  const set = (patch: Partial<TrailStage>) => onChange({ ...stage, ...patch });
-  const rem = stage.reminder;
-  const setRem = (patch: Partial<ReminderRule>) => set({ reminder: { ...rem, ...patch } });
-  const condition = CONDITIONS.find(item => item.id === rem.condition);
-  const showClient = rem.audience === "client" || rem.audience === "both";
-  const showAdmin = rem.audience === "admin" || rem.audience === "both";
+  const set = (patch: Partial<Reminder>) => onChange({ ...reminder, ...patch });
+  const condition = CONDITIONS.find(item => item.id === reminder.condition);
+  const showClient = reminder.audience === "client" || reminder.audience === "both";
+  const showAdmin = reminder.audience === "admin" || reminder.audience === "both";
   const [stopPick, setStopPick] = useState("");
+  const [openPlusFor, setOpenPlusFor] = useState<string | null>(null);
 
-  return <>
-    {index > 0 && (
-      <div className={s.chainLink}>
-        <span>⛓ Next link in the trail (triggered when the stop point above happens)</span>
+  function copyClientDays() {
+    set({
+      adminMode: "separate",
+      adminSteps: reminder.clientSteps.map(st => ({ ...st })),
+    });
+  }
+
+  function removeStopTrigger(stopWork: string) {
+    const nextChains = { ...reminder.stopChains };
+    delete nextChains[stopWork];
+    if (openPlusFor === stopWork) setOpenPlusFor(null);
+    set({
+      stopOn: reminder.stopOn.filter(x => x !== stopWork),
+      stopChains: nextChains,
+    });
+  }
+
+  function attachChain(stopWork: string, mode: "auto_msg" | "reminder") {
+    setOpenPlusFor(null);
+    set({
+      stopChains: { ...reminder.stopChains, [stopWork]: newStopChain(mode) },
+    });
+  }
+
+  function updateChain(stopWork: string, nextChain: StopChain) {
+    set({
+      stopChains: { ...reminder.stopChains, [stopWork]: nextChain },
+    });
+  }
+
+  function removeChain(stopWork: string) {
+    const nextChains = { ...reminder.stopChains };
+    delete nextChains[stopWork];
+    set({ stopChains: nextChains });
+  }
+
+  return <div className={s.reminder}>
+    <header>
+      <div className={s.remHeadLeft}>
+        <strong>Reminder {index + 1}</strong>
+        {inheritedTrigger && <span className={s.triggerBadge}>Trigger: {inheritedTrigger}</span>}
       </div>
-    )}
+      <button type="button" className={s.remove} aria-label={`Remove reminder ${index + 1}`} onClick={onRemove}>✕</button>
+    </header>
 
-    <section className={s.stage}>
-      <header className={s.stageHead}>
-        <div className={s.stageTitle}>
-          <span className={s.badge}>Stage {index + 1}</span>
-          <div>
-            <h3>{stage.fromPreviousStop ? `When "${stage.work || "Stop Trigger"}" happens` : "Starting Work / Trigger Point"}</h3>
-            <p>{stage.fromPreviousStop
-              ? "This trigger stopped the previous reminder—now decide what Auto Msg or next Reminder should start on it."
-              : "Pick the work (trigger point) that begins this trail."}</p>
-          </div>
-        </div>
-        {onRemove && <button type="button" className={s.remove} onClick={onRemove}>Remove stage ✕</button>}
-      </header>
-
-      {/* Trigger Work selector (unified list) */}
+    {/* 1. Starting trigger (only shown on top-level reminder; chained reminders inherit the Stop Trigger above) */}
+    {!inheritedTrigger && (
       <div className={s.line}>
-        <span>Trigger work</span>
-        <select aria-label={`Stage ${index + 1} trigger work`} value={stage.work} onChange={e => set({ work: e.target.value })}>
-          <option value="">Choose a trigger work…</option>
+        <span>Start reminder when</span>
+        <select aria-label="Start reminder trigger" value={reminder.startTrigger} onChange={e => set({ startTrigger: e.target.value })}>
+          <option value="__main_work__">Same as main work ({mainWork || "selected work"})</option>
           <WorkOptions />
         </select>
       </div>
+    )}
 
-      {/* Part A: Auto Msg on this trigger */}
-      <div className={s.subSection}>
-        <div className={s.subHead}>
-          <strong>A. Auto Message on “{stage.work || "this trigger"}” (Instant)</strong>
+    {/* 2. Who receives */}
+    <div className={s.line}>
+      <span>Send to</span>
+      <div className={s.segment} role="group" aria-label="Who receives">
+        <button type="button" aria-pressed={reminder.audience === "client"} onClick={() => set({ audience: "client" })}>Client only</button>
+        <button type="button" aria-pressed={reminder.audience === "admin"} onClick={() => set({ audience: "admin" })}>Admin only</button>
+        <button type="button" aria-pressed={reminder.audience === "both"} onClick={() => set({ audience: "both" })}>Both (Client &amp; Admin)</button>
+      </div>
+    </div>
+
+    {/* 3. Message builders (live website reminder UI: separate vs universal + Copy client's days) */}
+    {showClient && (
+      <AudienceBlock
+        who="client"
+        title="Message for Client"
+        mode={reminder.clientMode}
+        steps={reminder.clientSteps}
+        onModeChange={clientMode => set({ clientMode })}
+        onUpdateSteps={clientSteps => set({ clientSteps })}
+      />
+    )}
+    {showAdmin && (
+      <AudienceBlock
+        who="admin"
+        title="Message for Admin / Team"
+        mode={reminder.adminMode}
+        steps={reminder.adminSteps}
+        canCopyClient={showClient}
+        onModeChange={adminMode => set({ adminMode })}
+        onCopyClient={copyClientDays}
+        onUpdateSteps={adminSteps => set({ adminSteps })}
+      />
+    )}
+
+    {/* 4. Repeat / Duration control */}
+    <div className={s.repeatBox}>
+      <div className={s.line}>
+        <span>Repeat (last message)</span>
+        <div className={s.segment} role="group" aria-label="Repeat duration">
+          <button type="button" aria-pressed={reminder.repeatMode === "permanent"} onClick={() => set({ repeatMode: "permanent" })}>
+            Permanent (until stop point)
+          </button>
+          <button type="button" aria-pressed={reminder.repeatMode === "limited"} onClick={() => set({ repeatMode: "limited" })}>
+            Fixed days limit
+          </button>
         </div>
-        <label className={s.check}>
-          <input type="checkbox" checked={stage.clientNow.on} onChange={e => set({ clientNow: { ...stage.clientNow, on: e.target.checked } })} />
-          Send Auto Msg to Client right away
-        </label>
-        {stage.clientNow.on && (
-          <MessageEditor title="Client instant auto message" step={{ timingRef: "after_action", amount: 0, unit: "days", ...stage.clientNow }}
-            showTiming={false} onChange={patch => set({ clientNow: { ...stage.clientNow, ...patch } })} />
-        )}
+      </div>
+      <div className={s.line}>
+        {reminder.repeatMode === "limited" && <>
+          <span>For</span>
+          <input type="number" min={1} max={180} aria-label="Repeat for days" value={reminder.repeatForDays}
+            onChange={e => set({ repeatForDays: Math.max(1, Number(e.target.value || 1)) })} />
+          <em>days</em>
+        </>}
+        <span>Every</span>
+        <input type="number" min={1} max={90} aria-label="Repeat every days" value={reminder.repeatEveryDays}
+          onChange={e => set({ repeatEveryDays: Math.max(1, Number(e.target.value || 1)) })} />
+        <em>days</em>
+        <span>Per day</span>
+        <select aria-label="Per day" value={reminder.repeatPerDay} onChange={e => set({ repeatPerDay: Number(e.target.value || 1) })}>
+          <option value={1}>1x / day</option>
+          <option value={2}>2x / day (12h)</option>
+          <option value={3}>3x / day (8h)</option>
+          <option value={4}>4x / day (6h)</option>
+        </select>
+      </div>
+    </div>
 
-        <label className={s.check}>
-          <input type="checkbox" checked={stage.adminNow.on} onChange={e => set({ adminNow: { ...stage.adminNow, on: e.target.checked } })} />
-          Send Auto Msg to Admin right away
-        </label>
-        {stage.adminNow.on && (
-          <MessageEditor title="Admin instant auto message" step={{ timingRef: "after_action", amount: 0, unit: "days", ...stage.adminNow }}
-            showTiming={false} onChange={patch => set({ adminNow: { ...stage.adminNow, ...patch } })} />
+    {/* 5. Last rules: Count days from & Only when */}
+    <div className={s.tailRules}>
+      <small>Timing reference &amp; extra condition (applied to this reminder)</small>
+      <div className={s.line}>
+        <span>Count days from</span>
+        <select aria-label="Count days from" value={reminder.countDaysFrom} onChange={e => set({ countDaysFrom: e.target.value as TimingRef })}>
+          {TRIGGERS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+      </div>
+      <div className={s.line}>
+        <span>Only when</span>
+        <select aria-label="Only when condition" value={reminder.condition} onChange={e => set({ condition: e.target.value })}>
+          {CONDITIONS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+        {condition && "value" in condition && (
+          <input type="number" min={0} aria-label="Condition value" value={reminder.conditionValue}
+            onChange={e => set({ conditionValue: Number(e.target.value || 0) })} />
         )}
       </div>
+    </div>
 
-      {/* Part B: Reminder on this trigger */}
-      {!rem.on ? (
-        <button type="button" className={s.add} onClick={() => setRem({ on: true })}>
-          + Start a Reminder from “{stage.work || "this trigger"}”
-        </button>
-      ) : (
-        <div className={s.reminder}>
-          <header>
-            <strong>B. Follow-up Reminder for Stage {index + 1}</strong>
-            <button type="button" className={s.remove} onClick={() => setRem({ on: false })}>Remove reminder ✕</button>
-          </header>
+    {/* 6. Stop trigger (unified Works dropdown) + [ + ] button next to each stop trigger */}
+    <div className={s.stopBox}>
+      <div className={s.line}>
+        <span>Stop reminder when</span>
+        <select aria-label="Add stop trigger" value={stopPick} onChange={e => {
+          const val = e.target.value;
+          if (val && !reminder.stopOn.includes(val)) set({ stopOn: [...reminder.stopOn, val] });
+          setStopPick("");
+        }}>
+          <option value="">Choose a stop trigger…</option>
+          <WorkOptions exclude={reminder.stopOn} />
+        </select>
+      </div>
 
-          {/* 1. Starting trigger from the same unified Works list */}
-          <div className={s.line}>
-            <span>Start reminder on</span>
-            <select aria-label="Reminder start trigger" value={rem.startTrigger} onChange={e => setRem({ startTrigger: e.target.value })}>
-              <option value="__stage_work__">Same trigger as this stage ({stage.work || "selected work"})</option>
-              <WorkOptions />
-            </select>
-          </div>
+      {reminder.stopOn.length > 0 && (
+        <div className={s.stopList}>
+          {reminder.stopOn.map(stopWork => {
+            const chain = reminder.stopChains[stopWork];
+            const menuOpen = openPlusFor === stopWork;
+            return (
+              <div key={stopWork} className={s.stopItem}>
+                <div className={s.stopRow}>
+                  <span className={s.stopTag}>
+                    <strong>{stopWork}</strong>
+                    {!chain && (
+                      <button
+                        type="button"
+                        className={s.plusBtn}
+                        title={`Add Auto Msg or Reminder when "${stopWork}" happens`}
+                        aria-label={`Add Auto Msg or Reminder on ${stopWork}`}
+                        onClick={() => setOpenPlusFor(menuOpen ? null : stopWork)}
+                      >
+                        +
+                      </button>
+                    )}
+                    <button type="button" className={s.tagClose} aria-label={`Remove ${stopWork}`} onClick={() => removeStopTrigger(stopWork)}>✕</button>
+                  </span>
 
-          {/* 2. Who receives */}
-          <div className={s.line}>
-            <span>Send to</span>
-            <div className={s.segment} role="group" aria-label="Who receives">
-              <button type="button" aria-pressed={rem.audience === "client"} onClick={() => setRem({ audience: "client" })}>Client only</button>
-              <button type="button" aria-pressed={rem.audience === "admin"} onClick={() => setRem({ audience: "admin" })}>Admin only</button>
-              <button type="button" aria-pressed={rem.audience === "both"} onClick={() => setRem({ audience: "both" })}>Both (Client &amp; Admin)</button>
-            </div>
-          </div>
-
-          {/* 3. Message builders (Client & Admin both support day-wise vs universal + Copy client days) */}
-          {showClient && (
-            <AudienceBlock
-              who="client"
-              title="Reminder Messages for Client"
-              mode={rem.clientMode}
-              steps={rem.clientSteps}
-              onModeChange={clientMode => setRem({ clientMode })}
-              onUpdateSteps={clientSteps => setRem({ clientSteps })}
-            />
-          )}
-          {showAdmin && (
-            <AudienceBlock
-              who="admin"
-              title="Reminder Messages for Admin / Team"
-              mode={rem.adminMode}
-              steps={rem.adminSteps}
-              canCopyClient={showClient}
-              onModeChange={adminMode => setRem({ adminMode })}
-              onCopyClient={() => setRem({ adminMode: "separate", adminSteps: rem.clientSteps.map(st => ({ ...st })) })}
-              onUpdateSteps={adminSteps => setRem({ adminSteps })}
-            />
-          )}
-
-          {/* 4. Repeat / Duration control */}
-          <div className={s.repeatBox}>
-            <div className={s.line}>
-              <span>Repeat duration</span>
-              <div className={s.segment} role="group" aria-label="Repeat duration">
-                <button type="button" aria-pressed={rem.repeatMode === "permanent"} onClick={() => setRem({ repeatMode: "permanent" })}>
-                  Permanent (until stop trigger)
-                </button>
-                <button type="button" aria-pressed={rem.repeatMode === "limited"} onClick={() => setRem({ repeatMode: "limited" })}>
-                  Fixed days limit
-                </button>
-              </div>
-            </div>
-            <div className={s.line}>
-              {rem.repeatMode === "limited" && <>
-                <span>For</span>
-                <input type="number" min={1} max={180} aria-label="Repeat for days" value={rem.repeatForDays}
-                  onChange={e => setRem({ repeatForDays: Math.max(1, Number(e.target.value || 1)) })} />
-                <em>days</em>
-              </>}
-              <span>Every</span>
-              <input type="number" min={1} max={90} aria-label="Repeat every days" value={rem.repeatEveryDays}
-                onChange={e => setRem({ repeatEveryDays: Math.max(1, Number(e.target.value || 1)) })} />
-              <em>days</em>
-              <span>Per day</span>
-              <select aria-label="Per day" value={rem.repeatPerDay} onChange={e => setRem({ repeatPerDay: Number(e.target.value || 1) })}>
-                <option value={1}>1x / day</option>
-                <option value={2}>2x / day (12h)</option>
-                <option value={3}>3x / day (8h)</option>
-                <option value={4}>4x / day (6h)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 5. Stop Trigger (from the exact same unified Works list) + Direct Chain Continuation! */}
-          <div className={s.stopBox}>
-            <div className={s.line}>
-              <span>Stop reminder when</span>
-              <select aria-label="Add stop trigger" value={stopPick} onChange={e => {
-                const val = e.target.value;
-                if (val && !rem.stopOn.includes(val)) setRem({ stopOn: [...rem.stopOn, val] });
-                setStopPick("");
-              }}>
-                <option value="">Choose a stop trigger work to add…</option>
-                <WorkOptions exclude={rem.stopOn} />
-              </select>
-            </div>
-
-            {rem.stopOn.length > 0 && (
-              <div className={s.stopCards}>
-                {rem.stopOn.map(stopWork => {
-                  const linkedIdx = allStages.findIndex((st, idx) => idx > index && st.work === stopWork);
-                  return (
-                    <div key={stopWork} className={s.stopCard}>
-                      <div className={s.stopCardMain}>
-                        <strong>Stops when: {stopWork}</strong>
-                        <button type="button" className={s.remove} aria-label={`Remove ${stopWork}`}
-                          onClick={() => setRem({ stopOn: rem.stopOn.filter(x => x !== stopWork) })}>✕</button>
-                      </div>
-                      <div className={s.stopCardChain}>
-                        {linkedIdx >= 0 ? (
-                          <span className={s.linkedBadge}>✓ Trail continues on “{stopWork}” in Stage {linkedIdx + 1} below</span>
-                        ) : (
-                          <button type="button" className={s.chainBtn} onClick={() => onChainFromStop(stopWork)}>
-                            ⛓ On “{stopWork}” → + Send next Auto Msg or start another Reminder
-                          </button>
-                        )}
-                      </div>
+                  {!chain && menuOpen && (
+                    <div className={s.plusMenu} role="group" aria-label={`Action on ${stopWork}`}>
+                      <span>On “{stopWork}”:</span>
+                      <button type="button" className={s.choiceBtn} onClick={() => attachChain(stopWork, "auto_msg")}>+ Auto Msg</button>
+                      <button type="button" className={s.choiceBtn} onClick={() => attachChain(stopWork, "reminder")}>+ Reminder</button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
 
-          {/* 6. Last: Count days from & Only when */}
-          <div className={s.tailRules}>
-            <small>Timing reference &amp; extra condition (applied at the end of this reminder rule)</small>
-            <div className={s.line}>
-              <span>Count days from</span>
-              <select aria-label="Count days from" value={rem.countDaysFrom} onChange={e => setRem({ countDaysFrom: e.target.value as TimingRef })}>
-                {TRIGGERS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </div>
-            <div className={s.line}>
-              <span>Only when</span>
-              <select aria-label="Only when condition" value={rem.condition} onChange={e => setRem({ condition: e.target.value })}>
-                {CONDITIONS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-              {condition && "value" in condition && (
-                <input type="number" min={0} aria-label="Condition value" value={rem.conditionValue}
-                  onChange={e => setRem({ conditionValue: Number(e.target.value || 0) })} />
-              )}
-            </div>
-          </div>
+                {chain && (
+                  <div className={s.chainedBlock}>
+                    <div className={s.chainedHead}>
+                      <strong>
+                        On “{stopWork}” → {chain.mode === "auto_msg" ? "Auto Message & Follow-up" : "Follow-up Reminder"}
+                      </strong>
+                      <button type="button" className={s.remove} onClick={() => removeChain(stopWork)}>Remove ✕</button>
+                    </div>
+
+                    {chain.mode === "auto_msg" && (
+                      <InstantAutoMsgBlock
+                        clientNow={chain.clientNow}
+                        adminNow={chain.adminNow}
+                        onClientChange={clientNow => updateChain(stopWork, { ...chain, clientNow })}
+                        onAdminChange={adminNow => updateChain(stopWork, { ...chain, adminNow })}
+                      />
+                    )}
+
+                    {chain.reminders.map((subRem, subIdx) => (
+                      <ReminderCard
+                        key={subRem.id}
+                        index={subIdx}
+                        reminder={subRem}
+                        inheritedTrigger={stopWork}
+                        mainWork={mainWork}
+                        onChange={nextSub => updateChain(stopWork, {
+                          ...chain,
+                          reminders: chain.reminders.map(item => item.id === subRem.id ? nextSub : item),
+                        })}
+                        onRemove={() => {
+                          const remaining = chain.reminders.filter(item => item.id !== subRem.id);
+                          if (chain.mode === "reminder" && remaining.length === 0) removeChain(stopWork);
+                          else updateChain(stopWork, { ...chain, reminders: remaining });
+                        }}
+                      />
+                    ))}
+
+                    <button
+                      type="button"
+                      className={s.add}
+                      onClick={() => updateChain(stopWork, { ...chain, reminders: [...chain.reminders, newReminder()] })}
+                    >
+                      + Add reminder
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
-    </section>
-  </>;
+    </div>
+  </div>;
 }
 
 function FormDialog({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
@@ -484,30 +543,29 @@ function FormDialog({ onClose, onSave }: { onClose: () => void; onSave: () => vo
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function chainStageAfter(afterIndex: number, stopWork: string) {
-    setForm(current => {
-      const next = [...current.stages];
-      next.splice(afterIndex + 1, 0, newStage(stopWork, true));
-      return { ...current, stages: next };
-    });
-  }
-
   return <div className={s.overlay}>
     <div className={s.backdrop} onClick={onClose} />
     <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="amsg-title">
       <header className={s.dialogHead}>
         <div>
-          <h2 id="amsg-title">Create automated message trail</h2>
-          <p>Start with a trigger work, attach an Auto Msg and a Reminder, and continue the trail right from the trigger point that stops the reminder.</p>
+          <h2 id="amsg-title">Create automated message</h2>
+          <p>One form for the whole story: what happens, the instant message, and the reminders after it.</p>
         </div>
         <button type="button" className={s.close} aria-label="Close" onClick={onClose}>✕</button>
       </header>
 
       <div className={s.dialogBody}>
-        {/* Package Scope at top */}
-        <section className={s.scopeBar}>
+        <section className={s.step}>
+          <h3><span>1</span>Which work should start this?</h3>
           <div className={s.line}>
-            <span>Packages scope</span>
+            <span>Work</span>
+            <select aria-label="Work" value={form.work} onChange={event => set({ work: event.target.value })}>
+              <option value="">Choose a work…</option>
+              <WorkOptions />
+            </select>
+          </div>
+          <div className={s.line}>
+            <span>Packages</span>
             <select aria-label="Package scope" value={form.scope} onChange={event => set({ scope: event.target.value })}>
               {PACKAGE_SCOPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
@@ -522,25 +580,32 @@ function FormDialog({ onClose, onSave }: { onClose: () => void; onSave: () => vo
           </div>}
         </section>
 
-        {/* Continuous Chain of Stages */}
-        {form.stages.map((stage, index) => (
-          <StageCard
-            key={stage.id}
-            index={index}
-            stage={stage}
-            allStages={form.stages}
-            onChange={next => set({ stages: form.stages.map(item => item.id === stage.id ? next : item) })}
-            onRemove={form.stages.length > 1 ? () => set({ stages: form.stages.filter(item => item.id !== stage.id) }) : undefined}
-            onChainFromStop={stopWork => chainStageAfter(index, stopWork)}
+        <section className={s.step}>
+          <h3><span>2</span>Instant message (sent as soon as the work happens)</h3>
+          <InstantAutoMsgBlock
+            clientNow={form.clientNow}
+            adminNow={form.adminNow}
+            onClientChange={clientNow => set({ clientNow })}
+            onAdminChange={adminNow => set({ adminNow })}
           />
-        ))}
+        </section>
+
+        <section className={s.step}>
+          <h3><span>3</span>Reminders after that (optional)</h3>
+          {form.reminders.map((reminder, index) => (
+            <ReminderCard key={reminder.id} index={index} reminder={reminder} mainWork={form.work}
+              onChange={next => set({ reminders: form.reminders.map(item => item.id === reminder.id ? next : item) })}
+              onRemove={() => set({ reminders: form.reminders.filter(item => item.id !== reminder.id) })} />
+          ))}
+          <button type="button" className={s.add} onClick={() => set({ reminders: [...form.reminders, newReminder("Payment Recorded / Approved")] })}>+ Add reminder</button>
+        </section>
       </div>
 
       <footer className={s.dialogFoot}>
-        <small>UI preview ({form.stages.length} {form.stages.length === 1 ? "stage" : "chained stages"} in trail): nothing is saved yet.</small>
+        <small>UI preview: nothing is saved yet.</small>
         <span>
           <button type="button" className={s.ghost} onClick={onClose}>Cancel</button>
-          <button type="button" className={s.primary} onClick={onSave}>Save &amp; Activate Trail</button>
+          <button type="button" className={s.primary} onClick={onSave}>Save &amp; Activate</button>
         </span>
       </footer>
     </div>
@@ -553,11 +618,11 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   if (!active && !open) return null;
   return <section className={s.panel} aria-label="Automated message system">
     <div className={s.toolbar}>
-      <p>Every automated message and reminder trail, starting directly with its Work name and an <strong>Edit</strong> button.</p>
+      <p>Every automated message and reminder, one per work. Click <strong>Edit</strong> on a row to open its form.</p>
       <button type="button" className={s.primary} onClick={() => { setNotice(false); setOpen(true); }}>+ Create automated msg</button>
     </div>
     {notice && <p className={s.notice}>This is a UI preview, so nothing was saved. The form will be connected in the next step.</p>}
-    <div className={s.empty}><strong>No automated message trails yet</strong><span>Use “Create automated msg” to open the trail form.</span></div>
+    <div className={s.empty}><strong>No automated messages yet</strong><span>Use “Create automated msg” to open the form.</span></div>
     {open && <FormDialog onClose={() => setOpen(false)} onSave={() => { setOpen(false); setNotice(true); }} />}
   </section>;
 }
