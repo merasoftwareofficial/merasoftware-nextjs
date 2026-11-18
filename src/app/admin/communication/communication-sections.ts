@@ -4,6 +4,7 @@
  * both read this list, so they cannot disagree about which section is open.
  */
 export const COMMUNICATION_SECTIONS = [
+  { id: "automated-messages", label: "Automated message system", panel: "automated-messages" },
   { id: "broadcast", label: "Broadcast", panel: "broadcast" },
   { id: "automatic", label: "Automatic messages", panel: "email-templates" },
   { id: "reminders", label: "Reminders", panel: "reminders" },
@@ -16,6 +17,7 @@ export type CommunicationSectionId = (typeof COMMUNICATION_SECTIONS)[number]["id
 
 /** Which section a panel belongs to; null for the overview (no panel) and unknown panels. */
 export function communicationSectionOf(panel: string | null, tab: string | null): CommunicationSectionId | null {
+  if (panel === "automated-messages") return "automated-messages";
   if (panel === "broadcast") return "broadcast";
   if (panel === "email-templates") return "automatic";
   if (panel === "reminders") return "reminders";

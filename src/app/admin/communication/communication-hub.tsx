@@ -22,6 +22,7 @@ import { ReminderHistory } from "./reminder-history";
 import { RemindersPanel, type ReminderFocusRule } from "./reminders-panel";
 import { TemplatesPanel } from "./templates-panel";
 import { ActionsPanel } from "./actions-panel";
+import { AutomatedMessagesPanel } from "./automated-message-panel";
 
 /**
  * Communication: navigation boxes, then what needs attention and the recent emails and
@@ -34,11 +35,12 @@ import { ActionsPanel } from "./actions-panel";
  * whenever a panel closes). Activity is Communication's own: emails and WhatsApp messages only.
  */
 export type HubState = { panel: string | null; tab: string | null; app: string | null; show?: string | null; event?: string | null };
-type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review" | "actions";
+type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review" | "actions" | "automated-messages";
 type Tab = { id: string; label: string };
 type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; tabs: Tab[]; whatsapp: boolean };
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
 const PANELS: Record<PanelId, Panel> = {
+  "automated-messages": { group: "Email", title: "Automated message system", whatsapp: false, tabs: [], description: "One form for each work: the instant message, the reminders after it and where they stop." },
   "broadcast": { group: "WhatsApp", title: "Broadcast", whatsapp: true, tabs: [], description: "Choose leads or clients, compose text and media, and send via WhatsApp, Email or Both." },
   "auto-reply": { group: "WhatsApp", title: "Auto Reply", whatsapp: true, tabs: [], description: "Recognise the ad message, reply through the queue and add the number to Leads." },
   "final-message": { group: "WhatsApp", title: "Final Message", whatsapp: true, tabs: [], description: "The time limit for a Negative lead's last message, and the replies that came back." },
@@ -274,7 +276,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
     ];
     return <>
       {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}
-      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), templatesPart, ["actions", <ActionsPanel key="actions" active={part("actions").shown} onOpenTemplate={(event, app) => go({ panel: "email-templates", tab: app, app: null, event })} onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
+      {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), templatesPart, ["automated-messages", <AutomatedMessagesPanel key="automated-messages" active={part("automated-messages").shown} />] as [string, React.ReactNode], ["actions", <ActionsPanel key="actions" active={part("actions").shown} onOpenTemplate={(event, app) => go({ panel: "email-templates", tab: app, app: null, event })} onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
     </>;
   }
 
