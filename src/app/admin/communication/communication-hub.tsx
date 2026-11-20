@@ -38,7 +38,7 @@ import { BandwidthPanel } from "./bandwidth-panel";
 export type HubState = { panel: string | null; tab: string | null; app: string | null; show?: string | null; event?: string | null };
 type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review" | "actions" | "automated-messages" | "bandwidth";
 type Tab = { id: string; label: string };
-type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; tabs: Tab[]; whatsapp: boolean };
+type Panel = { group: "WhatsApp" | "Email" | "System"; title: string; description: string; tabs: Tab[]; whatsapp: boolean; portalAdminOnly?: boolean };
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
 const PANELS: Record<PanelId, Panel> = {
   "automated-messages": { group: "Email", title: "Automated message system", whatsapp: false, tabs: [], description: "One form for each work: the instant message, the reminders after it and where they stop." },
@@ -59,8 +59,8 @@ const PANELS: Record<PanelId, Panel> = {
   "email-review": { group: "Email", title: "Email Review", whatsapp: false,
     tabs: [{ id: "review", label: "Review" }, { id: "outbox", label: "Outbox" }, { id: "history", label: "History" }],
     description: "Mails waiting for Send / Don’t send, the Outbox and every decision." },
-  "bandwidth": { group: "WhatsApp", title: "Bandwidth & Processes", whatsapp: true, tabs: [],
-    description: "Live per-process bandwidth, MongoDB operations, and HTTP egress for the last 1 hour or 24 hours." },
+  "bandwidth": { group: "System", title: "Bandwidth & Processes", whatsapp: false, portalAdminOnly: true, tabs: [],
+    description: "Live per-process Render outbound egress, MongoDB BSON traffic, and HTTP responses for the last 1 hour or 24 hours." },
 };
 const IDS = Object.keys(PANELS) as PanelId[];
 type View = { panel: PanelId | null; tab: string; app: Application; show: HistoryGroup | null; event: string | null };
@@ -279,7 +279,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       </section>,
     ];
     return <>
-      {open?.whatsapp && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>WhatsApp can be managed only by an admin who is also a portal admin.</p></div>}
+      {(open?.whatsapp || open?.portalAdminOnly) && !portalAdmin && <div className={s.locked}><span>Portal admin only</span><p>{open?.whatsapp ? "WhatsApp can be managed only by an admin who is also a portal admin." : "System bandwidth diagnostics can be viewed only by an admin who is also a portal admin."}</p></div>}
       {[...(portalAdmin ? [...whatsappParts, ...emailParts] : emailParts), templatesPart, ["automated-messages", <AutomatedMessagesPanel key="automated-messages" active={part("automated-messages").shown} />] as [string, React.ReactNode], ["actions", <ActionsPanel key="actions" active={part("actions").shown} onOpenTemplate={(event, app) => go({ panel: "email-templates", tab: app, app: null, event })} onOpenPanel={panel => go({ panel: panel as PanelId, tab: null, app: null })} />] as [string, React.ReactNode]].map(([key, node]) => part(key).mount && <div key={key} hidden={!part(key).shown}>{node}</div>)}
     </>;
   }

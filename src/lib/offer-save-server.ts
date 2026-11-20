@@ -3,7 +3,7 @@ import { settingsRepo } from "@/lib/repo";
 import { offerSchema, resolvedOffers, type Offer } from "@/lib/offers";
 import { busyPackageMessage, offerRunning, offerSlugFor, packageOfferProblem, runningOfferForPackage, syncOfferWithPackage } from "@/lib/offer-packages";
 import { OFFER_DESIGN_KEYS } from "@/lib/package-design";
-import { readSalesCatalogue, salesBackend } from "@/lib/sales-catalogue-server";
+import { invalidateSalesCatalogueCache, readSalesCatalogue, salesBackend } from "@/lib/sales-catalogue-server";
 import type { QuotedPackage, SalesCatalogue } from "@/lib/sales-packages";
 
 // Saving one offer: the offers route (offers without a package, edited in Offers) and the package form
@@ -61,6 +61,7 @@ export async function saveOfferRecord(input: Offer, creating: boolean, catalogue
   if (creating && saved) return refuse("An offer already uses this URL slug.", 409);
   if (!creating && !saved) return refuse("Offer not found.", 404);
   if (!await settingsRepo.saveOffer(offer, creating)) return refuse("An offer already uses this URL slug.", 409);
+  invalidateSalesCatalogueCache();
   // The backend prices a package from its link (package.offerSlug), through the existing offer-links route.
   // A running offer holds the link; a draft or deleted (archived) offer releases it. An expired offer leaves
   // it alone, so it can never take a package back.

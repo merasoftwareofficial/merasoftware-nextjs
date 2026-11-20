@@ -108,3 +108,32 @@
 .plainRow:first-child{border-top:0;padding-top:0}
 .plainRow small{color:var(--muted)}
 @media(max-width:640px){.factRow{grid-template-columns:1fr}.workName{min-width:0}.workRow{flex-wrap:wrap}}
+
+/* Bandwidth & process consumption diagnostics */
+.bwSection{display:grid;gap:16px;min-width:0}
+.bwControls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between}
+.bwFilterGroup{display:flex;gap:6px;flex-wrap:wrap}
+.bwFilterGroup button{padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:inherit;font:inherit;font-size:var(--fs-ui);cursor:pointer}
+.bwFilterGroup button[aria-pressed=true]{background:var(--surface);border-color:var(--brand-link);color:var(--brand-link);font-weight:600}
+.bwActions{display:flex;gap:8px;flex-wrap:wrap}
+.bwError{margin:0;font-size:var(--fs-ui);color:var(--pn-err,#8b2a21)}
+.bwStats{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px}
+.bwStatCard{display:grid;gap:4px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.bwStatLabel{font-size:var(--fs-meta);color:var(--muted)}
+.bwStatValue{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.bwStatSub{font-size:var(--fs-meta);color:var(--muted)}
+.bwTableWrap{border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow-x:auto}
+.bwTable{width:100%;border-collapse:collapse;font-size:var(--fs-ui)}
+.bwTable th,.bwTable td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.bwTable tr:last-child td{border-bottom:0}
+.bwTable th{text-align:left;font-size:var(--fs-meta);color:var(--muted);font-weight:650;white-space:nowrap}
+.bwNum{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bwName{font-weight:600;word-break:break-word}
+.bwSub{display:block;font-size:var(--fs-meta);color:var(--muted);font-weight:400}
+.bwShare{display:flex;align-items:center;gap:8px;min-width:110px}
+.bwBarTrack{flex:1;height:6px;border-radius:999px;background:var(--surface);overflow:hidden}
+.bwBarFill{height:100%;border-radius:999px;background:var(--brand-link)}
+.bwBarFill[data-level=warn]{background:#c9a227}
+.bwBarFill[data-level=high]{background:var(--pn-err,#8b2a21)}
+.bwPct{font-size:var(--fs-meta);min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.bwFoot{margin:0;font-size:var(--fs-meta);color:var(--muted)}

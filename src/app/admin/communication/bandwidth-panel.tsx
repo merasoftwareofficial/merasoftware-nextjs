@@ -14,7 +14,8 @@ type ProcessUsage = {
   runs: number;
   dbReads: number;
   dbWrites: number;
-  dbBytes: number;
+  dbOutBytes: number;
+  dbInBytes: number;
   httpOutBytes: number;
   httpInBytes: number;
   externalCalls: number;
@@ -33,7 +34,8 @@ type BandwidthReport = {
     totalBytes: number;
     httpOutBytes: number;
     httpInBytes: number;
-    dbBytes: number;
+    dbOutBytes: number;
+    dbInBytes: number;
     externalBytes: number;
     totalRuns: number;
     totalDbReads: number;
@@ -61,8 +63,7 @@ function formatBytes(bytes: number): string {
 function formatUptime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 function formatWhen(at: string | null): string {
@@ -123,20 +124,20 @@ export function BandwidthPanel({ active }: { active: boolean }) {
   const totals = report?.totals;
 
   return (
-    <section aria-label="Bandwidth and process consumption" style={{ display: "grid", gap: "1rem" }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center", justifyContent: "space-between" }}>
-        <div className={s.subNav} role="group" aria-label="Time window" style={{ margin: 0 }}>
+    <section className={s.bwSection} aria-label="Bandwidth and process consumption">
+      <div className={s.bwControls}>
+        <div className={s.bwFilterGroup} role="group" aria-label="Time window">
           <button type="button" aria-pressed={windowOpt === "1h"} onClick={() => setWindowOpt("1h")}>Last 1 Hour</button>
           <button type="button" aria-pressed={windowOpt === "24h"} onClick={() => setWindowOpt("24h")}>Last 24 Hours</button>
         </div>
-        <div className={s.subNav} role="group" aria-label="Process category" style={{ margin: 0 }}>
+        <div className={s.bwFilterGroup} role="group" aria-label="Process category">
           {(["all", "worker", "cron", "api", "system"] as const).map(cat => (
             <button key={cat} type="button" aria-pressed={category === cat} onClick={() => setCategory(cat)}>
               {cat === "all" ? "All" : CATEGORY_LABEL[cat]}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className={s.bwActions}>
           <button type="button" className="btn-secondary" disabled={loading} onClick={() => void load(windowOpt)}>
             {loading ? "Refreshing…" : "Refresh"}
           </button>
@@ -146,85 +147,85 @@ export function BandwidthPanel({ active }: { active: boolean }) {
         </div>
       </div>
 
-      {error && <p role="alert" style={{ color: "#b91c1c", margin: 0 }}>{error}</p>}
+      {error && <p role="alert" className={s.bwError}>{error}</p>}
 
       {!report && loading ? (
         <Loader label="Loading bandwidth usage…" />
       ) : report && totals ? (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.75rem" }}>
-            <div className={s.card} style={{ padding: "0.9rem" }}>
-              <div style={{ fontSize: "0.8rem", opacity: 0.72 }}>Total Consumption ({report.window})</div>
-              <strong style={{ fontSize: "1.35rem", display: "block", marginTop: "0.2rem" }}>{formatBytes(totals.totalBytes)}</strong>
-              <div style={{ fontSize: "0.75rem", opacity: 0.7, marginTop: "0.2rem" }}>Uptime: {formatUptime(report.uptimeSeconds)}</div>
+          <div className={s.bwStats}>
+            <div className={s.bwStatCard}>
+              <span className={s.bwStatLabel}>Render Outbound ({report.window})</span>
+              <strong className={s.bwStatValue}>{formatBytes(totals.totalBytes)}</strong>
+              <span className={s.bwStatSub}>Uptime: {formatUptime(report.uptimeSeconds)}</span>
             </div>
-            <div className={s.card} style={{ padding: "0.9rem" }}>
-              <div style={{ fontSize: "0.8rem", opacity: 0.72 }}>MongoDB Traffic</div>
-              <strong style={{ fontSize: "1.25rem", display: "block", marginTop: "0.2rem" }}>{formatBytes(totals.dbBytes)}</strong>
-              <div style={{ fontSize: "0.75rem", opacity: 0.7, marginTop: "0.2rem" }}>{totals.totalDbReads.toLocaleString()} reads · {totals.totalDbWrites.toLocaleString()} writes</div>
+            <div className={s.bwStatCard}>
+              <span className={s.bwStatLabel}>MongoDB Outbound (BSON)</span>
+              <strong className={s.bwStatValue}>{formatBytes(totals.dbOutBytes)}</strong>
+              <span className={s.bwStatSub}>{totals.totalDbReads.toLocaleString()} R · {totals.totalDbWrites.toLocaleString()} W · In: {formatBytes(totals.dbInBytes)}</span>
             </div>
-            <div className={s.card} style={{ padding: "0.9rem" }}>
-              <div style={{ fontSize: "0.8rem", opacity: 0.72 }}>HTTP Outbound</div>
-              <strong style={{ fontSize: "1.25rem", display: "block", marginTop: "0.2rem" }}>{formatBytes(totals.httpOutBytes)}</strong>
-              <div style={{ fontSize: "0.75rem", opacity: 0.7, marginTop: "0.2rem" }}>{totals.totalRuns.toLocaleString()} total runs / requests</div>
+            <div className={s.bwStatCard}>
+              <span className={s.bwStatLabel}>HTTP Responses</span>
+              <strong className={s.bwStatValue}>{formatBytes(totals.httpOutBytes)}</strong>
+              <span className={s.bwStatSub}>{totals.totalRuns.toLocaleString()} runs / requests</span>
             </div>
-            <div className={s.card} style={{ padding: "0.9rem" }}>
-              <div style={{ fontSize: "0.8rem", opacity: 0.72 }}>External APIs</div>
-              <strong style={{ fontSize: "1.25rem", display: "block", marginTop: "0.2rem" }}>{formatBytes(totals.externalBytes)}</strong>
-              <div style={{ fontSize: "0.75rem", opacity: 0.7, marginTop: "0.2rem" }}>{totals.totalExternalCalls.toLocaleString()} outbound calls</div>
+            <div className={s.bwStatCard}>
+              <span className={s.bwStatLabel}>External APIs</span>
+              <strong className={s.bwStatValue}>{formatBytes(totals.externalBytes)}</strong>
+              <span className={s.bwStatSub}>{totals.totalExternalCalls.toLocaleString()} outbound calls</span>
             </div>
           </div>
 
-          <div className={s.card} style={{ padding: "0.75rem", overflowX: "auto" }}>
+          <div className={s.bwTableWrap}>
             {!rows.length ? (
-              <p className={s.allGood} style={{ margin: "0.5rem 0" }}>No process activity recorded in this window yet.</p>
+              <p className={s.allGood} style={{ padding: "14px 16px" }}>No process activity recorded in this window yet.</p>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <table className={s.bwTable}>
                 <thead>
-                  <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border, #e2e8f0)" }}>
-                    <th style={{ padding: "0.55rem 0.5rem" }}>Process / Functionality</th>
-                    <th style={{ padding: "0.55rem 0.5rem" }}>Type</th>
-                    <th style={{ padding: "0.55rem 0.5rem", textAlign: "right" }}>Runs</th>
-                    <th style={{ padding: "0.55rem 0.5rem", textAlign: "right" }}>DB (R / W)</th>
-                    <th style={{ padding: "0.55rem 0.5rem", textAlign: "right" }}>HTTP / Ext</th>
-                    <th style={{ padding: "0.55rem 0.5rem", textAlign: "right" }}>Total</th>
-                    <th style={{ padding: "0.55rem 0.5rem", minWidth: "110px" }}>Share</th>
-                    <th style={{ padding: "0.55rem 0.5rem", textAlign: "right" }}>Last Active</th>
+                  <tr>
+                    <th>Process / Functionality</th>
+                    <th>Type</th>
+                    <th className={s.bwNum}>Runs</th>
+                    <th className={s.bwNum}>DB (R / W)</th>
+                    <th className={s.bwNum}>HTTP / Ext</th>
+                    <th className={s.bwNum}>Render Out</th>
+                    <th>Share</th>
+                    <th className={s.bwNum}>Last Active</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(item => (
-                    <tr key={`${item.category}:${item.name}`} style={{ borderBottom: "1px solid var(--border, #f1f5f9)" }}>
-                      <td style={{ padding: "0.55rem 0.5rem", fontWeight: 500, wordBreak: "break-word" }}>{item.name}</td>
-                      <td style={{ padding: "0.55rem 0.5rem", opacity: 0.8 }}>{CATEGORY_LABEL[item.category]}</td>
-                      <td style={{ padding: "0.55rem 0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.runs.toLocaleString()}</td>
-                      <td style={{ padding: "0.55rem 0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    <tr key={`${item.category}:${item.name}`}>
+                      <td className={s.bwName}>{item.name}</td>
+                      <td>{CATEGORY_LABEL[item.category]}</td>
+                      <td className={s.bwNum}>{item.runs.toLocaleString()}</td>
+                      <td className={s.bwNum}>
                         {item.dbReads.toLocaleString()} / {item.dbWrites.toLocaleString()}
-                        <div style={{ fontSize: "0.72rem", opacity: 0.7 }}>{formatBytes(item.dbBytes)}</div>
+                        <span className={s.bwSub}>Out {formatBytes(item.dbOutBytes)} · In {formatBytes(item.dbInBytes)}</span>
                       </td>
-                      <td style={{ padding: "0.55rem 0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {formatBytes(item.httpOutBytes + item.externalBytes)}
-                      </td>
-                      <td style={{ padding: "0.55rem 0.5rem", textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                        {formatBytes(item.totalBytes)}
-                      </td>
-                      <td style={{ padding: "0.55rem 0.5rem" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                          <div style={{ flex: 1, height: "6px", borderRadius: "999px", background: "var(--surface-2, #e2e8f0)", overflow: "hidden" }}>
-                            <div style={{ width: `${Math.min(100, item.percent)}%`, height: "100%", background: item.percent >= 40 ? "#dc2626" : item.percent >= 15 ? "#d97706" : "#2563eb" }} />
+                      <td className={s.bwNum}>{formatBytes(item.httpOutBytes + item.externalBytes)}</td>
+                      <td className={s.bwNum}><strong>{formatBytes(item.totalBytes)}</strong></td>
+                      <td>
+                        <div className={s.bwShare}>
+                          <div className={s.bwBarTrack}>
+                            <div
+                              className={s.bwBarFill}
+                              data-level={item.percent >= 40 ? "high" : item.percent >= 15 ? "warn" : "ok"}
+                              style={{ width: `${Math.min(100, item.percent)}%` }}
+                            />
                           </div>
-                          <span style={{ fontSize: "0.75rem", minWidth: "38px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.percent}%</span>
+                          <span className={s.bwPct}>{item.percent}%</span>
                         </div>
                       </td>
-                      <td style={{ padding: "0.55rem 0.5rem", textAlign: "right", opacity: 0.8, whiteSpace: "nowrap" }}>{formatWhen(item.lastAt)}</td>
+                      <td className={s.bwNum}>{formatWhen(item.lastAt)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
           </div>
-          <p style={{ fontSize: "0.78rem", opacity: 0.72, margin: 0 }}>
-            Tracked in-memory across API routes, crons, and workers (zero extra DB writes). Rolling 24-hour window since {formatWhen(report.startedAt)}.
+          <p className={s.bwFoot}>
+            Measured via native MongoDB BSON command monitoring &amp; Express response hooks in memory (zero extra DB writes). Rolling 24-hour window since {formatWhen(report.startedAt)}.
           </p>
         </>
       ) : null}

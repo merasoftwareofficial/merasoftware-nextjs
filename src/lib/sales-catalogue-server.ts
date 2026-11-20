@@ -1,7 +1,14 @@
 import "server-only";
+import { revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { AuthError, requirePortalAdmin } from "@/lib/auth";
 import type { SalesCatalogue } from "./sales-packages";
+
+export const SALES_CATALOGUE_TAG = "sales-catalogue";
+
+export function invalidateSalesCatalogueCache() {
+  try { revalidateTag(SALES_CATALOGUE_TAG, { expire: 0 }); } catch { /* Outside Next.js request context (e.g. unit tests). */ }
+}
 
 export async function requireSalesAdmin() {
   await requirePortalAdmin("manage prices and packages");
@@ -18,12 +25,18 @@ export async function salesBackend(admin: boolean, body?: unknown, path = "sales
     if (secret.length < 32) throw new AuthError("Sales integration is not configured.", 503);
     headers.Authorization = `Bearer ${secret}`;
   }
+  const publicCached = !admin && !body;
   const response = await fetch(`${origin.replace(/\/$/, "")}/api/${admin ? "admin" : "integration"}/${path}`, {
-    method: body ? "PATCH" : "GET", headers, cache: "no-store", redirect: "error",
-    signal: AbortSignal.timeout(20000), ...(body ? { body: JSON.stringify(body) } : {}),
+    method: body ? "PATCH" : "GET",
+    headers,
+    ...(publicCached ? { next: { revalidate: 60, tags: [SALES_CATALOGUE_TAG] } } : { cache: "no-store" }),
+    redirect: "error",
+    signal: AbortSignal.timeout(20000),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const result = await response.json();
   if (!response.ok || !result.success) throw new AuthError(result.message || "The portal is unavailable. Please try again.", response.status >= 400 ? response.status : 503);
+  if (admin && body) invalidateSalesCatalogueCache();
   return result.data;
 }
 export async function readSalesCatalogue(admin = false) { return await salesBackend(admin) as SalesCatalogue; }
@@ -43,5 +56,6 @@ export async function portalAddOnRequest(action: keyof typeof ADD_ON_ROUTES, bod
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) throw new AuthError(result.message || "The portal is unavailable. Please try again.", response.status >= 400 ? response.status : 503);
+  invalidateSalesCatalogueCache();
   return result.data;
 }
