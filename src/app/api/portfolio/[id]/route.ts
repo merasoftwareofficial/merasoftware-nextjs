@@ -48,6 +48,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const url = webUrl.refine(Boolean, "Enter a website URL first.").parse((await request.json()).url);
     const entry = await portfolioRepo.queueCapture(id, url);
+    const base = process.env.PORTAL_API_URL?.replace(/\/$/, "");
+    const secret = process.env.PORTFOLIO_INTEGRATION_SECRET || "";
+    if (base && secret.length >= 32) {
+      await fetch(`${base}/api/portfolio-integration/sync?capture=1`, {
+        method: "POST", cache: "no-store", redirect: "error",
+        headers: { Authorization: `Bearer ${secret}` },
+        signal: AbortSignal.timeout(5_000),
+      }).catch(() => undefined);
+    }
     return NextResponse.json({ entry });
   } catch (error) { return errorResponse(error); }
 }
