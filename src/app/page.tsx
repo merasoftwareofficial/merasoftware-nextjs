@@ -17,7 +17,7 @@ import { pageMetadata } from "@/lib/page-seo";
 import { packagesHref } from "@/lib/package-pages-server";
 import { jsonLd, organisationLd } from "@/lib/structured-data";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 /** How many times the moving strip's items repeat inside one copy (see the marquee below). */
 const MARQUEE_REPEAT = 3;

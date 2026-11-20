@@ -12,6 +12,7 @@ import { errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
 import { allPageSeoPages } from "@/lib/page-seo";
 import { settingsRepo, type PageSeo } from "@/lib/repo";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 const patchSchema = z.object({
   key: z.string().refine(async key => (await allPageSeoPages()).some(page => page.key === key), "Unknown page."),
@@ -31,6 +32,7 @@ export async function PATCH(request: Request) {
     if (Object.values(value).some(Boolean)) next[key] = value;
     else delete next[key];
     const settings = await settingsRepo.update({ pageSeo: next });
+    invalidatePublicPages();
     return NextResponse.json(settings.pageSeo?.[key] ?? null);
   } catch (error) {
     return errorResponse(error);

@@ -35,6 +35,7 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
     { label: "SEO health", href: "/admin/seo", minimum: "editor" },
     { label: "Page SEO", href: "/admin/page-seo", minimum: "editor" },
   ] },
+  { title: "System", items: [{ label: "Bandwidth & processes", href: "/admin/bandwidth", minimum: "admin" }] },
   { title: "Settings", items: [{ label: "Site settings", href: "/admin/settings", minimum: "admin" }] },
 ];
 /** Pages that talk to the portal as its admin; shown only while the portal admin role is active. */

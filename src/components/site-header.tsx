@@ -1,8 +1,7 @@
 import Link from "@/components/link";
 import { BRAND_LOGO } from "@/lib/brand";
 import { Suspense } from "react";
-import { getSession } from "@/lib/auth";
-import { portalAddresses, portalEntryFor } from "@/lib/portal";
+import { portalAddresses } from "@/lib/portal";
 import { MobileMenu, type MenuEntry, type MenuLink } from "@/components/mobile-menu";
 import { NavDropdown } from "@/components/nav-dropdown";
 import { packageMenuLinks } from "@/lib/package-pages-server";
@@ -10,23 +9,9 @@ import { FEATURES } from "@/lib/features";
 import { SessionMenu } from "@/components/session-menu";
 import { HeaderScroll } from "@/components/header-scroll";
 
-/**
- * Reads the session cookie. Kept in its own component behind <Suspense> so the
- * rest of every page can still be prerendered — only this slot is dynamic.
- */
-async function SessionSlot() {
-  const session = await getSession();
-  const { apiUrl, portalUrl } = portalAddresses();
-  const user = session?.user;
-  // Portal admin shows "admin" (already the role here), a portal customer "customer", everyone else their blog role.
-  const badge = user?.role !== "admin" && session?.portalRoles.includes("customer") ? "customer" : user?.role;
-  return (
-    <SessionMenu
-      user={user && badge ? { displayName: user.displayName, username: user.username, role: user.role, badge } : null}
-      portal={session ? portalEntryFor(session.portalActiveRole, portalUrl) : null}
-      portalApiUrl={apiUrl}
-    />
-  );
+function SessionSlot() {
+  const { apiUrl } = portalAddresses();
+  return <SessionMenu portalApiUrl={apiUrl} />;
 }
 
 /** The main pages, shared by the inline nav and the phone menu. */

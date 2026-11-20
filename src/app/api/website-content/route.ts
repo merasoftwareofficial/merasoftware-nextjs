@@ -6,6 +6,7 @@ import { mediaRepo, settingsRepo } from "@/lib/repo";
 import { sectionSchema, sectionVisualIds } from "@/lib/page-content";
 import { visualSchema } from "@/lib/visual-validation";
 import { prepareVisualWrites } from "@/lib/visual-save";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 const payloadSchema = z.object({ page: z.enum(["about", "services"]), section: z.string().max(50), content: z.unknown(), visuals: z.record(z.string(), visualSchema).default({}) }).strict();
 export async function PATCH(request: Request) {
@@ -22,6 +23,7 @@ export async function PATCH(request: Request) {
     const ids = [...new Set(Object.values(payload.visuals).map(config => config.assetId).filter((id): id is string => !!id))];
     const visuals = prepareVisualWrites(payload.visuals, allowed, await mediaRepo.findByIds(ids));
     await settingsRepo.updatePageSection(payload.page, payload.section, content, visuals);
+    invalidatePublicPages();
     return NextResponse.json({ content, visuals });
   } catch (error) { return errorResponse(error); }
 }

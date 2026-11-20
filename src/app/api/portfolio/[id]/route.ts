@@ -7,6 +7,7 @@ import { portfolioRepo } from "@/lib/portfolio/repo";
 import { savePortalProjectLink } from "@/lib/portfolio/portal-link";
 import { sameUrl } from "@/lib/portfolio/types";
 import { mediaRepo } from "@/lib/repo";
+import { invalidatePublicPages } from "@/lib/public-cache";
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await requireRole("editor");
@@ -39,6 +40,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     const entry = await portfolioRepo.update(id, data);
     if (!entry) return NextResponse.json({ error: "Source is unavailable or this service belongs to another project." }, { status: 409 });
+    invalidatePublicPages(`/work/${entry.slug}`);
     return NextResponse.json({ entry, portalUpdated });
   } catch (error) { return errorResponse(error); }
 }

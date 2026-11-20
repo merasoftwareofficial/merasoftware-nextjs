@@ -7,7 +7,7 @@ import s from "@/components/campaign/campaign.module.css";
 
 // The offers page: every package offer, running first, then expired (lib/offers-page.ts). /offer opens
 // here too (app/offer/page.tsx). An offer's own page stays at /offer/<slug> (app/offer/[slug]).
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 export function generateMetadata() { return pageMetadata("offers"); }
 export default async function Page() {
   const { listing, catalogue, cards } = await readOffersPage();

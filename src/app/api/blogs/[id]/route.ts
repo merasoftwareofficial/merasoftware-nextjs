@@ -6,6 +6,7 @@
 
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
+import { invalidatePublicPages } from "@/lib/public-cache";
 import { blogResponse } from "@/lib/blog-response";
 import { articleContentSchema } from "@/lib/content-rules";
 import { slugify } from "@/lib/slug";
@@ -73,6 +74,7 @@ export async function PATCH(request: Request, { params }: Params) {
       articleContentSchema.parse(patch.content ?? blog.content);
     }
     const updated = await blogRepo.update(id, patch);
+    if (updated) invalidatePublicPages(`/blog/${updated.slug}`);
     return NextResponse.json(updated);
   } catch (error) {
     return errorResponse(error);
@@ -91,6 +93,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     }
 
     await blogRepo.remove(id);
+    invalidatePublicPages(`/blog/${blog.slug}`);
     return NextResponse.json({ deleted: true });
   } catch (error) {
     return errorResponse(error);

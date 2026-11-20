@@ -35,6 +35,7 @@ export default async function Admin() {
     { title: "Blog Management", description: "Write articles, manage existing posts and review reader submissions and comments.", href: "/admin/blog-management" },
     ...(atLeast(user.role, "admin") ? [{ title: "Communication", description: "Configure message rules and templates, review emails before sending and track sending history. Portal and WhatsApp controls require portal admin access.", href: "/admin/communication" }] : []),
     ...(canEdit ? [{ title: "Page SEO", description: "Edit search titles, descriptions and sharing details for website pages.", href: "/admin/page-seo" }] : []),
+    ...(atLeast(user.role, "admin") ? [{ title: "Bandwidth & processes", description: "Monitor live per-process Render outbound egress, MongoDB BSON traffic and HTTP responses.", href: "/admin/bandwidth" }] : []),
   ];
 
   return <main className={`admin-main ${s.overview}`}>

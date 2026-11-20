@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { requireSameOrigin } from "@/lib/portfolio/integration-auth";
 import { readSalesCatalogue, requireSalesAdmin, salesBackend } from "@/lib/sales-catalogue-server";
+import { invalidatePublicPages } from "@/lib/public-cache";
 import { settingsRepo } from "@/lib/repo";
 import { offerSchema, resolvedOffers, type Offer } from "@/lib/offers";
 import { busyPackageMessage, offerOutOfSync, offerRunning, packageOfferProblem, runningOfferForPackage, syncOfferWithPackage, type PackageSource } from "@/lib/offer-packages";
@@ -111,6 +112,7 @@ export async function PATCH(request: Request) {
       try { await settingsRepo.saveOffer(syncOfferWithPackage(offer, saved), false); }
       catch { failed.push(offer.title); }
     }
+    invalidatePublicPages();
     let offerResult: Awaited<ReturnType<typeof saveOfferRecord>> | null = null;
     if (offerInput && part?.success) {
       offerResult = part.data.creating

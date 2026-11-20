@@ -20,7 +20,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     { source: '/:path*', has: [{ type: 'host', value: '.*-preview\\.merasoftware\\.com' }] },
-    // Marketing static assets keep their CDN path; preview assets match the host rule above.
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.[a-zA-Z0-9]+$).*)',
+    // Marketing static assets and API routes (except website-preview-runtime, which strips forged headers) bypass proxy.
+    '/((?!api/(?!website-preview-runtime)|_next/static|_next/image|favicon.ico|.*\\.[a-zA-Z0-9]+$).*)',
   ],
 };

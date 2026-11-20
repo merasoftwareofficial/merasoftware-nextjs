@@ -10,6 +10,20 @@ export function invalidateSalesCatalogueCache() {
   try { revalidateTag(SALES_CATALOGUE_TAG, { expire: 0 }); } catch { /* Outside Next.js request context (e.g. unit tests). */ }
 }
 
+/** Notify the portal backend to drop its in-memory `/api/offers/live` cache after an offer or page change. */
+export async function invalidateBackendOffersCache() {
+  const origin = process.env.PORTAL_API_URL?.replace(/\/$/, "");
+  const secret = process.env.PORTFOLIO_INTEGRATION_SECRET ?? "";
+  if (!origin || secret.length < 32) return;
+  try {
+    await fetch(`${origin}/api/integration/website-offers/invalidate`, {
+      method: "POST", cache: "no-store", redirect: "error",
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(3_000),
+    });
+  } catch { /* Safe best-effort: backend also has a bounded TTL fallback. */ }
+}
+
 export async function requireSalesAdmin() {
   await requirePortalAdmin("manage prices and packages");
 }

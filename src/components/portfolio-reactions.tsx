@@ -11,8 +11,8 @@ export function PortfolioReactions({ id, slug, compact = false }: { id: string; 
       if (document.hidden) return;
       try { const response = await fetch(`/api/portfolio/${id}/reactions`, { cache: "no-store", signal: controller.signal }); if (response.ok) { setState(await response.json()); setReady(true); } } catch { /* Keep the last successful counts. */ }
     }
-    void refresh(); const timer = setInterval(refresh, 180_000);
-    return () => { clearInterval(timer); controller.abort(); };
+    void refresh();
+    return () => { controller.abort(); };
   }, [id]);
   async function react(reaction: PortfolioReaction) {
     if (busy) return; setBusy(true); setError(""); setLogin(false);

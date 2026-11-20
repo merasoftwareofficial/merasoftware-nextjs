@@ -10,7 +10,7 @@ import { pageMetadata } from "@/lib/page-seo";
 import { loadPageVisuals } from "@/lib/section-visuals";
 import s from "./about.module.css";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 export function generateMetadata() { return pageMetadata("about"); }
 
 export default async function About() {

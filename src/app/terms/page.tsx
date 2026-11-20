@@ -6,7 +6,7 @@ import { pageMetadata } from "@/lib/page-seo";
 import { packagePath, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 import Link from "@/components/link";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 export function generateMetadata() { return pageMetadata("terms"); }
 
 // The public Terms & Conditions page. Nothing is typed here: the general terms are the ones saved in

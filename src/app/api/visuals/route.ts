@@ -6,6 +6,7 @@ import { mediaRepo, settingsRepo } from "@/lib/repo";
 import { visualSchema } from "@/lib/visual-validation";
 import { activeVisualSlots } from "@/lib/visual-config";
 import { prepareVisualWrites } from "@/lib/visual-save";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 const requestSchema = z.object({ slot: z.string(), config: visualSchema }).strict();
 
@@ -18,6 +19,7 @@ export async function PATCH(request: Request) {
     const [settings, assets] = await Promise.all([settingsRepo.get(), input.assetId ? mediaRepo.findByIds([input.assetId]) : Promise.resolve([])]);
     const config = prepareVisualWrites({ [slot]: input }, activeVisualSlots(settings).map(slot => slot.id), assets)[slot];
     await settingsRepo.updateVisual(slot, config);
+    invalidatePublicPages();
     return NextResponse.json(config);
   } catch (error) { return errorResponse(error); }
 }

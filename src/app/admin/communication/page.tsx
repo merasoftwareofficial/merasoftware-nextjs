@@ -25,6 +25,8 @@ export default async function CommunicationPage({ searchParams }: { searchParams
   const session = await getSession();
   const portalAdmin = !!session?.portalRoles.includes("admin");
   const query = await searchParams;
+  if (query.panel === "bandwidth") redirect("/admin/bandwidth");
+  if (query.panel === "reminders") redirect("/admin/communication?panel=automated-messages");
   const old = query.view !== undefined ? `view:${query.view}` : query.panel !== undefined ? `panel:${query.panel}` : "";
   if (query.view !== undefined || Object.hasOwn(OLD_LINKS, old)) redirect(`/admin/communication${OLD_LINKS[old] ? `?${OLD_LINKS[old]}` : ""}`);
   const initial: HubState = { panel: query.panel ?? null, tab: query.tab ?? null, app: query.app ?? null, show: query.show ?? null, event: query.event ?? null };

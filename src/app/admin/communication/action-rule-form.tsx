@@ -719,9 +719,6 @@ export function ActionRuleForm({
             <label style={{ cursor: "pointer" }}>
               <input type="radio" name="ruleKind" checked={kind === "template"} onChange={() => switchKind("template")} /> Template (one-time)
             </label>
-            <label style={{ cursor: "pointer" }}>
-              <input type="radio" name="ruleKind" checked={kind === "reminder"} onChange={() => switchKind("reminder")} /> Reminder (follow-up)
-            </label>
           </dd>
         </div>
 

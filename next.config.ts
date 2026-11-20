@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Preview origins must preserve directory URLs. proxy.ts retains marketing canonical URLs.
   skipTrailingSlashRedirect: true,
   distDir: process.env.NEXT_BUILD_DIR || '.next',
+  outputFileTracingExcludes: {
+    '*': ['./tests/**', './test-results/**', './docs/**', './.next-build/**', './.next-plans-check/**', './work41-offers-*/**'],
+  },
   async redirects() {
     // Upload links issued while the portal ran on this domain still point here; the
     // browser carries their #token fragment across the redirect to the portal page.

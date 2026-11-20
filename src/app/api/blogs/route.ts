@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
+import { invalidatePublicPages } from "@/lib/public-cache";
 import { blogResponse } from "@/lib/blog-response";
 import { slugify } from "@/lib/slug";
 import { atLeast, getSessionUser, requireUser } from "@/lib/auth";
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
       ...initialState(type, user),
     });
 
+    invalidatePublicPages(`/blog/${blog.slug}`);
     return NextResponse.json(blog, { status: 201 });
   } catch (error) {
     return errorResponse(error);

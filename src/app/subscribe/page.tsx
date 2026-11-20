@@ -5,7 +5,7 @@ import { SubscribeBox } from "@/components/subscribe/subscribe-box";
 import { loadPageVisuals } from "@/lib/section-visuals";
 
 export const metadata = { title: "Get notified", description: "Get notified about new posts on the topics you choose, and offers if you want them." };
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 export default async function Subscribe() {
   const visuals = await loadPageVisuals("newsletter");

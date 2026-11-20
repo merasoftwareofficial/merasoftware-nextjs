@@ -2,29 +2,64 @@
 
 import Link from "@/components/link";
 import { onLeaveClick, useNavigate, useTask } from "@/components/loading/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Role } from "@/lib/repo/types";
 
 type SessionUser = { displayName: string; username: string; role: Role; badge: string };
 type PortalEntry = { label: string; href: string };
+type SessionState = { user: SessionUser | null; portal: PortalEntry | null };
+
+const SESSION_CACHE_KEY = "ms_header_session_v1";
+const SESSION_CACHE_TTL_MS = 5 * 60_000;
 
 export function SessionMenu({
-  user,
-  portal,
+  user: initialUser = null,
+  portal: initialPortal = null,
   portalApiUrl,
 }: {
-  user: SessionUser | null;
-  portal: PortalEntry | null;
+  user?: SessionUser | null;
+  portal?: PortalEntry | null;
   portalApiUrl: string;
 }) {
   const router = useNavigate();
   const { busy, track } = useTask();
   const [open, setOpen] = useState(false);
+  const [session, setSession] = useState<SessionState>({ user: initialUser, portal: initialPortal });
   const dropdownId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Pointer that started the last click. A mouse opens the menu by hovering,
   // so its click must not toggle it shut; touch and keyboard still toggle.
   const lastPointer = useRef("");
+
+  useEffect(() => {
+    if (initialUser) return;
+    try {
+      const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as SessionState & { expiresAt?: number };
+        if (parsed.expiresAt && parsed.expiresAt > Date.now()) {
+          setSession({ user: parsed.user ?? null, portal: parsed.portal ?? null });
+          return;
+        }
+      }
+    } catch { /* ignore storage errors */ }
+
+    const controller = new AbortController();
+    fetch("/api/auth", { cache: "no-store", signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: SessionState | null) => {
+        if (!data || controller.signal.aborted) return;
+        const next = { user: data.user ?? null, portal: data.portal ?? null };
+        setSession(next);
+        try {
+          sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ...next, expiresAt: Date.now() + SESSION_CACHE_TTL_MS }));
+        } catch { /* ignore storage errors */ }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [initialUser]);
+
+  const { user, portal } = session;
 
   if (!user) {
     return (
@@ -38,6 +73,8 @@ export function SessionMenu({
     track(async () => {
       // The portal owns the shared cookie, so signing out here signs out of the portal too.
       await fetch(`${portalApiUrl}/api/userLogout`, { credentials: "include" });
+      try { sessionStorage.removeItem(SESSION_CACHE_KEY); } catch { /* ignore */ }
+      setSession({ user: null, portal: null });
       setOpen(false);
       router.push("/");
       router.refresh();

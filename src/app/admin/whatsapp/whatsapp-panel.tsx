@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import type { WhatsappMessage, WhatsappQueuePage, WhatsappQueueStatus, WhatsappStatus } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
@@ -8,17 +8,9 @@ import { Loader } from "../email-control/loader";
 import { WhatsappQueueView } from "./whatsapp-queue";
 import { WhatsappSettingsSection } from "./whatsapp-settings";
 import { WhatsappText } from "./whatsapp-text";
+import { message, useWhatsappStatus, whatsappApi } from "./whatsapp-client";
 
-export async function whatsappApi<T>(path: string, method = "GET", signal?: AbortSignal, body?: unknown): Promise<T> {
-  const response = await fetch(`/api/whatsapp/${path}`, {
-    method, signal, cache: "no-store",
-    ...(body !== undefined ? { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } } : {}),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Could not complete the WhatsApp request.");
-  return result.data as T;
-}
-export const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+export { message, whatsappApi };
 
 const STATUS_LABEL: Record<WhatsappQueueStatus, string> = {
   pending: "Waiting", sending: "Sending now", sent: "Sent", failed: "Not sent", skipped: "Skipped", expired: "Expired", cancelled: "Cancelled",
@@ -58,8 +50,10 @@ const SUMMARY: [string, (status: WhatsappStatus) => string | number][] = [
  * `show` = which History group to show; when it changes (a "not sent" link), the list follows it.
  */
 export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { view?: WhatsappView; active?: boolean; show?: HistoryGroup }) {
-  const [status, setStatus] = useState<WhatsappStatus | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
+  const { status, statusError, refreshing, refresh, loadStatus } = useWhatsappStatus({
+    active: active && view !== "rules" && view !== "queue",
+    allowQrFastPoll: true,
+  });
   const [group, setGroup] = useState<HistoryGroup>(show);
   const [notSent, setNotSent] = useState<NotSentFilter>("not-sent");
   const [page, setPage] = useState(1);
@@ -71,27 +65,6 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const loadStatus = useCallback((signal?: AbortSignal) => whatsappApi<WhatsappStatus>("status", "GET", signal)
-    .then(data => { if (!signal?.aborted) { setStatus(data); setStatusError(null); } })
-    .catch(error => { if (!signal?.aborted) setStatusError(message(error, "Could not load WhatsApp status.")); }), []);
-  // The QR changes about every 20 seconds, so the status refreshes every 5s while connecting/sending, and every 60s when idle & connected.
-  const idleConnected = status?.connection === "connected" && !status.counts.sending && !status.counts.pending;
-  const pollMs = idleConnected ? 60_000 : 5000;
-  useEffect(() => {
-    if (!active || view === "rules" || view === "queue") return; // these pages load on their own
-    const controller = new AbortController();
-    const refresh = () => { if (document.visibilityState === "visible") void loadStatus(controller.signal); };
-    const first = setTimeout(refresh, 0);
-    document.addEventListener("visibilitychange", refresh);
-    return () => { controller.abort(); clearTimeout(first); document.removeEventListener("visibilitychange", refresh); };
-  }, [loadStatus, view, active]);
-  useEffect(() => {
-    if (!active || view === "rules" || view === "queue") return;
-    const controller = new AbortController();
-    const timer = setInterval(() => { if (document.visibilityState === "visible") void loadStatus(controller.signal); }, pollMs);
-    return () => { controller.abort(); clearInterval(timer); };
-  }, [loadStatus, view, active, pollMs]);
 
   // The list reloads when the totals change (a message was sent, skipped, …), the filter or page changes, or after an action.
   const countsKey = JSON.stringify(status?.counts ?? null);
@@ -166,6 +139,7 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
           ? <button className="admin-action" disabled={busy} onClick={() => void act("resume", "Sending resumed.")}>Resume sending</button>
           : <button className="admin-action" disabled={busy || !status} onClick={() => void act("pause", "Sending paused.")}>Pause sending</button>}
         {status?.connection === "connected" && <button className="admin-action" disabled={busy || status.unlinkRequested} onClick={unlink}>{status.unlinkRequested ? "Unlinking…" : "Unlink number"}</button>}
+        <button type="button" className="admin-action" disabled={busy || refreshing} onClick={refresh}>{refreshing ? "Refreshing…" : "Refresh"}</button>
       </div>
       {notice && <p className={styles.notice} role="status">{notice}</p>}
       {actionError && <p className={styles.error} role="alert">{actionError}</p>}

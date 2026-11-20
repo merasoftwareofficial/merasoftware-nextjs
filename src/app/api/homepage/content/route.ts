@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { homepageContentSchema } from "@/lib/homepage-content";
 import { unknownSitePaths } from "@/lib/link-options";
 import { settingsRepo } from "@/lib/repo";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 export async function PATCH(request: Request) {
   try {
@@ -15,6 +16,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: `No page on the site at ${unknown.join(", ")}. Choose it from the list.` }, { status: 400 });
     }
     const settings = await settingsRepo.update({ homepageContent: content });
+    invalidatePublicPages();
     return NextResponse.json(settings.homepageContent);
   } catch (error) {
     return errorResponse(error);

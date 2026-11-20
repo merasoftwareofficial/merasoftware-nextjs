@@ -8,7 +8,7 @@ import { PLANS_PAGE_INTRO, PLANS_PAGE_TITLE, type PublicPlanCatalogue } from "@/
 import { readPublicPlans } from "@/lib/public-plans-server";
 import c from "@/components/campaign/campaign.module.css";
 import s from "@/components/plans/plans.module.css";
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 // The public plans page in the "Pricing & Packages" menu (docs/plan.md). Marketing only: plans on
 // sale, grouped by plan category, as short cards; each opens its own page (app/plans/[plan]) to

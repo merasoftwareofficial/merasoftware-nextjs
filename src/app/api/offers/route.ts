@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSalesAdmin } from "@/lib/sales-catalogue-server";
+import { invalidateBackendOffersCache, requireSalesAdmin } from "@/lib/sales-catalogue-server";
+import { invalidatePublicPages } from "@/lib/public-cache";
 import { errorResponse } from "@/lib/api";
 import { settingsRepo } from "@/lib/repo";
 import { offerSchema, listingSchema } from "@/lib/offers";
@@ -26,8 +27,9 @@ export async function PATCH(request: Request) {
       if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
       return NextResponse.json(result.offer, result.linkError ? { headers: { "X-Package-Link-Error": encodeURIComponent(result.linkError) } } : undefined);
     }
-    if (data.kind === "terms") { await settingsRepo.update({ offerUniversalTerms: data.terms }); return NextResponse.json(data.terms); }
+    if (data.kind === "terms") { await settingsRepo.update({ offerUniversalTerms: data.terms }); invalidatePublicPages(); void invalidateBackendOffersCache(); return NextResponse.json(data.terms); }
     await settingsRepo.update({ offerListing: data.listing });
+    invalidatePublicPages();
     return NextResponse.json(data.listing);
   } catch (error) { return errorResponse(error); }
 }

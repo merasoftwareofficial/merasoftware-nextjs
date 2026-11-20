@@ -12,7 +12,7 @@ import { packageCustomizePath, packagePath, readCustomizablePackages, readPackag
 import { readPublicPlansOrNone } from "@/lib/public-plans-server";
 import { readOffersPage } from "@/lib/offers-page-server";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 /**
  * The sitemap search engines read.

@@ -8,15 +8,23 @@ import c from "./actions-panel.module.css";
 import s from "./communication.module.css";
 import { InfoTip } from "./reminder-info";
 
-type Row = { _id: string; customer: string; ruleName: string; source: string; dueAt: string; status: string; reason?: string; channel: string; channelOutcomes?: { email?: string; whatsapp?: string } };
-type View = "all" | "upcoming" | "today" | "sent" | "sent_today" | "attention";
+type Row = { _id: string; customer: string; audience?: "customer" | "admin"; ruleName: string; source: string; dueAt: string; status: string; reason?: string; channel: string; channelOutcomes?: { email?: string; whatsapp?: string } };
+type View = "all" | "upcoming" | "today" | "sent" | "sent_today" | "attention" | "cancelled";
 type Reply = { page: number; pageSize: number; view: View; total: number; rows: Row[] };
 
-export function ReminderHistory({ active, source, compact = false }: { active: boolean; source?: "monthly_package" | "broadcast"; compact?: boolean }) {
+function sourceLabel(source: string) {
+  if (source === "action") return "Automated message";
+  if (source === "monthly_package") return "Monthly package";
+  if (source === "broadcast") return "Broadcast";
+  return source;
+}
+
+export function ReminderHistory({ active, source, compact = false }: { active: boolean; source?: "monthly_package" | "broadcast" | "action"; compact?: boolean }) {
   const [page, setPage] = useState(1), [data, setData] = useState<Reply | null>(null), [error, setError] = useState("");
   const [view, setView] = useState<View>("all");
   const [query, setQuery] = useState("");
   const [retrying, setRetrying] = useState("");
+  const [cancelling, setCancelling] = useState("");
 
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -39,24 +47,36 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
     finally { setRetrying(""); }
   }
 
+  async function cancelRun(id: string) {
+    if (!window.confirm("Cancel this scheduled reminder step?")) return;
+    setCancelling(id); setError("");
+    try {
+      const response = await fetch(`/api/auto-reply/action-rules/runs/${id}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not cancel this reminder.");
+      await load(new AbortController().signal);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not cancel this reminder."); }
+    finally { setCancelling(""); }
+  }
+
   const ready = data?.page === page && data.view === view;
   const rows = useMemo(() => {
     const list = data?.rows || [];
     const needle = query.trim().toLowerCase();
-    return needle ? list.filter(row => `${row.customer} ${row.ruleName} ${row.status} ${row.reason || ""}`.toLowerCase().includes(needle)) : list;
+    return needle ? list.filter(row => `${row.customer} ${row.ruleName} ${row.audience || ""} ${row.status} ${row.reason || ""}`.toLowerCase().includes(needle)) : list;
   }, [data, query]);
 
-  return <section className={styles.section} aria-label="New reminder activity">
-    {compact ? <div className={s.workToolbar}><h3>Activity</h3><InfoTip label="Activity"><p>Scheduled and finished steps from the new rule system. Queued means waiting for WhatsApp, not delivered.</p></InfoTip></div> : <h3>New reminder activity</h3>}
-    {!compact && <p className={styles.muted}>Scheduled and finished steps from the new rule system. Existing offer reminders are shown separately. Queued means waiting for WhatsApp, not delivered.</p>}
+  return <section className={styles.section} aria-label="Reminder activity">
+    {compact ? <div className={s.workToolbar}><h3>Activity</h3><InfoTip label="Activity"><p>Scheduled and finished steps from the Automated message system. Queued means waiting for WhatsApp, not delivered.</p></InfoTip></div> : <h3>Reminder activity</h3>}
+    {!compact && <p className={styles.muted}>Scheduled and finished steps from the Automated message system. Queued means waiting for WhatsApp, not delivered.</p>}
     <div className={c.toolbar}>
-      <label className={styles.filters}>Show <select value={view} onChange={event => { setPage(1); setView(event.target.value as View); }}><option value="all">All reminder steps</option><option value="upcoming">Upcoming scheduled</option><option value="today">Due today (India time)</option><option value="sent_today">Fully sent today (India time)</option><option value="sent">Sent</option><option value="attention">Needs attention</option></select></label>
+      <label className={styles.filters}>Show <select value={view} onChange={event => { setPage(1); setView(event.target.value as View); }}><option value="all">All active &amp; sent</option><option value="upcoming">Upcoming scheduled</option><option value="today">Due today (India time)</option><option value="sent_today">Fully sent today (India time)</option><option value="sent">Sent</option><option value="attention">Needs attention</option><option value="cancelled">Cancelled</option></select></label>
       <input className={c.search} type="search" aria-label="Search reminder activity" placeholder="Search customer or rule…" value={query} onChange={event => setQuery(event.target.value)} />
     </div>
     {view === "sent_today" && <p className={styles.muted}>Shows deliveries with a recorded completion time for all selected channels. Older records without a completion time are not counted.</p>}
     {error && <p className={styles.error} role="alert">{error}</p>}
     {!ready ? !error && <Loader label="Loading reminder activity…" /> : <>
-      {!rows.length ? <p>{compact ? "No steps yet." : query.trim() ? "No matching reminder steps." : "No reminder steps yet. Steps appear after a reminder rule is active and the server scheduler has run."}</p> : (
+      {!rows.length ? <p>{compact ? "No steps yet." : query.trim() ? "No matching reminder steps." : "No reminder steps yet. Steps appear after a trail is active and the server scheduler has run."}</p> : (
         <div className={c.tableWrap}>
           <table className={c.table}>
             <thead><tr><th>Customer</th><th>Rule &amp; source</th><th>Due (IST)</th><th>Status &amp; delivery</th><th>Action</th></tr></thead>
@@ -66,7 +86,7 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
                   <td><strong>{row.customer}</strong></td>
                   <td>
                     <div>{row.ruleName}</div>
-                    <div className={styles.muted}>{row.source === "monthly_package" ? "Monthly package" : "Broadcast"}</div>
+                    <div className={styles.muted}>{sourceLabel(row.source)} · {row.audience === "admin" ? "For Admin" : "For Client"}</div>
                   </td>
                   <td>{formatIndiaDateTime(row.dueAt)}</td>
                   <td>
@@ -77,7 +97,9 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
                   <td>
                     {row.status === "partial" && row.channelOutcomes?.email === "sent" && row.channelOutcomes?.whatsapp === "failed"
                       ? <button type="button" className={c.smallBtn} disabled={!!retrying} onClick={() => retry(row._id)}>{retrying === row._id ? "Retrying…" : "Retry WhatsApp queue"}</button>
-                      : <span className={styles.muted}>—</span>}
+                      : row.status === "scheduled" && row.source === "action"
+                        ? <button type="button" className={c.smallBtn} disabled={!!cancelling} onClick={() => cancelRun(row._id)}>{cancelling === row._id ? "Cancelling…" : "Cancel"}</button>
+                        : <span className={styles.muted}>—</span>}
                   </td>
                 </tr>
               ))}

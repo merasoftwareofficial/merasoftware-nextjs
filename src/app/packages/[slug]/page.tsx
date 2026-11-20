@@ -7,7 +7,7 @@ import { readSalesCatalogue } from "@/lib/sales-catalogue-server";
 import { readPackagePages } from "@/lib/package-pages-server";
 import { pageMetadata } from "@/lib/page-seo";
 import s from "@/components/campaign/campaign.module.css";
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 // A "Pricing & Packages" menu page (lib/package-pages.ts): the published packages that list it.
 // A deleted page is a 404.

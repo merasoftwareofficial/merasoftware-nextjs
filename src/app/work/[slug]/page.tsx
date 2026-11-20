@@ -6,7 +6,7 @@ import { PortfolioStory } from "@/components/portfolio";
 import { portfolioRepo } from "@/lib/portfolio/repo";
 import { isPublicPortfolio, publicPortfolio } from "@/lib/portfolio/types";
 import { SITE_URL } from "@/lib/structured-data";
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 const load = cache(async (slug: string) => { const row = await portfolioRepo.findBySlug(slug); return row && isPublicPortfolio(row) ? publicPortfolio(row) : null; });
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const row = await load((await params).slug);

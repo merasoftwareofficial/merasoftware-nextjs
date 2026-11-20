@@ -10,6 +10,7 @@ import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
 import { settingsRepo } from "@/lib/repo";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 const patchSchema = z.object({
   logoUrl: z.string().trim().url().or(z.literal("")).default(""),
@@ -26,6 +27,7 @@ export async function PATCH(request: Request) {
     await requireRole("editor");
     const organization = patchSchema.parse(await request.json());
     const settings = await settingsRepo.update({ organization });
+    invalidatePublicPages();
     return NextResponse.json(settings.organization ?? null);
   } catch (error) {
     return errorResponse(error);

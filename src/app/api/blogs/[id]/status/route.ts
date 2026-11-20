@@ -11,6 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
+import { invalidatePublicPages } from "@/lib/public-cache";
 import { requireUser } from "@/lib/auth";
 import { canRunAction, statusActionSchema, statusFor } from "@/lib/blog-rules";
 import { publishedState } from "@/lib/publish-rules";
@@ -68,6 +69,7 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const updated = await blogRepo.update(id, patch);
+    if (updated) invalidatePublicPages(`/blog/${updated.slug}`);
     return NextResponse.json(updated);
   } catch (error) {
     return errorResponse(error);

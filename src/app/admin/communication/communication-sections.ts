@@ -7,11 +7,9 @@ export const COMMUNICATION_SECTIONS = [
   { id: "automated-messages", label: "Automated message system", panel: "automated-messages" },
   { id: "broadcast", label: "Broadcast", panel: "broadcast" },
   { id: "automatic", label: "Automatic messages", panel: "email-templates" },
-  { id: "reminders", label: "Reminders", panel: "reminders" },
   { id: "actions", label: "Actions", panel: "actions" },
   { id: "review", label: "Review & delivery", panel: "email-review" },
   { id: "workflows", label: "Workflows & settings", panel: "whatsapp-connection" },
-  { id: "bandwidth", label: "Bandwidth & processes", panel: "bandwidth" },
 ] as const;
 
 export type CommunicationSectionId = (typeof COMMUNICATION_SECTIONS)[number]["id"];
@@ -21,11 +19,9 @@ export function communicationSectionOf(panel: string | null, tab: string | null)
   if (panel === "automated-messages") return "automated-messages";
   if (panel === "broadcast") return "broadcast";
   if (panel === "email-templates") return "automatic";
-  if (panel === "reminders") return "reminders";
   if (panel === "actions") return "actions";
-  if (panel === "email-review" || panel === "business-activity") return "review";
+  if (panel === "email-review" || panel === "business-activity" || panel === "reminder-history") return "review";
   if (panel === "whatsapp-queue") return tab === "rules" ? "workflows" : "review";
   if (panel === "whatsapp-connection" || panel === "auto-reply" || panel === "final-message" || panel === "reservation") return "workflows";
-  if (panel === "bandwidth") return "bandwidth";
   return null;
 }

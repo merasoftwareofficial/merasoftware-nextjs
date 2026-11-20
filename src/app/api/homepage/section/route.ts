@@ -7,6 +7,7 @@ import { mediaRepo, settingsRepo } from "@/lib/repo";
 import { sectionSlots } from "@/lib/visual-slots";
 import { visualSchema } from "@/lib/visual-validation";
 import { prepareVisualWrites } from "@/lib/visual-save";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 const requestSchema = z.object({
   section: z.enum(["hero", "marquee", "services", "pointOfView", "work", "insights", "contact"]),
@@ -26,6 +27,7 @@ export async function PATCH(request: Request) {
     const ids = [...new Set(Object.values(payload.visuals).flatMap(config => config.assetId ? [config.assetId] : []))];
     const visuals = prepareVisualWrites(payload.visuals, sectionSlots("home", payload.section).map(slot => slot.id), await mediaRepo.findByIds(ids));
     const settings = await settingsRepo.updateHomepageSection(payload.section, content, {}, visuals);
+    invalidatePublicPages();
     return NextResponse.json({ content: settings.homepageContent?.[payload.section], visuals });
   } catch (error) {
     return errorResponse(error);

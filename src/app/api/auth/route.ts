@@ -6,9 +6,17 @@
  */
 
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { portalAddresses, portalEntryFor } from "@/lib/portal";
 
 export async function GET() {
-  const user = await getSessionUser();
-  return NextResponse.json({ user });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ user: null, portal: null }, { headers: { "Cache-Control": "private, no-store" } });
+  const { portalUrl } = portalAddresses();
+  const user = session.user;
+  const badge = user.role !== "admin" && session.portalRoles.includes("customer") ? "customer" : user.role;
+  return NextResponse.json({
+    user: badge ? { displayName: user.displayName, username: user.username, role: user.role, badge } : null,
+    portal: portalEntryFor(session.portalActiveRole, portalUrl),
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

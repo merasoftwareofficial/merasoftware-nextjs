@@ -10,7 +10,7 @@ import { loadPageVisuals } from "@/lib/section-visuals";
 import { SectionVisual } from "@/components/section-visual";
 import s from "./services.module.css";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 export function generateMetadata() { return pageMetadata("services"); }
 
 export default async function ServicesPage() {

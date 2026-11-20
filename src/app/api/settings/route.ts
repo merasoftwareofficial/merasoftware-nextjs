@@ -12,6 +12,7 @@ import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/auth";
 import { settingsRepo } from "@/lib/repo";
+import { invalidatePublicPages } from "@/lib/public-cache";
 
 const patchSchema = z.object({
   commentDefault: z.enum(["visible", "pending"]).optional(),
@@ -38,7 +39,9 @@ export async function PATCH(request: Request) {
   try {
     await requireRole("admin");
     const patch = patchSchema.parse(await request.json());
-    return NextResponse.json(await settingsRepo.update(patch));
+    const updated = await settingsRepo.update(patch);
+    invalidatePublicPages();
+    return NextResponse.json(updated);
   } catch (error) {
     return errorResponse(error);
   }
