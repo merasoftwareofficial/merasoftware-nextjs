@@ -155,19 +155,28 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
   }
 
   // WhatsApp status for the boxes and warnings: only while no panel is open (the panels refresh their own data).
+  const loadStatus = useCallback((signal?: AbortSignal) => {
+    if (document.visibilityState !== "visible") return;
+    whatsappApi<WhatsappStatus>("status", "GET", signal)
+      .then(data => { if (!signal?.aborted) { setStatus(data); setStatusError(null); } })
+      .catch(error => { if (!signal?.aborted) setStatusError(message(error, "Unavailable")); });
+  }, []);
+  const whatsappIdleConnected = status?.connection === "connected" && !status.counts.sending && !status.counts.pending;
+  const whatsappPollMs = whatsappIdleConnected ? 60_000 : 5000;
   useEffect(() => {
     if (!portalAdmin || view.panel) return;
     const controller = new AbortController();
-    const refresh = () => {
-      if (document.visibilityState !== "visible") return;
-      whatsappApi<WhatsappStatus>("status", "GET", controller.signal)
-        .then(data => { if (!controller.signal.aborted) { setStatus(data); setStatusError(null); } })
-        .catch(error => { if (!controller.signal.aborted) setStatusError(message(error, "Unavailable")); });
-    };
+    const refresh = () => loadStatus(controller.signal);
     const first = setTimeout(refresh, 0);
-    const timer = setInterval(refresh, 5000);
-    return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
-  }, [portalAdmin, view.panel]);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { controller.abort(); clearTimeout(first); document.removeEventListener("visibilitychange", refresh); };
+  }, [portalAdmin, view.panel, loadStatus]);
+  useEffect(() => {
+    if (!portalAdmin || view.panel) return;
+    const controller = new AbortController();
+    const timer = setInterval(() => loadStatus(controller.signal), whatsappPollMs);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [portalAdmin, view.panel, loadStatus, whatsappPollMs]);
 
   // Recent WhatsApp messages: the history's first page, again only when the status counts change.
   const countsKey = JSON.stringify(status?.counts ?? null);

@@ -98,6 +98,85 @@ const emptyForm = (): TrailForm => ({
   reminders: [],
 });
 
+function normalizeMsg(raw: Partial<SingleMsg> | null | undefined): SingleMsg {
+  const base = blankMsg();
+  return {
+    channel: raw?.channel === "email" || raw?.channel === "both" ? raw.channel : base.channel,
+    subject: typeof raw?.subject === "string" ? raw.subject : "",
+    text: typeof raw?.text === "string" ? raw.text : "",
+  };
+}
+
+function normalizeInstant(raw: Partial<InstantBlockState> | null | undefined): InstantBlockState {
+  const aud = raw?.audience;
+  return {
+    audience: aud === "client" || aud === "admin" || aud === "both" ? aud : "off",
+    client: normalizeMsg(raw?.client),
+    admin: normalizeMsg(raw?.admin),
+  };
+}
+
+function normalizeSteps(raw: unknown): MessageStep[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [blankStep("before", 3)];
+  return raw.map(item => {
+    const st = (item && typeof item === "object" ? item : {}) as Partial<MessageStep>;
+    return {
+      amount: typeof st.amount === "number" && Number.isFinite(st.amount) ? Math.max(0, st.amount) : 3,
+      unit: st.unit === "hours" ? "hours" : "days",
+      pos: st.pos === "on" || st.pos === "after" ? st.pos : "before",
+      ...normalizeMsg(st),
+    };
+  });
+}
+
+function normalizeReminder(raw: unknown, depth = 0): Reminder {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Reminder>;
+  const id = typeof r.id === "number" && Number.isFinite(r.id) ? r.id : nextId++;
+  if (id >= nextId) nextId = id + 1;
+  const rawChains = depth < 6 && r.stopChains && typeof r.stopChains === "object" ? r.stopChains : {};
+  const stopChains: Record<string, StopChain> = {};
+  for (const [stopKey, ch] of Object.entries(rawChains)) {
+    if (!ch || typeof ch !== "object") continue;
+    const rawCh = ch as Partial<StopChain>;
+    stopChains[stopKey] = {
+      instant: normalizeInstant(rawCh.instant),
+      reminders: Array.isArray(rawCh.reminders) ? rawCh.reminders.map(sub => normalizeReminder(sub, depth + 1)) : [],
+    };
+  }
+  return {
+    id,
+    startTrigger: typeof r.startTrigger === "string" && r.startTrigger ? r.startTrigger : "__main__",
+    audience: r.audience === "admin" || r.audience === "both" ? r.audience : "client",
+    clientMode: r.clientMode === "universal" ? "universal" : "separate",
+    adminMode: r.adminMode === "universal" ? "universal" : "separate",
+    clientSteps: normalizeSteps(r.clientSteps),
+    adminSteps: normalizeSteps(r.adminSteps),
+    repeatMode: r.repeatMode === "permanent" || r.repeatMode === "limited" ? r.repeatMode : "off",
+    repeatForDays: typeof r.repeatForDays === "number" && Number.isFinite(r.repeatForDays) ? Math.max(1, r.repeatForDays) : 7,
+    repeatEveryDays: typeof r.repeatEveryDays === "number" && Number.isFinite(r.repeatEveryDays) ? Math.max(1, r.repeatEveryDays) : 2,
+    repeatPerDay: typeof r.repeatPerDay === "number" && Number.isFinite(r.repeatPerDay) ? Math.min(4, Math.max(1, r.repeatPerDay)) : 1,
+    countDaysFrom: r.countDaysFrom === "trigger_date" || r.countDaysFrom === "expiry_date" || r.countDaysFrom === "deadline_date" ? r.countDaysFrom : "due_date",
+    condition: typeof r.condition === "string" && r.condition ? r.condition : "any",
+    conditionValue: typeof r.conditionValue === "number" && Number.isFinite(r.conditionValue) ? Math.max(0, r.conditionValue) : 50,
+    stopOn: Array.isArray(r.stopOn) ? r.stopOn.filter((k): k is string => typeof k === "string" && Boolean(k)) : [],
+    stopChains,
+  };
+}
+
+function normalizeTrail(raw: unknown): TrailForm {
+  const t = (raw && typeof raw === "object" ? raw : {}) as Partial<TrailForm>;
+  return {
+    ...(t._id ? { _id: String(t._id) } : {}),
+    triggers: Array.isArray(t.triggers) ? t.triggers.filter((k): k is string => typeof k === "string" && Boolean(k)) : [],
+    scope: t.scope === "monthly" || t.scope === "onetime" || t.scope === "include" || t.scope === "exclude" ? t.scope : "all",
+    selectedPackages: Array.isArray(t.selectedPackages) ? t.selectedPackages.filter((s): s is string => typeof s === "string" && Boolean(s)) : [],
+    instant: normalizeInstant(t.instant),
+    reminders: Array.isArray(t.reminders) ? t.reminders.map(rem => normalizeReminder(rem, 0)) : [],
+    ...(t.enabled !== undefined ? { enabled: Boolean(t.enabled) } : {}),
+    ...(t.control === "auto" || t.control === "review" || t.control === "off" ? { control: t.control } : {}),
+  };
+}
+
 function workLabel(key: string, byKey: Map<string, WorkItem>) {
   return byKey.get(key)?.label || key;
 }
@@ -1160,7 +1239,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       if (!signal.aborted) {
         if (actionsRes.ok && actionsJson?.data) setActionsData(actionsJson.data as ActionsData);
         if (trailsRes.ok && Array.isArray(trailsJson?.data)) {
-          setTrails(trailsJson.data as TrailForm[]);
+          setTrails(trailsJson.data.map(normalizeTrail));
           setPanelError("");
         } else if (!trailsRes.ok) {
           setPanelError(trailsJson?.error || "Could not load saved automated messages.");
@@ -1192,7 +1271,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       if (!response.ok || !result?.data) {
         throw new Error(result?.error || "Could not save automated message.");
       }
-      const saved = result.data as TrailForm;
+      const saved = normalizeTrail(result.data);
       setTrails(curr => isEdit ? curr.map(t => t._id === saved._id ? saved : t) : [saved, ...curr]);
       setEditing(null);
       setPanelError("");
@@ -1215,7 +1294,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       });
       const result = await response.json().catch(() => null);
       if (!response.ok || !result?.data) throw new Error(result?.error || "Could not update status.");
-      const updated = result.data as TrailForm;
+      const updated = normalizeTrail(result.data);
       setTrails(curr => curr.map(t => t._id === updated._id ? updated : t));
     } catch (err) {
       setPanelError(err instanceof Error ? err.message : "Could not update status.");

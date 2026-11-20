@@ -75,15 +75,23 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
   const loadStatus = useCallback((signal?: AbortSignal) => whatsappApi<WhatsappStatus>("status", "GET", signal)
     .then(data => { if (!signal?.aborted) { setStatus(data); setStatusError(null); } })
     .catch(error => { if (!signal?.aborted) setStatusError(message(error, "Could not load WhatsApp status.")); }), []);
-  // The QR changes about every 20 seconds, so the status refreshes every 5 while this tab is visible.
+  // The QR changes about every 20 seconds, so the status refreshes every 5s while connecting/sending, and every 60s when idle & connected.
+  const idleConnected = status?.connection === "connected" && !status.counts.sending && !status.counts.pending;
+  const pollMs = idleConnected ? 60_000 : 5000;
   useEffect(() => {
     if (!active || view === "rules" || view === "queue") return; // these pages load on their own
     const controller = new AbortController();
     const refresh = () => { if (document.visibilityState === "visible") void loadStatus(controller.signal); };
     const first = setTimeout(refresh, 0);
-    const timer = setInterval(refresh, 5000);
-    return () => { controller.abort(); clearTimeout(first); clearInterval(timer); };
+    document.addEventListener("visibilitychange", refresh);
+    return () => { controller.abort(); clearTimeout(first); document.removeEventListener("visibilitychange", refresh); };
   }, [loadStatus, view, active]);
+  useEffect(() => {
+    if (!active || view === "rules" || view === "queue") return;
+    const controller = new AbortController();
+    const timer = setInterval(() => { if (document.visibilityState === "visible") void loadStatus(controller.signal); }, pollMs);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [loadStatus, view, active, pollMs]);
 
   // The list reloads when the totals change (a message was sent, skipped, …), the filter or page changes, or after an action.
   const countsKey = JSON.stringify(status?.counts ?? null);
