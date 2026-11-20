@@ -25,6 +25,7 @@ import {
   voterKey,
 } from "@/lib/comment-rules";
 import { queueStaffAlert } from "@/lib/notify-queue";
+import { portalApiRequest } from "@/lib/portal-api";
 import { blogRepo, commentLikeRepo, commentRepo, settingsRepo } from "@/lib/repo";
 
 export async function GET(request: Request) {
@@ -84,6 +85,17 @@ export async function POST(request: Request) {
       status: initialCommentStatus(blog, settings),
     });
     await queueStaffAlert("comment", comment._id);
+    const signalSecret = process.env.INTERNAL_ACTION_SIGNAL_SECRET || process.env.PORTAL_INTERNAL_SECRET;
+    if (signalSecret) {
+      void portalApiRequest("Comment signal", "/api/auto-reply/internal/comment-signal", "POST", { "x-internal-secret": signalSecret }, {
+        type: "comment.posted",
+        commentId: comment._id,
+        blogId,
+        userId: user.portalUserId || user._id,
+        userName: user.displayName,
+        status: comment.status,
+      }).catch(() => {});
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

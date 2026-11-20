@@ -47,12 +47,14 @@ type Reminder = {
 };
 
 type TrailForm = {
-  id?: number;
+  _id?: string;
   triggers: string[];
   scope: PackageScopeMode;
   selectedPackages: string[];
   instant: InstantBlockState;
   reminders: Reminder[];
+  enabled?: boolean;
+  control?: "auto" | "review" | "off";
 };
 
 const blankMsg = (): SingleMsg => ({ channel: "whatsapp", subject: "", text: "" });
@@ -866,6 +868,8 @@ function FormDialog({
   byKey,
   packages,
   isLive,
+  saving,
+  error,
   onClose,
   onSave,
 }: {
@@ -874,6 +878,8 @@ function FormDialog({
   byKey: Map<string, WorkItem>;
   packages: ActionPackageOption[];
   isLive: boolean;
+  saving: boolean;
+  error: string;
   onClose: () => void;
   onSave: (form: TrailForm) => void;
 }) {
@@ -932,7 +938,7 @@ function FormDialog({
     <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="amsg-title">
       <header className={s.dialogHead}>
         <div>
-          <h2 id="amsg-title">{form.id ? "Edit automated message" : "Create automated message"}</h2>
+          <h2 id="amsg-title">{form._id ? "Edit automated message" : "Create automated message"}</h2>
           <p>Start with a trigger point, add an instant message, and chain reminders as far as you need.</p>
         </div>
         <div className={s.headRight}>
@@ -1107,19 +1113,22 @@ function FormDialog({
       </div>
 
       <footer className={s.dialogFoot}>
-        <small>
-          UI preview (not saved to server yet)
-          {primaryKey ? ` · ${form.instant.audience !== "off" ? "Instant + " : ""}${totalReminders} reminder${totalReminders === 1 ? "" : "s"}` : ""}
+        <small style={error ? { color: "var(--pn-err, #8b2a21)", fontWeight: 600 } : undefined}>
+          {error
+            ? error
+            : primaryKey
+              ? `${form.instant.audience !== "off" ? "Instant + " : ""}${totalReminders} reminder${totalReminders === 1 ? "" : "s"} ready to save`
+              : "Choose a trigger point to save."}
         </small>
         <div className={s.footActions}>
-          <button type="button" className={s.ghostBtn} onClick={onClose}>Cancel</button>
+          <button type="button" className={s.ghostBtn} disabled={saving} onClick={onClose}>Cancel</button>
           <button
             type="button"
             className={s.primaryBtn}
-            disabled={!primaryKey}
+            disabled={!primaryKey || saving}
             onClick={() => onSave(form)}
           >
-            {form.id ? "Update (Preview)" : "Save (Preview)"}
+            {saving ? "Saving…" : form._id ? "Save changes" : "Save automated msg"}
           </button>
         </div>
       </footer>
@@ -1132,17 +1141,33 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   const [loading, setLoading] = useState(false);
   const [trails, setTrails] = useState<TrailForm[]>([]);
   const [editing, setEditing] = useState<TrailForm | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState("");
 
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/auto-reply/actions", { signal, cache: "no-store" });
-      const result = await response.json();
-      if (response.ok && !signal.aborted && result?.data) {
-        setActionsData(result.data as ActionsData);
+      const [actionsRes, trailsRes] = await Promise.all([
+        fetch("/api/auto-reply/actions", { signal, cache: "no-store" }),
+        fetch("/api/auto-reply/action-rules/trails", { signal, cache: "no-store" }),
+      ]);
+      const [actionsJson, trailsJson] = await Promise.all([
+        actionsRes.json().catch(() => null),
+        trailsRes.json().catch(() => null),
+      ]);
+      if (!signal.aborted) {
+        if (actionsRes.ok && actionsJson?.data) setActionsData(actionsJson.data as ActionsData);
+        if (trailsRes.ok && Array.isArray(trailsJson?.data)) {
+          setTrails(trailsJson.data as TrailForm[]);
+          setPanelError("");
+        } else if (!trailsRes.ok) {
+          setPanelError(trailsJson?.error || "Could not load saved automated messages.");
+        }
       }
     } catch {
-      // Graceful fallback to preview catalog if offline
+      // Graceful fallback if offline
     } finally {
       if (!signal.aborted) setLoading(false);
     }
@@ -1152,13 +1177,69 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
 
   const catalog = useMemo(() => buildWorkCatalog(actionsData), [actionsData]);
 
-  function savePreview(form: TrailForm) {
-    if (form.id) {
-      setTrails(curr => curr.map(item => item.id === form.id ? form : item));
-    } else {
-      setTrails(curr => [{ ...form, id: nextId++ }, ...curr]);
+  async function saveTrail(form: TrailForm) {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const isEdit = Boolean(form._id);
+      const url = isEdit ? `/api/auto-reply/action-rules/trails/${form._id}` : "/api/auto-reply/action-rules/trails";
+      const response = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.data) {
+        throw new Error(result?.error || "Could not save automated message.");
+      }
+      const saved = result.data as TrailForm;
+      setTrails(curr => isEdit ? curr.map(t => t._id === saved._id ? saved : t) : [saved, ...curr]);
+      setEditing(null);
+      setPanelError("");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save automated message.");
+    } finally {
+      setSaving(false);
     }
-    setEditing(null);
+  }
+
+  async function toggleEnabled(trail: TrailForm) {
+    if (!trail._id) return;
+    setBusyId(trail._id);
+    setPanelError("");
+    try {
+      const response = await fetch(`/api/auto-reply/action-rules/trails/${trail._id}/enabled`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !trail.enabled }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.data) throw new Error(result?.error || "Could not update status.");
+      const updated = result.data as TrailForm;
+      setTrails(curr => curr.map(t => t._id === updated._id ? updated : t));
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : "Could not update status.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeTrail(trail: TrailForm) {
+    if (!trail._id) return;
+    setBusyId(trail._id);
+    setPanelError("");
+    try {
+      const response = await fetch(`/api/auto-reply/action-rules/trails/${trail._id}/delete`, {
+        method: "POST",
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "Could not delete automated message.");
+      setTrails(curr => curr.filter(t => t._id !== trail._id));
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : "Could not delete automated message.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   if (!active && !editing) return null;
@@ -1168,18 +1249,20 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       <div className={s.toolbarText}>
         <p>Every automated message and reminder trail, one row per work. Click <strong>Edit</strong> to open its form.</p>
         <span className={s.liveTag} data-live={catalog.isLive}>
-          {loading && !catalog.isLive ? "Loading live works…" : catalog.isLive ? `${catalog.byKey.size} works · ${catalog.packages.length} packages loaded (read-only)` : "Preview catalog"}
+          {loading && !catalog.isLive ? "Loading live works…" : catalog.isLive ? `${catalog.byKey.size} works · ${catalog.packages.length} packages loaded` : "Fallback catalog"}
         </span>
       </div>
-      <button type="button" className={s.primaryBtn} onClick={() => setEditing(emptyForm())}>
+      <button type="button" className={s.primaryBtn} onClick={() => { setSaveError(""); setEditing(emptyForm()); }}>
         + Create automated msg
       </button>
     </div>
 
+    {panelError && <p className={s.hint} style={{ color: "var(--pn-err, #8b2a21)", fontWeight: 600 }}>{panelError}</p>}
+
     {trails.length === 0 ? (
       <div className={s.empty}>
-        <strong>No automated messages in this preview yet</strong>
-        <span>Click “+ Create automated msg” to test the new form with live works &amp; packages.</span>
+        <strong>No automated messages yet</strong>
+        <span>Click “+ Create automated msg” to create your first automated message trail.</span>
       </div>
     ) : (
       <div className={s.list}>
@@ -1188,21 +1271,28 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
           const tokens = buildFlowTokens(trail, catalog.byKey).slice(1);
           const hasScope = trail.triggers.some(k => catalog.byKey.get(k)?.supportsScope);
           const scopeLabel = PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label;
+          const isOn = trail.enabled !== false;
+          const busy = busyId === trail._id;
           return (
-            <article key={trail.id} className={s.listRow}>
+            <article key={trail._id} className={s.listRow}>
               <div className={s.listMain}>
                 <div className={s.listTitleRow}>
                   <strong>{title}</strong>
                   {hasScope && scopeLabel && <span className={s.badge}>{scopeLabel}</span>}
-                  <span className={s.previewBadge}>Preview</span>
+                  <span className={s.liveTag} data-live={isOn}>{isOn ? "Active" : "Paused"}</span>
                 </div>
                 <p className={s.listSummary}>
                   {tokens.length ? tokens.join(" → ") : "Trigger only (no message or reminder added yet)"}
                 </p>
               </div>
               <div className={s.listActions}>
-                <button type="button" className={s.ghostBtn} onClick={() => setEditing(trail)}>Edit</button>
-                <button type="button" className={s.iconBtn} aria-label={`Delete ${title}`} onClick={() => setTrails(curr => curr.filter(t => t.id !== trail.id))}>✕</button>
+                <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => void toggleEnabled(trail)}>
+                  {isOn ? "Pause" : "Activate"}
+                </button>
+                <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing(trail); }}>
+                  Edit
+                </button>
+                <button type="button" className={s.iconBtn} disabled={busy} aria-label={`Delete ${title}`} onClick={() => void removeTrail(trail)}>✕</button>
               </div>
             </article>
           );
@@ -1217,8 +1307,10 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         byKey={catalog.byKey}
         packages={catalog.packages}
         isLive={catalog.isLive}
-        onClose={() => setEditing(null)}
-        onSave={savePreview}
+        saving={saving}
+        error={saveError}
+        onClose={() => { if (!saving) { setSaveError(""); setEditing(null); } }}
+        onSave={form => { void saveTrail(form); }}
       />
     )}
   </section>;

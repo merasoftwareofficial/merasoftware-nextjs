@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { canDeleteComment, canModerateComment, commentPatchSchema } from "@/lib/comment-rules";
+import { portalApiRequest } from "@/lib/portal-api";
 import { commentLikeRepo, commentRepo, type CommentStatus } from "@/lib/repo";
 
 type Params = { params: Promise<{ id: string }> };
@@ -34,6 +35,15 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const { action } = commentPatchSchema.parse(await request.json());
     const updated = await commentRepo.update(id, { status: NEXT_STATUS[action] });
+    const signalSecret = process.env.INTERNAL_ACTION_SIGNAL_SECRET || process.env.PORTAL_INTERNAL_SECRET;
+    if (signalSecret && (action === "approve" || action === "show" || action === "hide")) {
+      void portalApiRequest("Comment signal", "/api/auto-reply/internal/comment-signal", "POST", { "x-internal-secret": signalSecret }, {
+        type: "comment.approved",
+        commentId: id,
+        blogId: comment.blogId,
+        status: NEXT_STATUS[action],
+      }).catch(() => {});
+    }
     return NextResponse.json(updated);
   } catch (error) {
     return errorResponse(error);
