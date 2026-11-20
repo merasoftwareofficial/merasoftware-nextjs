@@ -23,6 +23,7 @@ import { RemindersPanel, type ReminderFocusRule } from "./reminders-panel";
 import { TemplatesPanel } from "./templates-panel";
 import { ActionsPanel } from "./actions-panel";
 import { AutomatedMessagesPanel } from "./automated-message-panel";
+import { BandwidthPanel } from "./bandwidth-panel";
 
 /**
  * Communication: navigation boxes, then what needs attention and the recent emails and
@@ -35,7 +36,7 @@ import { AutomatedMessagesPanel } from "./automated-message-panel";
  * whenever a panel closes). Activity is Communication's own: emails and WhatsApp messages only.
  */
 export type HubState = { panel: string | null; tab: string | null; app: string | null; show?: string | null; event?: string | null };
-type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review" | "actions" | "automated-messages";
+type PanelId = "whatsapp-connection" | "whatsapp-queue" | "broadcast" | "auto-reply" | "final-message" | "reservation" | "reminders" | "business-activity" | "email-templates" | "email-review" | "actions" | "automated-messages" | "bandwidth";
 type Tab = { id: string; label: string };
 type Panel = { group: "WhatsApp" | "Email"; title: string; description: string; tabs: Tab[]; whatsapp: boolean };
 const APPS: Tab[] = [{ id: "website", label: "Website" }, { id: "portal", label: "Portal" }];
@@ -58,6 +59,8 @@ const PANELS: Record<PanelId, Panel> = {
   "email-review": { group: "Email", title: "Email Review", whatsapp: false,
     tabs: [{ id: "review", label: "Review" }, { id: "outbox", label: "Outbox" }, { id: "history", label: "History" }],
     description: "Mails waiting for Send / Don’t send, the Outbox and every decision." },
+  "bandwidth": { group: "WhatsApp", title: "Bandwidth & Processes", whatsapp: true, tabs: [],
+    description: "Live per-process bandwidth, MongoDB operations, and HTTP egress for the last 1 hour or 24 hours." },
 };
 const IDS = Object.keys(PANELS) as PanelId[];
 type View = { panel: PanelId | null; tab: string; app: Application; show: HistoryGroup | null; event: string | null };
@@ -260,6 +263,7 @@ export function CommunicationHub({ portalAdmin, initial, portalUrl = "" }: { por
       ["whatsapp-queue:queue", <WhatsappPanel key="q" view="queue" active={part("whatsapp-queue:queue").shown} />],
       ["whatsapp-queue:rules", <WhatsappPanel key="r" view="rules" />],
       ["whatsapp-queue:history", <WhatsappPanel key="h" view="messages" show={historyShow} active={part("whatsapp-queue:history").shown} />],
+      ["bandwidth", <BandwidthPanel key="bw" active={part("bandwidth").shown} />],
     ];
     const emailParts: [string, React.ReactNode][] = apps.map(app => [
       `email-review:${app}`,

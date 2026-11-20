@@ -11,6 +11,7 @@ export const COMMUNICATION_SECTIONS = [
   { id: "actions", label: "Actions", panel: "actions" },
   { id: "review", label: "Review & delivery", panel: "email-review" },
   { id: "workflows", label: "Workflows & settings", panel: "whatsapp-connection" },
+  { id: "bandwidth", label: "Bandwidth & processes", panel: "bandwidth" },
 ] as const;
 
 export type CommunicationSectionId = (typeof COMMUNICATION_SECTIONS)[number]["id"];
@@ -25,5 +26,6 @@ export function communicationSectionOf(panel: string | null, tab: string | null)
   if (panel === "email-review" || panel === "business-activity") return "review";
   if (panel === "whatsapp-queue") return tab === "rules" ? "workflows" : "review";
   if (panel === "whatsapp-connection" || panel === "auto-reply" || panel === "final-message" || panel === "reservation") return "workflows";
+  if (panel === "bandwidth") return "bandwidth";
   return null;
 }
