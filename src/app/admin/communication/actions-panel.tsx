@@ -10,6 +10,8 @@ import {
   deleteActionRule,
   enrollPendingActionRule,
   groupRulesByPair,
+  patchActionRuleInData,
+  removeActionRuleFromData,
   rulePreviewText,
   ruleStatusLabel,
   ruleSummaryLine,
@@ -183,8 +185,9 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setTogglingId(id);
     setError("");
     try {
-      await setActionRuleEnabled(id, !rule.enabled);
-      reloadActions();
+      const updated = await setActionRuleEnabled(id, !rule.enabled);
+      if (updated) setData(curr => patchActionRuleInData(curr, updated));
+      else reloadActions();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not update rule.");
     } finally {
@@ -198,8 +201,9 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setDeletingId(id);
     setError("");
     try {
-      await deleteActionRule(id);
-      reloadActions();
+      const deleted = await deleteActionRule(id);
+      if (deleted?.migratedFrom?.startsWith("template:")) reloadActions();
+      else setData(curr => removeActionRuleFromData(curr, id));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not delete rule.");
     } finally {
@@ -230,9 +234,10 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setError("");
     setNotice("");
     try {
-      await switchActionRuleToAuto(rule);
+      const updated = await switchActionRuleToAuto(rule);
       setNotice("Switched to Auto — new messages will send automatically.");
-      reloadActions();
+      if (updated) setData(curr => patchActionRuleInData(curr, updated));
+      else reloadActions();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not switch rule to Auto.");
     } finally {

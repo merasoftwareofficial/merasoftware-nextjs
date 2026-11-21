@@ -9,6 +9,8 @@ import { ActionRuleForm, originLabel, type ActionRuleRecord, type BuiltInInfo } 
 import {
   deleteActionRule,
   groupRulesByPair,
+  patchActionRuleInData,
+  removeActionRuleFromData,
   rulePreviewText,
   ruleStatusLabel,
   ruleSummaryLine,
@@ -179,8 +181,9 @@ export function TemplatesPanel({
     setTogglingId(id);
     setError("");
     try {
-      await setActionRuleEnabled(id, !rule.enabled);
-      reload();
+      const updated = await setActionRuleEnabled(id, !rule.enabled);
+      if (updated) setData(curr => patchActionRuleInData(curr, updated));
+      else reload();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not update automatic message.");
     } finally {
@@ -194,8 +197,9 @@ export function TemplatesPanel({
     setDeletingId(id);
     setError("");
     try {
-      await deleteActionRule(id);
-      reload();
+      const deleted = await deleteActionRule(id);
+      if (deleted?.migratedFrom?.startsWith("template:")) reload();
+      else setData(curr => removeActionRuleFromData(curr, id));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not delete automatic message.");
     } finally {

@@ -53,15 +53,32 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
   const requestBusy = useRef(false);
 
   const selectedKey = groups.join(",");
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const loadAudiences = useCallback(async (signal?: AbortSignal) => {
     const query = `audiences?channel=${channel}${selectedKey ? `&selected=${encodeURIComponent(selectedKey)}` : ""}`;
-    const [nextCatalog, nextTemplates, nextRuns] = await Promise.all([api<Catalog>(query, "GET", undefined, signal), api<Template[]>("templates", "GET", undefined, signal), api<Run[]>("history", "GET", undefined, signal)]);
+    const nextCatalog = await api<Catalog>(query, "GET", undefined, signal);
     if (signal?.aborted) return;
     if (!channelChosen.current) { channelChosen.current = true; setChannel(nextCatalog.defaultChannel || "whatsapp"); }
-    setCatalog(nextCatalog); setTemplates(nextTemplates); setRuns(nextRuns);
+    setCatalog(nextCatalog);
   }, [channel, selectedKey]);
 
-  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setError(errorText(failure)); }), active, 0, `${channel}:${selectedKey}`, "communication,leads,clients,users");
+  const loadTemplates = useCallback(async (signal?: AbortSignal) => {
+    const nextTemplates = await api<Template[]>("templates", "GET", undefined, signal);
+    if (!signal?.aborted) setTemplates(nextTemplates);
+  }, []);
+
+  const loadHistory = useCallback(async (signal?: AbortSignal) => {
+    const nextRuns = await api<Run[]>("history", "GET", undefined, signal);
+    if (!signal?.aborted) setRuns(nextRuns);
+  }, []);
+
+  const loadSaved = useCallback(async (signal?: AbortSignal) => {
+    const [nextTemplates, nextRuns] = await Promise.all([api<Template[]>("templates", "GET", undefined, signal), api<Run[]>("history", "GET", undefined, signal)]);
+    if (signal?.aborted) return;
+    setTemplates(nextTemplates); setRuns(nextRuns);
+  }, []);
+
+  useCommunicationRefresh(signal => loadAudiences(signal).catch(failure => { if (!signal.aborted) setError(errorText(failure)); }), active, 0, `${channel}:${selectedKey}`, "communication,leads,clients,users");
+  useCommunicationRefresh(signal => loadSaved(signal).catch(failure => { if (!signal.aborted) setError(errorText(failure)); }), active, 0, "", "communication");
 
   const selectedGroupRows = useMemo(
     () => groups.map(id => catalog?.groups.find(row => row.id === id)).filter((row): row is Group => Boolean(row)),
@@ -94,7 +111,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
       if (!window.confirm(`Delete "${row.name}"? Sent history will remain.`)) return;
       await api(`templates/${row._id}`, "DELETE");
       if (templateId === row._id) choose("");
-      await refresh();
+      await loadTemplates();
       setNotice("Saved message deleted.");
     });
   }
@@ -111,7 +128,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
 
   async function save() {
     const saved = await api<{ _id: string; name: string }>(templateId ? `templates/${templateId}` : "templates", templateId ? "PUT" : "POST", { ...composition, ...(name.trim() ? { name: name.trim() } : {}) });
-    setTemplateId(saved._id); setName(saved.name); setNotice("Saved message updated."); await refresh();
+    setTemplateId(saved._id); setName(saved.name); setNotice("Saved message updated."); await loadTemplates();
   }
 
   async function send() {
@@ -124,7 +141,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     setNotice("Broadcast accepted. Selected channels will use the existing delivery systems; WhatsApp messages enter its queue one by one.");
     // New composition becomes a saved template; refresh finds it in the list.
     setDoc(emptyDoc); setMedia(null); setCaption(emptyDoc); setSubject(""); setTemplateId(""); setName(""); setPreview(null);
-    await refresh();
+    await loadSaved();
   }
 
   const filteredTemplates = useMemo(() => {
@@ -262,7 +279,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
                 <td>
                   <div>{run.total} parts · {Object.entries(run.counts).map(([state, count]) => `${count} ${state}`).join(" · ") || "Preparing"}</div>
                   {exclusions && <div className={s.subMeta}>Excluded: {exclusions}</div>}
-                  {run.channel !== "whatsapp" && (run.counts.failed || 0) > 0 && <button type="button" className={c.smallBtn} style={{ marginTop: 4 }} disabled={busy} onClick={() => void action(async () => { const result = await api<{ message: string }>(`history/${run.id}/retry-email`, "POST", {}); setNotice(result.message); await refresh(); })}>Retry failed email</button>}
+                  {run.channel !== "whatsapp" && (run.counts.failed || 0) > 0 && <button type="button" className={c.smallBtn} style={{ marginTop: 4 }} disabled={busy} onClick={() => void action(async () => { const result = await api<{ message: string }>(`history/${run.id}/retry-email`, "POST", {}); setNotice(result.message); await loadHistory(); })}>Retry failed email</button>}
                 </td>
                 <td><RecipientResults runId={run.id} /></td>
               </tr>;

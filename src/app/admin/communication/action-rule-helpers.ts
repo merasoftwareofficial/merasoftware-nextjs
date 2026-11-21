@@ -146,7 +146,7 @@ export function groupRulesByPair<T extends ActionRuleRecord>(rules: T[]): T[][] 
   return groups;
 }
 
-export async function setActionRuleEnabled(id: string, enabled: boolean) {
+export async function setActionRuleEnabled(id: string, enabled: boolean): Promise<ActionRuleRecord | null> {
   const response = await fetch(`/api/auto-reply/action-rules/${id}/enabled`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -155,9 +155,10 @@ export async function setActionRuleEnabled(id: string, enabled: boolean) {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || result.message || "Could not update rule.");
+  return (result.data as ActionRuleRecord) || null;
 }
 
-export async function switchActionRuleToAuto(rule: ActionRuleRecord) {
+export async function switchActionRuleToAuto(rule: ActionRuleRecord): Promise<ActionRuleRecord | null> {
   const id = rule._id || rule.id;
   if (!id) throw new Error("Rule ID is missing.");
   const response = await fetch(`/api/auto-reply/action-rules/${id}`, {
@@ -168,15 +169,39 @@ export async function switchActionRuleToAuto(rule: ActionRuleRecord) {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || result.message || "Could not switch rule to Auto.");
+  return (result.data as ActionRuleRecord) || null;
 }
 
-export async function deleteActionRule(id: string) {
+export async function deleteActionRule(id: string): Promise<ActionRuleRecord | null> {
   const response = await fetch(`/api/auto-reply/action-rules/${id}/delete`, {
     method: "POST",
     cache: "no-store",
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || result.message || "Could not delete rule.");
+  return (result.data as ActionRuleRecord) || null;
+}
+
+function mapActionRules(data: ActionsData, transform: (rules: ActionRuleRecord[]) => ActionRuleRecord[]): ActionsData {
+  return {
+    ...data,
+    actions: data.actions.map(row => (row.rules ? { ...row, rules: transform(row.rules) } : row)),
+    ...(data.triggers ? { triggers: data.triggers.map(t => (t.rules ? { ...t, rules: transform(t.rules) } : t)) } : {}),
+  };
+}
+
+/** Updates one rule across both actions and triggers in local state without re-fetching /actions. */
+export function patchActionRuleInData(data: ActionsData | null, updated: ActionRuleRecord): ActionsData | null {
+  if (!data) return data;
+  const uid = updated._id || updated.id;
+  if (!uid) return data;
+  return mapActionRules(data, rules => rules.map(r => ((r._id || r.id) === uid ? { ...r, ...updated } : r)));
+}
+
+/** Removes one deleted rule across both actions and triggers in local state. */
+export function removeActionRuleFromData(data: ActionsData | null, id: string): ActionsData | null {
+  if (!data || !id) return data;
+  return mapActionRules(data, rules => rules.filter(r => (r._id || r.id) !== id));
 }
 
 export async function enrollPendingActionRule(id: string): Promise<string> {
