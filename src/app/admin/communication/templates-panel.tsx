@@ -57,7 +57,7 @@ export function TemplatesPanel({
     }
   }, []);
 
-  useCommunicationRefresh(load, active);
+  useCommunicationRefresh(load, active, 0, "", "");
 
   const reload = () => {
     const controller = new AbortController();
@@ -282,6 +282,7 @@ export function TemplatesPanel({
         <>
           <div className={styles.actions} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             <button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add automatic message</button>
+            <button type="button" onClick={reload}>Refresh</button>
             {builtInEntries.length > 0 && (
               <button type="button" disabled={migrating} onClick={() => void runMigrate()}>
                 {migrating ? "Migrating…" : `Migrate built-in templates (${builtInEntries.length})`}

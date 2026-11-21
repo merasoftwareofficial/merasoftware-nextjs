@@ -141,12 +141,19 @@
 .stopChip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 13px; font-weight: 600; }
 .stopChip[data-linked="true"] { border-color: var(--inverse, #111); background: var(--paper); }
 
-.plusBtn { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--inverse, #111); border-radius: 50%; background: var(--inverse, #111); color: var(--inverse-text, #fff); font: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; transition: transform .12s; }
-.plusBtn:hover { transform: scale(1.08); }
+.plusBtn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--inverse, #111); border-radius: 999px; background: var(--inverse, #111); color: var(--inverse-text, #fff); font: inherit; font-size: 12px; font-weight: 700; line-height: 1.2; cursor: pointer; transition: opacity .15s, transform .12s; }
+.plusBtn:hover { opacity: .9; transform: translateY(-1px); }
 
-.plusPopover { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 4px 14px rgb(0 0 0 / .08); }
-.choiceBtn { padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
-.choiceBtn:hover { background: var(--inverse, #111); color: var(--inverse-text, #fff); border-color: var(--inverse, #111); }
+/* Unified SSOT Trail Stage (Template -> Reminder) */
+.stageStack { display: grid; gap: 14px; }
+.stageSection { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.stageSectionHead { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.stageTitleGroup { display: inline-flex; align-items: center; gap: 8px; }
+.stageBadge { padding: 2px 8px; border-radius: 999px; background: var(--inverse, #111); color: var(--inverse-text, #fff); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.stageBadge[data-kind="reminder"] { background: var(--surface); color: var(--ink, inherit); border: 1px solid var(--line); }
+
+.subtleStageAdd { justify-self: start; padding: 6px 12px; border: 1px dashed var(--line); border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.subtleStageAdd:hover { background: var(--surface); color: var(--ink, inherit); }
 
 /* Connected Chained Branch */
 .chainBranch { margin-left: 12px; border: 1px solid var(--line); border-left: 3px solid var(--inverse, #111); border-radius: 0 10px 10px 10px; background: var(--paper); overflow: hidden; }

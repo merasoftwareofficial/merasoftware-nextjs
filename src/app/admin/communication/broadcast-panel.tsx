@@ -61,7 +61,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     setCatalog(nextCatalog); setTemplates(nextTemplates); setRuns(nextRuns);
   }, [channel, selectedKey]);
 
-  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setError(errorText(failure)); }), active, 5000, `${channel}:${selectedKey}`, "communication,leads,clients,users");
+  useCommunicationRefresh(signal => refresh(signal).catch(failure => { if (!signal.aborted) setError(errorText(failure)); }), active, 0, `${channel}:${selectedKey}`, "communication,leads,clients,users");
 
   const selectedGroupRows = useMemo(
     () => groups.map(id => catalog?.groups.find(row => row.id === id)).filter((row): row is Group => Boolean(row)),

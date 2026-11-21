@@ -98,7 +98,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       if (!signal.aborted) setError(failure instanceof Error ? failure.message : "Could not load actions.");
     }
   }, []);
-  useCommunicationRefresh(load, active);
+  useCommunicationRefresh(load, active, 0, "", "");
 
   // Save one action's change, then show the server's version of that row. A new category joins the list.
   async function save(id: string, change: Change, done: string) {
@@ -349,6 +349,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       <div className={styles.actions} style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         <button type="button" className="admin-button" onClick={() => setNewRule(true)}>+ Add reminder or template</button>
         <button type="button" onClick={() => setShowScheduled(true)}>Scheduled reminders</button>
+        <button type="button" onClick={reloadActions}>Refresh</button>
         <div role="tablist" aria-label="View mode" className={c.segment} style={{ marginLeft: "auto" }}>
           <button type="button" role="tab" aria-selected={displayMode === "triggers"} onClick={() => setDisplayMode("triggers")}>
             By Work (Triggers) <span className={c.badge}>({triggers.length})</span>

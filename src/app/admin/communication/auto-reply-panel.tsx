@@ -95,6 +95,7 @@ export function AutoReplyPanel({ active = true, onOpenActions }: { active?: bool
       <button type="button" disabled={busy || !status || draft === null || draft.trim() === status.message} onClick={() => void action(async () => {
         await api("message", "POST", { message: draft }); await refresh(); setDraft(null); setNotice("Ad message saved. It applies from the next message.");
       })}>{busy ? "Working…" : "Save ad message"}</button>
+      <button type="button" disabled={busy} onClick={() => void refresh().catch(failure => setLoadError(errorText(failure)))}>Refresh</button>
     </div>
 
     <div className={a.reply}>

@@ -34,7 +34,7 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
       if (!signal.aborted) { setData(result.data); setError(""); }
     } catch (failure) { if (!signal.aborted) setError(failure instanceof Error ? failure.message : "Could not load reminder activity."); }
   }, [page, view, source]);
-  useCommunicationRefresh(load, active, 5000, `${page}:${view}`);
+  useCommunicationRefresh(load, active, 0, `${page}:${view}`);
 
   async function retry(id: string) {
     setRetrying(id); setError("");

@@ -34,7 +34,7 @@ export function LegacyReminderHistory({ source = "all", entityId, active, title 
       if (!signal.aborted) { setData({ key, value: result.data }); setError(""); }
     } catch (failure) { if (!signal.aborted) setError(failure instanceof Error ? failure.message : "Could not load message history."); }
   }, [selected, page, entityId, key]);
-  useCommunicationRefresh(load, active && opened, 5000, `${key}:${retry}`);
+  useCommunicationRefresh(load, active && opened, 0, `${key}:${retry}`);
 
   const current = data?.key === key ? data.value : null;
   const rows = useMemo(() => {

@@ -15,6 +15,8 @@ export type MessageMode = "separate" | "universal";
 export type RepeatMode = "off" | "permanent" | "limited";
 export type PackageScopeMode = "all" | "monthly" | "onetime" | "include" | "exclude";
 
+export const MAX_CHAIN_DEPTH = 6;
+
 export type WorkItem = {
   key: string;
   label: string;
@@ -24,7 +26,7 @@ export type WorkItem = {
   supportsProgress: boolean;
   supportsLimit: boolean;
   defaultStopOn: string[];
-  upcoming?: boolean;
+  conditions: string[];
 };
 
 export type WorkFolder = {
@@ -32,7 +34,131 @@ export type WorkFolder = {
   items: WorkItem[];
 };
 
-const UPCOMING_WORKS: WorkItem[] = [
+const PAYMENT_COND_KEYS = ["anytime", "unpaid", "pending_approval", "paid", "installment_due"];
+const PACKAGE_COND_KEYS = [...PAYMENT_COND_KEYS, "upload_pending"];
+
+const FALLBACK_WORKS: WorkItem[] = [
+  {
+    key: "package.purchased",
+    label: "Package purchased",
+    folder: "Plans & Packages",
+    when: "When a client buys a sales package.",
+    supportsScope: true,
+    supportsProgress: false,
+    supportsLimit: true,
+    defaultStopOn: ["upload.completed", "payment.received"],
+    conditions: PACKAGE_COND_KEYS,
+  },
+  {
+    key: "plan.expired",
+    label: "Plan / Package Expired",
+    folder: "Plans & Packages",
+    when: "When a monthly plan or package expires (can filter by remaining portal upload limit).",
+    supportsScope: true,
+    supportsProgress: false,
+    supportsLimit: true,
+    defaultStopOn: ["payment.received"],
+    conditions: PACKAGE_COND_KEYS,
+  },
+  {
+    key: "invoice.created",
+    label: "Payment Due (Any Bill / Order / Installment / Renewal)",
+    folder: "Payments & Invoices",
+    when: "When any project, plan, package, installment, or monthly renewal creates a due bill.",
+    supportsScope: true,
+    supportsProgress: false,
+    supportsLimit: true,
+    defaultStopOn: ["payment.received", "order.upi_pending"],
+    conditions: PACKAGE_COND_KEYS,
+  },
+  {
+    key: "order.upi_pending",
+    label: "Payment Submitted by Client (Approval Pending)",
+    folder: "Payments & Invoices",
+    when: "When a client submits a UPI order or installment payment waiting for admin approval.",
+    supportsScope: true,
+    supportsProgress: false,
+    supportsLimit: false,
+    defaultStopOn: ["payment.received", "plan.payment_rejected"],
+    conditions: PAYMENT_COND_KEYS,
+  },
+  {
+    key: "payment.received",
+    label: "Payment Approved / Recorded (Paid)",
+    folder: "Payments & Invoices",
+    when: "When an invoice or order is approved, recorded paid, or paid via wallet/installment.",
+    supportsScope: false,
+    supportsProgress: false,
+    supportsLimit: false,
+    defaultStopOn: [],
+    conditions: ["anytime"],
+  },
+  {
+    key: "plan.payment_rejected",
+    label: "Payment Rejected (by Admin)",
+    folder: "Payments & Invoices",
+    when: "When an admin rejects a submitted plan, order, or wallet payment.",
+    supportsScope: false,
+    supportsProgress: false,
+    supportsLimit: false,
+    defaultStopOn: [],
+    conditions: ["anytime"],
+  },
+  {
+    key: "project.created",
+    label: "Project created",
+    folder: "Projects & Previews",
+    when: "When a new project is created by an admin, requested by a client, or started from a package.",
+    supportsScope: true,
+    supportsProgress: true,
+    supportsLimit: false,
+    defaultStopOn: ["payment.received"],
+    conditions: PACKAGE_COND_KEYS,
+  },
+  {
+    key: "project.step_updated",
+    label: "Project step update",
+    folder: "Projects & Previews",
+    when: "When project steps or progress % change (use Progress >= X% or Installment due for milestone reminders).",
+    supportsScope: true,
+    supportsProgress: true,
+    supportsLimit: false,
+    defaultStopOn: ["payment.received", "project.completed"],
+    conditions: PACKAGE_COND_KEYS,
+  },
+  {
+    key: "upload.completed",
+    label: "Update request / upload completed",
+    folder: "Data Uploads & Documents",
+    when: "When a client uploads files (portal or external link) or submits an update request.",
+    supportsScope: false,
+    supportsProgress: false,
+    supportsLimit: false,
+    defaultStopOn: [],
+    conditions: ["anytime"],
+  },
+  {
+    key: "ticket.updated",
+    label: "Support ticket opened or replied",
+    folder: "Login, Profile, Accounts & Support",
+    when: "When a client opens a support ticket or a client/admin replies to a ticket.",
+    supportsScope: false,
+    supportsProgress: false,
+    supportsLimit: false,
+    defaultStopOn: [],
+    conditions: ["anytime"],
+  },
+  {
+    key: "user.signed_up",
+    label: "User sign up, OTP or profile updated",
+    folder: "Login, Profile, Accounts & Support",
+    when: "When someone signs up, verifies/resends OTP, sets password, or updates their profile.",
+    supportsScope: false,
+    supportsProgress: false,
+    supportsLimit: false,
+    defaultStopOn: [],
+    conditions: ["anytime"],
+  },
   {
     key: "comment.posted",
     label: "Website Comment / Review Posted",
@@ -42,7 +168,7 @@ const UPCOMING_WORKS: WorkItem[] = [
     supportsProgress: false,
     supportsLimit: false,
     defaultStopOn: ["comment.approved"],
-    upcoming: true,
+    conditions: ["anytime"],
   },
   {
     key: "comment.approved",
@@ -53,121 +179,7 @@ const UPCOMING_WORKS: WorkItem[] = [
     supportsProgress: false,
     supportsLimit: false,
     defaultStopOn: [],
-    upcoming: true,
-  },
-  {
-    key: "plan.expired",
-    label: "Plan / Package Expired",
-    folder: "Plans & Packages",
-    when: "When a monthly plan or package expires (can check remaining upload limit).",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: true,
-    defaultStopOn: ["payment.received"],
-    upcoming: true,
-  },
-];
-
-const FALLBACK_WORKS: WorkItem[] = [
-  {
-    key: "package.purchased",
-    label: "Package or Plan Bought",
-    folder: "Plans & Packages",
-    when: "When a client buys a one-time or monthly package or starts a service plan.",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: true,
-    defaultStopOn: ["payment.received"],
-  },
-  {
-    key: "invoice.created",
-    label: "Invoice / Bill Created",
-    folder: "Payments & Invoices",
-    when: "When a project, plan, package, installment, or monthly renewal creates a bill.",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: true,
-    defaultStopOn: ["payment.received"],
-  },
-  {
-    key: "order.upi_pending",
-    label: "Order Created (UPI Pending)",
-    folder: "Payments & Invoices",
-    when: "When a client submits a UPI order waiting for admin verification.",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: ["payment.received"],
-  },
-  {
-    key: "payment.received",
-    label: "Payment Received / Approved",
-    folder: "Payments & Invoices",
-    when: "When an invoice or order is marked paid or approved by admin.",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-  },
-  {
-    key: "plan.payment_rejected",
-    label: "Payment Rejected",
-    folder: "Payments & Invoices",
-    when: "When an admin rejects a submitted plan or wallet payment.",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-  },
-  {
-    key: "project.created",
-    label: "Project Created",
-    folder: "Projects & Previews",
-    when: "When an admin creates a new project order for a client.",
-    supportsScope: true,
-    supportsProgress: true,
-    supportsLimit: false,
-    defaultStopOn: ["payment.received"],
-  },
-  {
-    key: "project.step_updated",
-    label: "Project Progress / Step Updated",
-    folder: "Projects & Previews",
-    when: "When an admin updates a project step or progress percentage.",
-    supportsScope: true,
-    supportsProgress: true,
-    supportsLimit: false,
-    defaultStopOn: ["payment.received"],
-  },
-  {
-    key: "upload.completed",
-    label: "Client Uploaded Data",
-    folder: "Data Uploads & Documents",
-    when: "When a client uploads required files in the portal.",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-  },
-  {
-    key: "ticket.updated",
-    label: "Support Ticket Opened / Replied",
-    folder: "Login, Profile, Accounts & Support",
-    when: "When a client opens a support ticket or posts a reply.",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-  },
-  {
-    key: "user.signed_up",
-    label: "User Signed Up",
-    folder: "Login, Profile, Accounts & Support",
-    when: "When a new user signs up on the website.",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
+    conditions: ["anytime"],
   },
 ];
 
@@ -181,6 +193,9 @@ function triggerToWork(t: TriggerGroup): WorkItem {
     supportsProgress: Boolean(t.supportsProgress),
     supportsLimit: Boolean(t.supportsLimit),
     defaultStopOn: Array.isArray(t.defaultStopOn) ? t.defaultStopOn : [],
+    conditions: Array.isArray(t.conditions) && t.conditions.length
+      ? t.conditions.map(c => c.key)
+      : ["anytime"],
   };
 }
 
@@ -194,12 +209,6 @@ export function buildWorkCatalog(data: ActionsData | null): {
   const raw: WorkItem[] = isLive ? data!.triggers!.map(triggerToWork) : [...FALLBACK_WORKS];
   const byKey = new Map<string, WorkItem>();
   for (const item of raw) byKey.set(item.key, item);
-  for (const extra of UPCOMING_WORKS) {
-    if (!byKey.has(extra.key)) {
-      raw.push(extra);
-      byKey.set(extra.key, extra);
-    }
-  }
 
   const folderMap = new Map<string, WorkItem[]>();
   const preferredOrder = data?.folders?.length ? data.folders : [];
@@ -261,3 +270,57 @@ export const PLACEHOLDERS: { token: string; label: string }[] = [
   { token: "{{portalLink}}", label: "Portal link" },
   { token: "{{planLink}}", label: "Plan link" },
 ];
+
+const DUE_DATE_TRIGGERS = new Set(["invoice.created", "plan.started", "plan.purchased"]);
+const FAST_REVIEW_TRIGGERS = new Set([
+  "order.upi_pending",
+  "comment.posted",
+  "package.start_requested",
+  "reservation.start_requested",
+]);
+
+export function defaultReminderTiming(triggerKey?: string): {
+  countDaysFrom: BaseDate;
+  pos: TimingPos;
+  amount: number;
+  unit: Unit;
+} {
+  if (triggerKey === "reservation.created") {
+    return { countDaysFrom: "due_date", pos: "before", amount: 1, unit: "days" };
+  }
+  if (triggerKey && DUE_DATE_TRIGGERS.has(triggerKey)) {
+    return { countDaysFrom: "due_date", pos: "before", amount: 3, unit: "days" };
+  }
+  if (triggerKey && FAST_REVIEW_TRIGGERS.has(triggerKey)) {
+    return { countDaysFrom: "trigger_date", pos: "after", amount: 2, unit: "hours" };
+  }
+  return { countDaysFrom: "trigger_date", pos: "after", amount: 1, unit: "days" };
+}
+
+export function allowedConditionIds(work?: WorkItem | null): string[] {
+  const allowed = new Set<string>(["any"]);
+  for (const c of work?.conditions || []) {
+    if (CONDITIONS.some(item => item.id === c)) allowed.add(c);
+  }
+  if (work?.supportsProgress) allowed.add("progress_min");
+  if (work?.supportsLimit) {
+    allowed.add("limit_min");
+    allowed.add("limit_max");
+  }
+  return CONDITIONS.filter(item => allowed.has(item.id)).map(item => item.id);
+}
+
+export function timingPositionLabel(pos: TimingPos, baseDate: BaseDate): string {
+  if (baseDate === "trigger_date") {
+    if (pos === "on") return "immediately (on trigger)";
+    return pos === "after" ? "after trigger" : "before trigger";
+  }
+  const target = baseDate === "expiry_date"
+    ? "expiry date"
+    : baseDate === "deadline_date"
+      ? "project deadline"
+      : "due date";
+  if (pos === "before") return `before ${target}`;
+  if (pos === "on") return `on ${target}`;
+  return `after ${target}`;
+}

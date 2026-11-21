@@ -4,17 +4,18 @@ import { useCommunicationRefresh } from "@/lib/communication-live";
 import type { ActionPackageOption, ActionsData } from "./action-rule-helpers";
 import s from "./automated-message.module.css";
 import {
-  BASE_DATES, buildWorkCatalog, CONDITIONS, PACKAGE_SCOPES, PLACEHOLDERS,
+  allowedConditionIds, BASE_DATES, buildWorkCatalog, CONDITIONS,
+  defaultReminderTiming, MAX_CHAIN_DEPTH, PACKAGE_SCOPES, PLACEHOLDERS,
+  timingPositionLabel,
   type BaseDate, type Channel, type InstantAudience, type MessageMode,
   type PackageScopeMode, type ReminderAudience, type RepeatMode,
   type TimingPos, type Unit, type WorkFolder, type WorkItem,
 } from "./automated-message-options";
 
 /**
- * Automated message system — Phase 1 UI Preview with read-only live data from
- * GET /api/auto-reply/actions (real Works/Triggers + real Packages).
- * Dropdown-first, 100% consistent controls, conditional Packages, collapsible
- * reminders & infinite "+" chaining on every Stop Trigger.
+ * Automated message system — Single-Form End-to-End Trail (SSOT).
+ * Every stage (root & Stop-Trigger chained) uses the same TrailStageBlock:
+ * Trigger -> Template (Auto Message) -> Reminder -> Stop Trigger (+ Next stage) -> ...
  */
 
 type TimingSlot = { amount: number; unit: Unit; pos: TimingPos };
@@ -58,43 +59,46 @@ type TrailForm = {
 };
 
 const blankMsg = (): SingleMsg => ({ channel: "whatsapp", subject: "", text: "" });
-const blankStep = (pos: TimingPos = "before", amount = 3): MessageStep => ({
-  amount, unit: "days", pos, channel: "whatsapp", subject: "", text: "",
+const blankStep = (pos: TimingPos = "before", amount = 3, unit: Unit = "days"): MessageStep => ({
+  amount, unit, pos, channel: "whatsapp", subject: "", text: "",
 });
 const blankInstant = (audience: InstantAudience = "off"): InstantBlockState => ({
   audience, client: blankMsg(), admin: blankMsg(),
 });
 
 let nextId = 1;
-const newReminder = (defaultStops: string[] = []): Reminder => ({
-  id: nextId++,
-  startTrigger: "__main__",
-  audience: "client",
-  clientMode: "separate",
-  adminMode: "separate",
-  clientSteps: [blankStep("before", 3)],
-  adminSteps: [blankStep("before", 3)],
-  repeatMode: "off",
-  repeatForDays: 7,
-  repeatEveryDays: 2,
-  repeatPerDay: 1,
-  countDaysFrom: "due_date",
-  condition: "any",
-  conditionValue: 50,
-  stopOn: [...defaultStops],
-  stopChains: {},
-});
+const newReminder = (defaultStops: string[] = [], triggerKey?: string): Reminder => {
+  const timing = defaultReminderTiming(triggerKey);
+  return {
+    id: nextId++,
+    startTrigger: "__main__",
+    audience: "client",
+    clientMode: "separate",
+    adminMode: "separate",
+    clientSteps: [blankStep(timing.pos, timing.amount, timing.unit)],
+    adminSteps: [blankStep(timing.pos, timing.amount, timing.unit)],
+    repeatMode: "off",
+    repeatForDays: 7,
+    repeatEveryDays: 2,
+    repeatPerDay: 1,
+    countDaysFrom: timing.countDaysFrom,
+    condition: "any",
+    conditionValue: 50,
+    stopOn: [...defaultStops],
+    stopChains: {},
+  };
+};
 
-const newStopChain = (mode: "auto_msg" | "reminder", defaultStops: string[] = []): StopChain => ({
-  instant: blankInstant(mode === "auto_msg" ? "client" : "off"),
-  reminders: mode === "reminder" ? [newReminder(defaultStops)] : [],
+const newStopChain = (defaultStops: string[] = []): StopChain => ({
+  instant: blankInstant("client"),
+  reminders: [],
 });
 
 const emptyForm = (): TrailForm => ({
   triggers: [],
   scope: "all",
   selectedPackages: [],
-  instant: blankInstant("off"),
+  instant: blankInstant("client"),
   reminders: [],
 });
 
@@ -133,7 +137,7 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Reminder>;
   const id = typeof r.id === "number" && Number.isFinite(r.id) ? r.id : nextId++;
   if (id >= nextId) nextId = id + 1;
-  const rawChains = depth < 6 && r.stopChains && typeof r.stopChains === "object" ? r.stopChains : {};
+  const rawChains = depth < MAX_CHAIN_DEPTH && r.stopChains && typeof r.stopChains === "object" ? r.stopChains : {};
   const stopChains: Record<string, StopChain> = {};
   for (const [stopKey, ch] of Object.entries(rawChains)) {
     if (!ch || typeof ch !== "object") continue;
@@ -188,11 +192,119 @@ function audienceShort(aud: InstantAudience | ReminderAudience) {
   return "Off";
 }
 
+function hasInstantContent(inst: InstantBlockState): boolean {
+  if (inst.audience === "off") return false;
+  if (inst.audience === "client") return Boolean(inst.client.text.trim());
+  if (inst.audience === "admin") return Boolean(inst.admin.text.trim());
+  return Boolean(inst.client.text.trim() || inst.admin.text.trim());
+}
+
+function cleanInstantForSave(inst: InstantBlockState): InstantBlockState {
+  if (inst.audience === "off") return inst;
+  const hasClient = Boolean(inst.client.text.trim());
+  const hasAdmin = Boolean(inst.admin.text.trim());
+  if (inst.audience === "client") return hasClient ? inst : { ...inst, audience: "off" };
+  if (inst.audience === "admin") return hasAdmin ? inst : { ...inst, audience: "off" };
+  if (hasClient && hasAdmin) return inst;
+  if (hasClient) return { ...inst, audience: "client" };
+  if (hasAdmin) return { ...inst, audience: "admin" };
+  return { ...inst, audience: "off" };
+}
+
 function countReminders(reminders: Reminder[]): number {
   return reminders.reduce((sum, rem) => {
     const nested = Object.values(rem.stopChains).reduce((acc, ch) => acc + countReminders(ch.reminders), 0);
     return sum + 1 + nested;
   }, 0);
+}
+
+function countTemplates(instant: InstantBlockState, reminders: Reminder[]): number {
+  const self = hasInstantContent(instant) ? 1 : 0;
+  return self + reminders.reduce((sum, rem) => {
+    const nested = Object.values(rem.stopChains).reduce((acc, ch) => acc + countTemplates(ch.instant, ch.reminders), 0);
+    return sum + nested;
+  }, 0);
+}
+
+function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null } {
+  if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
+
+  const cleanInstant = cleanInstantForSave(form.instant);
+
+  const cleanReminderList = (
+    reminders: Reminder[],
+    parentTrigger: string,
+    depth: number,
+  ): { list: Reminder[]; error: string | null } => {
+    const out: Reminder[] = [];
+    for (let i = 0; i < reminders.length; i++) {
+      const rem = reminders[i];
+      const effTrigger = depth === 0 && rem.startTrigger !== "__main__" ? rem.startTrigger : parentTrigger;
+      const work = byKey.get(effTrigger);
+      const allowedConds = allowedConditionIds(work);
+      const condition = allowedConds.includes(rem.condition) ? rem.condition : "any";
+      const fixStep = (st: MessageStep): MessageStep => (
+        rem.countDaysFrom === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st
+      );
+      const clientSteps = rem.clientSteps.map(fixStep);
+      const adminSteps = rem.adminSteps.map(fixStep);
+
+      const showClient = rem.audience === "client" || rem.audience === "both";
+      const showAdmin = rem.audience === "admin" || rem.audience === "both";
+      const label = workLabel(effTrigger, byKey);
+
+      if (showClient) {
+        const missing = rem.clientMode === "universal"
+          ? !clientSteps[0]?.text.trim()
+          : clientSteps.some(st => !st.text.trim());
+        if (missing) return { list: [], error: `Write the Client message in Reminder ${i + 1} (${label}).` };
+      }
+      if (showAdmin) {
+        const missing = rem.adminMode === "universal"
+          ? !adminSteps[0]?.text.trim()
+          : adminSteps.some(st => !st.text.trim());
+        if (missing) return { list: [], error: `Write the Admin message in Reminder ${i + 1} (${label}).` };
+      }
+
+      const maxSteps = Math.max(showClient ? clientSteps.length : 0, showAdmin ? adminSteps.length : 0);
+      if ((rem.repeatMode === "permanent" || rem.repeatMode === "limited" || maxSteps > 1) && rem.stopOn.length === 0) {
+        return { list: [], error: `Add at least one Stop Trigger for Reminder ${i + 1} (${label}).` };
+      }
+
+      const nextChains: Record<string, StopChain> = {};
+      for (const stopKey of rem.stopOn) {
+        const ch = rem.stopChains[stopKey];
+        if (!ch) continue;
+        const chInstant = cleanInstantForSave(ch.instant);
+        const sub = cleanReminderList(ch.reminders, stopKey, depth + 1);
+        if (sub.error) return { list: [], error: sub.error };
+        if (chInstant.audience === "off" && sub.list.length === 0) {
+          return { list: [], error: `Stage on "${workLabel(stopKey, byKey)}" is empty — add a Template/Reminder or remove the stage.` };
+        }
+        nextChains[stopKey] = { instant: chInstant, reminders: sub.list };
+      }
+
+      out.push({
+        ...rem,
+        condition,
+        clientSteps,
+        adminSteps,
+        stopChains: nextChains,
+      });
+    }
+    return { list: out, error: null };
+  };
+
+  const cleaned = cleanReminderList(form.reminders, form.triggers[0], 0);
+  if (cleaned.error) return { trail: form, error: cleaned.error };
+  if (cleanInstant.audience === "off" && cleaned.list.length === 0) {
+    return { trail: form, error: "Write a Template (Auto Message) or add at least one Reminder before saving." };
+  }
+
+  return {
+    trail: { ...form, instant: cleanInstant, reminders: cleaned.list },
+    error: null,
+  };
 }
 
 function buildFlowTokens(form: TrailForm, byKey: Map<string, WorkItem>): string[] {
@@ -202,17 +314,17 @@ function buildFlowTokens(form: TrailForm, byKey: Map<string, WorkItem>): string[
     out.push(form.triggers.length > 1 ? `${first} +${form.triggers.length - 1}` : first);
   }
   if (form.instant.audience !== "off") {
-    out.push(`Instant (${audienceShort(form.instant.audience)})`);
+    out.push(`Template (${audienceShort(form.instant.audience)})`);
   }
   const walk = (reminders: Reminder[], depth: number) => {
-    if (depth > 4) return;
+    if (depth > MAX_CHAIN_DEPTH) return;
     reminders.forEach((rem, idx) => {
       out.push(`Reminder ${idx + 1} (${audienceShort(rem.audience)})`);
       for (const stopKey of rem.stopOn) {
         const ch = rem.stopChains[stopKey];
         if (!ch) continue;
         out.push(`Stop: ${workLabel(stopKey, byKey)}`);
-        if (ch.instant.audience !== "off") out.push(`Auto Msg (${audienceShort(ch.instant.audience)})`);
+        if (ch.instant.audience !== "off") out.push(`Template (${audienceShort(ch.instant.audience)})`);
         walk(ch.reminders, depth + 1);
       }
     });
@@ -230,7 +342,7 @@ function WorkOptions({ folders, exclude = [] }: { folders: WorkFolder[]; exclude
         <optgroup key={group.folder} label={group.folder}>
           {items.map(item => (
             <option key={item.key} value={item.key}>
-              {item.label}{item.upcoming ? " (Phase 2)" : ""}
+              {item.label}
             </option>
           ))}
         </optgroup>
@@ -260,6 +372,7 @@ function MessageEditor({
   title,
   step,
   showTiming,
+  baseDate = "due_date",
   canRemove,
   onChange,
   onRemove,
@@ -267,11 +380,13 @@ function MessageEditor({
   title: string;
   step: MessageStep;
   showTiming: boolean;
+  baseDate?: BaseDate;
   canRemove?: boolean;
   onChange: (patch: Partial<MessageStep>) => void;
   onRemove?: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const effectivePos = baseDate === "trigger_date" && step.pos === "before" ? "after" : step.pos;
   return <div className={s.msgCard}>
     <div className={s.msgHead}>
       <strong>{title}</strong>
@@ -284,7 +399,7 @@ function MessageEditor({
       {showTiming && (
         <div className={s.inlineGroup}>
           <span className={s.miniLabel}>When</span>
-          {step.pos !== "on" && <>
+          {effectivePos !== "on" && <>
             <input
               type="number"
               className={s.numInput}
@@ -307,12 +422,14 @@ function MessageEditor({
           <select
             className={s.compactSelect}
             aria-label={`${title} position`}
-            value={step.pos}
+            value={effectivePos}
             onChange={e => onChange({ pos: e.target.value as TimingPos })}
           >
-            <option value="before">before base date</option>
-            <option value="on">on base date</option>
-            <option value="after">after base date</option>
+            {baseDate !== "trigger_date" && (
+              <option value="before">{timingPositionLabel("before", baseDate)}</option>
+            )}
+            <option value="on">{timingPositionLabel("on", baseDate)}</option>
+            <option value="after">{timingPositionLabel("after", baseDate)}</option>
           </select>
         </div>
       )}
@@ -443,6 +560,7 @@ function AudienceBlock({
   title,
   mode,
   steps,
+  baseDate,
   canCopyClient,
   onModeChange,
   onCopyClient,
@@ -452,6 +570,7 @@ function AudienceBlock({
   title: string;
   mode: MessageMode;
   steps: MessageStep[];
+  baseDate: BaseDate;
   canCopyClient?: boolean;
   onModeChange: (mode: MessageMode) => void;
   onCopyClient?: () => void;
@@ -459,7 +578,7 @@ function AudienceBlock({
 }) {
   const universal = mode === "universal";
   const adminSyncsClient = who === "admin" && Boolean(canCopyClient) && universal;
-  const primaryStep = steps[0] || blankStep("before", 3);
+  const primaryStep = steps[0] || blankStep(baseDate === "trigger_date" ? "after" : "before", 3);
 
   return <div className={s.audienceCard}>
     <div className={s.audienceHead}>
@@ -508,12 +627,14 @@ function AudienceBlock({
             </>}
             <select
               className={s.compactSelect}
-              value={slot.pos}
+              value={baseDate === "trigger_date" && slot.pos === "before" ? "after" : slot.pos}
               onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, pos: e.target.value as TimingPos } : st))}
             >
-              <option value="before">before base date</option>
-              <option value="on">on base date</option>
-              <option value="after">after base date</option>
+              {baseDate !== "trigger_date" && (
+                <option value="before">{timingPositionLabel("before", baseDate)}</option>
+              )}
+              <option value="on">{timingPositionLabel("on", baseDate)}</option>
+              <option value="after">{timingPositionLabel("after", baseDate)}</option>
             </select>
             {steps.length > 1 && (
               <button type="button" className={s.iconBtn} aria-label="Remove timing" onClick={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}>✕</button>
@@ -547,6 +668,7 @@ function AudienceBlock({
             title={`Message ${idx + 1}`}
             step={step}
             showTiming={true}
+            baseDate={baseDate}
             canRemove={steps.length > 1}
             onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
             onRemove={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}
@@ -567,7 +689,9 @@ function ReminderCard({
   depth,
   reminder,
   inheritedTrigger,
+  mainTriggerKey,
   mainTriggerLabel,
+  ancestorTriggers,
   folders,
   byKey,
   onChange,
@@ -577,7 +701,9 @@ function ReminderCard({
   depth: number;
   reminder: Reminder;
   inheritedTrigger?: string;
+  mainTriggerKey: string;
   mainTriggerLabel: string;
+  ancestorTriggers: string[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
   onChange: (reminder: Reminder) => void;
@@ -585,10 +711,15 @@ function ReminderCard({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedChains, setCollapsedChains] = useState<Record<string, boolean>>({});
-  const [openPlusFor, setOpenPlusFor] = useState<string | null>(null);
   const set = (patch: Partial<Reminder>) => onChange({ ...reminder, ...patch });
 
-  const conditionDef = CONDITIONS.find(item => item.id === reminder.condition);
+  const effectiveTrigger = inheritedTrigger || (reminder.startTrigger !== "__main__" ? reminder.startTrigger : mainTriggerKey);
+  const effectiveWork = effectiveTrigger ? byKey.get(effectiveTrigger) : undefined;
+  const allowedConds = allowedConditionIds(effectiveWork);
+  const visibleConditions = CONDITIONS.filter(c => allowedConds.includes(c.id));
+  const safeCondition = allowedConds.includes(reminder.condition) ? reminder.condition : "any";
+  const conditionDef = CONDITIONS.find(item => item.id === safeCondition);
+
   const showClient = reminder.audience === "client" || reminder.audience === "both";
   const showAdmin = reminder.audience === "admin" || reminder.audience === "both";
 
@@ -609,21 +740,41 @@ function ReminderCard({
     });
   }
 
+  function handleStartTriggerChange(nextStart: string) {
+    const targetKey = nextStart === "__main__" ? mainTriggerKey : nextStart;
+    const targetWork = targetKey ? byKey.get(targetKey) : undefined;
+    const nextAllowed = allowedConditionIds(targetWork);
+    set({
+      startTrigger: nextStart,
+      condition: nextAllowed.includes(reminder.condition) ? reminder.condition : "any",
+    });
+  }
+
+  function handleBaseDateChange(nextBase: BaseDate) {
+    if (nextBase === "trigger_date") {
+      const fixPos = (st: MessageStep): MessageStep => (st.pos === "before" ? { ...st, pos: "after" } : st);
+      set({
+        countDaysFrom: nextBase,
+        clientSteps: reminder.clientSteps.map(fixPos),
+        adminSteps: reminder.adminSteps.map(fixPos),
+      });
+      return;
+    }
+    set({ countDaysFrom: nextBase });
+  }
+
   function removeStopTrigger(stopKey: string) {
     const nextChains = { ...reminder.stopChains };
     delete nextChains[stopKey];
-    if (openPlusFor === stopKey) setOpenPlusFor(null);
     set({
       stopOn: reminder.stopOn.filter(k => k !== stopKey),
       stopChains: nextChains,
     });
   }
 
-  function attachChain(stopKey: string, mode: "auto_msg" | "reminder") {
-    setOpenPlusFor(null);
-    const defaultStops = (byKey.get(stopKey)?.defaultStopOn || []).filter(k => byKey.has(k));
+  function attachChain(stopKey: string) {
     set({
-      stopChains: { ...reminder.stopChains, [stopKey]: newStopChain(mode, defaultStops) },
+      stopChains: { ...reminder.stopChains, [stopKey]: newStopChain() },
     });
   }
 
@@ -636,6 +787,10 @@ function ReminderCard({
     delete nextChains[stopKey];
     set({ stopChains: nextChains });
   }
+
+  const nextAncestors = effectiveTrigger && !ancestorTriggers.includes(effectiveTrigger)
+    ? [...ancestorTriggers, effectiveTrigger]
+    : ancestorTriggers;
 
   return <div className={s.remCard} data-depth={Math.min(depth, 3)}>
     <header className={s.remHeader}>
@@ -661,7 +816,7 @@ function ReminderCard({
             className={s.select}
             aria-label="Start reminder trigger"
             value={reminder.startTrigger}
-            onChange={e => set({ startTrigger: e.target.value })}
+            onChange={e => handleStartTriggerChange(e.target.value)}
           >
             <option value="__main__">Same as main trigger ({mainTriggerLabel || "selected trigger"})</option>
             <WorkOptions folders={folders} />
@@ -691,6 +846,7 @@ function ReminderCard({
           title="Client"
           mode={reminder.clientMode}
           steps={reminder.clientSteps}
+          baseDate={reminder.countDaysFrom}
           onModeChange={clientMode => set({ clientMode })}
           onUpdateSteps={clientSteps => set({ clientSteps })}
         />
@@ -701,6 +857,7 @@ function ReminderCard({
           title="Admin / Team"
           mode={reminder.adminMode}
           steps={reminder.adminSteps}
+          baseDate={reminder.countDaysFrom}
           canCopyClient={showClient}
           onModeChange={adminMode => set({ adminMode })}
           onCopyClient={copyClientDays}
@@ -780,45 +937,47 @@ function ReminderCard({
             className={s.select}
             aria-label="Count days from"
             value={reminder.countDaysFrom}
-            onChange={e => set({ countDaysFrom: e.target.value as BaseDate })}
+            onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
           >
             {BASE_DATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </div>
-        <div className={s.fieldRow}>
-          <label className={s.fieldLabel}>Only when</label>
-          <div className={s.inlineGroup}>
-            <select
-              className={s.select}
-              aria-label="Only when condition"
-              value={reminder.condition}
-              onChange={e => {
-                const nextIdVal = e.target.value;
-                const found = CONDITIONS.find(c => c.id === nextIdVal);
-                set({
-                  condition: nextIdVal,
-                  conditionValue: found && "defaultVal" in found ? found.defaultVal : reminder.conditionValue,
-                });
-              }}
-            >
-              {CONDITIONS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
-            {conditionDef && "value" in conditionDef && (
-              <input
-                type="number"
-                className={s.numInput}
-                min={0}
-                max={conditionDef.max}
-                aria-label="Condition value"
-                value={reminder.conditionValue}
-                onChange={e => set({ conditionValue: Math.max(0, Number(e.target.value || 0)) })}
-              />
-            )}
+        {visibleConditions.length > 1 && (
+          <div className={s.fieldRow}>
+            <label className={s.fieldLabel}>Only when</label>
+            <div className={s.inlineGroup}>
+              <select
+                className={s.select}
+                aria-label="Only when condition"
+                value={safeCondition}
+                onChange={e => {
+                  const nextIdVal = e.target.value;
+                  const found = CONDITIONS.find(c => c.id === nextIdVal);
+                  set({
+                    condition: nextIdVal,
+                    conditionValue: found && "defaultVal" in found ? found.defaultVal : reminder.conditionValue,
+                  });
+                }}
+              >
+                {visibleConditions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+              {conditionDef && "value" in conditionDef && (
+                <input
+                  type="number"
+                  className={s.numInput}
+                  min={0}
+                  max={conditionDef.max}
+                  aria-label="Condition value"
+                  value={reminder.conditionValue}
+                  onChange={e => set({ conditionValue: Math.max(0, Number(e.target.value || 0)) })}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* 6. Stop triggers + [ + ] infinite chain loop */}
+      {/* 6. Stop triggers + [ + Next stage ] Template -> Reminder loop */}
       <div className={s.stopBox}>
         <div className={s.fieldRow}>
           <label className={s.fieldLabel}>Stop when</label>
@@ -832,7 +991,7 @@ function ReminderCard({
             }}
           >
             <option value="">Add a stop trigger…</option>
-            <WorkOptions folders={folders} exclude={reminder.stopOn} />
+            <WorkOptions folders={folders} exclude={effectiveTrigger ? [...reminder.stopOn, effectiveTrigger] : reminder.stopOn} />
           </select>
         </div>
 
@@ -841,34 +1000,26 @@ function ReminderCard({
             {reminder.stopOn.map(stopKey => {
               const stopName = workLabel(stopKey, byKey);
               const chain = reminder.stopChains[stopKey];
-              const menuOpen = openPlusFor === stopKey;
               const chainCollapsed = Boolean(collapsedChains[stopKey]);
+              const canChain = !chain && depth + 1 < MAX_CHAIN_DEPTH && !nextAncestors.includes(stopKey);
               return (
                 <div key={stopKey} className={s.stopItem}>
                   <div className={s.stopChipRow}>
                     <span className={s.stopChip} data-linked={Boolean(chain)}>
                       <span>{stopName}</span>
-                      {!chain && (
+                      {canChain && (
                         <button
                           type="button"
                           className={s.plusBtn}
-                          title={`Start Auto Msg or Reminder when "${stopName}" happens`}
-                          aria-label={`Chain action on ${stopName}`}
-                          onClick={() => setOpenPlusFor(menuOpen ? null : stopKey)}
+                          title={`Continue trail on "${stopName}" (Template → Reminder)`}
+                          aria-label={`Start next stage on ${stopName}`}
+                          onClick={() => attachChain(stopKey)}
                         >
-                          +
+                          + Next stage
                         </button>
                       )}
                       <button type="button" className={s.chipClose} aria-label={`Remove ${stopName}`} onClick={() => removeStopTrigger(stopKey)}>✕</button>
                     </span>
-
-                    {!chain && menuOpen && (
-                      <div className={s.plusPopover} role="group" aria-label={`Next step on ${stopName}`}>
-                        <span className={s.miniLabel}>Then start:</span>
-                        <button type="button" className={s.choiceBtn} onClick={() => attachChain(stopKey, "auto_msg")}>+ Auto Msg</button>
-                        <button type="button" className={s.choiceBtn} onClick={() => attachChain(stopKey, "reminder")}>+ Reminder</button>
-                      </div>
-                    )}
                   </div>
 
                   {chain && (
@@ -881,53 +1032,30 @@ function ReminderCard({
                           onClick={() => setCollapsedChains(prev => ({ ...prev, [stopKey]: !prev[stopKey] }))}
                         >
                           <span className={s.chevron}>{chainCollapsed ? "▸" : "▾"}</span>
-                          <strong>On “{stopName}”</strong>
+                          <strong>Next stage on “{stopName}”</strong>
                           <span className={s.summaryMeta}>
-                            {chain.instant.audience !== "off" ? `Instant (${audienceShort(chain.instant.audience)})` : "No instant msg"}
+                            {chain.instant.audience !== "off" ? `Template (${audienceShort(chain.instant.audience)})` : "Template off"}
                             {chain.reminders.length > 0 ? ` · ${chain.reminders.length} reminder${chain.reminders.length > 1 ? "s" : ""}` : ""}
                           </span>
                         </button>
-                        <button type="button" className={s.iconBtn} onClick={() => removeChain(stopKey)}>Remove</button>
+                        <button type="button" className={s.iconBtn} onClick={() => removeChain(stopKey)}>Remove stage</button>
                       </header>
 
                       {!chainCollapsed && <div className={s.chainBody}>
-                        <InstantAutoMsgBlock
-                          state={chain.instant}
-                          onChange={instant => updateChain(stopKey, { ...chain, instant })}
+                        <TrailStageBlock
+                          triggerKey={stopKey}
+                          triggerLabel={stopName}
+                          depth={depth + 1}
+                          mainTriggerKey={mainTriggerKey}
+                          mainTriggerLabel={mainTriggerLabel}
+                          ancestorTriggers={[...nextAncestors, stopKey]}
+                          instant={chain.instant}
+                          reminders={chain.reminders}
+                          folders={folders}
+                          byKey={byKey}
+                          onChangeInstant={instant => updateChain(stopKey, { ...chain, instant })}
+                          onChangeReminders={reminders => updateChain(stopKey, { ...chain, reminders })}
                         />
-
-                        {chain.reminders.map((subRem, subIdx) => (
-                          <ReminderCard
-                            key={subRem.id}
-                            index={subIdx}
-                            depth={depth + 1}
-                            reminder={subRem}
-                            inheritedTrigger={stopKey}
-                            mainTriggerLabel={mainTriggerLabel}
-                            folders={folders}
-                            byKey={byKey}
-                            onChange={nextSub => updateChain(stopKey, {
-                              ...chain,
-                              reminders: chain.reminders.map(item => item.id === subRem.id ? nextSub : item),
-                            })}
-                            onRemove={() => {
-                              const remaining = chain.reminders.filter(item => item.id !== subRem.id);
-                              if (chain.instant.audience === "off" && remaining.length === 0) removeChain(stopKey);
-                              else updateChain(stopKey, { ...chain, reminders: remaining });
-                            }}
-                          />
-                        ))}
-
-                        <button
-                          type="button"
-                          className={s.addBtn}
-                          onClick={() => {
-                            const nextStops = (byKey.get(stopKey)?.defaultStopOn || []).filter(k => byKey.has(k));
-                            updateChain(stopKey, { ...chain, reminders: [...chain.reminders, newReminder(nextStops)] });
-                          }}
-                        >
-                          + Add reminder on “{stopName}”
-                        </button>
                       </div>}
                     </div>
                   )}
@@ -938,6 +1066,98 @@ function ReminderCard({
         )}
       </div>
     </div>}
+  </div>;
+}
+
+function TrailStageBlock({
+  triggerKey,
+  triggerLabel,
+  depth,
+  mainTriggerKey,
+  mainTriggerLabel,
+  ancestorTriggers,
+  instant,
+  reminders,
+  folders,
+  byKey,
+  onChangeInstant,
+  onChangeReminders,
+}: {
+  triggerKey: string;
+  triggerLabel: string;
+  depth: number;
+  mainTriggerKey: string;
+  mainTriggerLabel: string;
+  ancestorTriggers: string[];
+  instant: InstantBlockState;
+  reminders: Reminder[];
+  folders: WorkFolder[];
+  byKey: Map<string, WorkItem>;
+  onChangeInstant: (next: InstantBlockState) => void;
+  onChangeReminders: (next: Reminder[]) => void;
+}) {
+  function addStageReminder() {
+    const defaultStops = (byKey.get(triggerKey)?.defaultStopOn || []).filter(k => byKey.has(k) && k !== triggerKey);
+    onChangeReminders([...reminders, newReminder(defaultStops, triggerKey)]);
+  }
+
+  return <div className={s.stageStack}>
+    {/* 1. Template (Auto Message) */}
+    <div className={s.stageSection}>
+      <div className={s.stageSectionHead}>
+        <div className={s.stageTitleGroup}>
+          <span className={s.stageBadge}>Template</span>
+          <strong>Instant auto message</strong>
+        </div>
+        <span className={s.summaryMeta}>
+          {triggerLabel ? `Sent immediately when “${triggerLabel}” happens` : "Sent immediately on trigger"}
+        </span>
+      </div>
+      <InstantAutoMsgBlock state={instant} onChange={onChangeInstant} />
+    </div>
+
+    {/* 2. Follow-up Reminders (+ Stop-Trigger Next Stage Loop) */}
+    <div className={s.stageSection}>
+      <div className={s.stageSectionHead}>
+        <div className={s.stageTitleGroup}>
+          <span className={s.stageBadge} data-kind="reminder">Reminder</span>
+          <strong>Follow-up reminders</strong>
+        </div>
+        <span className={s.summaryMeta}>
+          {reminders.length > 0 ? "Click “+ Next stage” on a Stop Trigger below to continue the loop" : "Optional — add a reminder after this template"}
+        </span>
+      </div>
+
+      <div className={s.stack}>
+        {reminders.map((rem, idx) => (
+          <ReminderCard
+            key={rem.id}
+            index={idx}
+            depth={depth}
+            reminder={rem}
+            inheritedTrigger={depth > 0 ? triggerKey : undefined}
+            mainTriggerKey={mainTriggerKey}
+            mainTriggerLabel={mainTriggerLabel}
+            ancestorTriggers={ancestorTriggers}
+            folders={folders}
+            byKey={byKey}
+            onChange={next => onChangeReminders(reminders.map(item => item.id === rem.id ? next : item))}
+            onRemove={() => onChangeReminders(reminders.filter(item => item.id !== rem.id))}
+          />
+        ))}
+        <button
+          type="button"
+          className={reminders.length > 0 ? s.subtleStageAdd : s.addBtn}
+          onClick={addStageReminder}
+        >
+          {reminders.length > 0
+            ? "+ Add another reminder on same trigger"
+            : depth > 0
+              ? `+ Add reminder on “${triggerLabel}”`
+              : "+ Add reminder"}
+        </button>
+      </div>
+    </div>
   </div>;
 }
 
@@ -963,7 +1183,11 @@ function FormDialog({
   onSave: (form: TrailForm) => void;
 }) {
   const [form, setForm] = useState<TrailForm>(initial);
-  const set = (patch: Partial<TrailForm>) => setForm(curr => ({ ...curr, ...patch }));
+  const [localError, setLocalError] = useState("");
+  const set = (patch: Partial<TrailForm>) => {
+    if (localError) setLocalError("");
+    setForm(curr => ({ ...curr, ...patch }));
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -976,13 +1200,21 @@ function FormDialog({
   const primaryWork = primaryKey ? byKey.get(primaryKey) : undefined;
   const hasPackageScope = form.triggers.some(k => byKey.get(k)?.supportsScope);
   const flowTokens = useMemo(() => buildFlowTokens(form, byKey), [form, byKey]);
+  const totalTemplates = useMemo(() => countTemplates(form.instant, form.reminders), [form.instant, form.reminders]);
   const totalReminders = useMemo(() => countReminders(form.reminders), [form.reminders]);
 
   function setPrimaryTrigger(nextKey: string) {
     const nextTriggers = nextKey ? [nextKey, ...extraKeys.filter(k => k !== nextKey)] : [];
     const stillSupportsScope = nextTriggers.some(k => byKey.get(k)?.supportsScope);
+    const nextAllowed = allowedConditionIds(nextKey ? byKey.get(nextKey) : undefined);
+    const nextReminders = form.reminders.map(rem => (
+      rem.startTrigger === "__main__" && !nextAllowed.includes(rem.condition)
+        ? { ...rem, condition: "any" }
+        : rem
+    ));
     set({
       triggers: nextTriggers,
+      reminders: nextReminders,
       ...(stillSupportsScope ? {} : { scope: "all", selectedPackages: [] }),
     });
   }
@@ -1001,9 +1233,14 @@ function FormDialog({
     });
   }
 
-  function addReminder() {
-    const defaultStops = (primaryWork?.defaultStopOn || []).filter(k => byKey.has(k));
-    set({ reminders: [...form.reminders, newReminder(defaultStops)] });
+  function handleSaveClick() {
+    const { trail, error: valError } = prepareTrailForSave(form, byKey);
+    if (valError) {
+      setLocalError(valError);
+      return;
+    }
+    setLocalError("");
+    onSave(trail);
   }
 
   const pkgBySlug = useMemo(() => {
@@ -1149,54 +1386,40 @@ function FormDialog({
             )}
           </section>
 
-          {/* STEP 2: Instant Auto Message */}
+          {/* STEP 2: Unified Trail Loop (Template -> Reminder -> Stop Trigger -> Next Stage) */}
           <section className={s.step}>
             <div className={s.stepHead}>
               <span className={s.stepNum}>2</span>
               <div>
-                <h3>Instant auto message</h3>
-                <p>Sent immediately when the trigger point happens.</p>
-              </div>
-            </div>
-            <InstantAutoMsgBlock state={form.instant} onChange={instant => set({ instant })} />
-          </section>
-
-          {/* STEP 3: Follow-up Reminders & Stop-Trigger Chain */}
-          <section className={s.step}>
-            <div className={s.stepHead}>
-              <span className={s.stepNum}>3</span>
-              <div>
-                <h3>Reminders &amp; follow-up chain</h3>
-                <p>Add reminders and click <strong>+</strong> on any stop trigger to continue the chain.</p>
+                <h3>Message &amp; reminder trail</h3>
+                <p>Start with an instant Template (Auto Message), add a Reminder, and click <strong>+ Next stage</strong> on any Stop Trigger to continue the Template → Reminder loop.</p>
               </div>
             </div>
 
-            <div className={s.stack}>
-              {form.reminders.map((rem, idx) => (
-                <ReminderCard
-                  key={rem.id}
-                  index={idx}
-                  depth={0}
-                  reminder={rem}
-                  mainTriggerLabel={primaryKey ? workLabel(primaryKey, byKey) : ""}
-                  folders={folders}
-                  byKey={byKey}
-                  onChange={next => set({ reminders: form.reminders.map(item => item.id === rem.id ? next : item) })}
-                  onRemove={() => set({ reminders: form.reminders.filter(item => item.id !== rem.id) })}
-                />
-              ))}
-              <button type="button" className={s.addBtn} onClick={addReminder}>+ Add reminder</button>
-            </div>
+            <TrailStageBlock
+              triggerKey={primaryKey}
+              triggerLabel={primaryKey ? workLabel(primaryKey, byKey) : ""}
+              depth={0}
+              mainTriggerKey={primaryKey}
+              mainTriggerLabel={primaryKey ? workLabel(primaryKey, byKey) : ""}
+              ancestorTriggers={form.triggers}
+              instant={form.instant}
+              reminders={form.reminders}
+              folders={folders}
+              byKey={byKey}
+              onChangeInstant={instant => set({ instant })}
+              onChangeReminders={reminders => set({ reminders })}
+            />
           </section>
         </div>
       </div>
 
       <footer className={s.dialogFoot}>
-        <small style={error ? { color: "var(--pn-err, #8b2a21)", fontWeight: 600 } : undefined}>
-          {error
-            ? error
+        <small style={(localError || error) ? { color: "var(--pn-err, #8b2a21)", fontWeight: 600 } : undefined}>
+          {localError || error
+            ? (localError || error)
             : primaryKey
-              ? `${form.instant.audience !== "off" ? "Instant + " : ""}${totalReminders} reminder${totalReminders === 1 ? "" : "s"} ready to save`
+              ? `${totalTemplates} template${totalTemplates === 1 ? "" : "s"} · ${totalReminders} reminder${totalReminders === 1 ? "" : "s"} ready to save`
               : "Choose a trigger point to save."}
         </small>
         <div className={s.footActions}>
@@ -1205,7 +1428,7 @@ function FormDialog({
             type="button"
             className={s.primaryBtn}
             disabled={!primaryKey || saving}
-            onClick={() => onSave(form)}
+            onClick={handleSaveClick}
           >
             {saving ? "Saving…" : form._id ? "Save changes" : "Save automated msg"}
           </button>
@@ -1224,12 +1447,13 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   const [saveError, setSaveError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [panelError, setPanelError] = useState("");
+  const [reloadSeq, setReloadSeq] = useState(0);
 
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     try {
       const [actionsRes, trailsRes] = await Promise.all([
-        fetch("/api/auto-reply/actions", { signal, cache: "no-store" }),
+        fetch("/api/auto-reply/actions?view=catalog", { signal, cache: "no-store" }),
         fetch("/api/auto-reply/action-rules/trails", { signal, cache: "no-store" }),
       ]);
       const [actionsJson, trailsJson] = await Promise.all([
@@ -1252,7 +1476,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
     }
   }, []);
 
-  useCommunicationRefresh(load, active);
+  useCommunicationRefresh(load, active, 0, String(reloadSeq), "");
 
   const catalog = useMemo(() => buildWorkCatalog(actionsData), [actionsData]);
 
@@ -1331,9 +1555,14 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
           {loading && !catalog.isLive ? "Loading live works…" : catalog.isLive ? `${catalog.byKey.size} works · ${catalog.packages.length} packages loaded` : "Fallback catalog"}
         </span>
       </div>
-      <button type="button" className={s.primaryBtn} onClick={() => { setSaveError(""); setEditing(emptyForm()); }}>
-        + Create automated msg
-      </button>
+      <div className={s.listActions}>
+        <button type="button" className={s.ghostBtn} disabled={loading} onClick={() => setReloadSeq(v => v + 1)}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+        <button type="button" className={s.primaryBtn} onClick={() => { setSaveError(""); setEditing(emptyForm()); }}>
+          + Create automated msg
+        </button>
+      </div>
     </div>
 
     {panelError && <p className={s.hint} style={{ color: "var(--pn-err, #8b2a21)", fontWeight: 600 }}>{panelError}</p>}

@@ -68,8 +68,9 @@ export function CommunicationLiveProvider({ url, children }: { url: string | nul
 }
 
 // No response storage. One active read and one coalesced follow-up per mounted
-// panel. Old polling remains only when the authorized transport is unavailable.
-export function useCommunicationRefresh(load: (signal: AbortSignal) => Promise<unknown>, active: boolean, fallbackMs = 5000, identity = "", resources = "communication") {
+// panel. Pass fallbackMs > 0 only when polling fallback is explicitly needed;
+// pass resources = "" for config panels that load once and refresh manually.
+export function useCommunicationRefresh(load: (signal: AbortSignal) => Promise<unknown>, active: boolean, fallbackMs = 0, identity = "", resources = "communication") {
   const feed = useContext(FeedContext);
   const callback = useRef(load);
   useEffect(() => { callback.current = load; }, [load]);
@@ -86,9 +87,17 @@ export function useCommunicationRefresh(load: (signal: AbortSignal) => Promise<u
       } catch { /* each caller owns its visible read error */ }
       finally { pending = false; }
     };
-    const unsubscribe = feed.subscribe(() => { void refresh(); }, resources.split(","));
+    const domains = resources ? resources.split(",").filter(Boolean) : [];
+    const unsubscribe = domains.length ? feed.subscribe(() => { void refresh(); }, domains) : null;
+    const onVisibleOnce = () => { if (!document.hidden) void refresh(); };
+    if (!domains.length && document.hidden) document.addEventListener("visibilitychange", onVisibleOnce, { once: true });
     void refresh();
     const timer = fallbackMs ? setInterval(() => { if (!feed.connected) void refresh(); }, fallbackMs) : null;
-    return () => { controller.abort(); unsubscribe(); if (timer) clearInterval(timer); };
+    return () => {
+      controller.abort();
+      unsubscribe?.();
+      document.removeEventListener("visibilitychange", onVisibleOnce);
+      if (timer) clearInterval(timer);
+    };
   }, [active, feed, fallbackMs, identity, resources]);
 }

@@ -163,6 +163,6 @@ export function useReminderSummary(active: boolean) {
       if (!signal.aborted) { setSummary(result.data); setError(false); }
     } catch { if (!signal.aborted) { setSummary(null); setError(true); } }
   }, []);
-  useCommunicationRefresh(load, active, 5000);
+  useCommunicationRefresh(load, active, 0);
   return { summary, error };
 }

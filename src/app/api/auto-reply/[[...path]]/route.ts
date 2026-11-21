@@ -17,7 +17,7 @@ async function handle(request: Request, context: Context) {
     const rawBody = request.method === "POST" || request.method === "PUT" ? await request.text() : "";
     const body = rawBody.trim() ? JSON.parse(rawBody) : undefined;
     const page = ["payment-reminders", "reminder-runs", "legacy-reminder-history"].includes(path) ? new URL(request.url).searchParams.get("page") : null;
-    const view = ["reminder-runs", "payment-reminders"].includes(path) ? new URL(request.url).searchParams.get("view") : null;
+    const view = ["reminder-runs", "payment-reminders", "actions"].includes(path) ? new URL(request.url).searchParams.get("view") : null;
     const params = new URLSearchParams();
     if (page) params.set("page", page);
     if (view) params.set("view", view);
