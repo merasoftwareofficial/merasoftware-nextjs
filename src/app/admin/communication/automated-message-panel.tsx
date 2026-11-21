@@ -14,8 +14,7 @@ import {
 
 /**
  * Automated message system — Single-Form End-to-End Trail (SSOT).
- * Every stage (root & Stop-Trigger chained) uses the same TrailStageBlock:
- * Trigger -> Template (Auto Message) -> Reminder -> Stop Trigger (+ Next stage) -> ...
+ * Compact, zero-blink UI with searchable multi-select comboboxes & segmented controls.
  */
 
 type TimingSlot = { amount: number; unit: Unit; pos: TimingPos };
@@ -65,6 +64,8 @@ type TrailForm = {
   enabled?: boolean;
   control?: "auto" | "review" | "off";
 };
+
+type ComboOption = { key: string; label: string; group: string; sub?: string };
 
 const blankMsg = (): SingleMsg => ({ channel: "whatsapp", subject: "", text: "" });
 const blankStep = (pos: TimingPos = "before", amount = 3, unit: Unit = "days"): MessageStep => ({
@@ -398,30 +399,195 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
 }
 
 function buildFlowTokens(form: TrailForm, byKey: Map<string, WorkItem>): string[] {
-  const out: string[] = [];
-  if (form.triggers.length > 0) out.push(triggersLabel(form.triggers, byKey));
-  if (form.instant.audience !== "off") {
-    out.push(`Template (${audienceShort(form.instant.audience)})`);
+  if (!form.triggers.length) return [];
+  const out: string[] = [triggersLabel(form.triggers, byKey)];
+  if (form.instant.audience !== "off") out.push(`Instant (${audienceShort(form.instant.audience)})`);
+  for (const rem of form.reminders) {
+    out.push(`Reminder (${audienceShort(rem.audience)})`);
+    if (rem.stopOn.length) out.push(`Stop: ${triggersLabel(rem.stopOn, byKey)}`);
   }
-  form.reminders.forEach((rem, idx) => {
-    const override = rem.startTrigger !== "__main__" ? ` · ${workLabel(rem.startTrigger, byKey)}` : "";
-    out.push(`Reminder ${idx + 1} (${audienceShort(rem.audience)}${override})`);
-    if (rem.stopOn.length > 0) out.push(`Stop: ${triggersLabel(rem.stopOn, byKey)}`);
-  });
-  form.stages.forEach(st => {
-    if (st.triggers.length > 0) out.push(`On: ${triggersLabel(st.triggers, byKey)}`);
-    if (st.instant.audience !== "off") out.push(`Template (${audienceShort(st.instant.audience)})`);
+  form.stages.forEach((st, idx) => {
+    const label = triggersLabel(st.triggers, byKey) || `Stage ${idx + 2}`;
+    if (st.instant.audience !== "off") out.push(`${label}: Instant`);
     if (st.reminder) {
-      const override = st.reminder.startTrigger !== "__main__" ? ` · ${workLabel(st.reminder.startTrigger, byKey)}` : "";
-      out.push(`Reminder (${audienceShort(st.reminder.audience)}${override})`);
-      if (st.reminder.stopOn.length > 0) out.push(`Stop: ${triggersLabel(st.reminder.stopOn, byKey)}`);
+      out.push(`${label}: Reminder`);
+      if (st.reminder.stopOn.length) out.push(`Stop: ${triggersLabel(st.reminder.stopOn, byKey)}`);
     }
   });
   return out;
 }
 
+/**
+ * Searchable multi-select combobox with inline chips, grouped options, and Escape safety.
+ * Used as SSOT for Trigger points, Stop triggers, and Include/Exclude packages.
+ */
+function SearchableMultiSelect({
+  ariaLabel,
+  placeholder,
+  addPlaceholder,
+  options,
+  values,
+  onChange,
+}: {
+  ariaLabel: string;
+  placeholder: string;
+  addPlaceholder: string;
+  options: ComboOption[];
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [menuStyle, setMenuStyle] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const labelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of options) m.set(o.key, o.label);
+    return m;
+  }, [options]);
+
+  const updateMenuPos = useCallback(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const openDown = spaceBelow >= 260 || spaceBelow >= spaceAbove;
+    const maxHeight = Math.min(540, Math.max(220, openDown ? spaceBelow : spaceAbove));
+    setMenuStyle({
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      ...(openDown ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 }),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPos();
+    const onDocDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onScrollOrResize = () => updateMenuPos();
+    document.addEventListener("mousedown", onDocDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open, updateMenuPos]);
+
+  const grouped = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = options.filter(o =>
+      !q || o.label.toLowerCase().includes(q) || o.group.toLowerCase().includes(q) || (o.sub || "").toLowerCase().includes(q),
+    );
+    const map = new Map<string, ComboOption[]>();
+    for (const o of filtered) {
+      const list = map.get(o.group) || [];
+      list.push(o);
+      map.set(o.group, list);
+    }
+    return Array.from(map.entries());
+  }, [options, query]);
+
+  function toggleKey(key: string) {
+    if (values.includes(key)) onChange(values.filter(k => k !== key));
+    else onChange([...values, key]);
+    inputRef.current?.focus();
+    requestAnimationFrame(updateMenuPos);
+  }
+
+  return (
+    <div
+      ref={wrapRef}
+      className={s.comboWrap}
+      onKeyDown={e => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <div
+        ref={boxRef}
+        className={s.comboBox}
+        data-open={open}
+        onClick={() => { setOpen(true); inputRef.current?.focus(); }}
+      >
+        {values.map(k => {
+          const name = labelByKey.get(k) || k;
+          return (
+            <span key={k} className={s.comboChip}>
+              <span>{name}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${name}`}
+                onClick={e => { e.stopPropagation(); onChange(values.filter(x => x !== k)); }}
+              >✕</button>
+            </span>
+          );
+        })}
+        <input
+          ref={inputRef}
+          type="text"
+          className={s.comboInput}
+          aria-label={ariaLabel}
+          placeholder={values.length > 0 ? addPlaceholder : placeholder}
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        />
+        <span className={s.comboCaret} aria-hidden="true">▾</span>
+      </div>
+
+      {open && menuStyle && (
+        <div
+          className={s.comboMenu}
+          style={menuStyle}
+          role="listbox"
+          aria-multiselectable="true"
+        >
+          {grouped.length === 0 ? (
+            <div className={s.comboEmpty}>No matching items</div>
+          ) : (
+            grouped.map(([group, list]) => (
+              <div key={group}>
+                <div className={s.comboGroup}>{group}</div>
+                {list.map(item => {
+                  const selected = values.includes(item.key);
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      title={item.sub || item.label}
+                      className={s.comboOpt}
+                      data-selected={selected}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => toggleKey(item.key)}
+                    >
+                      <span className={s.comboCheck} aria-hidden="true">✓</span>
+                      <span className={s.comboOptLabel}>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MultiTriggerSelect({
-  label,
   ariaLabel,
   emptyPlaceholder,
   addPlaceholder,
@@ -432,7 +598,6 @@ function MultiTriggerSelect({
   showHint = false,
   onChange,
 }: {
-  label: string;
   ariaLabel: string;
   emptyPlaceholder: string;
   addPlaceholder: string;
@@ -443,45 +608,35 @@ function MultiTriggerSelect({
   showHint?: boolean;
   onChange: (next: string[]) => void;
 }) {
-  const excluded = [...values, ...exclude];
+  const options = useMemo<ComboOption[]>(() => {
+    const out: ComboOption[] = [];
+    for (const group of folders) {
+      for (const item of group.items) {
+        if (!exclude.includes(item.key)) {
+          out.push({ key: item.key, label: item.label, group: group.folder, sub: item.when });
+        }
+      }
+    }
+    return out;
+  }, [folders, exclude]);
+
   const primaryWork = values.length === 1 ? byKey.get(values[0]) : undefined;
+  const hintText = values.length === 0
+    ? "Select one or more works that trigger this step."
+    : values.length === 1
+      ? (primaryWork?.when || "")
+      : `${values.length} triggers selected in this group.`;
+
   return <>
-    <div className={s.fieldRow}>
-      <label className={s.fieldLabel}>{label}</label>
-      <select
-        className={s.select}
-        aria-label={ariaLabel}
-        value=""
-        onChange={e => {
-          const val = e.target.value;
-          if (val && !values.includes(val)) onChange([...values, val]);
-        }}
-      >
-        <option value="">{values.length > 0 ? addPlaceholder : emptyPlaceholder}</option>
-        <WorkOptions folders={folders} exclude={excluded} />
-      </select>
-    </div>
-
-    {values.length > 0 && (
-      <div className={s.chipList}>
-        {values.map(key => {
-          const name = workLabel(key, byKey);
-          return (
-            <span key={key} className={s.chip}>
-              <span>{name}</span>
-              <button
-                type="button"
-                className={s.chipClose}
-                aria-label={`Remove ${name}`}
-                onClick={() => onChange(values.filter(k => k !== key))}
-              >✕</button>
-            </span>
-          );
-        })}
-      </div>
-    )}
-
-    {showHint && primaryWork?.when && <p className={s.hint}>{primaryWork.when}</p>}
+    <SearchableMultiSelect
+      ariaLabel={ariaLabel}
+      placeholder={emptyPlaceholder}
+      addPlaceholder={addPlaceholder}
+      options={options}
+      values={values}
+      onChange={onChange}
+    />
+    {showHint && <p className={s.whenHint}>{hintText}</p>}
   </>;
 }
 
@@ -493,9 +648,7 @@ function WorkOptions({ folders, exclude = [] }: { folders: WorkFolder[]; exclude
       return (
         <optgroup key={group.folder} label={group.folder}>
           {items.map(item => (
-            <option key={item.key} value={item.key}>
-              {item.label}
-            </option>
+            <option key={item.key} value={item.key}>{item.label}</option>
           ))}
         </optgroup>
       );
@@ -540,54 +693,56 @@ function MessageEditor({
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const effectivePos = baseDate === "trigger_date" && step.pos === "before" ? "after" : step.pos;
   return <div className={s.msgCard}>
-    <div className={s.msgHead}>
-      <strong>{title}</strong>
-      {canRemove && onRemove && (
-        <button type="button" className={s.iconBtn} onClick={onRemove}>Remove</button>
-      )}
-    </div>
+    {(showTiming || canRemove) && (
+      <div className={s.msgTitleRow}>
+        <strong>{title}</strong>
+        {canRemove && onRemove && (
+          <button type="button" className={s.miniDangerBtn} onClick={onRemove}>Remove</button>
+        )}
+      </div>
+    )}
 
-    <div className={s.controlRow}>
-      {showTiming && (
-        <div className={s.inlineGroup}>
-          <span className={s.miniLabel}>When</span>
-          {effectivePos !== "on" && <>
-            <input
-              type="number"
-              className={s.numInput}
-              min={0}
-              max={step.unit === "hours" ? 720 : 365}
-              aria-label={`${title} amount`}
-              value={step.amount}
-              onChange={e => onChange({ amount: Math.max(0, Number(e.target.value || 0)) })}
-            />
-            <select
-              className={s.compactSelect}
-              aria-label={`${title} unit`}
-              value={step.unit}
-              onChange={e => onChange({ unit: e.target.value as Unit })}
-            >
-              <option value="days">days</option>
-              <option value="hours">hours</option>
-            </select>
-          </>}
+    {showTiming && (
+      <div className={s.timingRow}>
+        <span className={s.miniLabel}>When</span>
+        {effectivePos !== "on" && <>
+          <input
+            type="number"
+            className={s.numInput}
+            min={0}
+            max={step.unit === "hours" ? 720 : 365}
+            aria-label={`${title} amount`}
+            value={step.amount}
+            onChange={e => onChange({ amount: Math.max(0, Number(e.target.value || 0)) })}
+          />
           <select
             className={s.compactSelect}
-            aria-label={`${title} position`}
-            value={effectivePos}
-            onChange={e => onChange({ pos: e.target.value as TimingPos })}
+            aria-label={`${title} unit`}
+            value={step.unit}
+            onChange={e => onChange({ unit: e.target.value as Unit })}
           >
-            {baseDate !== "trigger_date" && (
-              <option value="before">{timingPositionLabel("before", baseDate)}</option>
-            )}
-            <option value="on">{timingPositionLabel("on", baseDate)}</option>
-            <option value="after">{timingPositionLabel("after", baseDate)}</option>
+            <option value="days">days</option>
+            <option value="hours">hours</option>
           </select>
-        </div>
-      )}
+        </>}
+        <select
+          className={s.compactSelect}
+          aria-label={`${title} position`}
+          value={effectivePos}
+          onChange={e => onChange({ pos: e.target.value as TimingPos })}
+        >
+          {baseDate !== "trigger_date" && (
+            <option value="before">{timingPositionLabel("before", baseDate)}</option>
+          )}
+          <option value="on">{timingPositionLabel("on", baseDate)}</option>
+          <option value="after">{timingPositionLabel("after", baseDate)}</option>
+        </select>
+      </div>
+    )}
 
+    <div className={s.msgTop}>
       <div className={s.inlineGroup}>
-        <span className={s.miniLabel}>Via</span>
+        <span className={s.miniLabel}>Channel</span>
         <select
           className={s.compactSelect}
           aria-label={`${title} channel`}
@@ -597,6 +752,32 @@ function MessageEditor({
           <option value="whatsapp">WhatsApp only</option>
           <option value="email">Email only</option>
           <option value="both">Both (WhatsApp + Email)</option>
+        </select>
+      </div>
+
+      <div className={s.toolbarRow}>
+        <div className={s.formatBtns} role="toolbar" aria-label="Text formatting">
+          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "bold", text => onChange({ text }))}><strong>B</strong></button>
+          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "italic", text => onChange({ text }))}><em>I</em></button>
+          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "list", text => onChange({ text }))}>• List</button>
+        </div>
+        <select
+          className={s.varSelect}
+          aria-label="Insert variable"
+          value=""
+          onChange={e => {
+            const token = e.target.value;
+            if (!token) return;
+            const el = ref.current;
+            const start = el?.selectionStart ?? step.text.length;
+            const end = el?.selectionEnd ?? step.text.length;
+            onChange({ text: step.text.slice(0, start) + token + step.text.slice(end) });
+          }}
+        >
+          <option value="">Insert variable ▾</option>
+          {PLACEHOLDERS.map(ph => (
+            <option key={ph.token} value={ph.token}>{ph.label} ({ph.token})</option>
+          ))}
         </select>
       </div>
     </div>
@@ -611,32 +792,6 @@ function MessageEditor({
         onChange={e => onChange({ subject: e.target.value })}
       />
     )}
-
-    <div className={s.toolbarRow}>
-      <div className={s.formatBtns} role="toolbar" aria-label="Text formatting">
-        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "bold", text => onChange({ text }))}><strong>B</strong></button>
-        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "italic", text => onChange({ text }))}><em>I</em></button>
-        <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "list", text => onChange({ text }))}>• List</button>
-      </div>
-      <select
-        className={s.varSelect}
-        aria-label="Insert variable"
-        value=""
-        onChange={e => {
-          const token = e.target.value;
-          if (!token) return;
-          const el = ref.current;
-          const start = el?.selectionStart ?? step.text.length;
-          const end = el?.selectionEnd ?? step.text.length;
-          onChange({ text: step.text.slice(0, start) + token + step.text.slice(end) });
-        }}
-      >
-        <option value="">Insert variable ▾</option>
-        {PLACEHOLDERS.map(ph => (
-          <option key={ph.token} value={ph.token}>{ph.label} ({ph.token})</option>
-        ))}
-      </select>
-    </div>
 
     <textarea
       ref={ref}
@@ -657,54 +812,76 @@ function InstantAutoMsgBlock({
   state: InstantBlockState;
   onChange: (next: InstantBlockState) => void;
 }) {
-  const showClient = state.audience === "client" || state.audience === "both";
-  const showAdmin = state.audience === "admin" || state.audience === "both";
-  return <div className={s.stack}>
-    <div className={s.fieldRow}>
-      <label className={s.fieldLabel}>Send to</label>
-      <select
-        className={s.select}
-        aria-label="Instant message audience"
-        value={state.audience}
-        onChange={e => onChange({ ...state, audience: e.target.value as InstantAudience })}
-      >
-        <option value="off">Off (Don&apos;t send instant message)</option>
-        <option value="client">Client only</option>
-        <option value="admin">Admin / Team only</option>
-        <option value="both">Both (Client &amp; Admin)</option>
-      </select>
+  const [subTab, setSubTab] = useState<"client" | "admin">("client");
+  const activeKey: "client" | "admin" = state.audience === "both" ? subTab : (state.audience === "admin" ? "admin" : "client");
+
+  return (
+    <div style={{ display: "grid", gap: "8px" }}>
+      <div className={s.blockHead}>
+        <div className={s.blockTitle}>
+          <span className={s.stageBadge}>Template</span>
+          <span>Instant auto message</span>
+        </div>
+        <select
+          className={s.compactSelect}
+          aria-label="Instant message audience"
+          value={state.audience}
+          onChange={e => onChange({ ...state, audience: e.target.value as InstantAudience })}
+        >
+          <option value="off">Off (Don&apos;t send instant message)</option>
+          <option value="client">Client only</option>
+          <option value="admin">Admin / Team only</option>
+          <option value="both">Both (Client &amp; Admin)</option>
+        </select>
+      </div>
+
+      {state.audience === "off" ? (
+        <span className={s.cardSub}>Instant auto message is off for this stage.</span>
+      ) : (
+        <>
+          {state.audience === "both" && (
+            <div className={s.blockHead}>
+              <div className={s.seg} role="tablist" aria-label="Instant message recipient tab">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={subTab === "client"}
+                  className={s.segBtn}
+                  data-active={subTab === "client"}
+                  onClick={() => setSubTab("client")}
+                >
+                  Client message
+                  {state.client.text.trim() && <span className={s.tabDot} aria-hidden="true" />}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={subTab === "admin"}
+                  className={s.segBtn}
+                  data-active={subTab === "admin"}
+                  onClick={() => setSubTab("admin")}
+                >
+                  Admin / Team message
+                  {state.admin.text.trim() && <span className={s.tabDot} aria-hidden="true" />}
+                </button>
+              </div>
+              <span className={s.cardSub}>Sent immediately on trigger</span>
+            </div>
+          )}
+
+          <MessageEditor
+            title={activeKey === "admin" ? "Admin instant message" : "Client instant message"}
+            step={{ amount: 0, unit: "days", pos: "after", ...(activeKey === "admin" ? state.admin : state.client) }}
+            showTiming={false}
+            onChange={patch => {
+              if (activeKey === "admin") onChange({ ...state, admin: { ...state.admin, ...patch } });
+              else onChange({ ...state, client: { ...state.client, ...patch } });
+            }}
+          />
+        </>
+      )}
     </div>
-
-    {showClient && (
-      <div className={s.audienceCard}>
-        <div className={s.audienceHead}>
-          <strong>Client</strong>
-          <span className={s.badge}>Sent immediately</span>
-        </div>
-        <MessageEditor
-          title="Client instant message"
-          step={{ amount: 0, unit: "days", pos: "after", ...state.client }}
-          showTiming={false}
-          onChange={patch => onChange({ ...state, client: { ...state.client, ...patch } })}
-        />
-      </div>
-    )}
-
-    {showAdmin && (
-      <div className={s.audienceCard}>
-        <div className={s.audienceHead}>
-          <strong>Admin / Team</strong>
-          <span className={s.badge}>Sent immediately</span>
-        </div>
-        <MessageEditor
-          title="Admin instant message"
-          step={{ amount: 0, unit: "days", pos: "after", ...state.admin }}
-          showTiming={false}
-          onChange={patch => onChange({ ...state, admin: { ...state.admin, ...patch } })}
-        />
-      </div>
-    )}
-  </div>;
+  );
 }
 
 function AudienceBlock({
@@ -714,6 +891,7 @@ function AudienceBlock({
   steps,
   baseDate,
   canCopyClient,
+  hideHeaderTitle = false,
   onModeChange,
   onCopyClient,
   onUpdateSteps,
@@ -724,6 +902,7 @@ function AudienceBlock({
   steps: MessageStep[];
   baseDate: BaseDate;
   canCopyClient?: boolean;
+  hideHeaderTitle?: boolean;
   onModeChange: (mode: MessageMode) => void;
   onCopyClient?: () => void;
   onUpdateSteps: (next: MessageStep[]) => void;
@@ -732,108 +911,110 @@ function AudienceBlock({
   const adminSyncsClient = who === "admin" && Boolean(canCopyClient) && universal;
   const primaryStep = steps[0] || blankStep(baseDate === "trigger_date" ? "after" : "before", 3);
 
-  return <div className={s.audienceCard}>
-    <div className={s.audienceHead}>
-      <strong>{title}</strong>
-      <div className={s.audienceTools}>
-        <select
-          className={s.compactSelect}
-          aria-label={`${title} message style`}
-          value={mode}
-          onChange={e => onModeChange(e.target.value as MessageMode)}
-        >
-          <option value="separate">Separate message per timing</option>
-          <option value="universal">
-            {who === "admin" && canCopyClient ? "1 universal message (same days as Client)" : "1 universal message (all timings)"}
-          </option>
-        </select>
-        {who === "admin" && canCopyClient && mode === "separate" && onCopyClient && (
-          <button type="button" className={s.ghostBtn} onClick={onCopyClient}>Copy client&apos;s days</button>
-        )}
+  return (
+    <div style={{ display: "grid", gap: "8px" }}>
+      <div className={s.blockHead}>
+        {!hideHeaderTitle ? <strong className={s.labelRow}>{title}</strong> : <span />}
+        <div className={s.inlineGroup}>
+          {who === "admin" && canCopyClient && mode === "separate" && onCopyClient && (
+            <button type="button" className={s.miniBtn} onClick={onCopyClient}>Copy client&apos;s days</button>
+          )}
+          <select
+            className={s.compactSelect}
+            aria-label={`${title} message style`}
+            value={mode}
+            onChange={e => onModeChange(e.target.value as MessageMode)}
+          >
+            <option value="separate">Separate message per timing</option>
+            <option value="universal">
+              {who === "admin" && canCopyClient ? "1 universal message (same days as Client)" : "1 universal message (all timings)"}
+            </option>
+          </select>
+        </div>
       </div>
-    </div>
 
-    {universal && !adminSyncsClient && (
-      <div className={s.timingList}>
-        <span className={s.miniLabel}>Timings (shared by this message)</span>
-        {steps.map((slot, idx) => (
-          <div key={idx} className={s.timingRow}>
-            <span className={s.timingNum}>#{idx + 1}</span>
-            {slot.pos !== "on" && <>
-              <input
-                type="number"
-                className={s.numInput}
-                min={0}
-                max={slot.unit === "hours" ? 720 : 365}
-                value={slot.amount}
-                onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, amount: Math.max(0, Number(e.target.value || 0)) } : st))}
-              />
+      {universal && !adminSyncsClient && (
+        <div className={s.timingList}>
+          <span className={s.miniLabel}>Timings (shared by this message)</span>
+          {steps.map((slot, idx) => (
+            <div key={idx} className={s.timingRow}>
+              <span className={s.timingNum}>#{idx + 1}</span>
+              {slot.pos !== "on" && <>
+                <input
+                  type="number"
+                  className={s.numInput}
+                  min={0}
+                  max={slot.unit === "hours" ? 720 : 365}
+                  value={slot.amount}
+                  onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, amount: Math.max(0, Number(e.target.value || 0)) } : st))}
+                />
+                <select
+                  className={s.compactSelect}
+                  value={slot.unit}
+                  onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, unit: e.target.value as Unit } : st))}
+                >
+                  <option value="days">days</option>
+                  <option value="hours">hours</option>
+                </select>
+              </>}
               <select
                 className={s.compactSelect}
-                value={slot.unit}
-                onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, unit: e.target.value as Unit } : st))}
+                value={baseDate === "trigger_date" && slot.pos === "before" ? "after" : slot.pos}
+                onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, pos: e.target.value as TimingPos } : st))}
               >
-                <option value="days">days</option>
-                <option value="hours">hours</option>
+                {baseDate !== "trigger_date" && (
+                  <option value="before">{timingPositionLabel("before", baseDate)}</option>
+                )}
+                <option value="on">{timingPositionLabel("on", baseDate)}</option>
+                <option value="after">{timingPositionLabel("after", baseDate)}</option>
               </select>
-            </>}
-            <select
-              className={s.compactSelect}
-              value={baseDate === "trigger_date" && slot.pos === "before" ? "after" : slot.pos}
-              onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, pos: e.target.value as TimingPos } : st))}
-            >
-              {baseDate !== "trigger_date" && (
-                <option value="before">{timingPositionLabel("before", baseDate)}</option>
+              {steps.length > 1 && (
+                <button type="button" className={s.miniDangerBtn} aria-label="Remove timing" onClick={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}>Remove</button>
               )}
-              <option value="on">{timingPositionLabel("on", baseDate)}</option>
-              <option value="after">{timingPositionLabel("after", baseDate)}</option>
-            </select>
-            {steps.length > 1 && (
-              <button type="button" className={s.iconBtn} aria-label="Remove timing" onClick={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}>✕</button>
-            )}
-          </div>
-        ))}
-        {steps.length < 10 && (
-          <button type="button" className={s.subtleAdd} onClick={() => onUpdateSteps([...steps, blankStep("after", 2)])}>
-            + Add timing
-          </button>
-        )}
-      </div>
-    )}
+            </div>
+          ))}
+          {steps.length < 10 && (
+            <button type="button" className={s.subtleAdd} onClick={() => onUpdateSteps([...steps, blankStep("after", 2)])}>
+              + Add timing
+            </button>
+          )}
+        </div>
+      )}
 
-    {adminSyncsClient && (
-      <p className={s.hint}>Follows Client&apos;s timings automatically — write one message for Admin below.</p>
-    )}
+      {adminSyncsClient && (
+        <span className={s.cardSub}>Follows Client&apos;s timings automatically — write one message for Admin below.</span>
+      )}
 
-    {universal ? (
-      <MessageEditor
-        title={`Universal ${who === "client" ? "Client" : "Admin"} message`}
-        step={primaryStep}
-        showTiming={false}
-        onChange={patch => onUpdateSteps(steps.map(st => ({ ...st, channel: patch.channel ?? st.channel, subject: patch.subject ?? st.subject, text: patch.text ?? st.text })))}
-      />
-    ) : (
-      <div className={s.stack}>
-        {steps.map((step, idx) => (
-          <MessageEditor
-            key={idx}
-            title={`Message ${idx + 1}`}
-            step={step}
-            showTiming={true}
-            baseDate={baseDate}
-            canRemove={steps.length > 1}
-            onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
-            onRemove={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}
-          />
-        ))}
-        {steps.length < 10 && (
-          <button type="button" className={s.subtleAdd} onClick={() => onUpdateSteps([...steps, blankStep("after", 2)])}>
-            + Add follow-up message
-          </button>
-        )}
-      </div>
-    )}
-  </div>;
+      {universal ? (
+        <MessageEditor
+          title={`Universal ${who === "client" ? "Client" : "Admin"} message`}
+          step={primaryStep}
+          showTiming={false}
+          onChange={patch => onUpdateSteps(steps.map(st => ({ ...st, channel: patch.channel ?? st.channel, subject: patch.subject ?? st.subject, text: patch.text ?? st.text })))}
+        />
+      ) : (
+        <div style={{ display: "grid", gap: "8px" }}>
+          {steps.map((step, idx) => (
+            <MessageEditor
+              key={idx}
+              title={`Message ${idx + 1}`}
+              step={step}
+              showTiming={true}
+              baseDate={baseDate}
+              canRemove={steps.length > 1}
+              onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
+              onRemove={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}
+            />
+          ))}
+          {steps.length < 10 && (
+            <button type="button" className={s.subtleAdd} onClick={() => onUpdateSteps([...steps, blankStep("after", 2)])}>
+              + Add follow-up message
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ReminderCard({
@@ -857,7 +1038,7 @@ function ReminderCard({
   onChange: (reminder: Reminder) => void;
   onRemove: () => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [subTab, setSubTab] = useState<"client" | "admin">("client");
   const set = (patch: Partial<Reminder>) => onChange({ ...reminder, ...patch });
 
   const effectiveTriggers = reminder.startTrigger !== "__main__" ? [reminder.startTrigger] : stageTriggers;
@@ -868,6 +1049,7 @@ function ReminderCard({
 
   const showClient = reminder.audience === "client" || reminder.audience === "both";
   const showAdmin = reminder.audience === "admin" || reminder.audience === "both";
+  const activeWho: "client" | "admin" = reminder.audience === "both" ? subTab : (reminder.audience === "admin" ? "admin" : "client");
 
   const msgCount = (showClient ? reminder.clientSteps.length : 0) + (showAdmin ? reminder.adminSteps.length : 0);
   const repeatSummary = reminder.repeatMode === "permanent"
@@ -911,90 +1093,171 @@ function ReminderCard({
 
   return <div className={s.remCard} data-depth={Math.min(depth, 3)}>
     <header className={s.remHeader}>
-      <button type="button" className={s.collapseBtn} onClick={() => setCollapsed(v => !v)} aria-expanded={!collapsed}>
-        <span className={s.chevron}>{collapsed ? "▸" : "▾"}</span>
+      <div className={s.remHeaderInfo}>
         <strong>Reminder {index + 1}</strong>
         <span className={s.summaryMeta}>
           {audienceShort(reminder.audience)} · {msgCount} msg{msgCount === 1 ? "" : "s"} · {repeatSummary} · {stopSummary}
         </span>
-      </button>
-      <button type="button" className={s.iconBtn} aria-label={`Remove reminder ${index + 1}`} onClick={onRemove}>✕</button>
+      </div>
+      <div className={s.remHeaderActions}>
+        <button
+          type="button"
+          className={s.miniDangerBtn}
+          aria-label={`Remove reminder ${index + 1}`}
+          onClick={onRemove}
+        >
+          Remove
+        </button>
+      </div>
     </header>
 
-    {!collapsed && <div className={s.remBody}>
-      {/* 1. Start trigger (consistent across every stage) */}
-      <div className={s.fieldRow}>
-        <label className={s.fieldLabel}>Start when</label>
-        <select
-          className={s.select}
-          aria-label="Start reminder trigger"
-          value={reminder.startTrigger}
-          onChange={e => handleStartTriggerChange(e.target.value)}
-        >
-          <option value="__main__">Same as stage trigger ({stageTriggersLabel || "selected trigger"})</option>
-          <WorkOptions folders={folders} />
-        </select>
+    <div className={s.remBody}>
+      {/* 1. Start trigger + Send to (2-column compact row) */}
+      <div className={s.grid2}>
+        <div className={s.field}>
+          <label className={s.labelRow}><span>Start when</span></label>
+          <select
+            className={s.select}
+            aria-label="Start reminder trigger"
+            value={reminder.startTrigger}
+            onChange={e => handleStartTriggerChange(e.target.value)}
+          >
+            <option value="__main__">Same as stage trigger ({stageTriggersLabel || "selected trigger"})</option>
+            <WorkOptions folders={folders} />
+          </select>
+        </div>
+
+        <div className={s.field}>
+          <label className={s.labelRow}><span>Send to</span></label>
+          <select
+            className={s.select}
+            aria-label="Reminder audience"
+            value={reminder.audience}
+            onChange={e => set({ audience: e.target.value as ReminderAudience })}
+          >
+            <option value="client">Client only</option>
+            <option value="admin">Admin / Team only</option>
+            <option value="both">Both (Client &amp; Admin)</option>
+          </select>
+        </div>
       </div>
 
-      {/* 2. Send to (consistent dropdown) */}
-      <div className={s.fieldRow}>
-        <label className={s.fieldLabel}>Send to</label>
-        <select
-          className={s.select}
-          aria-label="Reminder audience"
-          value={reminder.audience}
-          onChange={e => set({ audience: e.target.value as ReminderAudience })}
-        >
-          <option value="client">Client only</option>
-          <option value="admin">Admin / Team only</option>
-          <option value="both">Both (Client &amp; Admin)</option>
-        </select>
-      </div>
+      {/* 2. Audience Sub-tabs when Both + Message Editor */}
+      {reminder.audience === "both" && (
+        <div className={s.seg} style={{ justifySelf: "start" }} role="tablist" aria-label="Reminder recipient tab">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={subTab === "client"}
+            className={s.segBtn}
+            data-active={subTab === "client"}
+            onClick={() => setSubTab("client")}
+          >
+            Client ({reminder.clientSteps.length})
+            {reminder.clientSteps.some(st => st.text.trim()) && <span className={s.tabDot} aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={subTab === "admin"}
+            className={s.segBtn}
+            data-active={subTab === "admin"}
+            onClick={() => setSubTab("admin")}
+          >
+            Admin / Team ({reminder.adminSteps.length})
+            {reminder.adminSteps.some(st => st.text.trim()) && <span className={s.tabDot} aria-hidden="true" />}
+          </button>
+        </div>
+      )}
 
-      {/* 3. Message editors */}
-      {showClient && (
+      {activeWho === "client" && showClient && (
         <AudienceBlock
           who="client"
-          title="Client"
+          title="Client schedule"
           mode={reminder.clientMode}
           steps={reminder.clientSteps}
           baseDate={reminder.countDaysFrom}
+          hideHeaderTitle={reminder.audience === "both"}
           onModeChange={clientMode => set({ clientMode })}
           onUpdateSteps={clientSteps => set({ clientSteps })}
         />
       )}
-      {showAdmin && (
+      {activeWho === "admin" && showAdmin && (
         <AudienceBlock
           who="admin"
-          title="Admin / Team"
+          title="Admin / Team schedule"
           mode={reminder.adminMode}
           steps={reminder.adminSteps}
           baseDate={reminder.countDaysFrom}
           canCopyClient={showClient}
+          hideHeaderTitle={reminder.audience === "both"}
           onModeChange={adminMode => set({ adminMode })}
           onCopyClient={copyClientDays}
           onUpdateSteps={adminSteps => set({ adminSteps })}
         />
       )}
 
-      {/* 4. Repeat (dropdown-first, includes Off) */}
-      <div className={s.subBox}>
-        <div className={s.fieldRow}>
-          <label className={s.fieldLabel}>Repeat</label>
+      {/* 3. Base Date & Only When (2-column) + Repeat (clean full row) + Stop triggers */}
+      <div className={s.grid2}>
+        <div className={s.field}>
+          <label className={s.labelRow}><span>Count days from</span></label>
           <select
             className={s.select}
-            aria-label="Repeat mode"
-            value={reminder.repeatMode}
-            onChange={e => set({ repeatMode: e.target.value as RepeatMode })}
+            aria-label="Count days from"
+            value={reminder.countDaysFrom}
+            onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
           >
-            <option value="off">Off (No repeat — scheduled messages only)</option>
-            <option value="permanent">Permanent (until stop trigger happens)</option>
-            <option value="limited">Fixed days limit</option>
+            {BASE_DATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </div>
 
-        {reminder.repeatMode !== "off" && (
-          <div className={s.controlRow}>
+        <div className={s.field} data-disabled={visibleConditions.length <= 1}>
+          <label className={s.labelRow}><span>Only when</span></label>
+          <div className={s.inlineRow}>
+            <select
+              className={s.select}
+              style={{ flex: 1 }}
+              aria-label="Only when condition"
+              disabled={visibleConditions.length <= 1}
+              value={safeCondition}
+              onChange={e => {
+                const nextIdVal = e.target.value;
+                const found = CONDITIONS.find(c => c.id === nextIdVal);
+                set({
+                  condition: nextIdVal,
+                  conditionValue: found && "defaultVal" in found ? found.defaultVal : reminder.conditionValue,
+                });
+              }}
+            >
+              {visibleConditions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+            {conditionDef && "value" in conditionDef && (
+              <input
+                type="number"
+                className={s.numInput}
+                min={0}
+                max={conditionDef.max}
+                aria-label="Condition value"
+                value={reminder.conditionValue}
+                onChange={e => set({ conditionValue: Math.max(0, Number(e.target.value || 0)) })}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className={`${s.field} ${s.fieldFull}`}>
+          <label className={s.labelRow}><span>Repeat</span></label>
+          <div className={s.inlineRow}>
+            <select
+              className={s.compactSelect}
+              aria-label="Repeat mode"
+              value={reminder.repeatMode}
+              onChange={e => set({ repeatMode: e.target.value as RepeatMode })}
+            >
+              <option value="off">Off (No repeat — scheduled messages only)</option>
+              <option value="permanent">Permanent (until stop trigger happens)</option>
+              <option value="limited">Fixed days limit</option>
+            </select>
             {reminder.repeatMode === "limited" && (
               <div className={s.inlineGroup}>
                 <span className={s.miniLabel}>For</span>
@@ -1010,100 +1273,54 @@ function ReminderCard({
                 <span className={s.unitText}>days</span>
               </div>
             )}
-            <div className={s.inlineGroup}>
-              <span className={s.miniLabel}>Every</span>
-              <input
-                type="number"
-                className={s.numInput}
-                min={1}
-                max={90}
-                aria-label="Repeat every days"
-                value={reminder.repeatEveryDays}
-                onChange={e => set({ repeatEveryDays: Math.max(1, Number(e.target.value || 1)) })}
-              />
-              <span className={s.unitText}>days</span>
-            </div>
-            <div className={s.inlineGroup}>
-              <span className={s.miniLabel}>Frequency</span>
-              <select
-                className={s.compactSelect}
-                aria-label="Per day frequency"
-                value={reminder.repeatPerDay}
-                onChange={e => set({ repeatPerDay: Number(e.target.value || 1) })}
-              >
-                <option value={1}>1x / day</option>
-                <option value={2}>2x / day (every 12h)</option>
-                <option value={3}>3x / day (every 8h)</option>
-                <option value={4}>4x / day (every 6h)</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 5. Base date & condition (at the end, zero duplication with When) */}
-      <div className={s.subBox}>
-        <div className={s.fieldRow}>
-          <label className={s.fieldLabel}>Count days from</label>
-          <select
-            className={s.select}
-            aria-label="Count days from"
-            value={reminder.countDaysFrom}
-            onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
-          >
-            {BASE_DATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-        </div>
-        {visibleConditions.length > 1 && (
-          <div className={s.fieldRow}>
-            <label className={s.fieldLabel}>Only when</label>
-            <div className={s.inlineGroup}>
-              <select
-                className={s.select}
-                aria-label="Only when condition"
-                value={safeCondition}
-                onChange={e => {
-                  const nextIdVal = e.target.value;
-                  const found = CONDITIONS.find(c => c.id === nextIdVal);
-                  set({
-                    condition: nextIdVal,
-                    conditionValue: found && "defaultVal" in found ? found.defaultVal : reminder.conditionValue,
-                  });
-                }}
-              >
-                {visibleConditions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-              {conditionDef && "value" in conditionDef && (
+            {reminder.repeatMode !== "off" && (
+              <div className={s.inlineGroup}>
+                <span className={s.miniLabel}>Every</span>
                 <input
                   type="number"
                   className={s.numInput}
-                  min={0}
-                  max={conditionDef.max}
-                  aria-label="Condition value"
-                  value={reminder.conditionValue}
-                  onChange={e => set({ conditionValue: Math.max(0, Number(e.target.value || 0)) })}
+                  min={1}
+                  max={90}
+                  aria-label="Repeat every days"
+                  value={reminder.repeatEveryDays}
+                  onChange={e => set({ repeatEveryDays: Math.max(1, Number(e.target.value || 1)) })}
                 />
-              )}
-            </div>
+                <span className={s.unitText}>days</span>
+                <select
+                  className={s.compactSelect}
+                  aria-label="Per day frequency"
+                  value={reminder.repeatPerDay}
+                  onChange={e => set({ repeatPerDay: Number(e.target.value || 1) })}
+                >
+                  <option value={1}>1x / day</option>
+                  <option value={2}>2x / day (every 12h)</option>
+                  <option value={3}>3x / day (every 8h)</option>
+                  <option value={4}>4x / day (every 6h)</option>
+                </select>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* 6. Stop triggers (same MultiTriggerSelect SSOT) */}
-      <div className={s.stopBox}>
-        <MultiTriggerSelect
-          label="Stop when"
-          ariaLabel="Add stop trigger"
-          emptyPlaceholder="Add a stop trigger…"
-          addPlaceholder="+ Add another stop trigger…"
-          values={reminder.stopOn}
-          exclude={effectiveTriggers}
-          folders={folders}
-          byKey={byKey}
-          onChange={stopOn => set({ stopOn })}
-        />
+        {/* 4. Stop triggers (searchable multi-select SSOT) */}
+        <div className={`${s.field} ${s.fieldFull}`}>
+          <label className={s.labelRow}>
+            <span>Stop when</span>
+            <span className={s.labelMuted}>Reminders stop immediately when any selected work happens</span>
+          </label>
+          <MultiTriggerSelect
+            ariaLabel="Add stop trigger"
+            emptyPlaceholder="Search & select stop triggers…"
+            addPlaceholder="Add another stop trigger…"
+            values={reminder.stopOn}
+            exclude={effectiveTriggers}
+            folders={folders}
+            byKey={byKey}
+            onChange={stopOn => set({ stopOn })}
+          />
+        </div>
       </div>
-    </div>}
+    </div>
   </div>;
 }
 
@@ -1139,50 +1356,44 @@ function TrailStageBlock({
     onChangeReminders([...reminders, newReminder(defaultStops, stageTriggers[0])]);
   }
 
-  return <div className={s.stageStack}>
-    {showTriggerSelect && onChangeTriggers && (
-      <div className={s.subBox}>
-        <MultiTriggerSelect
-          label="Trigger point"
-          ariaLabel={`Stage ${depth + 1} trigger point`}
-          emptyPlaceholder="Choose a trigger point…"
-          addPlaceholder="+ Add another trigger…"
-          values={stageTriggers}
-          folders={folders}
-          byKey={byKey}
-          showHint={true}
-          onChange={onChangeTriggers}
-        />
-      </div>
-    )}
-
-    {/* 1. Template (Auto Message) */}
-    <div className={s.stageSection}>
-      <div className={s.stageSectionHead}>
-        <div className={s.stageTitleGroup}>
-          <span className={s.stageBadge}>Template</span>
-          <strong>Instant auto message</strong>
+  return (
+    <div style={{ display: "grid", gap: "12px" }}>
+      {showTriggerSelect && onChangeTriggers && (
+        <div className={s.field}>
+          <label className={s.labelRow}>
+            <span>Trigger point</span>
+            <span className={s.labelMuted}>{stageTriggers.length} selected</span>
+          </label>
+          <MultiTriggerSelect
+            ariaLabel={`Stage ${depth + 1} trigger point`}
+            emptyPlaceholder="Search & select trigger point…"
+            addPlaceholder="Add another trigger…"
+            values={stageTriggers}
+            folders={folders}
+            byKey={byKey}
+            showHint={true}
+            onChange={onChangeTriggers}
+          />
         </div>
-        <span className={s.summaryMeta}>
-          {stageTriggersLabel ? `Sent immediately when “${stageTriggersLabel}” happens` : "Sent immediately on trigger"}
-        </span>
-      </div>
+      )}
+
+      {/* 1. Template (Instant Auto Message) */}
       <InstantAutoMsgBlock state={instant} onChange={onChangeInstant} />
-    </div>
 
-    {/* 2. Follow-up Reminder */}
-    <div className={s.stageSection}>
-      <div className={s.stageSectionHead}>
-        <div className={s.stageTitleGroup}>
-          <span className={s.stageBadge} data-kind="reminder">Reminder</span>
-          <strong>Follow-up reminder</strong>
+      <div className={s.divider} />
+
+      {/* 2. Follow-up Reminder */}
+      <div style={{ display: "grid", gap: "8px" }}>
+        <div className={s.blockHead}>
+          <div className={s.blockTitle}>
+            <span className={s.stageBadge} data-kind="reminder">Reminder</span>
+            <span>Follow-up reminder</span>
+          </div>
+          <span className={s.cardSub}>
+            {reminders.length > 0 ? "Set Stop when inside, then continue trail below" : "Optional — send scheduled follow-ups"}
+          </span>
         </div>
-        <span className={s.summaryMeta}>
-          {reminders.length > 0 ? "Set Stop Trigger below, then continue trail at the bottom" : "Optional — add a reminder after this template"}
-        </span>
-      </div>
 
-      <div className={s.stack}>
         {reminders.map((rem, idx) => (
           <ReminderCard
             key={rem.id}
@@ -1199,12 +1410,12 @@ function TrailStageBlock({
         ))}
         {reminders.length === 0 && (
           <button type="button" className={s.addBtn} onClick={addStageReminder}>
-            {stageTriggersLabel ? `+ Add reminder on “${stageTriggersLabel}”` : "+ Add reminder"}
+            {stageTriggersLabel ? `+ Add reminder on “${stageTriggersLabel}”` : "+ Add follow-up reminder"}
           </button>
         )}
       </div>
     </div>
-  </div>;
+  );
 }
 
 function FormDialog({
@@ -1248,6 +1459,10 @@ function FormDialog({
   const flowTokens = useMemo(() => buildFlowTokens(form, byKey), [form, byKey]);
   const totalTemplates = useMemo(() => countTemplates(form.instant, form.stages), [form.instant, form.stages]);
   const totalReminders = useMemo(() => countReminders(form.reminders, form.stages), [form.reminders, form.stages]);
+
+  const packageOptions = useMemo<ComboOption[]>(() => (
+    packages.map(p => ({ key: p.slug, label: p.name, group: "Packages & Plans" }))
+  ), [packages]);
 
   function changeRootTriggers(nextTriggers: string[]) {
     const nextAllowed = allowedConditionIds(nextTriggers.map(k => byKey.get(k)));
@@ -1336,11 +1551,7 @@ function FormDialog({
     onSave(trail);
   }
 
-  const pkgBySlug = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of packages) map.set(p.slug, p.name);
-    return map;
-  }, [packages]);
+  const rootTrigLabel = triggersLabel(form.triggers, byKey);
 
   return <div className={s.overlay}>
     <div className={s.backdrop} onClick={onClose} />
@@ -1348,186 +1559,168 @@ function FormDialog({
       <header className={s.dialogHead}>
         <div>
           <h2 id="amsg-title">{form._id ? "Edit automated message" : "Create automated message"}</h2>
-          <p>Start with a trigger point, add an instant message, and chain reminders as far as you need.</p>
+          <p>Configure trigger, instant message, follow-up reminders, and next stages in one compact flow.</p>
         </div>
         <div className={s.headRight}>
-          <span className={s.liveTag} data-live={isLive}>{isLive ? "Live catalog" : "Preview catalog"}</span>
+          <span className={s.liveTag} data-live={isLive}>
+            <span className={s.liveDot} aria-hidden="true" />
+            {isLive ? "Live catalog" : "Preview catalog"}
+          </span>
           <button type="button" className={s.closeBtn} aria-label="Close" onClick={onClose}>✕</button>
         </div>
       </header>
 
-      {flowTokens.length > 0 && (
-        <div className={s.flowStrip} aria-label="Live trail summary">
-          {flowTokens.map((tok, i) => (
+      {/* Fixed-height Live Flow Strip — zero blink/jump */}
+      <div className={s.flowStrip} aria-label="Live trail summary">
+        {flowTokens.length === 0 ? (
+          <span className={s.flowEmpty}>Trail preview: choose a Trigger point below to see your live automation flow.</span>
+        ) : (
+          flowTokens.map((tok, i) => (
             <span key={`${tok}-${i}`} className={s.flowItem}>
               {i > 0 && <span className={s.flowArrow}>→</span>}
-              <span className={s.flowPill}>{tok}</span>
+              <span className={s.flowPill} data-kind={i === 0 ? "trigger" : "step"}>{tok}</span>
             </span>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
       <div className={s.dialogBody}>
-        <div className={s.timeline}>
-          {/* STEP 1: Trigger Point (+ conditional Packages) */}
-          <section className={s.step}>
-            <div className={s.stepHead}>
+        {/* CARD 1: Trigger & Package Scope */}
+        <section className={s.card}>
+          <div className={s.cardHead}>
+            <div className={s.cardTitle}>
               <span className={s.stepNum}>1</span>
-              <div>
-                <h3>Trigger point</h3>
-                <p>Which work starts this automated message trail?</p>
-              </div>
+              <h3>Trigger &amp; scope</h3>
+            </div>
+            <span className={s.cardSub}>Searchable multi-select</span>
+          </div>
+
+          <div className={s.grid2}>
+            <div className={s.field}>
+              <label className={s.labelRow}>
+                <span>Trigger point</span>
+                <span className={s.labelMuted}>{form.triggers.length} selected</span>
+              </label>
+              <MultiTriggerSelect
+                ariaLabel="Primary trigger point"
+                emptyPlaceholder="Search & select trigger point…"
+                addPlaceholder="Add another trigger…"
+                values={form.triggers}
+                folders={folders}
+                byKey={byKey}
+                showHint={true}
+                onChange={changeRootTriggers}
+              />
             </div>
 
-            <MultiTriggerSelect
-              label="Trigger"
-              ariaLabel="Primary trigger point"
-              emptyPlaceholder="Choose a trigger point…"
-              addPlaceholder="+ Add another trigger…"
-              values={form.triggers}
-              folders={folders}
-              byKey={byKey}
-              showHint={true}
-              onChange={changeRootTriggers}
-            />
-
-            {/* Packages ONLY shown when selected trigger supports package scope */}
-            {hasPackageScope && (
-              <div className={s.subBox}>
-                <div className={s.fieldRow}>
-                  <label className={s.fieldLabel}>Packages</label>
-                  <select
-                    className={s.select}
-                    aria-label="Package scope"
-                    value={form.scope}
-                    onChange={e => set({ scope: e.target.value as PackageScopeMode, selectedPackages: [] })}
-                  >
-                    {PACKAGE_SCOPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-                  </select>
-                </div>
-
-                {(form.scope === "include" || form.scope === "exclude") && (
-                  <div className={s.stack}>
-                    <div className={s.fieldRow}>
-                      <label className={s.fieldLabel}>{form.scope === "include" ? "Include" : "Exclude"}</label>
-                      <select
-                        className={s.select}
-                        aria-label="Pick package"
-                        value=""
-                        onChange={e => {
-                          const slug = e.target.value;
-                          if (slug && !form.selectedPackages.includes(slug)) {
-                            set({ selectedPackages: [...form.selectedPackages, slug] });
-                          }
-                        }}
-                      >
-                        <option value="">{packages.length ? "Select a package…" : "No live packages loaded"}</option>
-                        {packages
-                          .filter(p => !form.selectedPackages.includes(p.slug))
-                          .map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-                      </select>
-                    </div>
-
-                    {form.selectedPackages.length > 0 && (
-                      <div className={s.chipList}>
-                        {form.selectedPackages.map(slug => (
-                          <span key={slug} className={s.chip}>
-                            {pkgBySlug.get(slug) || slug}
-                            <button
-                              type="button"
-                              className={s.chipClose}
-                              aria-label={`Remove ${slug}`}
-                              onClick={() => set({ selectedPackages: form.selectedPackages.filter(x => x !== slug) })}
-                            >✕</button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* STEP 2: Stage 1 (Template -> Reminder) */}
-          <section className={s.step}>
-            <div className={s.stepHead}>
-              <span className={s.stepNum}>2</span>
-              <div>
-                <h3>Message &amp; reminder trail</h3>
-                <p>Start with an instant Template (Auto Message), add a Reminder, and continue the trail below.</p>
-              </div>
-            </div>
-
-            <TrailStageBlock
-              stageTriggers={form.triggers}
-              stageTriggersLabel={triggersLabel(form.triggers, byKey)}
-              depth={0}
-              instant={form.instant}
-              reminders={form.reminders}
-              folders={folders}
-              byKey={byKey}
-              onChangeInstant={instant => set({ instant })}
-              onChangeReminders={updateRootReminders}
-            />
-          </section>
-
-          {/* STEP 3..N: Linear Follow-up Stages */}
-          {form.stages.map((stage, idx) => {
-            const stageNum = idx + 3;
-            const stageLabel = triggersLabel(stage.triggers, byKey);
-            return (
-              <section key={stage.id} className={s.step}>
-                <div className={s.stepHead} style={{ justifyContent: "space-between", width: "100%" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span className={s.stepNum}>{stageNum}</span>
-                    <div>
-                      <h3>Stage {idx + 2}{stageLabel ? ` — On “${stageLabel}”` : ""}</h3>
-                      <p>Pre-selected from previous Stop Trigger — add or remove triggers as needed.</p>
-                    </div>
-                  </div>
-                  <button type="button" className={s.iconBtn} onClick={() => removeStage(stage.id)}>Remove stage</button>
-                </div>
-
-                <TrailStageBlock
-                  stageTriggers={stage.triggers}
-                  stageTriggersLabel={stageLabel}
-                  depth={idx + 1}
-                  showTriggerSelect={true}
-                  instant={stage.instant}
-                  reminders={stage.reminder ? [stage.reminder] : []}
-                  folders={folders}
-                  byKey={byKey}
-                  onChangeTriggers={next => changeStageTriggers(stage, next)}
-                  onChangeInstant={instant => updateStage(stage.id, { instant })}
-                  onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
-                />
-              </section>
-            );
-          })}
-
-          {/* Bottom "+ Continue trail" Bar */}
-          {primaryKey && form.stages.length < MAX_CHAIN_DEPTH && (
-            <div className={s.continueBox}>
-              <div className={s.continueText}>
-                <strong>+ Continue trail</strong>
-                <span>
-                  {lastStopTriggers().length > 0
-                    ? `Next stage will pre-select “${triggersLabel(lastStopTriggers(), byKey)}” (editable)`
-                    : "Choose Template or Reminder for the next stage"}
+            <div className={s.field} data-disabled={!hasPackageScope}>
+              <label className={s.labelRow}>
+                <span>Packages</span>
+                <span className={s.labelMuted}>
+                  {hasPackageScope ? "Applies to selected triggers" : "Available for package/order triggers"}
                 </span>
-              </div>
-              <div className={s.continueActions}>
-                <button type="button" className={s.choiceBtn} onClick={() => addStage("template")}>+ Template</button>
-                <button type="button" className={s.choiceBtn} onClick={() => addStage("reminder")}>+ Reminder</button>
-              </div>
+              </label>
+              <select
+                className={s.select}
+                aria-label="Package scope"
+                disabled={!hasPackageScope}
+                value={form.scope}
+                onChange={e => set({ scope: e.target.value as PackageScopeMode, selectedPackages: [] })}
+              >
+                {PACKAGE_SCOPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+
+              {hasPackageScope && (form.scope === "include" || form.scope === "exclude") && (
+                <SearchableMultiSelect
+                  ariaLabel="Pick packages"
+                  placeholder={packages.length ? `Select packages to ${form.scope}…` : "No live packages loaded"}
+                  addPlaceholder="Add another package…"
+                  options={packageOptions}
+                  values={form.selectedPackages}
+                  onChange={selectedPackages => set({ selectedPackages })}
+                />
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </section>
+
+        {/* CARD 2: Stage 1 (Template + Reminder) */}
+        <section className={s.card}>
+          <div className={s.cardHead}>
+            <div className={s.cardTitle}>
+              <span className={s.stepNum}>2</span>
+              <h3>Stage 1 — Messages &amp; reminder</h3>
+            </div>
+            <span className={s.cardSub}>{rootTrigLabel ? `On: ${rootTrigLabel}` : "Waiting for trigger…"}</span>
+          </div>
+
+          <TrailStageBlock
+            stageTriggers={form.triggers}
+            stageTriggersLabel={rootTrigLabel}
+            depth={0}
+            instant={form.instant}
+            reminders={form.reminders}
+            folders={folders}
+            byKey={byKey}
+            onChangeInstant={instant => set({ instant })}
+            onChangeReminders={updateRootReminders}
+          />
+        </section>
+
+        {/* CARD 3..N: Linear Follow-up Stages */}
+        {form.stages.map((stage, idx) => {
+          const stageNum = idx + 3;
+          const stageLabel = triggersLabel(stage.triggers, byKey);
+          return (
+            <section key={stage.id} className={s.card} data-stage="followup">
+              <div className={s.cardHead}>
+                <div className={s.cardTitle}>
+                  <span className={s.stepNum}>{stageNum}</span>
+                  <h3>Stage {idx + 2}{stageLabel ? ` — On “${stageLabel}”` : ""}</h3>
+                </div>
+                <button type="button" className={s.miniDangerBtn} onClick={() => removeStage(stage.id)}>Remove stage</button>
+              </div>
+
+              <TrailStageBlock
+                stageTriggers={stage.triggers}
+                stageTriggersLabel={stageLabel}
+                depth={idx + 1}
+                showTriggerSelect={true}
+                instant={stage.instant}
+                reminders={stage.reminder ? [stage.reminder] : []}
+                folders={folders}
+                byKey={byKey}
+                onChangeTriggers={next => changeStageTriggers(stage, next)}
+                onChangeInstant={instant => updateStage(stage.id, { instant })}
+                onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
+              />
+            </section>
+          );
+        })}
+
+        {/* Bottom "+ Continue trail" Bar (fixed slot when under max depth) */}
+        {form.stages.length < MAX_CHAIN_DEPTH && (
+          <div className={s.continueBox} data-disabled={!primaryKey}>
+            <div className={s.continueText}>
+              <strong>+ Continue trail</strong>
+              <span>
+                {!primaryKey
+                  ? "Choose a trigger point first to add follow-up stages"
+                  : lastStopTriggers().length > 0
+                    ? `Next stage pre-selects “${triggersLabel(lastStopTriggers(), byKey)}” (editable)`
+                    : "Add another Template or Reminder stage"}
+              </span>
+            </div>
+            <div className={s.continueActions}>
+              <button type="button" className={s.ghostBtn} disabled={!primaryKey} onClick={() => addStage("template")}>+ Template stage</button>
+              <button type="button" className={s.ghostBtn} disabled={!primaryKey} onClick={() => addStage("reminder")}>+ Reminder stage</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <footer className={s.dialogFoot}>
-        <small style={(localError || error) ? { color: "var(--pn-err, #8b2a21)", fontWeight: 600 } : undefined}>
+        <small style={(localError || error) ? { color: "var(--pn-err, #b91c1c)", fontWeight: 600 } : undefined}>
           {localError || error
             ? (localError || error)
             : primaryKey
@@ -1664,7 +1857,8 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       <div className={s.toolbarText}>
         <p>Every automated message and reminder trail, one row per work. Click <strong>Edit</strong> to open its form.</p>
         <span className={s.liveTag} data-live={catalog.isLive}>
-          {loading && !catalog.isLive ? "Loading live works…" : catalog.isLive ? `${catalog.byKey.size} works · ${catalog.packages.length} packages loaded` : "Fallback catalog"}
+          <span className={s.liveDot} aria-hidden="true" />
+          {loading && !catalog.isLive ? "Loading live works…" : catalog.isLive ? `${catalog.byKey.size} works · ${catalog.packages.length} packages` : "Fallback catalog"}
         </span>
       </div>
       <div className={s.listActions}>
@@ -1677,7 +1871,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       </div>
     </div>
 
-    {panelError && <p className={s.hint} style={{ color: "var(--pn-err, #8b2a21)", fontWeight: 600 }}>{panelError}</p>}
+    {panelError && <p className={s.whenHint} style={{ color: "var(--pn-err, #b91c1c)", fontWeight: 600 }}>{panelError}</p>}
 
     {trails.length === 0 ? (
       <div className={s.empty}>
@@ -1699,7 +1893,10 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
                 <div className={s.listTitleRow}>
                   <strong>{title}</strong>
                   {hasScope && scopeLabel && <span className={s.badge}>{scopeLabel}</span>}
-                  <span className={s.liveTag} data-live={isOn}>{isOn ? "Active" : "Paused"}</span>
+                  <span className={s.liveTag} data-live={isOn}>
+                    <span className={s.liveDot} aria-hidden="true" />
+                    {isOn ? "Active" : "Paused"}
+                  </span>
                 </div>
                 <p className={s.listSummary}>
                   {tokens.length ? tokens.join(" → ") : "Trigger only (no message or reminder added yet)"}

@@ -1,0 +1,1202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Automated Message System — Modern Compact UI Concept</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --paper: #ffffff;
+      --surface: #f8f9fb;
+      --surface-2: #f1f3f7;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --line-strong: #d1d5db;
+      --primary: #111827;
+      --primary-text: #ffffff;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --accent-border: #bfdbfe;
+      --ok-bg: #ecfdf5;
+      --ok-text: #065f46;
+      --radius: 10px;
+      --radius-sm: 7px;
+      --shadow-popover: 0 14px 36px -6px rgba(17, 24, 39, 0.16), 0 4px 12px -2px rgba(17, 24, 39, 0.08);
+      --shadow-dialog: 0 24px 60px -12px rgba(17, 24, 39, 0.24);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .concept-note {
+      max-width: 920px;
+      margin: 0 auto 14px;
+      padding: 10px 14px;
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      color: #1e40af;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12.5px;
+    }
+    .concept-note strong { font-weight: 650; }
+
+    /* Modal Shell */
+    .dialog {
+      max-width: 920px;
+      margin: 0 auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-dialog);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .dialog-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+    .dialog-head h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: -0.015em;
+    }
+    .dialog-head p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      background: var(--ok-bg);
+      color: var(--ok-text);
+    }
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    .icon-close {
+      width: 28px;
+      height: 28px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      display: grid;
+      place-items: center;
+    }
+    .icon-close:hover { background: var(--surface-2); color: var(--ink); }
+
+    /* Fixed-height Flow Strip — ZERO BLINK / ZERO JUMP */
+    .flow-strip {
+      min-height: 40px;
+      padding: 7px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .flow-empty {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .flow-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--paper);
+      font-weight: 600;
+      font-size: 11.5px;
+      color: var(--ink);
+    }
+    .flow-pill[data-type="trigger"] {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: #1d4ed8;
+    }
+    .flow-arrow { color: var(--muted); font-size: 11px; }
+
+    /* Body */
+    .dialog-body {
+      padding: 16px 20px 20px;
+      display: grid;
+      gap: 14px;
+      background: var(--surface);
+    }
+
+    /* Unified Section Card (No deep nested borders) */
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-badge {
+      display: inline-grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: var(--primary);
+      color: var(--primary-text);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .card-title h2 {
+      margin: 0;
+      font-size: 13.5px;
+      font-weight: 650;
+    }
+    .card-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Compact 2-Column Grid */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      align-items: start;
+    }
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+    .field.full { grid-column: 1 / -1; }
+    .label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .label-muted { font-weight: 500; color: var(--muted); }
+
+    /* Form Controls */
+    select, input[type="text"], input[type="number"], textarea {
+      font: inherit;
+      font-size: 12.5px;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      padding: 6px 9px;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    select:focus, input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .num-sm { width: 64px; text-align: center; }
+
+    /* Searchable Multi-Select Combobox (Trigger Point & Stop When) */
+    .combo-wrap { position: relative; }
+    .combo-box {
+      min-height: 36px;
+      padding: 4px 28px 4px 7px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--paper);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      cursor: text;
+      position: relative;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .combo-box.open, .combo-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .combo-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      font-size: 12px;
+      font-weight: 550;
+      color: var(--ink);
+    }
+    .combo-chip button {
+      border: 0;
+      background: none;
+      padding: 0 1px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+    }
+    .combo-chip button:hover { color: #dc2626; }
+    .combo-input {
+      border: 0 !important;
+      box-shadow: none !important;
+      padding: 2px 4px !important;
+      min-width: 140px;
+      flex: 1;
+      font-size: 12.5px;
+      background: transparent;
+    }
+    .combo-caret {
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 11px;
+      pointer-events: none;
+    }
+    .combo-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 40;
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-popover);
+      max-height: 270px;
+      overflow-y: auto;
+      padding: 6px;
+      display: none;
+    }
+    .combo-menu.open { display: block; }
+    .combo-group-title {
+      padding: 6px 8px 3px;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .combo-opt {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .combo-opt:hover { background: var(--surface); }
+    .combo-opt.selected { background: var(--accent-soft); }
+    .combo-check {
+      width: 15px;
+      height: 15px;
+      margin-top: 2px;
+      border-radius: 4px;
+      border: 1px solid var(--line-strong);
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      flex-shrink: 0;
+      background: var(--paper);
+      color: transparent;
+    }
+    .combo-opt.selected .combo-check {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .combo-opt-text strong { display: block; font-size: 12.5px; font-weight: 600; }
+    .combo-opt-text small { display: block; font-size: 11px; color: var(--muted); }
+
+    .when-hint {
+      font-size: 11.5px;
+      color: var(--muted);
+      min-height: 17px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Clean Segmented Control */
+    .seg {
+      display: inline-flex;
+      padding: 2px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface);
+      gap: 2px;
+    }
+    .seg button {
+      border: 0;
+      background: transparent;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 550;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+    .seg button.active {
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* Divider & Sub-blocks inside Stage */
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 2px 0;
+    }
+
+    .block-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .block-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12.5px;
+      font-weight: 650;
+    }
+    .pill-tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: var(--primary);
+      color: var(--primary-text);
+    }
+    .pill-tag.soft {
+      background: var(--surface-2);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    /* Compact Message Editor */
+    .editor-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 10px 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .editor-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .timing-strip {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--paper);
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .fmt-group { display: inline-flex; gap: 3px; }
+    .fmt-btn {
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--paper);
+      font: inherit;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .fmt-btn:hover { background: var(--surface-2); }
+    .var-select {
+      padding: 3px 8px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--accent);
+      border-color: var(--accent-border);
+      background: var(--paper);
+    }
+    textarea.msg-area {
+      width: 100%;
+      min-height: 68px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    /* Reminder Compact Strip */
+    .rem-box {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .inline-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 7px 13px;
+      border-radius: var(--radius-sm);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .btn:hover { background: var(--surface); }
+    .btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--primary-text);
+    }
+    .btn.primary:hover { opacity: 0.9; }
+    .btn.dashed {
+      width: 100%;
+      border-style: dashed;
+      color: var(--accent);
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+    }
+    .btn.dashed:hover { background: #dbeafe; }
+    .btn-link {
+      border: 0;
+      background: none;
+      color: var(--accent);
+      font: inherit;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-danger-link {
+      border: 0;
+      background: none;
+      color: var(--muted);
+      font: inherit;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    .btn-danger-link:hover { color: #dc2626; }
+
+    /* Continue Trail Bar */
+    .continue-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 11px 14px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--paper);
+    }
+
+    /* Footer */
+    .dialog-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--line);
+      background: var(--paper);
+    }
+    .foot-meta { font-size: 12px; color: var(--muted); }
+
+    @media (max-width: 700px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="concept-note">
+    <div><strong>Interactive UI Concept:</strong> Click Trigger Point to search &amp; multi-select (zero blink!), switch Send-to tabs, toggle Email/WhatsApp, or add Stage 2.</div>
+    <span>All existing settings preserved 1:1</span>
+  </div>
+
+  <div class="dialog" role="dialog" aria-label="Create automated message">
+    <!-- Header -->
+    <header class="dialog-head">
+      <div>
+        <h1>Create automated message</h1>
+        <p>Configure trigger, instant message, follow-up reminders, and next stages in one compact flow.</p>
+      </div>
+      <div class="head-actions">
+        <span class="live-badge"><span class="live-dot"></span>Live catalog</span>
+        <button type="button" class="icon-close" title="Close">✕</button>
+      </div>
+    </header>
+
+    <!-- Fixed-height Live Flow Strip (Never jumps/blinks!) -->
+    <div class="flow-strip" id="flowStrip"></div>
+
+    <!-- Body -->
+    <div class="dialog-body">
+      <!-- CARD 1: Trigger & Package Scope -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="step-badge">1</span>
+            <h2>Trigger &amp; scope</h2>
+          </div>
+          <span class="card-sub">Searchable multi-select — no page jump</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="field" id="triggerFieldCol">
+            <label class="label">
+              <span>Trigger point</span>
+              <span class="label-muted" id="triggerCount">0 selected</span>
+            </label>
+            <div class="combo-wrap" id="rootTriggerCombo"></div>
+            <div class="when-hint" id="triggerHint">Select one or more works that start this automated trail.</div>
+          </div>
+
+          <div class="field" id="packageScopeCol" style="opacity: 0.55; pointer-events: none;">
+            <label class="label">
+              <span>Packages</span>
+              <span class="label-muted" id="pkgScopeHint">Available for package/order triggers</span>
+            </label>
+            <select id="packageScopeSelect">
+              <option value="all">All packages &amp; plans (Universal)</option>
+              <option value="monthly">Monthly packages only</option>
+              <option value="onetime">One-time packages only</option>
+              <option value="include">Include specific packages…</option>
+              <option value="exclude">Exclude specific packages…</option>
+            </select>
+            <div id="packagePickerWrap" style="display: none; margin-top: 4px;">
+              <div class="combo-wrap" id="packageCombo"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CARD 2: Stage 1 (Instant Auto Message + Follow-up Reminder) -->
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="step-badge">2</span>
+            <h2>Stage 1 — Messages &amp; reminder</h2>
+          </div>
+          <span class="card-sub" id="stage1TriggerTag">Waiting for trigger…</span>
+        </div>
+
+        <!-- Instant Auto Message -->
+        <div class="block-head">
+          <div class="block-title">
+            <span class="pill-tag">Template</span>
+            <span>Instant auto message</span>
+          </div>
+          <div class="seg" id="instantAudienceSeg" role="tablist" aria-label="Instant message audience">
+            <button type="button" data-val="off">Off</button>
+            <button type="button" data-val="client" class="active">Client</button>
+            <button type="button" data-val="admin">Admin</button>
+            <button type="button" data-val="both">Both</button>
+          </div>
+        </div>
+
+        <div id="instantEditorArea"></div>
+
+        <div class="divider"></div>
+
+        <!-- Follow-up Reminder -->
+        <div class="block-head">
+          <div class="block-title">
+            <span class="pill-tag soft">Reminder</span>
+            <span>Follow-up reminder</span>
+          </div>
+          <button type="button" class="btn-danger-link" id="toggleReminderBtn" style="display:none;">Remove reminder</button>
+        </div>
+
+        <div id="reminderArea">
+          <button type="button" class="btn dashed" id="addReminderBtn">+ Add follow-up reminder</button>
+        </div>
+      </section>
+
+      <!-- Dynamic Stage 2..N Container -->
+      <div id="extraStages"></div>
+
+      <!-- Continue Trail Bar -->
+      <div class="continue-bar">
+        <div>
+          <strong style="font-size: 13px;">+ Continue trail</strong>
+          <div class="card-sub" id="continueHint">Add Stage 2 (pre-fills from previous Stop Trigger)</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn" id="addStageTemplateBtn">+ Template stage</button>
+          <button type="button" class="btn" id="addStageReminderBtn">+ Reminder stage</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="dialog-foot">
+      <span class="foot-meta" id="footSummary">Choose a trigger point to save.</span>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn">Cancel</button>
+        <button type="button" class="btn primary" id="saveBtn" disabled>Save automated msg</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const WORKS = [
+      { key: "package.purchased", label: "Package purchased", folder: "Plans & Packages", scope: true, when: "When a client buys a sales package.", defaultStop: ["upload.completed", "payment.received"] },
+      { key: "plan.expired", label: "Plan / Package Expired", folder: "Plans & Packages", scope: true, when: "When a monthly plan or package expires.", defaultStop: ["payment.received"] },
+      { key: "invoice.created", label: "Payment Due (Any Bill / Order / Renewal)", folder: "Payments & Invoices", scope: true, when: "When any project, plan, package, or installment creates a due bill.", defaultStop: ["payment.received", "order.upi_pending"] },
+      { key: "order.upi_pending", label: "Payment Submitted by Client (Approval Pending)", folder: "Payments & Invoices", scope: true, when: "When a client submits UPI / payment proof waiting for admin approval.", defaultStop: ["payment.received", "plan.payment_rejected"] },
+      { key: "payment.received", label: "Payment Approved / Recorded (Paid)", folder: "Payments & Invoices", scope: false, when: "When an invoice or order is approved or recorded paid.", defaultStop: [] },
+      { key: "plan.payment_rejected", label: "Payment Rejected (by Admin)", folder: "Payments & Invoices", scope: false, when: "When an admin rejects a submitted payment.", defaultStop: [] },
+      { key: "project.created", label: "Project created", folder: "Projects & Previews", scope: true, when: "When a new project is created or started from a package.", defaultStop: ["payment.received"] },
+      { key: "project.step_updated", label: "Project step update", folder: "Projects & Previews", scope: true, when: "When project steps or progress % change.", defaultStop: ["payment.received"] },
+      { key: "upload.completed", label: "Update request / upload completed", folder: "Data Uploads & Documents", scope: false, when: "When a client uploads files or submits an update request.", defaultStop: [] },
+      { key: "comment.posted", label: "Website Comment / Review Posted", folder: "Website & Content", scope: false, when: "When a visitor or client posts a comment on the website.", defaultStop: ["comment.approved"] },
+      { key: "comment.approved", label: "Comment Approved / Moderated", folder: "Website & Content", scope: false, when: "When an admin approves a website comment.", defaultStop: [] },
+    ];
+
+    const PACKAGES = [
+      { key: "starter-monthly", label: "Starter Monthly Plan", folder: "Monthly Plans" },
+      { key: "growth-monthly", label: "Growth Monthly Plan", folder: "Monthly Plans" },
+      { key: "website-onetime", label: "Business Website (One-Time)", folder: "One-Time Packages" },
+      { key: "ecommerce-pro", label: "E-Commerce Pro (One-Time)", folder: "One-Time Packages" },
+    ];
+
+    const state = {
+      triggers: [],
+      pkgScope: "all",
+      selectedPackages: [],
+      instantAud: "client",
+      instantTab: "client",
+      instantClient: { channel: "whatsapp", subject: "", text: "" },
+      instantAdmin: { channel: "whatsapp", subject: "", text: "" },
+      hasReminder: false,
+      rem: {
+        startTrigger: "__main__",
+        audience: "client",
+        activeTab: "client",
+        clientMode: "separate",
+        adminMode: "separate",
+        clientSteps: [{ amount: 3, unit: "days", pos: "before", channel: "whatsapp", subject: "", text: "" }],
+        adminSteps: [{ amount: 3, unit: "days", pos: "before", channel: "whatsapp", subject: "", text: "" }],
+        repeatMode: "off",
+        repeatForDays: 7,
+        repeatEveryDays: 2,
+        repeatPerDay: 1,
+        countDaysFrom: "due_date",
+        condition: "unpaid",
+        conditionVal: 50,
+        stopOn: [],
+      },
+      extraStages: [],
+    };
+
+    const byKey = Object.fromEntries(WORKS.map(w => [w.key, w]));
+
+    function buildCombo(container, { items, selected, placeholder, onChange }) {
+      let query = "";
+      let open = false;
+      container.innerHTML = `
+        <div class="combo-box">
+          <span class="chips-slot" style="display:contents;"></span>
+          <input type="text" class="combo-input" placeholder="${placeholder}" />
+          <span class="combo-caret">▾</span>
+        </div>
+        <div class="combo-menu"></div>
+      `;
+      const box = container.querySelector(".combo-box");
+      const chipsSlot = container.querySelector(".chips-slot");
+      const input = container.querySelector(".combo-input");
+      const menu = container.querySelector(".combo-menu");
+
+      function renderChips() {
+        chipsSlot.innerHTML = selected().map(k => {
+          const item = items.find(i => i.key === k);
+          return `<span class="combo-chip">${item ? item.label : k}<button type="button" data-rm="${k}">✕</button></span>`;
+        }).join("");
+        input.placeholder = selected().length ? "Add more…" : placeholder;
+      }
+
+      function renderMenu() {
+        const q = query.trim().toLowerCase();
+        const filtered = items.filter(i => !q || i.label.toLowerCase().includes(q) || i.folder.toLowerCase().includes(q));
+        const groups = {};
+        for (const it of filtered) {
+          (groups[it.folder] ||= []).push(it);
+        }
+        if (!filtered.length) {
+          menu.innerHTML = `<div style="padding:10px;color:var(--muted);font-size:12px;">No matching items</div>`;
+          return;
+        }
+        menu.innerHTML = Object.entries(groups).map(([folder, list]) => `
+          <div class="combo-group-title">${folder}</div>
+          ${list.map(it => {
+            const isSel = selected().includes(it.key);
+            return `
+              <div class="combo-opt ${isSel ? "selected" : ""}" data-key="${it.key}">
+                <span class="combo-check">✓</span>
+                <div class="combo-opt-text">
+                  <strong>${it.label}</strong>
+                  ${it.when ? `<small>${it.when}</small>` : ""}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        `).join("");
+      }
+
+      function setOpen(val) {
+        open = val;
+        box.classList.toggle("open", open);
+        menu.classList.toggle("open", open);
+        if (open) renderMenu();
+      }
+
+      box.addEventListener("click", (e) => {
+        const rm = e.target.closest("[data-rm]");
+        if (rm) {
+          e.stopPropagation();
+          onChange(selected().filter(k => k !== rm.dataset.rm));
+          renderChips();
+          if (open) renderMenu();
+          return;
+        }
+        setOpen(true);
+        input.focus();
+      });
+
+      input.addEventListener("input", () => {
+        query = input.value;
+        setOpen(true);
+      });
+
+      menu.addEventListener("click", (e) => {
+        const opt = e.target.closest("[data-key]");
+        if (!opt) return;
+        const k = opt.dataset.key;
+        const curr = selected();
+        onChange(curr.includes(k) ? curr.filter(x => x !== k) : [...curr, k]);
+        renderChips();
+        renderMenu();
+        input.focus();
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!container.contains(e.target)) setOpen(false);
+      });
+
+      renderChips();
+      return { refresh: () => { renderChips(); if (open) renderMenu(); } };
+    }
+
+    function renderEditor(msg, onUpdate, timingHtml = "") {
+      return `
+        <div class="editor-box">
+          ${timingHtml}
+          <div class="editor-top">
+            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:220px;">
+              <span class="label" style="white-space:nowrap;">Channel</span>
+              <select class="ed-channel">
+                <option value="whatsapp" ${msg.channel === "whatsapp" ? "selected" : ""}>WhatsApp only</option>
+                <option value="email" ${msg.channel === "email" ? "selected" : ""}>Email only</option>
+                <option value="both" ${msg.channel === "both" ? "selected" : ""}>Both (WhatsApp + Email)</option>
+              </select>
+            </div>
+            <div class="toolbar">
+              <div class="fmt-group">
+                <button type="button" class="fmt-btn"><b>B</b></button>
+                <button type="button" class="fmt-btn"><i>I</i></button>
+                <button type="button" class="fmt-btn">• List</button>
+              </div>
+              <select class="var-select">
+                <option value="">Insert variable ▾</option>
+                <option>{{client_name}}</option>
+                <option>{{package_name}}</option>
+                <option>{{amount_due}}</option>
+                <option>{{due_date}}</option>
+              </select>
+            </div>
+          </div>
+          ${msg.channel !== "whatsapp" ? `<input type="text" class="ed-subject" placeholder="Email subject…" value="${msg.subject || ""}" />` : ""}
+          <textarea class="msg-area ed-text" placeholder="Write message…">${msg.text || ""}</textarea>
+        </div>
+      `;
+    }
+
+    function renderInstantArea() {
+      const wrap = document.getElementById("instantEditorArea");
+      if (state.instantAud === "off") {
+        wrap.innerHTML = `<div class="card-sub" style="padding:4px 0;">Instant auto message is turned off for this stage.</div>`;
+        return;
+      }
+      const tabsHtml = state.instantAud === "both" ? `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div class="seg" id="instantSubTab">
+            <button type="button" data-tab="client" class="${state.instantTab === "client" ? "active" : ""}">Client message</button>
+            <button type="button" data-tab="admin" class="${state.instantTab === "admin" ? "active" : ""}">Admin / Team message</button>
+          </div>
+          <span class="card-sub">Sent immediately on trigger</span>
+        </div>
+      ` : "";
+      const activeKey = state.instantAud === "both" ? state.instantTab : state.instantAud;
+      const msg = activeKey === "admin" ? state.instantAdmin : state.instantClient;
+      wrap.innerHTML = tabsHtml + renderEditor(msg);
+
+      wrap.querySelectorAll("#instantSubTab button").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.instantTab = btn.dataset.tab;
+          renderInstantArea();
+        });
+      });
+      wrap.querySelector(".ed-channel")?.addEventListener("change", (e) => {
+        msg.channel = e.target.value;
+        renderInstantArea();
+      });
+      wrap.querySelector(".ed-subject")?.addEventListener("input", (e) => { msg.subject = e.target.value; });
+      wrap.querySelector(".ed-text")?.addEventListener("input", (e) => { msg.text = e.target.value; });
+    }
+
+    function renderReminderArea() {
+      const area = document.getElementById("reminderArea");
+      const toggleBtn = document.getElementById("toggleReminderBtn");
+      toggleBtn.style.display = state.hasReminder ? "inline" : "none";
+      if (!state.hasReminder) {
+        area.innerHTML = `<button type="button" class="btn dashed" id="addReminderBtn">+ Add follow-up reminder</button>`;
+        document.getElementById("addReminderBtn").addEventListener("click", () => {
+          state.hasReminder = true;
+          if (!state.rem.stopOn.length && state.triggers.length) {
+            state.rem.stopOn = [...(byKey[state.triggers[0]]?.defaultStop || [])];
+          }
+          renderAll();
+        });
+        return;
+      }
+
+      const r = state.rem;
+      const activeWho = r.audience === "both" ? r.activeTab : r.audience;
+      const steps = activeWho === "admin" ? r.adminSteps : r.clientSteps;
+      const mode = activeWho === "admin" ? r.adminMode : r.clientMode;
+
+      area.innerHTML = `
+        <div class="rem-box">
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">Start when</label>
+              <select id="remStart">
+                <option value="__main__">Same as stage trigger (${state.triggers.map(k => byKey[k]?.label).join(", ") || "selected"})</option>
+                ${WORKS.map(w => `<option value="${w.key}" ${r.startTrigger === w.key ? "selected" : ""}>${w.label}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Send to</label>
+              <div class="seg" id="remAudSeg">
+                <button type="button" data-val="client" class="${r.audience === "client" ? "active" : ""}">Client</button>
+                <button type="button" data-val="admin" class="${r.audience === "admin" ? "active" : ""}">Admin</button>
+                <button type="button" data-val="both" class="${r.audience === "both" ? "active" : ""}">Both</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              ${r.audience === "both" ? `
+                <div class="seg" id="remSubTab">
+                  <button type="button" data-tab="client" class="${r.activeTab === "client" ? "active" : ""}">Client</button>
+                  <button type="button" data-tab="admin" class="${r.activeTab === "admin" ? "active" : ""}">Admin / Team</button>
+                </div>
+              ` : `<strong style="font-size:12.5px;">${activeWho === "admin" ? "Admin / Team" : "Client"} schedule</strong>`}
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              ${activeWho === "admin" && r.audience === "both" ? `<button type="button" class="btn-link" id="copyClientBtn">Copy client's days</button>` : ""}
+              <select id="remModeSelect" style="padding:4px 8px; font-size:12px;">
+                <option value="separate" ${mode === "separate" ? "selected" : ""}>Separate message per timing</option>
+                <option value="universal" ${mode === "universal" ? "selected" : ""}>1 universal message (multiple timings)</option>
+              </select>
+            </div>
+          </div>
+
+          ${steps.map((st, idx) => renderEditor(st, null, `
+            <div class="timing-strip">
+              <span class="label-muted" style="font-weight:700;">#${idx + 1}</span>
+              <input type="number" class="num-sm" min="0" value="${st.amount}" />
+              <select style="padding:4px 7px;">
+                <option value="days" ${st.unit === "days" ? "selected" : ""}>Days</option>
+                <option value="hours" ${st.unit === "hours" ? "selected" : ""}>Hours</option>
+              </select>
+              <select style="padding:4px 7px;">
+                <option value="before" ${st.pos === "before" ? "selected" : ""}>Before due date</option>
+                <option value="on" ${st.pos === "on" ? "selected" : ""}>On due date</option>
+                <option value="after" ${st.pos === "after" ? "selected" : ""}>After due date</option>
+              </select>
+            </div>
+          `)).join("")}
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">Repeat</label>
+              <div class="inline-row">
+                <select id="remRepeat" style="flex:1;">
+                  <option value="off" ${r.repeatMode === "off" ? "selected" : ""}>Off (No repeat)</option>
+                  <option value="permanent" ${r.repeatMode === "permanent" ? "selected" : ""}>Permanent (until stop)</option>
+                  <option value="limited" ${r.repeatMode === "limited" ? "selected" : ""}>Fixed days limit</option>
+                </select>
+                ${r.repeatMode === "limited" ? `<input type="number" class="num-sm" value="${r.repeatForDays}" title="For days" /><span class="card-sub">days</span>` : ""}
+                ${r.repeatMode !== "off" ? `<span class="card-sub">every</span><input type="number" class="num-sm" value="${r.repeatEveryDays}" /><span class="card-sub">d · 1x/day</span>` : ""}
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Count days from &amp; Only when</label>
+              <div class="inline-row">
+                <select id="remBaseDate" style="flex:1;">
+                  <option value="due_date" ${r.countDaysFrom === "due_date" ? "selected" : ""}>Due date</option>
+                  <option value="trigger_date" ${r.countDaysFrom === "trigger_date" ? "selected" : ""}>Trigger date</option>
+                  <option value="expiry_date" ${r.countDaysFrom === "expiry_date" ? "selected" : ""}>Expiry date</option>
+                  <option value="deadline_date" ${r.countDaysFrom === "deadline_date" ? "selected" : ""}>Deadline</option>
+                </select>
+                <select id="remCond" style="flex:1;">
+                  <option value="any">Anytime</option>
+                  <option value="unpaid" selected>If still unpaid</option>
+                  <option value="pending_approval">If payment pending approval</option>
+                  <option value="installment_due">If installment due</option>
+                  <option value="upload_pending">If upload pending</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field full">
+              <label class="label">
+                <span>Stop when</span>
+                <span class="label-muted">Reminders stop immediately when any selected work happens</span>
+              </label>
+              <div class="combo-wrap" id="stopCombo"></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      area.querySelectorAll("#remAudSeg button").forEach(b => b.addEventListener("click", () => { r.audience = b.dataset.val; renderReminderArea(); renderFlow(); }));
+      area.querySelectorAll("#remSubTab button").forEach(b => b.addEventListener("click", () => { r.activeTab = b.dataset.tab; renderReminderArea(); }));
+      area.querySelector("#remRepeat")?.addEventListener("change", e => { r.repeatMode = e.target.value; renderReminderArea(); });
+      area.querySelector("#remModeSelect")?.addEventListener("change", e => {
+        if (activeWho === "admin") r.adminMode = e.target.value; else r.clientMode = e.target.value;
+        renderReminderArea();
+      });
+
+      buildCombo(document.getElementById("stopCombo"), {
+        items: WORKS.filter(w => !state.triggers.includes(w.key)),
+        selected: () => r.stopOn,
+        placeholder: "Search & select stop triggers…",
+        onChange: (next) => { r.stopOn = next; renderFlow(); },
+      });
+    }
+
+    function renderFlow() {
+      const strip = document.getElementById("flowStrip");
+      const countEl = document.getElementById("triggerCount");
+      const hintEl = document.getElementById("triggerHint");
+      const pkgCol = document.getElementById("packageScopeCol");
+      const stageTag = document.getElementById("stage1TriggerTag");
+      const saveBtn = document.getElementById("saveBtn");
+      const foot = document.getElementById("footSummary");
+
+      countEl.textContent = `${state.triggers.length} selected`;
+      const hasScope = state.triggers.some(k => byKey[k]?.scope);
+      pkgCol.style.opacity = hasScope ? "1" : "0.55";
+      pkgCol.style.pointerEvents = hasScope ? "auto" : "none";
+      document.getElementById("pkgScopeHint").textContent = hasScope ? "Applies to selected triggers" : "Available for package/order triggers";
+
+      if (!state.triggers.length) {
+        strip.innerHTML = `<span class="flow-empty">Trail preview: choose a Trigger point below to see your live automation flow.</span>`;
+        hintEl.textContent = "Select one or more works that start this automated trail.";
+        stageTag.textContent = "Waiting for trigger…";
+        saveBtn.disabled = true;
+        foot.textContent = "Choose a trigger point to save.";
+        return;
+      }
+
+      const trigLabel = state.triggers.length === 1
+        ? byKey[state.triggers[0]]?.label
+        : `${byKey[state.triggers[0]]?.label} +${state.triggers.length - 1}`;
+      hintEl.textContent = state.triggers.length === 1 ? (byKey[state.triggers[0]]?.when || "") : `${state.triggers.length} works grouped in this trail.`;
+      stageTag.textContent = `On: ${trigLabel}`;
+      saveBtn.disabled = false;
+
+      const pills = [{ type: "trigger", text: trigLabel }];
+      if (state.instantAud !== "off") pills.push({ type: "step", text: `Instant (${state.instantAud})` });
+      if (state.hasReminder) {
+        pills.push({ type: "step", text: `Reminder (${state.rem.audience})` });
+        if (state.rem.stopOn.length) pills.push({ type: "step", text: `Stop: ${byKey[state.rem.stopOn[0]]?.label}` });
+      }
+      state.extraStages.forEach((st, i) => pills.push({ type: "step", text: `Stage ${i + 2} (${st.mode})` }));
+
+      strip.innerHTML = pills.map((p, i) => `
+        ${i > 0 ? `<span class="flow-arrow">→</span>` : ""}
+        <span class="flow-pill" data-type="${p.type}">${p.text}</span>
+      `).join("");
+
+      const tCount = (state.instantAud !== "off" ? 1 : 0) + state.extraStages.filter(s => s.mode === "template").length;
+      const rCount = (state.hasReminder ? 1 : 0) + state.extraStages.filter(s => s.mode === "reminder").length;
+      foot.textContent = `${tCount} template${tCount === 1 ? "" : "s"} · ${rCount} reminder${rCount === 1 ? "" : "s"} ready to save`;
+    }
+
+    function renderExtraStages() {
+      const container = document.getElementById("extraStages");
+      container.innerHTML = state.extraStages.map((st, idx) => `
+        <section class="card" style="margin-top:12px; border-left: 3px solid var(--accent);">
+          <div class="card-head">
+            <div class="card-title">
+              <span class="step-badge" style="background:var(--accent);">${idx + 3}</span>
+              <h2>Stage ${idx + 2} — ${st.mode === "template" ? "Instant auto message" : "Follow-up reminder"}</h2>
+            </div>
+            <button type="button" class="btn-danger-link" data-rm-stage="${idx}">Remove stage</button>
+          </div>
+          <div class="card-sub">Pre-filled from previous Stop Trigger (${state.rem.stopOn.map(k => byKey[k]?.label).join(", ") || "choose trigger"}) — compact &amp; consistent.</div>
+        </section>
+      `).join("");
+      container.querySelectorAll("[data-rm-stage]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.extraStages.splice(Number(btn.dataset.rmStage), 1);
+          renderAll();
+        });
+      });
+    }
+
+    function renderAll() {
+      renderFlow();
+      renderInstantArea();
+      renderReminderArea();
+      renderExtraStages();
+    }
+
+    buildCombo(document.getElementById("rootTriggerCombo"), {
+      items: WORKS,
+      selected: () => state.triggers,
+      placeholder: "Search & select trigger point…",
+      onChange: (next) => { state.triggers = next; renderAll(); },
+    });
+
+    buildCombo(document.getElementById("packageCombo"), {
+      items: PACKAGES,
+      selected: () => state.selectedPackages,
+      placeholder: "Select packages…",
+      onChange: (next) => { state.selectedPackages = next; },
+    });
+
+    document.getElementById("packageScopeSelect").addEventListener("change", (e) => {
+      state.pkgScope = e.target.value;
+      document.getElementById("packagePickerWrap").style.display = (state.pkgScope === "include" || state.pkgScope === "exclude") ? "block" : "none";
+    });
+
+    document.querySelectorAll("#instantAudienceSeg button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#instantAudienceSeg button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.instantAud = btn.dataset.val;
+        renderInstantArea();
+        renderFlow();
+      });
+    });
+
+    document.getElementById("toggleReminderBtn").addEventListener("click", () => {
+      state.hasReminder = false;
+      renderAll();
+    });
+
+    document.getElementById("addStageTemplateBtn").addEventListener("click", () => {
+      state.extraStages.push({ mode: "template" });
+      renderAll();
+    });
+    document.getElementById("addStageReminderBtn").addEventListener("click", () => {
+      state.extraStages.push({ mode: "reminder" });
+      renderAll();
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>
