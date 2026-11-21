@@ -297,15 +297,18 @@ export function defaultReminderTiming(triggerKey?: string): {
   return { countDaysFrom: "trigger_date", pos: "after", amount: 1, unit: "days" };
 }
 
-export function allowedConditionIds(work?: WorkItem | null): string[] {
+export function allowedConditionIds(workOrList?: WorkItem | (WorkItem | undefined)[] | null): string[] {
+  const list = Array.isArray(workOrList) ? workOrList.filter((w): w is WorkItem => Boolean(w)) : (workOrList ? [workOrList] : []);
   const allowed = new Set<string>(["any"]);
-  for (const c of work?.conditions || []) {
-    if (CONDITIONS.some(item => item.id === c)) allowed.add(c);
-  }
-  if (work?.supportsProgress) allowed.add("progress_min");
-  if (work?.supportsLimit) {
-    allowed.add("limit_min");
-    allowed.add("limit_max");
+  for (const work of list) {
+    for (const c of work.conditions || []) {
+      if (CONDITIONS.some(item => item.id === c)) allowed.add(c);
+    }
+    if (work.supportsProgress) allowed.add("progress_min");
+    if (work.supportsLimit) {
+      allowed.add("limit_min");
+      allowed.add("limit_max");
+    }
   }
   return CONDITIONS.filter(item => allowed.has(item.id)).map(item => item.id);
 }

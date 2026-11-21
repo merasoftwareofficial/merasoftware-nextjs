@@ -47,6 +47,13 @@ type Reminder = {
   stopChains: Record<string, StopChain>;
 };
 
+type TrailStage = {
+  id: number;
+  triggers: string[];
+  instant: InstantBlockState;
+  reminder: Reminder | null;
+};
+
 type TrailForm = {
   _id?: string;
   triggers: string[];
@@ -54,6 +61,7 @@ type TrailForm = {
   selectedPackages: string[];
   instant: InstantBlockState;
   reminders: Reminder[];
+  stages: TrailStage[];
   enabled?: boolean;
   control?: "auto" | "review" | "off";
 };
@@ -89,9 +97,11 @@ const newReminder = (defaultStops: string[] = [], triggerKey?: string): Reminder
   };
 };
 
-const newStopChain = (defaultStops: string[] = []): StopChain => ({
-  instant: blankInstant("client"),
-  reminders: [],
+const newTrailStage = (mode: "template" | "reminder", prefillTriggers: string[], defaultStops: string[] = []): TrailStage => ({
+  id: nextId++,
+  triggers: [...prefillTriggers],
+  instant: blankInstant(mode === "template" ? "client" : "off"),
+  reminder: mode === "reminder" ? newReminder(defaultStops, prefillTriggers[0]) : null,
 });
 
 const emptyForm = (): TrailForm => ({
@@ -100,6 +110,7 @@ const emptyForm = (): TrailForm => ({
   selectedPackages: [],
   instant: blankInstant("client"),
   reminders: [],
+  stages: [],
 });
 
 function normalizeMsg(raw: Partial<SingleMsg> | null | undefined): SingleMsg {
@@ -167,15 +178,57 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
   };
 }
 
+function flattenLegacyChains(reminders: Reminder[], outStages: TrailStage[]) {
+  for (const rem of reminders) {
+    for (const stopKey of rem.stopOn) {
+      const ch = rem.stopChains?.[stopKey];
+      if (!ch) continue;
+      const firstSub = ch.reminders[0] || null;
+      outStages.push({
+        id: nextId++,
+        triggers: [stopKey],
+        instant: ch.instant,
+        reminder: firstSub ? { ...firstSub, stopChains: {} } : null,
+      });
+      if (ch.reminders.length > 0) flattenLegacyChains(ch.reminders, outStages);
+    }
+    rem.stopChains = {};
+  }
+}
+
 function normalizeTrail(raw: unknown): TrailForm {
   const t = (raw && typeof raw === "object" ? raw : {}) as Partial<TrailForm>;
+  const reminders = Array.isArray(t.reminders) ? t.reminders.map(rem => normalizeReminder(rem, 0)) : [];
+  const rawStages: unknown[] = Array.isArray(t.stages) ? t.stages : [];
+  let stages: TrailStage[] = rawStages
+    .filter((st): st is Partial<TrailStage> & { trigger?: unknown } => Boolean(st && typeof st === "object"))
+    .slice(0, MAX_CHAIN_DEPTH)
+    .map(st => {
+      const id = typeof st.id === "number" && Number.isFinite(st.id) ? st.id : nextId++;
+      if (id >= nextId) nextId = id + 1;
+      const stageTriggers = Array.isArray(st.triggers) && st.triggers.length
+        ? st.triggers.filter((k): k is string => typeof k === "string" && Boolean(k))
+        : (typeof st.trigger === "string" && st.trigger ? [st.trigger] : []);
+      return {
+        id,
+        triggers: [...new Set(stageTriggers)],
+        instant: normalizeInstant(st.instant),
+        reminder: st.reminder ? normalizeReminder(st.reminder, 0) : null,
+      };
+    });
+  if (stages.length === 0) {
+    const flattened: TrailStage[] = [];
+    flattenLegacyChains(reminders, flattened);
+    stages = flattened.slice(0, MAX_CHAIN_DEPTH);
+  }
   return {
     ...(t._id ? { _id: String(t._id) } : {}),
     triggers: Array.isArray(t.triggers) ? t.triggers.filter((k): k is string => typeof k === "string" && Boolean(k)) : [],
     scope: t.scope === "monthly" || t.scope === "onetime" || t.scope === "include" || t.scope === "exclude" ? t.scope : "all",
     selectedPackages: Array.isArray(t.selectedPackages) ? t.selectedPackages.filter((s): s is string => typeof s === "string" && Boolean(s)) : [],
     instant: normalizeInstant(t.instant),
-    reminders: Array.isArray(t.reminders) ? t.reminders.map(rem => normalizeReminder(rem, 0)) : [],
+    reminders,
+    stages,
     ...(t.enabled !== undefined ? { enabled: Boolean(t.enabled) } : {}),
     ...(t.control === "auto" || t.control === "review" || t.control === "off" ? { control: t.control } : {}),
   };
@@ -211,126 +264,225 @@ function cleanInstantForSave(inst: InstantBlockState): InstantBlockState {
   return { ...inst, audience: "off" };
 }
 
-function countReminders(reminders: Reminder[]): number {
-  return reminders.reduce((sum, rem) => {
-    const nested = Object.values(rem.stopChains).reduce((acc, ch) => acc + countReminders(ch.reminders), 0);
-    return sum + 1 + nested;
-  }, 0);
+function triggersLabel(keys: string[], byKey: Map<string, WorkItem>) {
+  if (!keys.length) return "";
+  const first = workLabel(keys[0], byKey);
+  return keys.length > 1 ? `${first} +${keys.length - 1}` : first;
 }
 
-function countTemplates(instant: InstantBlockState, reminders: Reminder[]): number {
-  const self = hasInstantContent(instant) ? 1 : 0;
-  return self + reminders.reduce((sum, rem) => {
-    const nested = Object.values(rem.stopChains).reduce((acc, ch) => acc + countTemplates(ch.instant, ch.reminders), 0);
-    return sum + nested;
-  }, 0);
+function allTrailTriggerKeys(form: Pick<TrailForm, "triggers" | "reminders" | "stages">): string[] {
+  const keys: string[] = [...form.triggers];
+  for (const rem of form.reminders) {
+    if (rem.startTrigger && rem.startTrigger !== "__main__") keys.push(rem.startTrigger);
+  }
+  for (const st of form.stages) {
+    keys.push(...st.triggers);
+    if (st.reminder?.startTrigger && st.reminder.startTrigger !== "__main__") keys.push(st.reminder.startTrigger);
+  }
+  return keys;
+}
+
+function countReminders(reminders: Reminder[], stages: TrailStage[] = []): number {
+  const rootCount = reminders.length;
+  const stageCount = stages.reduce((sum, st) => sum + (st.reminder ? 1 : 0), 0);
+  return rootCount + stageCount;
+}
+
+function countTemplates(instant: InstantBlockState, stages: TrailStage[] = []): number {
+  const rootCount = hasInstantContent(instant) ? 1 : 0;
+  const stageCount = stages.reduce((sum, st) => sum + (hasInstantContent(st.instant) ? 1 : 0), 0);
+  return rootCount + stageCount;
+}
+
+function cleanSingleReminder(
+  rem: Reminder,
+  effTriggers: string[],
+  stageLabel: string,
+  byKey: Map<string, WorkItem>,
+): { reminder?: Reminder; error?: string } {
+  const allowedConds = allowedConditionIds(effTriggers.map(k => byKey.get(k)));
+  const condition = allowedConds.includes(rem.condition) ? rem.condition : "any";
+  const fixStep = (st: MessageStep): MessageStep => (
+    rem.countDaysFrom === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st
+  );
+  const clientSteps = rem.clientSteps.map(fixStep);
+  const adminSteps = rem.adminSteps.map(fixStep);
+
+  const showClient = rem.audience === "client" || rem.audience === "both";
+  const showAdmin = rem.audience === "admin" || rem.audience === "both";
+  const label = triggersLabel(effTriggers, byKey);
+
+  if (showClient) {
+    const missing = rem.clientMode === "universal"
+      ? !clientSteps[0]?.text.trim()
+      : clientSteps.some(st => !st.text.trim());
+    if (missing) return { error: `Write the Client message in ${stageLabel} Reminder (${label}).` };
+  }
+  if (showAdmin) {
+    const missing = rem.adminMode === "universal"
+      ? !adminSteps[0]?.text.trim()
+      : adminSteps.some(st => !st.text.trim());
+    if (missing) return { error: `Write the Admin message in ${stageLabel} Reminder (${label}).` };
+  }
+
+  const maxSteps = Math.max(showClient ? clientSteps.length : 0, showAdmin ? adminSteps.length : 0);
+  if ((rem.repeatMode === "permanent" || rem.repeatMode === "limited" || maxSteps > 1) && rem.stopOn.length === 0) {
+    return { error: `Add at least one Stop Trigger for ${stageLabel} Reminder (${label}).` };
+  }
+
+  return {
+    reminder: {
+      ...rem,
+      condition,
+      stopOn: rem.stopOn.filter(k => !effTriggers.includes(k)),
+      clientSteps,
+      adminSteps,
+      stopChains: {},
+    },
+  };
 }
 
 function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null } {
   if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
 
+  const hasScope = allTrailTriggerKeys(form).some(k => byKey.get(k)?.supportsScope);
+  if (hasScope && (form.scope === "include" || form.scope === "exclude") && form.selectedPackages.length === 0) {
+    return {
+      trail: form,
+      error: `Select at least one package to ${form.scope} (or switch Packages to All).`,
+    };
+  }
+
   const cleanInstant = cleanInstantForSave(form.instant);
+  const cleanReminders: Reminder[] = [];
+  for (let i = 0; i < form.reminders.length; i++) {
+    const rem = form.reminders[i];
+    const effTriggers = rem.startTrigger !== "__main__" ? [rem.startTrigger] : form.triggers;
+    const res = cleanSingleReminder(rem, effTriggers, `Stage 1`, byKey);
+    if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder." };
+    cleanReminders.push(res.reminder);
+  }
 
-  const cleanReminderList = (
-    reminders: Reminder[],
-    parentTrigger: string,
-    depth: number,
-  ): { list: Reminder[]; error: string | null } => {
-    const out: Reminder[] = [];
-    for (let i = 0; i < reminders.length; i++) {
-      const rem = reminders[i];
-      const effTrigger = depth === 0 && rem.startTrigger !== "__main__" ? rem.startTrigger : parentTrigger;
-      const work = byKey.get(effTrigger);
-      const allowedConds = allowedConditionIds(work);
-      const condition = allowedConds.includes(rem.condition) ? rem.condition : "any";
-      const fixStep = (st: MessageStep): MessageStep => (
-        rem.countDaysFrom === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st
-      );
-      const clientSteps = rem.clientSteps.map(fixStep);
-      const adminSteps = rem.adminSteps.map(fixStep);
-
-      const showClient = rem.audience === "client" || rem.audience === "both";
-      const showAdmin = rem.audience === "admin" || rem.audience === "both";
-      const label = workLabel(effTrigger, byKey);
-
-      if (showClient) {
-        const missing = rem.clientMode === "universal"
-          ? !clientSteps[0]?.text.trim()
-          : clientSteps.some(st => !st.text.trim());
-        if (missing) return { list: [], error: `Write the Client message in Reminder ${i + 1} (${label}).` };
-      }
-      if (showAdmin) {
-        const missing = rem.adminMode === "universal"
-          ? !adminSteps[0]?.text.trim()
-          : adminSteps.some(st => !st.text.trim());
-        if (missing) return { list: [], error: `Write the Admin message in Reminder ${i + 1} (${label}).` };
-      }
-
-      const maxSteps = Math.max(showClient ? clientSteps.length : 0, showAdmin ? adminSteps.length : 0);
-      if ((rem.repeatMode === "permanent" || rem.repeatMode === "limited" || maxSteps > 1) && rem.stopOn.length === 0) {
-        return { list: [], error: `Add at least one Stop Trigger for Reminder ${i + 1} (${label}).` };
-      }
-
-      const nextChains: Record<string, StopChain> = {};
-      for (const stopKey of rem.stopOn) {
-        const ch = rem.stopChains[stopKey];
-        if (!ch) continue;
-        const chInstant = cleanInstantForSave(ch.instant);
-        const sub = cleanReminderList(ch.reminders, stopKey, depth + 1);
-        if (sub.error) return { list: [], error: sub.error };
-        if (chInstant.audience === "off" && sub.list.length === 0) {
-          return { list: [], error: `Stage on "${workLabel(stopKey, byKey)}" is empty — add a Template/Reminder or remove the stage.` };
-        }
-        nextChains[stopKey] = { instant: chInstant, reminders: sub.list };
-      }
-
-      out.push({
-        ...rem,
-        condition,
-        clientSteps,
-        adminSteps,
-        stopChains: nextChains,
-      });
+  const cleanStages: TrailStage[] = [];
+  for (let i = 0; i < form.stages.length; i++) {
+    const st = form.stages[i];
+    const stageNum = i + 2;
+    if (!st.triggers.length) return { trail: form, error: `Choose at least one trigger point for Stage ${stageNum}.` };
+    const stInstant = cleanInstantForSave(st.instant);
+    let stReminder: Reminder | null = null;
+    if (st.reminder) {
+      const effTriggers = st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : st.triggers;
+      const res = cleanSingleReminder(st.reminder, effTriggers, `Stage ${stageNum}`, byKey);
+      if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder." };
+      stReminder = res.reminder;
     }
-    return { list: out, error: null };
-  };
+    if (stInstant.audience === "off" && !stReminder) {
+      return { trail: form, error: `Stage ${stageNum} (${triggersLabel(st.triggers, byKey)}) is empty — write a Template, add a Reminder, or remove Stage ${stageNum}.` };
+    }
+    cleanStages.push({
+      id: st.id,
+      triggers: st.triggers,
+      instant: stInstant,
+      reminder: stReminder,
+    });
+  }
 
-  const cleaned = cleanReminderList(form.reminders, form.triggers[0], 0);
-  if (cleaned.error) return { trail: form, error: cleaned.error };
-  if (cleanInstant.audience === "off" && cleaned.list.length === 0) {
+  if (cleanInstant.audience === "off" && cleanReminders.length === 0 && cleanStages.length === 0) {
     return { trail: form, error: "Write a Template (Auto Message) or add at least one Reminder before saving." };
   }
 
   return {
-    trail: { ...form, instant: cleanInstant, reminders: cleaned.list },
+    trail: { ...form, instant: cleanInstant, reminders: cleanReminders, stages: cleanStages },
     error: null,
   };
 }
 
 function buildFlowTokens(form: TrailForm, byKey: Map<string, WorkItem>): string[] {
   const out: string[] = [];
-  if (form.triggers.length > 0) {
-    const first = workLabel(form.triggers[0], byKey);
-    out.push(form.triggers.length > 1 ? `${first} +${form.triggers.length - 1}` : first);
-  }
+  if (form.triggers.length > 0) out.push(triggersLabel(form.triggers, byKey));
   if (form.instant.audience !== "off") {
     out.push(`Template (${audienceShort(form.instant.audience)})`);
   }
-  const walk = (reminders: Reminder[], depth: number) => {
-    if (depth > MAX_CHAIN_DEPTH) return;
-    reminders.forEach((rem, idx) => {
-      out.push(`Reminder ${idx + 1} (${audienceShort(rem.audience)})`);
-      for (const stopKey of rem.stopOn) {
-        const ch = rem.stopChains[stopKey];
-        if (!ch) continue;
-        out.push(`Stop: ${workLabel(stopKey, byKey)}`);
-        if (ch.instant.audience !== "off") out.push(`Template (${audienceShort(ch.instant.audience)})`);
-        walk(ch.reminders, depth + 1);
-      }
-    });
-  };
-  walk(form.reminders, 0);
+  form.reminders.forEach((rem, idx) => {
+    const override = rem.startTrigger !== "__main__" ? ` · ${workLabel(rem.startTrigger, byKey)}` : "";
+    out.push(`Reminder ${idx + 1} (${audienceShort(rem.audience)}${override})`);
+    if (rem.stopOn.length > 0) out.push(`Stop: ${triggersLabel(rem.stopOn, byKey)}`);
+  });
+  form.stages.forEach(st => {
+    if (st.triggers.length > 0) out.push(`On: ${triggersLabel(st.triggers, byKey)}`);
+    if (st.instant.audience !== "off") out.push(`Template (${audienceShort(st.instant.audience)})`);
+    if (st.reminder) {
+      const override = st.reminder.startTrigger !== "__main__" ? ` · ${workLabel(st.reminder.startTrigger, byKey)}` : "";
+      out.push(`Reminder (${audienceShort(st.reminder.audience)}${override})`);
+      if (st.reminder.stopOn.length > 0) out.push(`Stop: ${triggersLabel(st.reminder.stopOn, byKey)}`);
+    }
+  });
   return out;
+}
+
+function MultiTriggerSelect({
+  label,
+  ariaLabel,
+  emptyPlaceholder,
+  addPlaceholder,
+  values,
+  exclude = [],
+  folders,
+  byKey,
+  showHint = false,
+  onChange,
+}: {
+  label: string;
+  ariaLabel: string;
+  emptyPlaceholder: string;
+  addPlaceholder: string;
+  values: string[];
+  exclude?: string[];
+  folders: WorkFolder[];
+  byKey: Map<string, WorkItem>;
+  showHint?: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const excluded = [...values, ...exclude];
+  const primaryWork = values.length === 1 ? byKey.get(values[0]) : undefined;
+  return <>
+    <div className={s.fieldRow}>
+      <label className={s.fieldLabel}>{label}</label>
+      <select
+        className={s.select}
+        aria-label={ariaLabel}
+        value=""
+        onChange={e => {
+          const val = e.target.value;
+          if (val && !values.includes(val)) onChange([...values, val]);
+        }}
+      >
+        <option value="">{values.length > 0 ? addPlaceholder : emptyPlaceholder}</option>
+        <WorkOptions folders={folders} exclude={excluded} />
+      </select>
+    </div>
+
+    {values.length > 0 && (
+      <div className={s.chipList}>
+        {values.map(key => {
+          const name = workLabel(key, byKey);
+          return (
+            <span key={key} className={s.chip}>
+              <span>{name}</span>
+              <button
+                type="button"
+                className={s.chipClose}
+                aria-label={`Remove ${name}`}
+                onClick={() => onChange(values.filter(k => k !== key))}
+              >✕</button>
+            </span>
+          );
+        })}
+      </div>
+    )}
+
+    {showHint && primaryWork?.when && <p className={s.hint}>{primaryWork.when}</p>}
+  </>;
 }
 
 function WorkOptions({ folders, exclude = [] }: { folders: WorkFolder[]; exclude?: string[] }) {
@@ -688,10 +840,8 @@ function ReminderCard({
   index,
   depth,
   reminder,
-  inheritedTrigger,
-  mainTriggerKey,
-  mainTriggerLabel,
-  ancestorTriggers,
+  stageTriggers,
+  stageTriggersLabel,
   folders,
   byKey,
   onChange,
@@ -700,22 +850,18 @@ function ReminderCard({
   index: number;
   depth: number;
   reminder: Reminder;
-  inheritedTrigger?: string;
-  mainTriggerKey: string;
-  mainTriggerLabel: string;
-  ancestorTriggers: string[];
+  stageTriggers: string[];
+  stageTriggersLabel: string;
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
   onChange: (reminder: Reminder) => void;
   onRemove: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [collapsedChains, setCollapsedChains] = useState<Record<string, boolean>>({});
   const set = (patch: Partial<Reminder>) => onChange({ ...reminder, ...patch });
 
-  const effectiveTrigger = inheritedTrigger || (reminder.startTrigger !== "__main__" ? reminder.startTrigger : mainTriggerKey);
-  const effectiveWork = effectiveTrigger ? byKey.get(effectiveTrigger) : undefined;
-  const allowedConds = allowedConditionIds(effectiveWork);
+  const effectiveTriggers = reminder.startTrigger !== "__main__" ? [reminder.startTrigger] : stageTriggers;
+  const allowedConds = allowedConditionIds(effectiveTriggers.map(k => byKey.get(k)));
   const visibleConditions = CONDITIONS.filter(c => allowedConds.includes(c.id));
   const safeCondition = allowedConds.includes(reminder.condition) ? reminder.condition : "any";
   const conditionDef = CONDITIONS.find(item => item.id === safeCondition);
@@ -730,7 +876,7 @@ function ReminderCard({
       ? `Repeat: ${reminder.repeatForDays}d`
       : "No repeat";
   const stopSummary = reminder.stopOn.length > 0
-    ? `Stops on: ${workLabel(reminder.stopOn[0], byKey)}${reminder.stopOn.length > 1 ? ` +${reminder.stopOn.length - 1}` : ""}`
+    ? `Stops on: ${triggersLabel(reminder.stopOn, byKey)}`
     : "No stop trigger";
 
   function copyClientDays() {
@@ -741,12 +887,12 @@ function ReminderCard({
   }
 
   function handleStartTriggerChange(nextStart: string) {
-    const targetKey = nextStart === "__main__" ? mainTriggerKey : nextStart;
-    const targetWork = targetKey ? byKey.get(targetKey) : undefined;
-    const nextAllowed = allowedConditionIds(targetWork);
+    const targetKeys = nextStart === "__main__" ? stageTriggers : [nextStart];
+    const nextAllowed = allowedConditionIds(targetKeys.map(k => byKey.get(k)));
     set({
       startTrigger: nextStart,
       condition: nextAllowed.includes(reminder.condition) ? reminder.condition : "any",
+      stopOn: reminder.stopOn.filter(k => !targetKeys.includes(k)),
     });
   }
 
@@ -763,43 +909,11 @@ function ReminderCard({
     set({ countDaysFrom: nextBase });
   }
 
-  function removeStopTrigger(stopKey: string) {
-    const nextChains = { ...reminder.stopChains };
-    delete nextChains[stopKey];
-    set({
-      stopOn: reminder.stopOn.filter(k => k !== stopKey),
-      stopChains: nextChains,
-    });
-  }
-
-  function attachChain(stopKey: string) {
-    set({
-      stopChains: { ...reminder.stopChains, [stopKey]: newStopChain() },
-    });
-  }
-
-  function updateChain(stopKey: string, next: StopChain) {
-    set({ stopChains: { ...reminder.stopChains, [stopKey]: next } });
-  }
-
-  function removeChain(stopKey: string) {
-    const nextChains = { ...reminder.stopChains };
-    delete nextChains[stopKey];
-    set({ stopChains: nextChains });
-  }
-
-  const nextAncestors = effectiveTrigger && !ancestorTriggers.includes(effectiveTrigger)
-    ? [...ancestorTriggers, effectiveTrigger]
-    : ancestorTriggers;
-
   return <div className={s.remCard} data-depth={Math.min(depth, 3)}>
     <header className={s.remHeader}>
       <button type="button" className={s.collapseBtn} onClick={() => setCollapsed(v => !v)} aria-expanded={!collapsed}>
         <span className={s.chevron}>{collapsed ? "▸" : "▾"}</span>
         <strong>Reminder {index + 1}</strong>
-        {inheritedTrigger && (
-          <span className={s.triggerPill}>On: {workLabel(inheritedTrigger, byKey)}</span>
-        )}
         <span className={s.summaryMeta}>
           {audienceShort(reminder.audience)} · {msgCount} msg{msgCount === 1 ? "" : "s"} · {repeatSummary} · {stopSummary}
         </span>
@@ -808,21 +922,19 @@ function ReminderCard({
     </header>
 
     {!collapsed && <div className={s.remBody}>
-      {/* 1. Start trigger (hidden on chained reminders because Stop Trigger above is already the trigger) */}
-      {!inheritedTrigger && (
-        <div className={s.fieldRow}>
-          <label className={s.fieldLabel}>Start when</label>
-          <select
-            className={s.select}
-            aria-label="Start reminder trigger"
-            value={reminder.startTrigger}
-            onChange={e => handleStartTriggerChange(e.target.value)}
-          >
-            <option value="__main__">Same as main trigger ({mainTriggerLabel || "selected trigger"})</option>
-            <WorkOptions folders={folders} />
-          </select>
-        </div>
-      )}
+      {/* 1. Start trigger (consistent across every stage) */}
+      <div className={s.fieldRow}>
+        <label className={s.fieldLabel}>Start when</label>
+        <select
+          className={s.select}
+          aria-label="Start reminder trigger"
+          value={reminder.startTrigger}
+          onChange={e => handleStartTriggerChange(e.target.value)}
+        >
+          <option value="__main__">Same as stage trigger ({stageTriggersLabel || "selected trigger"})</option>
+          <WorkOptions folders={folders} />
+        </select>
+      </div>
 
       {/* 2. Send to (consistent dropdown) */}
       <div className={s.fieldRow}>
@@ -977,131 +1089,73 @@ function ReminderCard({
         )}
       </div>
 
-      {/* 6. Stop triggers + [ + Next stage ] Template -> Reminder loop */}
+      {/* 6. Stop triggers (same MultiTriggerSelect SSOT) */}
       <div className={s.stopBox}>
-        <div className={s.fieldRow}>
-          <label className={s.fieldLabel}>Stop when</label>
-          <select
-            className={s.select}
-            aria-label="Add stop trigger"
-            value=""
-            onChange={e => {
-              const val = e.target.value;
-              if (val && !reminder.stopOn.includes(val)) set({ stopOn: [...reminder.stopOn, val] });
-            }}
-          >
-            <option value="">Add a stop trigger…</option>
-            <WorkOptions folders={folders} exclude={effectiveTrigger ? [...reminder.stopOn, effectiveTrigger] : reminder.stopOn} />
-          </select>
-        </div>
-
-        {reminder.stopOn.length > 0 && (
-          <div className={s.stopList}>
-            {reminder.stopOn.map(stopKey => {
-              const stopName = workLabel(stopKey, byKey);
-              const chain = reminder.stopChains[stopKey];
-              const chainCollapsed = Boolean(collapsedChains[stopKey]);
-              const canChain = !chain && depth + 1 < MAX_CHAIN_DEPTH && !nextAncestors.includes(stopKey);
-              return (
-                <div key={stopKey} className={s.stopItem}>
-                  <div className={s.stopChipRow}>
-                    <span className={s.stopChip} data-linked={Boolean(chain)}>
-                      <span>{stopName}</span>
-                      {canChain && (
-                        <button
-                          type="button"
-                          className={s.plusBtn}
-                          title={`Continue trail on "${stopName}" (Template → Reminder)`}
-                          aria-label={`Start next stage on ${stopName}`}
-                          onClick={() => attachChain(stopKey)}
-                        >
-                          + Next stage
-                        </button>
-                      )}
-                      <button type="button" className={s.chipClose} aria-label={`Remove ${stopName}`} onClick={() => removeStopTrigger(stopKey)}>✕</button>
-                    </span>
-                  </div>
-
-                  {chain && (
-                    <div className={s.chainBranch} data-depth={Math.min(depth + 1, 3)}>
-                      <header className={s.chainHead}>
-                        <button
-                          type="button"
-                          className={s.collapseBtn}
-                          aria-expanded={!chainCollapsed}
-                          onClick={() => setCollapsedChains(prev => ({ ...prev, [stopKey]: !prev[stopKey] }))}
-                        >
-                          <span className={s.chevron}>{chainCollapsed ? "▸" : "▾"}</span>
-                          <strong>Next stage on “{stopName}”</strong>
-                          <span className={s.summaryMeta}>
-                            {chain.instant.audience !== "off" ? `Template (${audienceShort(chain.instant.audience)})` : "Template off"}
-                            {chain.reminders.length > 0 ? ` · ${chain.reminders.length} reminder${chain.reminders.length > 1 ? "s" : ""}` : ""}
-                          </span>
-                        </button>
-                        <button type="button" className={s.iconBtn} onClick={() => removeChain(stopKey)}>Remove stage</button>
-                      </header>
-
-                      {!chainCollapsed && <div className={s.chainBody}>
-                        <TrailStageBlock
-                          triggerKey={stopKey}
-                          triggerLabel={stopName}
-                          depth={depth + 1}
-                          mainTriggerKey={mainTriggerKey}
-                          mainTriggerLabel={mainTriggerLabel}
-                          ancestorTriggers={[...nextAncestors, stopKey]}
-                          instant={chain.instant}
-                          reminders={chain.reminders}
-                          folders={folders}
-                          byKey={byKey}
-                          onChangeInstant={instant => updateChain(stopKey, { ...chain, instant })}
-                          onChangeReminders={reminders => updateChain(stopKey, { ...chain, reminders })}
-                        />
-                      </div>}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <MultiTriggerSelect
+          label="Stop when"
+          ariaLabel="Add stop trigger"
+          emptyPlaceholder="Add a stop trigger…"
+          addPlaceholder="+ Add another stop trigger…"
+          values={reminder.stopOn}
+          exclude={effectiveTriggers}
+          folders={folders}
+          byKey={byKey}
+          onChange={stopOn => set({ stopOn })}
+        />
       </div>
     </div>}
   </div>;
 }
 
 function TrailStageBlock({
-  triggerKey,
-  triggerLabel,
+  stageTriggers,
+  stageTriggersLabel,
   depth,
-  mainTriggerKey,
-  mainTriggerLabel,
-  ancestorTriggers,
+  showTriggerSelect,
   instant,
   reminders,
   folders,
   byKey,
+  onChangeTriggers,
   onChangeInstant,
   onChangeReminders,
 }: {
-  triggerKey: string;
-  triggerLabel: string;
+  stageTriggers: string[];
+  stageTriggersLabel: string;
   depth: number;
-  mainTriggerKey: string;
-  mainTriggerLabel: string;
-  ancestorTriggers: string[];
+  showTriggerSelect?: boolean;
   instant: InstantBlockState;
   reminders: Reminder[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
+  onChangeTriggers?: (next: string[]) => void;
   onChangeInstant: (next: InstantBlockState) => void;
   onChangeReminders: (next: Reminder[]) => void;
 }) {
   function addStageReminder() {
-    const defaultStops = (byKey.get(triggerKey)?.defaultStopOn || []).filter(k => byKey.has(k) && k !== triggerKey);
-    onChangeReminders([...reminders, newReminder(defaultStops, triggerKey)]);
+    const defaultStops = [...new Set(
+      stageTriggers.flatMap(k => byKey.get(k)?.defaultStopOn || []),
+    )].filter(k => byKey.has(k) && !stageTriggers.includes(k));
+    onChangeReminders([...reminders, newReminder(defaultStops, stageTriggers[0])]);
   }
 
   return <div className={s.stageStack}>
+    {showTriggerSelect && onChangeTriggers && (
+      <div className={s.subBox}>
+        <MultiTriggerSelect
+          label="Trigger point"
+          ariaLabel={`Stage ${depth + 1} trigger point`}
+          emptyPlaceholder="Choose a trigger point…"
+          addPlaceholder="+ Add another trigger…"
+          values={stageTriggers}
+          folders={folders}
+          byKey={byKey}
+          showHint={true}
+          onChange={onChangeTriggers}
+        />
+      </div>
+    )}
+
     {/* 1. Template (Auto Message) */}
     <div className={s.stageSection}>
       <div className={s.stageSectionHead}>
@@ -1110,21 +1164,21 @@ function TrailStageBlock({
           <strong>Instant auto message</strong>
         </div>
         <span className={s.summaryMeta}>
-          {triggerLabel ? `Sent immediately when “${triggerLabel}” happens` : "Sent immediately on trigger"}
+          {stageTriggersLabel ? `Sent immediately when “${stageTriggersLabel}” happens` : "Sent immediately on trigger"}
         </span>
       </div>
       <InstantAutoMsgBlock state={instant} onChange={onChangeInstant} />
     </div>
 
-    {/* 2. Follow-up Reminders (+ Stop-Trigger Next Stage Loop) */}
+    {/* 2. Follow-up Reminder */}
     <div className={s.stageSection}>
       <div className={s.stageSectionHead}>
         <div className={s.stageTitleGroup}>
           <span className={s.stageBadge} data-kind="reminder">Reminder</span>
-          <strong>Follow-up reminders</strong>
+          <strong>Follow-up reminder</strong>
         </div>
         <span className={s.summaryMeta}>
-          {reminders.length > 0 ? "Click “+ Next stage” on a Stop Trigger below to continue the loop" : "Optional — add a reminder after this template"}
+          {reminders.length > 0 ? "Set Stop Trigger below, then continue trail at the bottom" : "Optional — add a reminder after this template"}
         </span>
       </div>
 
@@ -1135,27 +1189,19 @@ function TrailStageBlock({
             index={idx}
             depth={depth}
             reminder={rem}
-            inheritedTrigger={depth > 0 ? triggerKey : undefined}
-            mainTriggerKey={mainTriggerKey}
-            mainTriggerLabel={mainTriggerLabel}
-            ancestorTriggers={ancestorTriggers}
+            stageTriggers={stageTriggers}
+            stageTriggersLabel={stageTriggersLabel}
             folders={folders}
             byKey={byKey}
             onChange={next => onChangeReminders(reminders.map(item => item.id === rem.id ? next : item))}
             onRemove={() => onChangeReminders(reminders.filter(item => item.id !== rem.id))}
           />
         ))}
-        <button
-          type="button"
-          className={reminders.length > 0 ? s.subtleStageAdd : s.addBtn}
-          onClick={addStageReminder}
-        >
-          {reminders.length > 0
-            ? "+ Add another reminder on same trigger"
-            : depth > 0
-              ? `+ Add reminder on “${triggerLabel}”`
-              : "+ Add reminder"}
-        </button>
+        {reminders.length === 0 && (
+          <button type="button" className={s.addBtn} onClick={addStageReminder}>
+            {stageTriggersLabel ? `+ Add reminder on “${stageTriggersLabel}”` : "+ Add reminder"}
+          </button>
+        )}
       </div>
     </div>
   </div>;
@@ -1196,22 +1242,25 @@ function FormDialog({
   }, [onClose]);
 
   const primaryKey = form.triggers[0] || "";
-  const extraKeys = form.triggers.slice(1);
-  const primaryWork = primaryKey ? byKey.get(primaryKey) : undefined;
-  const hasPackageScope = form.triggers.some(k => byKey.get(k)?.supportsScope);
+  const supportsScopeFor = (next: Pick<TrailForm, "triggers" | "reminders" | "stages">) =>
+    allTrailTriggerKeys(next).some(k => byKey.get(k)?.supportsScope);
+  const hasPackageScope = supportsScopeFor(form);
   const flowTokens = useMemo(() => buildFlowTokens(form, byKey), [form, byKey]);
-  const totalTemplates = useMemo(() => countTemplates(form.instant, form.reminders), [form.instant, form.reminders]);
-  const totalReminders = useMemo(() => countReminders(form.reminders), [form.reminders]);
+  const totalTemplates = useMemo(() => countTemplates(form.instant, form.stages), [form.instant, form.stages]);
+  const totalReminders = useMemo(() => countReminders(form.reminders, form.stages), [form.reminders, form.stages]);
 
-  function setPrimaryTrigger(nextKey: string) {
-    const nextTriggers = nextKey ? [nextKey, ...extraKeys.filter(k => k !== nextKey)] : [];
-    const stillSupportsScope = nextTriggers.some(k => byKey.get(k)?.supportsScope);
-    const nextAllowed = allowedConditionIds(nextKey ? byKey.get(nextKey) : undefined);
+  function changeRootTriggers(nextTriggers: string[]) {
+    const nextAllowed = allowedConditionIds(nextTriggers.map(k => byKey.get(k)));
     const nextReminders = form.reminders.map(rem => (
-      rem.startTrigger === "__main__" && !nextAllowed.includes(rem.condition)
-        ? { ...rem, condition: "any" }
+      rem.startTrigger === "__main__"
+        ? {
+            ...rem,
+            condition: nextAllowed.includes(rem.condition) ? rem.condition : "any",
+            stopOn: rem.stopOn.filter(k => !nextTriggers.includes(k)),
+          }
         : rem
     ));
+    const stillSupportsScope = supportsScopeFor({ ...form, triggers: nextTriggers, reminders: nextReminders });
     set({
       triggers: nextTriggers,
       reminders: nextReminders,
@@ -1219,16 +1268,60 @@ function FormDialog({
     });
   }
 
-  function addExtraTrigger(key: string) {
-    if (!key || form.triggers.includes(key)) return;
-    set({ triggers: [...form.triggers, key] });
+  function updateRootReminders(nextReminders: Reminder[]) {
+    const stillSupportsScope = supportsScopeFor({ ...form, reminders: nextReminders });
+    set({
+      reminders: nextReminders,
+      ...(stillSupportsScope ? {} : { scope: "all", selectedPackages: [] }),
+    });
   }
 
-  function removeExtraTrigger(key: string) {
-    const nextTriggers = form.triggers.filter(k => k !== key);
-    const stillSupportsScope = nextTriggers.some(k => byKey.get(k)?.supportsScope);
+  function lastStopTriggers(): string[] {
+    for (let i = form.stages.length - 1; i >= 0; i--) {
+      const rem = form.stages[i].reminder;
+      if (rem?.stopOn?.length) return [...rem.stopOn];
+    }
+    for (let i = form.reminders.length - 1; i >= 0; i--) {
+      if (form.reminders[i].stopOn.length) return [...form.reminders[i].stopOn];
+    }
+    return [];
+  }
+
+  function addStage(mode: "template" | "reminder") {
+    const prefill = lastStopTriggers();
+    const defaultStops = [...new Set(
+      prefill.flatMap(k => byKey.get(k)?.defaultStopOn || []),
+    )].filter(k => byKey.has(k) && !prefill.includes(k));
+    set({ stages: [...form.stages, newTrailStage(mode, prefill, defaultStops)] });
+  }
+
+  function updateStage(stageId: number, patch: Partial<TrailStage>) {
+    const nextStages = form.stages.map(st => (st.id === stageId ? { ...st, ...patch } : st));
+    const stillSupportsScope = supportsScopeFor({ ...form, stages: nextStages });
     set({
-      triggers: nextTriggers,
+      stages: nextStages,
+      ...(stillSupportsScope ? {} : { scope: "all", selectedPackages: [] }),
+    });
+  }
+
+  function changeStageTriggers(stage: TrailStage, nextTriggers: string[]) {
+    let nextReminder = stage.reminder;
+    if (nextReminder && nextReminder.startTrigger === "__main__") {
+      const nextAllowed = allowedConditionIds(nextTriggers.map(k => byKey.get(k)));
+      nextReminder = {
+        ...nextReminder,
+        condition: nextAllowed.includes(nextReminder.condition) ? nextReminder.condition : "any",
+        stopOn: nextReminder.stopOn.filter(k => !nextTriggers.includes(k)),
+      };
+    }
+    updateStage(stage.id, { triggers: nextTriggers, reminder: nextReminder });
+  }
+
+  function removeStage(stageId: number) {
+    const nextStages = form.stages.filter(st => st.id !== stageId);
+    const stillSupportsScope = supportsScopeFor({ ...form, stages: nextStages });
+    set({
+      stages: nextStages,
       ...(stillSupportsScope ? {} : { scope: "all", selectedPackages: [] }),
     });
   }
@@ -1286,47 +1379,17 @@ function FormDialog({
               </div>
             </div>
 
-            <div className={s.fieldRow}>
-              <label className={s.fieldLabel}>Trigger</label>
-              <div className={s.triggerControls}>
-                <select
-                  className={s.select}
-                  aria-label="Primary trigger point"
-                  value={primaryKey}
-                  onChange={e => setPrimaryTrigger(e.target.value)}
-                >
-                  <option value="">Choose a trigger point…</option>
-                  <WorkOptions folders={folders} />
-                </select>
-
-                {primaryKey && (
-                  <select
-                    className={s.compactSelect}
-                    aria-label="Also trigger on"
-                    value=""
-                    onChange={e => addExtraTrigger(e.target.value)}
-                  >
-                    <option value="">+ Also trigger on…</option>
-                    <WorkOptions folders={folders} exclude={form.triggers} />
-                  </select>
-                )}
-              </div>
-            </div>
-
-            {primaryWork?.when && (
-              <p className={s.hint}>{primaryWork.when}</p>
-            )}
-
-            {extraKeys.length > 0 && (
-              <div className={s.chipList}>
-                {extraKeys.map(key => (
-                  <span key={key} className={s.chip}>
-                    {workLabel(key, byKey)}
-                    <button type="button" className={s.chipClose} aria-label={`Remove ${workLabel(key, byKey)}`} onClick={() => removeExtraTrigger(key)}>✕</button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <MultiTriggerSelect
+              label="Trigger"
+              ariaLabel="Primary trigger point"
+              emptyPlaceholder="Choose a trigger point…"
+              addPlaceholder="+ Add another trigger…"
+              values={form.triggers}
+              folders={folders}
+              byKey={byKey}
+              showHint={true}
+              onChange={changeRootTriggers}
+            />
 
             {/* Packages ONLY shown when selected trigger supports package scope */}
             {hasPackageScope && (
@@ -1386,31 +1449,80 @@ function FormDialog({
             )}
           </section>
 
-          {/* STEP 2: Unified Trail Loop (Template -> Reminder -> Stop Trigger -> Next Stage) */}
+          {/* STEP 2: Stage 1 (Template -> Reminder) */}
           <section className={s.step}>
             <div className={s.stepHead}>
               <span className={s.stepNum}>2</span>
               <div>
                 <h3>Message &amp; reminder trail</h3>
-                <p>Start with an instant Template (Auto Message), add a Reminder, and click <strong>+ Next stage</strong> on any Stop Trigger to continue the Template → Reminder loop.</p>
+                <p>Start with an instant Template (Auto Message), add a Reminder, and continue the trail below.</p>
               </div>
             </div>
 
             <TrailStageBlock
-              triggerKey={primaryKey}
-              triggerLabel={primaryKey ? workLabel(primaryKey, byKey) : ""}
+              stageTriggers={form.triggers}
+              stageTriggersLabel={triggersLabel(form.triggers, byKey)}
               depth={0}
-              mainTriggerKey={primaryKey}
-              mainTriggerLabel={primaryKey ? workLabel(primaryKey, byKey) : ""}
-              ancestorTriggers={form.triggers}
               instant={form.instant}
               reminders={form.reminders}
               folders={folders}
               byKey={byKey}
               onChangeInstant={instant => set({ instant })}
-              onChangeReminders={reminders => set({ reminders })}
+              onChangeReminders={updateRootReminders}
             />
           </section>
+
+          {/* STEP 3..N: Linear Follow-up Stages */}
+          {form.stages.map((stage, idx) => {
+            const stageNum = idx + 3;
+            const stageLabel = triggersLabel(stage.triggers, byKey);
+            return (
+              <section key={stage.id} className={s.step}>
+                <div className={s.stepHead} style={{ justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span className={s.stepNum}>{stageNum}</span>
+                    <div>
+                      <h3>Stage {idx + 2}{stageLabel ? ` — On “${stageLabel}”` : ""}</h3>
+                      <p>Pre-selected from previous Stop Trigger — add or remove triggers as needed.</p>
+                    </div>
+                  </div>
+                  <button type="button" className={s.iconBtn} onClick={() => removeStage(stage.id)}>Remove stage</button>
+                </div>
+
+                <TrailStageBlock
+                  stageTriggers={stage.triggers}
+                  stageTriggersLabel={stageLabel}
+                  depth={idx + 1}
+                  showTriggerSelect={true}
+                  instant={stage.instant}
+                  reminders={stage.reminder ? [stage.reminder] : []}
+                  folders={folders}
+                  byKey={byKey}
+                  onChangeTriggers={next => changeStageTriggers(stage, next)}
+                  onChangeInstant={instant => updateStage(stage.id, { instant })}
+                  onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
+                />
+              </section>
+            );
+          })}
+
+          {/* Bottom "+ Continue trail" Bar */}
+          {primaryKey && form.stages.length < MAX_CHAIN_DEPTH && (
+            <div className={s.continueBox}>
+              <div className={s.continueText}>
+                <strong>+ Continue trail</strong>
+                <span>
+                  {lastStopTriggers().length > 0
+                    ? `Next stage will pre-select “${triggersLabel(lastStopTriggers(), byKey)}” (editable)`
+                    : "Choose Template or Reminder for the next stage"}
+                </span>
+              </div>
+              <div className={s.continueActions}>
+                <button type="button" className={s.choiceBtn} onClick={() => addStage("template")}>+ Template</button>
+                <button type="button" className={s.choiceBtn} onClick={() => addStage("reminder")}>+ Reminder</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1577,7 +1689,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         {trails.map(trail => {
           const title = trail.triggers.map(k => workLabel(k, catalog.byKey)).join(" + ");
           const tokens = buildFlowTokens(trail, catalog.byKey).slice(1);
-          const hasScope = trail.triggers.some(k => catalog.byKey.get(k)?.supportsScope);
+          const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
           const scopeLabel = PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label;
           const isOn = trail.enabled !== false;
           const busy = busyId === trail._id;
@@ -1610,6 +1722,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
 
     {editing && (
       <FormDialog
+        key={editing._id || "new"}
         initial={editing}
         folders={catalog.folders}
         byKey={catalog.byKey}
