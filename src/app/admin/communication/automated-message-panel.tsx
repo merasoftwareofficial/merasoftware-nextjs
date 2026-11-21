@@ -812,11 +812,11 @@ function InstantAutoMsgBlock({
   state: InstantBlockState;
   onChange: (next: InstantBlockState) => void;
 }) {
-  const [subTab, setSubTab] = useState<"client" | "admin">("client");
-  const activeKey: "client" | "admin" = state.audience === "both" ? subTab : (state.audience === "admin" ? "admin" : "client");
+  const showClient = state.audience === "client" || state.audience === "both";
+  const showAdmin = state.audience === "admin" || state.audience === "both";
 
   return (
-    <div style={{ display: "grid", gap: "8px" }}>
+    <div style={{ display: "grid", gap: "10px" }}>
       <div className={s.blockHead}>
         <div className={s.blockTitle}>
           <span className={s.stageBadge}>Template</span>
@@ -835,50 +835,40 @@ function InstantAutoMsgBlock({
         </select>
       </div>
 
-      {state.audience === "off" ? (
+      {state.audience === "off" && (
         <span className={s.cardSub}>Instant auto message is off for this stage.</span>
-      ) : (
-        <>
-          {state.audience === "both" && (
-            <div className={s.blockHead}>
-              <div className={s.seg} role="tablist" aria-label="Instant message recipient tab">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={subTab === "client"}
-                  className={s.segBtn}
-                  data-active={subTab === "client"}
-                  onClick={() => setSubTab("client")}
-                >
-                  Client message
-                  {state.client.text.trim() && <span className={s.tabDot} aria-hidden="true" />}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={subTab === "admin"}
-                  className={s.segBtn}
-                  data-active={subTab === "admin"}
-                  onClick={() => setSubTab("admin")}
-                >
-                  Admin / Team message
-                  {state.admin.text.trim() && <span className={s.tabDot} aria-hidden="true" />}
-                </button>
-              </div>
-              <span className={s.cardSub}>Sent immediately on trigger</span>
-            </div>
-          )}
+      )}
 
+      {showClient && (
+        <div style={{ display: "grid", gap: "6px" }}>
+          <div className={s.blockHead}>
+            <strong className={s.labelRow}>Client instant message</strong>
+            <span className={s.cardSub}>Sent immediately</span>
+          </div>
           <MessageEditor
-            title={activeKey === "admin" ? "Admin instant message" : "Client instant message"}
-            step={{ amount: 0, unit: "days", pos: "after", ...(activeKey === "admin" ? state.admin : state.client) }}
+            title="Client instant message"
+            step={{ amount: 0, unit: "days", pos: "after", ...state.client }}
             showTiming={false}
-            onChange={patch => {
-              if (activeKey === "admin") onChange({ ...state, admin: { ...state.admin, ...patch } });
-              else onChange({ ...state, client: { ...state.client, ...patch } });
-            }}
+            onChange={patch => onChange({ ...state, client: { ...state.client, ...patch } })}
           />
-        </>
+        </div>
+      )}
+
+      {showClient && showAdmin && <div className={s.subDivider} role="separator" />}
+
+      {showAdmin && (
+        <div style={{ display: "grid", gap: "6px" }}>
+          <div className={s.blockHead}>
+            <strong className={s.labelRow}>Admin / Team instant message</strong>
+            <span className={s.cardSub}>Sent immediately</span>
+          </div>
+          <MessageEditor
+            title="Admin instant message"
+            step={{ amount: 0, unit: "days", pos: "after", ...state.admin }}
+            showTiming={false}
+            onChange={patch => onChange({ ...state, admin: { ...state.admin, ...patch } })}
+          />
+        </div>
       )}
     </div>
   );
@@ -1038,7 +1028,6 @@ function ReminderCard({
   onChange: (reminder: Reminder) => void;
   onRemove: () => void;
 }) {
-  const [subTab, setSubTab] = useState<"client" | "admin">("client");
   const set = (patch: Partial<Reminder>) => onChange({ ...reminder, ...patch });
 
   const effectiveTriggers = reminder.startTrigger !== "__main__" ? [reminder.startTrigger] : stageTriggers;
@@ -1049,7 +1038,6 @@ function ReminderCard({
 
   const showClient = reminder.audience === "client" || reminder.audience === "both";
   const showAdmin = reminder.audience === "admin" || reminder.audience === "both";
-  const activeWho: "client" | "admin" = reminder.audience === "both" ? subTab : (reminder.audience === "admin" ? "admin" : "client");
 
   const msgCount = (showClient ? reminder.clientSteps.length : 0) + (showAdmin ? reminder.adminSteps.length : 0);
   const repeatSummary = reminder.repeatMode === "permanent"
@@ -1142,55 +1130,27 @@ function ReminderCard({
         </div>
       </div>
 
-      {/* 2. Audience Sub-tabs when Both + Message Editor */}
-      {reminder.audience === "both" && (
-        <div className={s.seg} style={{ justifySelf: "start" }} role="tablist" aria-label="Reminder recipient tab">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={subTab === "client"}
-            className={s.segBtn}
-            data-active={subTab === "client"}
-            onClick={() => setSubTab("client")}
-          >
-            Client ({reminder.clientSteps.length})
-            {reminder.clientSteps.some(st => st.text.trim()) && <span className={s.tabDot} aria-hidden="true" />}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={subTab === "admin"}
-            className={s.segBtn}
-            data-active={subTab === "admin"}
-            onClick={() => setSubTab("admin")}
-          >
-            Admin / Team ({reminder.adminSteps.length})
-            {reminder.adminSteps.some(st => st.text.trim()) && <span className={s.tabDot} aria-hidden="true" />}
-          </button>
-        </div>
-      )}
-
-      {activeWho === "client" && showClient && (
+      {/* 2. Client messages first, then Admin / Team messages */}
+      {showClient && (
         <AudienceBlock
           who="client"
-          title="Client schedule"
+          title="Client messages"
           mode={reminder.clientMode}
           steps={reminder.clientSteps}
           baseDate={reminder.countDaysFrom}
-          hideHeaderTitle={reminder.audience === "both"}
           onModeChange={clientMode => set({ clientMode })}
           onUpdateSteps={clientSteps => set({ clientSteps })}
         />
       )}
-      {activeWho === "admin" && showAdmin && (
+      {showClient && showAdmin && <div className={s.subDivider} role="separator" />}
+      {showAdmin && (
         <AudienceBlock
           who="admin"
-          title="Admin / Team schedule"
+          title="Admin / Team messages"
           mode={reminder.adminMode}
           steps={reminder.adminSteps}
           baseDate={reminder.countDaysFrom}
           canCopyClient={showClient}
-          hideHeaderTitle={reminder.audience === "both"}
           onModeChange={adminMode => set({ adminMode })}
           onCopyClient={copyClientDays}
           onUpdateSteps={adminSteps => set({ adminSteps })}
@@ -1380,7 +1340,9 @@ function TrailStageBlock({
       {/* 1. Template (Instant Auto Message) */}
       <InstantAutoMsgBlock state={instant} onChange={onChangeInstant} />
 
-      <div className={s.divider} />
+      <div className={s.sectionDivider} role="separator" aria-label="End of Template, start of Follow-up Reminder">
+        <span>Follow-up Reminder</span>
+      </div>
 
       {/* 2. Follow-up Reminder */}
       <div style={{ display: "grid", gap: "8px" }}>
@@ -1672,29 +1634,34 @@ function FormDialog({
           const stageNum = idx + 3;
           const stageLabel = triggersLabel(stage.triggers, byKey);
           return (
-            <section key={stage.id} className={s.card} data-stage="followup">
-              <div className={s.cardHead}>
-                <div className={s.cardTitle}>
-                  <span className={s.stepNum}>{stageNum}</span>
-                  <h3>Stage {idx + 2}{stageLabel ? ` — On “${stageLabel}”` : ""}</h3>
-                </div>
-                <button type="button" className={s.miniDangerBtn} onClick={() => removeStage(stage.id)}>Remove stage</button>
+            <div key={stage.id} style={{ display: "grid", gap: "14px" }}>
+              <div className={s.sectionDivider} role="separator" aria-label={`Start of Stage ${idx + 2}`}>
+                <span>Stage {idx + 2}{stageLabel ? ` — ${stageLabel}` : ""}</span>
               </div>
+              <section className={s.card} data-stage="followup">
+                <div className={s.cardHead}>
+                  <div className={s.cardTitle}>
+                    <span className={s.stepNum}>{stageNum}</span>
+                    <h3>Stage {idx + 2}{stageLabel ? ` — On “${stageLabel}”` : ""}</h3>
+                  </div>
+                  <button type="button" className={s.miniDangerBtn} onClick={() => removeStage(stage.id)}>Remove stage</button>
+                </div>
 
-              <TrailStageBlock
-                stageTriggers={stage.triggers}
-                stageTriggersLabel={stageLabel}
-                depth={idx + 1}
-                showTriggerSelect={true}
-                instant={stage.instant}
-                reminders={stage.reminder ? [stage.reminder] : []}
-                folders={folders}
-                byKey={byKey}
-                onChangeTriggers={next => changeStageTriggers(stage, next)}
-                onChangeInstant={instant => updateStage(stage.id, { instant })}
-                onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
-              />
-            </section>
+                <TrailStageBlock
+                  stageTriggers={stage.triggers}
+                  stageTriggersLabel={stageLabel}
+                  depth={idx + 1}
+                  showTriggerSelect={true}
+                  instant={stage.instant}
+                  reminders={stage.reminder ? [stage.reminder] : []}
+                  folders={folders}
+                  byKey={byKey}
+                  onChangeTriggers={next => changeStageTriggers(stage, next)}
+                  onChangeInstant={instant => updateStage(stage.id, { instant })}
+                  onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
+                />
+              </section>
+            </div>
           );
         })}
 

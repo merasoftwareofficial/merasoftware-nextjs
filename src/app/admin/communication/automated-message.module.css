@@ -290,7 +290,33 @@
 }
 .cardTitle h3 { margin: 0; font-size: var(--fs-text); font-weight: 700; color: var(--pn-text); }
 .cardSub { font-size: var(--fs-meta); color: var(--pn-muted); }
-.divider { height: 1px; background: var(--pn-line); margin: 2px 0; }
+.sectionDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0;
+}
+.sectionDivider::before, .sectionDivider::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: var(--pn-line);
+}
+.sectionDivider span {
+  padding: 3px 12px;
+  border: 1px solid var(--pn-line);
+  border-radius: 999px;
+  background: var(--pn-raised);
+  color: var(--pn-soft);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.subDivider {
+  height: 1px;
+  border-top: 1px dashed var(--pn-line);
+  margin: 4px 0;
+}
 
 /* 2-Column Grid & Fields */
 .grid2 {
@@ -338,18 +364,23 @@
 }
 
 /* Searchable Multi-Select Combobox */
-.comboWrap { position: relative; }
+.comboWrap { position: relative; min-width: 0; max-width: 100%; }
 .comboBox {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 40px;
   padding: 5px 28px 5px 8px;
   border: 1px solid var(--pn-line);
   border-radius: 7px;
   background: var(--pn-field);
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   cursor: text;
+  overflow: hidden;
   transition: border-color .12s, box-shadow .12s;
 }
 .comboBox[data-open="true"], .comboBox:focus-within {
@@ -367,10 +398,13 @@
   color: var(--pn-text);
   font-size: var(--fs-meta);
   font-weight: 600;
+  min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
 }
-.comboChip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comboChip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comboChip button {
+  flex-shrink: 0;
   border: 0;
   background: none;
   padding: 0 2px;
@@ -387,7 +421,8 @@
   color: var(--pn-text);
   font: inherit;
   font-size: var(--fs-input);
-  min-width: 130px;
+  min-width: 80px;
+  max-width: 100%;
   flex: 1;
   padding: 2px 4px;
 }
@@ -451,48 +486,6 @@
 }
 .comboOptLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comboEmpty { padding: 12px; font-size: var(--fs-meta); color: var(--pn-muted); text-align: center; }
-
-/* Segmented Controls & Sub-Tabs */
-.seg {
-  display: inline-flex;
-  padding: 3px;
-  border: 1px solid var(--pn-line);
-  border-radius: 8px;
-  background: var(--pn-raised);
-  gap: 3px;
-  flex-wrap: wrap;
-}
-.segBtn {
-  border: 1px solid transparent;
-  background: transparent;
-  padding: 6px 13px;
-  border-radius: 6px;
-  font: inherit;
-  font-size: var(--fs-meta);
-  font-weight: 600;
-  color: var(--pn-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: background .12s, color .12s, border-color .12s;
-}
-.segBtn:hover {
-  color: var(--pn-text);
-  background: var(--pn-card);
-}
-.segBtn[data-active="true"] {
-  background: var(--pn-card);
-  color: var(--pn-accent);
-  border-color: var(--pn-accent);
-  box-shadow: 0 1px 3px rgb(0 0 0 / .08);
-}
-.tabDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pn-good, #10b981);
-}
 
 /* Section Headers inside Stage */
 .blockHead {
