@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory } from "@/lib/service-plans";
 
 // Makes a project category, or (with `edit`) changes one. The portal backend keeps every rule (helpers/projectCategories.js):
@@ -66,7 +67,7 @@ export function ProjectCategoryDialog({ nextSortOrder, edit, onCancel, onSaved, 
         <label className="admin-field"><span>Description</span><textarea maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} /></label>
         <label className="admin-field"><span>Terms &amp; conditions (one per line)</span><textarea rows={4} aria-label="Category terms and conditions" value={termsText} onChange={event => setTermsText(event.target.value)} /><small>A package priced from this category shows these terms automatically.</small></label>
         <label className="admin-field"><span>Starting node title</span><input maxLength={120} value={node} onChange={event => setNode(event.target.value)} /></label>
-        <label className="admin-field"><span>Display order</span><input required type="number" min={0} max={9999} step={1} value={sortOrder} onChange={event => setSortOrder(Number(event.target.value))} /></label>
+        <label className="admin-field"><span>Display order</span><NumberInput required min={0} max={9999} step={1} value={sortOrder} onValueChange={setSortOrder} /></label>
         <label><input type="checkbox" checked={customerSelectable} onChange={event => setCustomerSelectable(event.target.checked)} /> Customers can order this category online once priced</label>
         {edit && <label><input type="checkbox" checked={archived} disabled={edit.locked} onChange={event => setArchived(event.target.checked)} /> Archived (hidden from new projects and packages; a category is never deleted)
           {edit.locked && <small> The customer questionnaire uses this category, so it must stay active and priced.</small>}

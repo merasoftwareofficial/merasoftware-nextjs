@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import s from "./communication.module.css";
+import { NumberInput } from "@/components/number-input";
 import { InfoTip } from "./reminder-info";
 
 /**
@@ -809,12 +810,12 @@ export function ActionRuleForm({
             {currentRow?.supportsProgress && (
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-meta)" }}>
                 <span>Progress &gt;=</span>
-                <input
-                  type="number"
+                <NumberInput
                   min={0}
                   max={100}
                   value={minProgress}
-                  onChange={e => setMinProgress(Math.min(100, Math.max(0, Number(e.target.value || 0))))}
+                  emptyOnBlur="zero"
+                  onValueChange={n => setMinProgress(Math.min(100, Math.max(0, n)))}
                   style={{ width: 64 }}
                 />
                 <span>% <span style={{ color: "var(--pn-muted, var(--muted))" }}>(0 = any, e.g. 30, 60, 100)</span></span>
@@ -941,14 +942,14 @@ export function ActionRuleForm({
                           <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>When:</span>
                           {step.timingRef !== "on_due" && (
                             <>
-                              <input
-                                type="number"
+                              <NumberInput
                                 min={0}
                                 max={step.unit === "hours" ? 720 : 365}
                                 value={step.unit === "hours" ? (step.hours ?? 0) : step.days}
+                                emptyOnBlur="zero"
                                 style={{ width: 65 }}
-                                onChange={e => {
-                                  const val = Math.max(0, Number(e.target.value || 0));
+                                onValueChange={n => {
+                                  const val = Math.max(0, n);
                                   updateTarget(who, p => ({
                                     ...p,
                                     steps: p.steps.map((st, i) => i === idx ? (st.unit === "hours" ? { ...st, hours: val } : { ...st, days: val }) : st),
@@ -1070,16 +1071,16 @@ export function ActionRuleForm({
                 <label style={{ display: "grid", gap: 4 }}>
                   <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>For (days)</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <input type="number" min={0} max={180} value={repeatForDays} style={{ width: 64 }}
-                      onChange={e => setRepeatForDays(Math.min(180, Math.max(0, Number(e.target.value || 0))))} />
+                    <NumberInput min={0} max={180} value={repeatForDays} emptyOnBlur="zero" style={{ width: 64 }}
+                      onValueChange={n => setRepeatForDays(Math.min(180, Math.max(0, n)))} />
                     <span>days <span style={{ fontSize: "var(--fs-tag)", color: "var(--pn-muted, var(--muted))" }}>(0 = off)</span></span>
                   </span>
                 </label>
                 <label style={{ display: "grid", gap: 4 }}>
                   <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>Every (days)</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <input type="number" min={1} max={90} value={repeatEvery} style={{ width: 60 }}
-                      onChange={e => setRepeatEvery(Math.min(90, Math.max(1, Number(e.target.value || 1))))} />
+                    <NumberInput min={1} max={90} value={repeatEvery} emptyOnBlur="revert" style={{ width: 60 }}
+                      onValueChange={n => setRepeatEvery(Math.min(90, Math.max(1, n)))} />
                     <span>days <span style={{ fontSize: "var(--fs-tag)", color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
                   </span>
                 </label>

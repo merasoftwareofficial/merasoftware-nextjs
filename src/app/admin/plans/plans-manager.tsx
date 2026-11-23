@@ -5,6 +5,7 @@ import {
   type PlanCatalogue, type PlanForm, type StoredPlan,
 } from "@/lib/service-plans";
 import s from "./plans-manager.module.css";
+import { NumberInput } from "@/components/number-input";
 import { PlanCategoryPicker } from "./plan-category-picker";
 
 type Quote = { firstPayment: number; totalPrice: number; cyclePrice: number; subtotal: number; discount: number; discountPercent: number; totalCycles: number; allowancePerCycle: number | null; updatePrice: number | null; validityDays: number | null };
@@ -171,7 +172,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     } catch (cause) { setError(message(cause, "Could not reload the plan.")); }
     finally { setBusy(false); }
   }
-  const num = (key: keyof PlanForm) => (e: React.ChangeEvent<HTMLInputElement>) => update(key, Number(e.target.value) as never);
+  const num = (key: keyof PlanForm) => (value: number) => update(key, value as never);
 
   return <>
     <div className="form-actions"><button className="admin-action" disabled={busy} onClick={onBack}>← All plans</button>{form.planId && <button type="button" className="admin-action" disabled={busy} onClick={reloadSaved}>Reload saved plan</button>}</div>
@@ -210,47 +211,47 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
             <label className={s.radio}><input type="radio" checked={form.purchaseType === "one_time"} onChange={() => update("purchaseType", "one_time")} /> Paid once</label>
           </div>
           {form.purchaseType === "one_time"
-            ? <label className="admin-field"><span>Price (₹)</span><input type="number" required min={1} max={10000000} value={form.oneTimePrice} onChange={num("oneTimePrice")} /></label>
-            : <label className="admin-field"><span>Price per month (₹)</span><input type="number" required min={0} max={10000000} value={form.monthlyReferencePrice} onChange={num("monthlyReferencePrice")} /><small>Longer periods cost months × this price, less their discount.</small></label>}
+            ? <label className="admin-field"><span>Price (₹)</span><NumberInput required min={1} max={10000000} value={form.oneTimePrice} onValueChange={num("oneTimePrice")} /></label>
+            : <label className="admin-field"><span>Price per month (₹)</span><NumberInput required min={0} max={10000000} value={form.monthlyReferencePrice} onValueChange={num("monthlyReferencePrice")} /><small>Longer periods cost months × this price, less their discount.</small></label>}
           {isUpload && <div className="form-columns">
             <label className="admin-field"><span>Updates allowed</span><select value={form.limitScope} onChange={e => update("limitScope", e.target.value)}>{LIMIT_SCOPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            {form.limitScope !== "unlimited" && <label className="admin-field"><span>Number of updates</span><input type="number" required min={1} max={1000} value={form.portalAccessCount} onChange={num("portalAccessCount")} /></label>}
-            <label className="admin-field"><span>Files per update</span><input type="number" required min={1} max={100} value={form.filesLimit} onChange={num("filesLimit")} /></label>
+            {form.limitScope !== "unlimited" && <label className="admin-field"><span>Number of updates</span><NumberInput required min={1} max={1000} value={form.portalAccessCount} onValueChange={num("portalAccessCount")} /></label>}
+            <label className="admin-field"><span>Files per update</span><NumberInput required min={1} max={100} value={form.filesLimit} onValueChange={num("filesLimit")} /></label>
           </div>}
         </>}
         {flexible && <>
           <div className="form-columns">
-            <label className="admin-field"><span>Fewest files per update</span><input type="number" required min={1} max={100} value={form.filesMin} onChange={num("filesMin")} /></label>
-            <label className="admin-field"><span>Most files per update</span><input type="number" required min={1} max={100} value={form.filesMax} onChange={num("filesMax")} /></label>
-            <label className="admin-field"><span>Files go up in steps of</span><input type="number" required min={1} max={100} value={form.filesStep} onChange={num("filesStep")} /></label>
+            <label className="admin-field"><span>Fewest files per update</span><NumberInput required min={1} max={100} value={form.filesMin} onValueChange={num("filesMin")} /></label>
+            <label className="admin-field"><span>Most files per update</span><NumberInput required min={1} max={100} value={form.filesMax} onValueChange={num("filesMax")} /></label>
+            <label className="admin-field"><span>Files go up in steps of</span><NumberInput required min={1} max={100} value={form.filesStep} onValueChange={num("filesStep")} /></label>
           </div>
-          <label className="admin-field"><span>Cost per file (₹)</span><input type="number" required min={0} max={100000} value={form.ratePerFile} onChange={num("ratePerFile")} /></label>
+          <label className="admin-field"><span>Cost per file (₹)</span><NumberInput required min={0} max={100000} value={form.ratePerFile} onValueChange={num("ratePerFile")} /></label>
           <div className={s.stack}><span className={s.label}>Cheaper price for more files (optional)</span>
             {form.slabs.map((slab, index) => <div className={s.inline} key={index}>
-              <label>From file <input aria-label={`Cheaper price from file (row ${index + 1})`} type="number" min={2} max={100} value={slab.fromFile} onChange={e => update("slabs", form.slabs.map((row, i) => i === index ? { ...row, fromFile: Number(e.target.value) } : row))} /></label>
-              <label>₹ per file <input aria-label={`Cost per file from that file (row ${index + 1})`} type="number" min={0} max={100000} value={slab.ratePerFile} onChange={e => update("slabs", form.slabs.map((row, i) => i === index ? { ...row, ratePerFile: Number(e.target.value) } : row))} /></label>
+              <label>From file <NumberInput aria-label={`Cheaper price from file (row ${index + 1})`} required min={2} max={100} value={slab.fromFile} onValueChange={n => update("slabs", form.slabs.map((row, i) => i === index ? { ...row, fromFile: n } : row))} /></label>
+              <label>₹ per file <NumberInput aria-label={`Cost per file from that file (row ${index + 1})`} required min={0} max={100000} value={slab.ratePerFile} onValueChange={n => update("slabs", form.slabs.map((row, i) => i === index ? { ...row, ratePerFile: n } : row))} /></label>
               <button type="button" className="admin-action" onClick={() => update("slabs", form.slabs.filter((_, i) => i !== index))}>Remove</button>
             </div>)}
             <div><button type="button" className="admin-action" onClick={() => update("slabs", [...form.slabs, { fromFile: (form.slabs.at(-1)?.fromFile ?? 1) + 10, ratePerFile: form.ratePerFile }])}>+ Add cheaper price</button></div>
           </div>
           <div className="form-columns">
-            <label className="admin-field"><span>Fewest updates per month</span><input type="number" required min={1} max={100} value={form.updatesMin} onChange={num("updatesMin")} /></label>
-            <label className="admin-field"><span>Most updates per month</span><input type="number" required min={1} max={100} value={form.updatesMax} onChange={num("updatesMax")} /></label>
+            <label className="admin-field"><span>Fewest updates per month</span><NumberInput required min={1} max={100} value={form.updatesMin} onValueChange={num("updatesMin")} /></label>
+            <label className="admin-field"><span>Most updates per month</span><NumberInput required min={1} max={100} value={form.updatesMax} onValueChange={num("updatesMax")} /></label>
           </div>
           <label className={s.radio}><input type="checkbox" checked={form.allowOneTime} onChange={e => update("allowOneTime", e.target.checked)} /> Can also be bought once (no repeat billing)</label>
         </>}
         {recurringPossible && <div className={s.stack}><span className={s.label}>Billing periods the client can pick</span>
           {BILLING_CYCLES.map(({ key, label }) => <div className={s.inline} key={key}>
             <label className={s.radio}><input type="checkbox" checked={form.billing[key].on} onChange={e => update("billing", { ...form.billing, [key]: { ...form.billing[key], on: e.target.checked } })} /> {label}</label>
-            {form.billing[key].on && <label>Discount % <input aria-label={`${label} discount percent`} type="number" min={0} max={99} value={form.billing[key].discountPercent} onChange={e => update("billing", { ...form.billing, [key]: { ...form.billing[key], discountPercent: Number(e.target.value) } })} /></label>}
+            {form.billing[key].on && <label>Discount % <NumberInput aria-label={`${label} discount percent`} required min={0} max={99} value={form.billing[key].discountPercent} onValueChange={n => update("billing", { ...form.billing, [key]: { ...form.billing[key], discountPercent: n } })} /></label>}
           </div>)}
         </div>}
       </fieldset>
 
       <fieldset className={s.box}><legend>Length and updates</legend>
         <div className="form-columns">
-          {recurringPossible && <label className="admin-field"><span>Longest length a client can buy (months)</span><input type="number" required min={1} max={12} value={form.maxTenureMonths} onChange={num("maxTenureMonths")} /></label>}
-          {oneTimePossible && <label className="admin-field"><span>A one-time purchase lasts (days)</span><input type="number" required min={1} max={3650} value={form.oneTimeValidityDays} onChange={num("oneTimeValidityDays")} /></label>}
+          {recurringPossible && <label className="admin-field"><span>Longest length a client can buy (months)</span><NumberInput required min={1} max={12} value={form.maxTenureMonths} onValueChange={num("maxTenureMonths")} /></label>}
+          {oneTimePossible && <label className="admin-field"><span>A one-time purchase lasts (days)</span><NumberInput required min={1} max={3650} value={form.oneTimeValidityDays} onValueChange={num("oneTimeValidityDays")} /></label>}
         </div>
         {isUpload && recurringPossible && <>
           <div className={s.row}>
@@ -268,9 +269,9 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
         <span className={s.label}>Price check (worked out by the portal)</span>
         <div className={s.inline}>
           <label>Bought <select aria-label="Preview purchase" value={active?.key} onChange={e => setChoice({ ...choice, purchase: e.target.value })}>{purchases.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}</select></label>
-          {months > 0 && <label>for <input aria-label="Preview length in months" type="number" min={months} max={form.maxTenureMonths} step={months} value={tenure} onChange={e => setChoice({ ...choice, tenureMonths: Number(e.target.value) })} /> months</label>}
-          {flexible && <label>Files <input aria-label="Preview files per update" type="number" min={form.filesMin} max={form.filesMax} step={form.filesStep} value={choice.files} onChange={e => setChoice({ ...choice, files: Number(e.target.value) })} /></label>}
-          {flexible && <label>{active?.key === "one_time" ? "Updates" : "Updates / month"} <input aria-label="Preview updates" type="number" min={form.updatesMin} max={form.updatesMax} value={choice.updates} onChange={e => setChoice({ ...choice, updates: Number(e.target.value) })} /></label>}
+          {months > 0 && <label>for <NumberInput aria-label="Preview length in months" min={months} max={form.maxTenureMonths} step={months} value={tenure} emptyOnBlur="revert" onValueChange={n => setChoice({ ...choice, tenureMonths: n })} /> months</label>}
+          {flexible && <label>Files <NumberInput aria-label="Preview files per update" min={form.filesMin} max={form.filesMax} step={form.filesStep} value={choice.files} emptyOnBlur="revert" onValueChange={n => setChoice({ ...choice, files: n })} /></label>}
+          {flexible && <label>{active?.key === "one_time" ? "Updates" : "Updates / month"} <NumberInput aria-label="Preview updates" min={form.updatesMin} max={form.updatesMax} value={choice.updates} emptyOnBlur="revert" onValueChange={n => setChoice({ ...choice, updates: n })} /></label>}
         </div>
         <div className={s.quote}>{!shown ? <span className={s.muted}>Working out the price…</span>
           : shown.error ? <span className={s.warn}>{shown.error}</span>

@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
+import { NumberInput } from "@/components/number-input";
 import { usePackageStart } from "@/components/offer-reservations";
 import { InlineLoader, quietFetch } from "@/components/loading/navigation";
 import { UpiStep, WalletSplit, usePackagePayment, type PurchaseResult } from "@/components/packages/package-payment";
@@ -208,8 +209,8 @@ export function PackageBuilder({ item, terms, initial, signedIn, countries, path
                 ))}
               </div>
               {quote?.advance && <label className={s.payLabel}>Advance to pay now
-                <input aria-label="Advance to pay now" type="number" min={quote.advance.minimum} max={quote.finalPrice} step="0.01" value={choice.advanceAmount ?? quote.advance.selected}
-                  onChange={event => set({ advanceAmount: Number(event.target.value) })} />
+                <NumberInput aria-label="Advance to pay now" min={quote.advance.minimum} max={quote.finalPrice} step="0.01" value={choice.advanceAmount ?? quote.advance.selected} emptyOnBlur="revert"
+                  onValueChange={n => set({ advanceAmount: n })} />
                 <span>Minimum {money(quote.advance.minimum)}. You may pay up to {money(quote.finalPrice)}.</span>
               </label>}
               {choice.paymentOption !== "full" && <p className={s.hint}>The first part starts your project; each next part is due as the work reaches its stage.</p>}

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
+import { NumberInput } from "@/components/number-input";
 import type { ActionPackageOption, ActionsData } from "./action-rule-helpers";
 import s from "./automated-message.module.css";
 import {
@@ -1299,14 +1300,14 @@ function MessageEditor({
       <div className={s.timingRow}>
         <span className={s.miniLabel}>When</span>
         {effectivePos !== "on" && <>
-          <input
-            type="number"
+          <NumberInput
             className={s.numInput}
             min={0}
             max={step.unit === "hours" ? 720 : 365}
             aria-label={`${title} amount`}
             value={step.amount}
-            onChange={e => onChange({ amount: Math.max(0, Number(e.target.value || 0)) })}
+            emptyOnBlur="zero"
+            onValueChange={n => onChange({ amount: Math.max(0, n) })}
           />
           <select
             className={s.compactSelect}
@@ -1895,13 +1896,13 @@ function AudienceBlock({
             <div key={idx} className={s.timingRow}>
               <span className={s.timingNum}>#{idx + 1}</span>
               {slot.pos !== "on" && <>
-                <input
-                  type="number"
+                <NumberInput
                   className={s.numInput}
                   min={0}
                   max={slot.unit === "hours" ? 720 : 365}
                   value={slot.amount}
-                  onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, amount: Math.max(0, Number(e.target.value || 0)) } : st))}
+                  emptyOnBlur="zero"
+                  onValueChange={n => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, amount: Math.max(0, n) } : st))}
                 />
                 <select
                   className={s.compactSelect}
@@ -2201,14 +2202,14 @@ function ReminderCard({
               {visibleConditions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
             {conditionDef && "value" in conditionDef && (
-              <input
-                type="number"
+              <NumberInput
                 className={s.numInput}
                 min={0}
                 max={conditionDef.max}
                 aria-label="Condition value"
                 value={reminder.conditionValue}
-                onChange={e => set({ conditionValue: Math.max(0, Number(e.target.value || 0)) })}
+                emptyOnBlur="zero"
+                onValueChange={n => set({ conditionValue: Math.max(0, n) })}
               />
             )}
           </div>
@@ -2230,14 +2231,14 @@ function ReminderCard({
             {reminder.repeatMode === "limited" && (
               <div className={s.inlineGroup}>
                 <span className={s.miniLabel}>For</span>
-                <input
-                  type="number"
+                <NumberInput
                   className={s.numInput}
                   min={1}
                   max={180}
                   aria-label="Repeat for days"
                   value={reminder.repeatForDays}
-                  onChange={e => set({ repeatForDays: Math.max(1, Number(e.target.value || 1)) })}
+                  emptyOnBlur="revert"
+                  onValueChange={n => set({ repeatForDays: Math.max(1, n) })}
                 />
                 <span className={s.unitText}>days</span>
               </div>
@@ -2245,14 +2246,14 @@ function ReminderCard({
             {reminder.repeatMode !== "off" && (
               <div className={s.inlineGroup}>
                 <span className={s.miniLabel}>Every</span>
-                <input
-                  type="number"
+                <NumberInput
                   className={s.numInput}
                   min={1}
                   max={90}
                   aria-label="Repeat every days"
                   value={reminder.repeatEveryDays}
-                  onChange={e => set({ repeatEveryDays: Math.max(1, Number(e.target.value || 1)) })}
+                  emptyOnBlur="revert"
+                  onValueChange={n => set({ repeatEveryDays: Math.max(1, n) })}
                 />
                 <span className={s.unitText}>days</span>
                 <select

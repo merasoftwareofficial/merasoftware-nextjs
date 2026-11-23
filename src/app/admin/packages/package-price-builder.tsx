@@ -1,5 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
+import { NumberInput } from "@/components/number-input";
 import { addOnOffered, type PricePreview, type SavedPricing } from "@/lib/package-pricing";
 import type { AddOn, ProjectCategory, ServiceChoice } from "@/lib/sales-packages";
 import s from "./packages-manager.module.css";
@@ -35,7 +36,7 @@ export function PackagePriceBuilder({ category, categoryEntry, addOns, choices, 
           return <div className={s.addOnRow} key={row.id}>
             <label><input type="checkbox" checked={!!picked} onChange={event => onToggle(row, event.target.checked)} /> <span><b>{row.name}</b> · {rupee(priced?.frozen ? priced.unitPrice : row.unitPrice)}{row.isQuantityBased ? " each" : ""}
               {todayDiffers && <small> (saved price; today {rupee(row.unitPrice)})</small>}</span></label>
-            {picked && row.isQuantityBased ? <input className={s.addOnQty} type="number" min={1} max={1000} step={1} aria-label={`Quantity of ${row.name}`} value={picked.quantity} onChange={event => onQuantity(row.id, Number(event.target.value))} /> : <span />}
+            {picked && row.isQuantityBased ? <NumberInput className={s.addOnQty} min={1} max={1000} step={1} aria-label={`Quantity of ${row.name}`} value={picked.quantity} onValueChange={n => onQuantity(row.id, n)} onEmpty={() => onQuantity(row.id, Number.NaN)} /> : <span />}
             <button type="button" className="admin-action" aria-label={`Edit ${row.name}`} onClick={() => onEditAddOn(row)}>Edit</button>
           </div>;
         })}
@@ -54,7 +55,7 @@ export function PackagePriceBuilder({ category, categoryEntry, addOns, choices, 
     </>}
     <div className={s.cols3} role="group" aria-label="Prices">
       <div className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹ one-time)</span><p className={s.mainPrice} aria-label="Main price (₹)">{preview.total === null ? "—" : rupee(preview.total)}</p><small>Made from the parts above. Shown crossed out.</small>{error("regularPrice")}</div>
-      <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Discount price (₹) *</span><input aria-label="Discount price (₹)" type="number" min={0} max={10000000} step="0.01" value={discountedPrice} onChange={event => onDiscount(Number(event.target.value))} />
+      <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Discount price (₹) *</span><NumberInput aria-label="Discount price (₹)" min={0} max={10000000} step="0.01" value={discountedPrice} onValueChange={onDiscount} onEmpty={() => onDiscount(Number.NaN)} />
         <small>{discount ? `₹${discount.amount.toLocaleString("en-IN")} discount (${discount.percent}% off). ` : "Same as the main price: no discount. "}What the customer pays when no offer runs.</small>{error("discountedPrice")}</label>
     </div>
   </div>;

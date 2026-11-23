@@ -18,6 +18,7 @@ import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, pageFil
 import { ADMIN_DEFAULT_SORT, readAdminSort, rememberAdminSort } from "@/lib/package-sort-memory";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
 import { ProjectCategoryDialog } from "@/components/project-category-dialog";
+import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
 import s from "./packages-manager.module.css";
 
@@ -140,6 +141,7 @@ function check(item: Item, offer: OfferForm | null, now: number, extra: Errors =
   if (!lines(item.inclusions).length) errors.inclusions = "List at least one item.";
   if (!(item.regularPrice > 0)) errors.regularPrice = item.services !== undefined ? "The main price must be above ₹0: set the category's base price or tick an add-on." : "Enter a main price above ₹0.";
   if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
+  if (!Number.isInteger(item.order) || item.order < 0 || item.order > 9999) errors.order = "Enter a whole number from 0 to 9999.";
   // How customers buy it: all three together (package.md decision 7). An older package without them may stay as it is.
   if (item.billing || item.portalUploads !== undefined || item.paymentOptions?.length) {
     if (!item.billing) errors.billing = "Choose how this package is billed.";
@@ -197,6 +199,39 @@ const ADMIN_SORTS: { value: PackageSort; label: string }[] = [
 ];
 const noSubscription = () => () => {};
 type ListLine = { row: SalesPackage; copyLine: boolean } | { draft: PackageDraft };
+/** Inline list priority control: edits the package's SSOT `order` directly from the list row. */
+function PriorityControl({ name, order, disabled, title, onCommit }: { name: string; order: number; disabled: boolean; title?: string; onCommit: (next: number) => Promise<void> }) {
+  const [draft, setDraft] = useState<number>(order);
+  const [synced, setSynced] = useState<number>(order);
+  const cancelled = useRef(false);
+  if (!Object.is(synced, order)) { setSynced(order); setDraft(order); }
+  const submit = () => {
+    if (cancelled.current) { cancelled.current = false; setDraft(order); return; }
+    if (!Number.isInteger(draft) || draft < 0 || draft > 9999) { setDraft(order); return; }
+    if (draft !== order) void onCommit(draft);
+  };
+  return <label className={s.priorityControl} title={title ?? "Card priority (lower number appears first)"}>
+    <span>P</span>
+    <NumberInput
+      className={s.priorityInput}
+      aria-label={`Priority of ${name}`}
+      min={0}
+      max={9999}
+      step={1}
+      disabled={disabled}
+      value={draft}
+      emptyOnBlur="revert"
+      onValueChange={setDraft}
+      onEmpty={() => setDraft(Number.NaN)}
+      onBlur={submit}
+      onKeyDown={event => {
+        if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+        else if (event.key === "Escape") { cancelled.current = true; setDraft(order); event.currentTarget.blur(); }
+      }}
+    />
+  </label>;
+}
+
 /** One filter as a compact dropdown: "All …" first, then what the open tab has, each with its count. */
 function FilterSelect({ label, allLabel, choices, selected, onPick }: { label: string; allLabel: string; choices: { value: string; label: string; count: number }[]; selected: string; onPick: (value: string) => void }) {
   return <select aria-label={`Filter by ${label}`} value={selected} onChange={event => onPick(event.target.value)}>
@@ -431,6 +466,18 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     } catch (cause) { setError(cause instanceof Error ? cause.message : "The package status could not be changed. Please try again."); }
     finally { setBusy(false); }
   }
+  async function changePackageOrder(row: SalesPackage, order: number) {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/packages/order", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId: row.id, order }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The priority could not be updated. Please try again.");
+      setCatalogue(current => ({ ...current, packages: current.packages.map(entry => entry.id === row.id ? { ...entry, order } : entry) }));
+      setMessage(`Priority of "${row.name}" set to ${order}.`);
+      if (!await reloadCatalogue()) setError("Priority updated. Reload the page to refresh the catalogue.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The priority could not be updated. Please try again."); }
+    finally { setBusy(false); }
+  }
   // A category made from the package form is selected at once and the list is read again from the portal.
   async function categorySaved(saved: SavedCategory) {
     const edited = editCategory;
@@ -602,7 +649,9 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         {copy && <span className={s.warn} title={savedAt(copy)}>Draft in progress</span>}
         {!onPages.length && !copyLine && <span className={s.warn}>No page</span>}
       </span>
-      <span className={s.lineActions}><button className="admin-action" onClick={() => choose(row)}>{copy ? "Continue draft →" : "Edit →"}</button>
+      <span className={s.lineActions}>
+        {!copyLine && <PriorityControl name={row.name} order={row.order} disabled={busy || draftLocked} title={lockedTitle} onCommit={next => changePackageOrder(row, next)} />}
+        <button className="admin-action" onClick={() => choose(row)}>{copy ? "Continue draft →" : "Edit →"}</button>
         {!copyLine && <button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>}
         {!copyLine && row.status !== "published" && <button type="button" className="admin-action" disabled={busy || draftLocked} title={lockedTitle} onClick={() => void changePackageStatus(row, "published")}>Publish</button>}
         {!copyLine && row.status !== "archived" && <button type="button" className="admin-action" disabled={archiveDisabled} title={running ? `Archive package and end "${running.title}".` : lockedTitle} onClick={() => void changePackageStatus(row, "archived")}>Archive</button>}
@@ -700,16 +749,16 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               {err("paymentOptions")}</div> : monthly && <>
               <p className={s.note}>A monthly package runs as a plan in the client portal: a bill every billing period, at the price bought for the whole length. The client can stop it any time; it ends after the period paid for.</p>
               {item.portalUploads && <div className={s.twoFields}>
-                <label className={`admin-field ${bad("monthlyUploads") ?? ""}`}><span>Updates a month *</span><select aria-label="Updates a month" value={monthly.uploadsPerMonth ? "limited" : "unlimited"} onChange={e => setMonthly({ uploadsPerMonth: e.target.value === "limited" ? monthly.uploadsPerMonth || 4 : null })}><option value="unlimited">Unlimited</option><option value="limited">Limited</option></select>{err("monthlyUploads")}</label>
-                {!!monthly.uploadsPerMonth && <label className="admin-field"><span>Number of updates a month</span><input aria-label="Number of updates a month" type="number" min={1} max={31} value={monthly.uploadsPerMonth} onChange={e => setMonthly({ uploadsPerMonth: Number(e.target.value) })} /><small>Opens again every month.</small></label>}
+                <label className={`admin-field ${bad("monthlyUploads") ?? ""}`}><span>Updates a month *</span><select aria-label="Updates a month" value={monthly.uploadsPerMonth !== null && monthly.uploadsPerMonth !== undefined ? "limited" : "unlimited"} onChange={e => setMonthly({ uploadsPerMonth: e.target.value === "limited" ? (Number.isInteger(monthly.uploadsPerMonth) && monthly.uploadsPerMonth! > 0 ? monthly.uploadsPerMonth : 4) : null })}><option value="unlimited">Unlimited</option><option value="limited">Limited</option></select>{err("monthlyUploads")}</label>
+                {monthly.uploadsPerMonth !== null && monthly.uploadsPerMonth !== undefined && <label className="admin-field"><span>Number of updates a month</span><NumberInput aria-label="Number of updates a month" min={1} max={31} value={monthly.uploadsPerMonth} onValueChange={n => setMonthly({ uploadsPerMonth: n })} onEmpty={() => setMonthly({ uploadsPerMonth: Number.NaN })} /><small>Opens again every month.</small></label>}
               </div>}
               <div className={`${s.choices} ${bad("monthlyCycles") ?? ""}`} role="group" aria-label="Billing cycles"><span>Billing cycles and discount *</span>
                 {CYCLES.map(cycle => { const option = monthly.billingOptions.find(row => row.billingCycle === cycle); return <label key={cycle}>
                   <input type="checkbox" checked={!!option} onChange={e => setMonthly({ billingOptions: CYCLES.flatMap(value => value === cycle ? (e.target.checked ? [{ billingCycle: cycle, discountPercent: 0 }] : []) : monthly.billingOptions.filter(row => row.billingCycle === value)) })} /> {PURCHASE_LABELS[cycle]}
-                  {option && <><input aria-label={`${PURCHASE_LABELS[cycle]} discount %`} type="number" min={0} max={99} step="0.01" className={s.percent} value={option.discountPercent} onChange={e => setMonthly({ billingOptions: monthly.billingOptions.map(row => row.billingCycle === cycle ? { ...row, discountPercent: Number(e.target.value) } : row) })} /> % off</>}
+                  {option && <><NumberInput aria-label={`${PURCHASE_LABELS[cycle]} discount %`} min={0} max={99} step="0.01" className={s.percent} value={option.discountPercent} onValueChange={n => setMonthly({ billingOptions: monthly.billingOptions.map(row => row.billingCycle === cycle ? { ...row, discountPercent: n } : row) })} onEmpty={() => setMonthly({ billingOptions: monthly.billingOptions.map(row => row.billingCycle === cycle ? { ...row, discountPercent: Number.NaN } : row) })} /> % off</>}
                 </label>; })}
                 {err("monthlyCycles")}</div>
-              <label className={`admin-field ${bad("monthlyLength") ?? ""}`}><span>Longest length (months) *</span><input aria-label="Longest length in months" type="number" min={1} max={12} value={monthly.maxTenureMonths} onChange={e => setMonthly({ maxTenureMonths: Number(e.target.value) })} /><small>The client buys 1 to 12 months; to continue after that, they buy it again.</small>{err("monthlyLength")}</label>
+              <label className={`admin-field ${bad("monthlyLength") ?? ""}`}><span>Longest length (months) *</span><NumberInput aria-label="Longest length in months" min={1} max={12} value={monthly.maxTenureMonths} onValueChange={n => setMonthly({ maxTenureMonths: n })} onEmpty={() => setMonthly({ maxTenureMonths: Number.NaN })} /><small>The client buys 1 to 12 months; to continue after that, they buy it again.</small>{err("monthlyLength")}</label>
             </>}
           <div className={s.pricingHeader}>
           <h3 className={s.pricingTitle}>Price &amp; project scope</h3>
@@ -736,8 +785,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             onDiscount={value => update("discountedPrice", value)} onNewAddOn={() => setAddOnDialog({})} onEditAddOn={row => setAddOnDialog({ edit: row })} />
           : <>
             <div className={s.cols3} role="group" aria-label="Prices">
-            <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Main price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.regularPrice} onChange={e => update("regularPrice", Number(e.target.value))} /><small>Shown crossed out.</small>{err("regularPrice")}</label>
-            <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Normal price (₹)" type="number" min={0} max={10000000} step="0.01" value={item.discountedPrice} onChange={e => update("discountedPrice", Number(e.target.value))} /><small>What the customer pays when no offer runs.</small>{err("discountedPrice")}</label>
+            <label className={`admin-field ${bad("regularPrice") ?? ""}`}><span>Main price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><NumberInput aria-label="Main price (₹)" min={0} max={10000000} step="0.01" value={item.regularPrice} onValueChange={n => update("regularPrice", n)} onEmpty={() => update("regularPrice", Number.NaN)} /><small>Shown crossed out.</small>{err("regularPrice")}</label>
+            <label className={`admin-field ${bad("discountedPrice") ?? ""}`}><span>Normal price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><NumberInput aria-label="Normal price (₹)" min={0} max={10000000} step="0.01" value={item.discountedPrice} onValueChange={n => update("discountedPrice", n)} onEmpty={() => update("discountedPrice", Number.NaN)} /><small>What the customer pays when no offer runs.</small>{err("discountedPrice")}</label>
           </div></>}
           </fieldset>
           <div className="form-columns">
@@ -797,7 +846,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> : <><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
           <div className="form-columns">
             <label className="admin-field"><span>When published *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="published">Show on the website</option>{!running && <option value="archived">Archived (hidden)</option>}</select><small>Archived hides the package; it can be shown again later.</small></label>
-            <label className="admin-field"><span>Display order</span><input aria-label="Display order" type="number" min={0} max={9999} value={item.order} onChange={e => update("order", Number(e.target.value))} /></label>
+            <label className={`admin-field ${bad("order") ?? ""}`}><span>Card priority (Display order)</span><NumberInput aria-label="Display order" min={0} max={9999} step={1} value={item.order} onValueChange={n => update("order", n)} onEmpty={() => update("order", Number.NaN)} /><small>Lower number appears first (0 = top).</small>{err("order")}</label>
           </div>
           <fieldset className={s.pages} disabled={pageBusy}><legend>Show on pages</legend>
             {!shownOn(item).length && <p><span className={s.warn}>No page assigned</span> This package is not listed on a Pricing &amp; Packages page until you tick one. Its own page still works.</p>}
