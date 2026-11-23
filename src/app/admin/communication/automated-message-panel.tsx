@@ -573,12 +573,77 @@ function countTemplates(instant: InstantBlockState, stages: TrailStage[] = []): 
   return rootCount + stageCount;
 }
 
+type AccordionCtrl = {
+  isOpen: (id: string) => boolean;
+  toggle: (id: string, multi: boolean) => void;
+  openOnly: (id: string) => void;
+};
+
+function collectVisibleBoxIds(form: TrailForm, focus: EditFocus): string[] {
+  const ids: string[] = [];
+  const pushInstant = (prefix: string, inst: InstantBlockState) => {
+    if (inst.audience === "client" || inst.audience === "both") ids.push(`${prefix}-tpl-client`);
+    if (inst.audience === "admin" || inst.audience === "both") ids.push(`${prefix}-tpl-admin`);
+  };
+  const pushReminder = (prefix: string, rem: Reminder) => {
+    if (rem.audience === "client" || rem.audience === "both") {
+      if (rem.clientMode === "universal") ids.push(`${prefix}-r${rem.id}-client-u`);
+      else rem.clientSteps.forEach((_, i) => ids.push(`${prefix}-r${rem.id}-client-${i}`));
+    }
+    if (rem.audience === "admin" || rem.audience === "both") {
+      if (rem.adminMode === "universal") ids.push(`${prefix}-r${rem.id}-admin-u`);
+      else rem.adminSteps.forEach((_, i) => ids.push(`${prefix}-r${rem.id}-admin-${i}`));
+    }
+  };
+
+  if (focus.mode === "template") {
+    if (focus.stageIndex === 0) pushInstant("s0", form.instant);
+    else {
+      const st = form.stages[focus.stageIndex - 1];
+      if (st) pushInstant(`st${st.id}`, st.instant);
+    }
+    return ids;
+  }
+  if (focus.mode === "reminder") {
+    if (focus.stageIndex === 0) form.reminders.forEach(rem => pushReminder("s0", rem));
+    else {
+      const st = form.stages[focus.stageIndex - 1];
+      if (st?.reminder) pushReminder(`st${st.id}`, st.reminder);
+    }
+    return ids;
+  }
+
+  pushInstant("s0", form.instant);
+  form.reminders.forEach(rem => pushReminder("s0", rem));
+  for (const st of form.stages) {
+    pushInstant(`st${st.id}`, st.instant);
+    if (st.reminder) pushReminder(`st${st.id}`, st.reminder);
+  }
+  return ids;
+}
+
+function defaultOpenBoxId(form: TrailForm, focus: EditFocus): string | null {
+  if (focus.mode === "template") {
+    const prefix = focus.stageIndex === 0 ? "s0" : `st${form.stages[focus.stageIndex - 1]?.id ?? 0}`;
+    const inst = focus.stageIndex === 0 ? form.instant : form.stages[focus.stageIndex - 1]?.instant;
+    if (focus.audience === "admin" && (inst?.audience === "admin" || inst?.audience === "both")) {
+      return `${prefix}-tpl-admin`;
+    }
+    if (focus.audience === "client" && (inst?.audience === "client" || inst?.audience === "both")) {
+      return `${prefix}-tpl-client`;
+    }
+  }
+  const all = collectVisibleBoxIds(form, focus);
+  return all[0] || null;
+}
+
 function cleanSingleReminder(
   rem: Reminder,
   effTriggers: string[],
   stageLabel: string,
+  stagePrefix: string,
   byKey: Map<string, WorkItem>,
-): { reminder?: Reminder; error?: string } {
+): { reminder?: Reminder; error?: string; errorBoxId?: string } {
   const allowedConds = allowedConditionIds(effTriggers.map(k => byKey.get(k)));
   const condition = allowedConds.includes(rem.condition) ? rem.condition : "any";
   const fixStep = (st: MessageStep): MessageStep => (
@@ -592,16 +657,28 @@ function cleanSingleReminder(
   const label = triggersLabel(effTriggers, byKey);
 
   if (showClient) {
-    const missing = rem.clientMode === "universal"
-      ? !clientSteps[0]?.text.trim()
-      : clientSteps.some(st => !st.text.trim());
-    if (missing) return { error: `Write the Client message in ${stageLabel} Reminder (${label}).` };
+    if (rem.clientMode === "universal") {
+      if (!clientSteps[0]?.text.trim()) {
+        return { error: `Write the Client message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-client-u` };
+      }
+    } else {
+      const badIdx = clientSteps.findIndex(st => !st.text.trim());
+      if (badIdx >= 0) {
+        return { error: `Write the Client message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-client-${badIdx}` };
+      }
+    }
   }
   if (showAdmin) {
-    const missing = rem.adminMode === "universal"
-      ? !adminSteps[0]?.text.trim()
-      : adminSteps.some(st => !st.text.trim());
-    if (missing) return { error: `Write the Admin message in ${stageLabel} Reminder (${label}).` };
+    if (rem.adminMode === "universal") {
+      if (!adminSteps[0]?.text.trim()) {
+        return { error: `Write the Admin message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-admin-u` };
+      }
+    } else {
+      const badIdx = adminSteps.findIndex(st => !st.text.trim());
+      if (badIdx >= 0) {
+        return { error: `Write the Admin message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-admin-${badIdx}` };
+      }
+    }
   }
 
   const maxSteps = Math.max(showClient ? clientSteps.length : 0, showAdmin ? adminSteps.length : 0);
@@ -621,7 +698,7 @@ function cleanSingleReminder(
   };
 }
 
-function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null } {
+function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null; errorBoxId?: string } {
   if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
 
   const hasScope = allTrailTriggerKeys(form).some(k => byKey.get(k)?.supportsScope);
@@ -637,8 +714,8 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
   for (let i = 0; i < form.reminders.length; i++) {
     const rem = form.reminders[i];
     const effTriggers = rem.startTrigger !== "__main__" ? [rem.startTrigger] : form.triggers;
-    const res = cleanSingleReminder(rem, effTriggers, `Stage 1`, byKey);
-    if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder." };
+    const res = cleanSingleReminder(rem, effTriggers, `Stage 1`, "s0", byKey);
+    if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder.", errorBoxId: res.errorBoxId };
     cleanReminders.push(res.reminder);
   }
 
@@ -651,8 +728,8 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
     let stReminder: Reminder | null = null;
     if (st.reminder) {
       const effTriggers = st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : st.triggers;
-      const res = cleanSingleReminder(st.reminder, effTriggers, `Stage ${stageNum}`, byKey);
-      if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder." };
+      const res = cleanSingleReminder(st.reminder, effTriggers, `Stage ${stageNum}`, `st${st.id}`, byKey);
+      if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder.", errorBoxId: res.errorBoxId };
       stReminder = res.reminder;
     }
     if (stInstant.audience === "off" && !stReminder) {
@@ -977,6 +1054,8 @@ function MessageEditor({
   showTiming,
   baseDate = "due_date",
   canRemove,
+  boxId,
+  accordion,
   onChange,
   onRemove,
 }: {
@@ -985,21 +1064,25 @@ function MessageEditor({
   showTiming: boolean;
   baseDate?: BaseDate;
   canRemove?: boolean;
+  boxId?: string;
+  accordion?: AccordionCtrl;
   onChange: (patch: Partial<MessageStep>) => void;
   onRemove?: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const effectivePos = baseDate === "trigger_date" && step.pos === "before" ? "after" : step.pos;
-  return <div className={s.msgCard}>
-    {(showTiming || canRemove) && (
-      <div className={s.msgTitleRow}>
-        <strong>{title}</strong>
-        {canRemove && onRemove && (
-          <button type="button" className={s.miniDangerBtn} onClick={onRemove}>Remove</button>
-        )}
-      </div>
-    )}
+  const collapsible = Boolean(boxId && accordion);
+  const expanded = !collapsible || accordion!.isOpen(boxId!);
 
+  const timingBrief = showTiming
+    ? (effectivePos === "on"
+      ? timingPositionLabel("on", baseDate)
+      : `${step.amount}${step.unit === "hours" ? "h" : "d"} ${timingPositionLabel(effectivePos, baseDate)}`)
+    : "";
+  const chBrief = step.channel === "both" ? "Email + WhatsApp" : step.channel === "email" ? "Email" : "WhatsApp";
+  const textSnippet = step.text.trim() ? step.text.trim().replace(/\s+/g, " ") : "Not written yet";
+
+  const editorInner = <>
     {showTiming && (
       <div className={s.timingRow}>
         <span className={s.miniLabel}>When</span>
@@ -1100,6 +1183,59 @@ function MessageEditor({
       value={step.text}
       onChange={e => onChange({ text: e.target.value })}
     />
+  </>;
+
+  if (collapsible) {
+    return (
+      <div className={s.accordionBox} data-open={expanded}>
+        <div
+          className={s.accordionHead}
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          title="Click to switch · Ctrl+Click to keep multiple open"
+          onClick={e => accordion!.toggle(boxId!, e.ctrlKey || e.metaKey)}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              accordion!.toggle(boxId!, e.ctrlKey || e.metaKey);
+            }
+          }}
+        >
+          <div className={s.accordionMain}>
+            <span className={s.accordionChevron} aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+            <strong>{title}</strong>
+            {!expanded && (
+              <span className={s.accordionMeta}>
+                {[timingBrief, chBrief, textSnippet].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </div>
+          {canRemove && onRemove && (
+            <button
+              type="button"
+              className={s.miniDangerBtn}
+              onClick={e => { e.stopPropagation(); onRemove(); }}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+        {expanded && <div className={s.accordionBody}>{editorInner}</div>}
+      </div>
+    );
+  }
+
+  return <div className={s.msgCard}>
+    {(showTiming || canRemove) && (
+      <div className={s.msgTitleRow}>
+        <strong>{title}</strong>
+        {canRemove && onRemove && (
+          <button type="button" className={s.miniDangerBtn} onClick={onRemove}>Remove</button>
+        )}
+      </div>
+    )}
+    {editorInner}
   </div>;
 }
 
@@ -1107,11 +1243,15 @@ function TemplateEditorBlock({
   label,
   msg,
   initialTemplateId,
+  boxId,
+  accordion,
   onChange,
 }: {
   label: string;
   msg: SingleMsg;
   initialTemplateId?: string;
+  boxId?: string;
+  accordion?: AccordionCtrl;
   onChange: (next: SingleMsg) => void;
 }) {
   const list = msg.templates?.length ? msg.templates : syncSingleMsg([]).templates;
@@ -1214,6 +1354,119 @@ function TemplateEditorBlock({
     setSelectedId(next.templates[0].id);
   }
 
+  const collapsible = Boolean(boxId && accordion);
+  const expanded = !collapsible || accordion!.isOpen(boxId!);
+  const chBrief = activeTpl.channel === "both" ? "Email + WhatsApp" : activeTpl.channel === "email" ? "Email" : "WhatsApp";
+  const tplCountBrief = list.length > 1 ? `${list.length} templates · ${activeTpl.name}` : activeTpl.name;
+  const textSnippet = activeTpl.text.trim() ? activeTpl.text.trim().replace(/\s+/g, " ") : "Not written yet";
+
+  const bodyContent = <>
+    <div className={s.tplBar}>
+      <div className={s.tplBarRow}>
+        <div className={s.tplSelectGroup}>
+          <span className={s.miniLabel}>Template</span>
+          <select
+            className={s.compactSelect}
+            aria-label={`${label} template`}
+            value={activeTpl.id}
+            onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
+          >
+            {list.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.name}{t.isDefault ? " ★ Default" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={s.tplActions}>
+          <button
+            type="button"
+            className={isDirty && activeTpl.text.trim() ? s.miniPrimaryBtn : s.miniBtn}
+            disabled={!isDirty || !activeTpl.text.trim()}
+            onClick={saveActive}
+          >
+            Save
+          </button>
+          <button type="button" className={s.miniBtn} onClick={() => openPrompt("save_as")}>Save as new</button>
+          <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
+          {!activeTpl.isDefault && (
+            <button type="button" className={s.miniBtn} onClick={setAsDefault}>Set Default</button>
+          )}
+          <button type="button" className={s.miniBtn} onClick={() => openPrompt("rename")}>Rename</button>
+          {list.length > 1 && (
+            <button type="button" className={s.miniDangerBtn} onClick={deleteActive}>Delete</button>
+          )}
+          {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
+        </div>
+      </div>
+
+      {promptMode && (
+        <div className={s.tplPromptRow}>
+          <span className={s.miniLabel}>
+            {promptMode === "new" ? "New template name:" : promptMode === "save_as" ? "Save copy as:" : "Rename to:"}
+          </span>
+          <input
+            type="text"
+            className={s.tplPromptInput}
+            maxLength={80}
+            autoFocus
+            value={nameInput}
+            onChange={e => { setNameInput(e.target.value); if (promptError) setPromptError(""); }}
+            onKeyDown={e => {
+              if (e.key === "Enter") { e.preventDefault(); confirmPrompt(); }
+              if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); setPromptError(""); }
+            }}
+          />
+          <button type="button" className={s.miniBtn} disabled={!nameInput.trim()} onClick={confirmPrompt}>Save</button>
+          <button type="button" className={s.miniDangerBtn} onClick={() => { setPromptMode(""); setPromptError(""); }}>Cancel</button>
+        </div>
+      )}
+      {promptError && <span className={s.tplErrText}>{promptError}</span>}
+    </div>
+
+    <MessageEditor
+      title={label}
+      step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
+      showTiming={false}
+      onChange={patch => patchActive(patch)}
+    />
+  </>;
+
+  if (collapsible) {
+    return (
+      <div className={s.accordionBox} data-open={expanded}>
+        <div
+          className={s.accordionHead}
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          title="Click to switch · Ctrl+Click to keep multiple open"
+          onClick={e => accordion!.toggle(boxId!, e.ctrlKey || e.metaKey)}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              accordion!.toggle(boxId!, e.ctrlKey || e.metaKey);
+            }
+          }}
+        >
+          <div className={s.accordionMain}>
+            <span className={s.accordionChevron} aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+            <strong>{label}</strong>
+            {!expanded && (
+              <span className={s.accordionMeta}>
+                {[tplCountBrief, chBrief, textSnippet].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </div>
+          <span className={s.cardSub}>
+            {list.length > 1 ? `${list.length} templates` : "Instant"}
+          </span>
+        </div>
+        {expanded && <div className={s.accordionBody}>{bodyContent}</div>}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "grid", gap: "8px" }}>
       <div className={s.blockHead}>
@@ -1224,82 +1477,15 @@ function TemplateEditorBlock({
             : "Sent immediately · Auto sends ★ Default"}
         </span>
       </div>
-
-      <div className={s.tplBar}>
-        <div className={s.tplBarRow}>
-          <div className={s.tplSelectGroup}>
-            <span className={s.miniLabel}>Template</span>
-            <select
-              className={s.compactSelect}
-              aria-label={`${label} template`}
-              value={activeTpl.id}
-              onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
-            >
-              {list.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.isDefault ? " ★ Default" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={s.tplActions}>
-            <button
-              type="button"
-              className={isDirty && activeTpl.text.trim() ? s.miniPrimaryBtn : s.miniBtn}
-              disabled={!isDirty || !activeTpl.text.trim()}
-              onClick={saveActive}
-            >
-              Save
-            </button>
-            <button type="button" className={s.miniBtn} onClick={() => openPrompt("save_as")}>Save as new</button>
-            <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
-            {!activeTpl.isDefault && (
-              <button type="button" className={s.miniBtn} onClick={setAsDefault}>Set Default</button>
-            )}
-            <button type="button" className={s.miniBtn} onClick={() => openPrompt("rename")}>Rename</button>
-            {list.length > 1 && (
-              <button type="button" className={s.miniDangerBtn} onClick={deleteActive}>Delete</button>
-            )}
-            {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
-          </div>
-        </div>
-
-        {promptMode && (
-          <div className={s.tplPromptRow}>
-            <span className={s.miniLabel}>
-              {promptMode === "new" ? "New template name:" : promptMode === "save_as" ? "Save copy as:" : "Rename to:"}
-            </span>
-            <input
-              type="text"
-              className={s.tplPromptInput}
-              maxLength={80}
-              autoFocus
-              value={nameInput}
-              onChange={e => { setNameInput(e.target.value); if (promptError) setPromptError(""); }}
-              onKeyDown={e => {
-                if (e.key === "Enter") { e.preventDefault(); confirmPrompt(); }
-                if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); setPromptError(""); }
-              }}
-            />
-            <button type="button" className={s.miniBtn} disabled={!nameInput.trim()} onClick={confirmPrompt}>Save</button>
-            <button type="button" className={s.miniDangerBtn} onClick={() => { setPromptMode(""); setPromptError(""); }}>Cancel</button>
-          </div>
-        )}
-        {promptError && <span className={s.tplErrText}>{promptError}</span>}
-      </div>
-
-      <MessageEditor
-        title={label}
-        step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
-        showTiming={false}
-        onChange={patch => patchActive(patch)}
-      />
+      {bodyContent}
     </div>
   );
 }
 
 function InstantAutoMsgBlock({
   state,
+  stagePrefix = "s0",
+  accordion,
   adminActionControl,
   userActionControl,
   focusAudience,
@@ -1309,6 +1495,8 @@ function InstantAutoMsgBlock({
   onChange,
 }: {
   state: InstantBlockState;
+  stagePrefix?: string;
+  accordion?: AccordionCtrl;
   adminActionControl?: "auto" | "review" | "off";
   userActionControl?: "auto" | "review" | "off";
   focusAudience?: "client" | "admin";
@@ -1332,7 +1520,15 @@ function InstantAutoMsgBlock({
             className={s.compactSelect}
             aria-label="Instant message audience"
             value={state.audience}
-            onChange={e => onChange({ ...state, audience: e.target.value as InstantAudience })}
+            onChange={e => {
+              const nextAud = e.target.value as InstantAudience;
+              onChange({ ...state, audience: nextAud });
+              if (accordion) {
+                if (nextAud === "admin") accordion.openOnly(`${stagePrefix}-tpl-admin`);
+                else if (nextAud === "client") accordion.openOnly(`${stagePrefix}-tpl-client`);
+                else if (nextAud === "both" && state.audience === "off") accordion.openOnly(`${stagePrefix}-tpl-client`);
+              }
+            }}
           >
             <option value="off">Off (Don&apos;t send instant message)</option>
             <option value="client">Client only</option>
@@ -1384,6 +1580,8 @@ function InstantAutoMsgBlock({
           label="Client instant message"
           msg={state.client}
           initialTemplateId={focusAudience === "client" ? focusTemplateId : undefined}
+          boxId={`${stagePrefix}-tpl-client`}
+          accordion={accordion}
           onChange={client => onChange({ ...state, client })}
         />
       )}
@@ -1395,6 +1593,8 @@ function InstantAutoMsgBlock({
           label="Admin / Team instant message"
           msg={state.admin}
           initialTemplateId={focusAudience === "admin" ? focusTemplateId : undefined}
+          boxId={`${stagePrefix}-tpl-admin`}
+          accordion={accordion}
           onChange={admin => onChange({ ...state, admin })}
         />
       )}
@@ -1410,6 +1610,8 @@ function AudienceBlock({
   baseDate,
   canCopyClient,
   hideHeaderTitle = false,
+  boxPrefix,
+  accordion,
   onModeChange,
   onCopyClient,
   onUpdateSteps,
@@ -1421,6 +1623,8 @@ function AudienceBlock({
   baseDate: BaseDate;
   canCopyClient?: boolean;
   hideHeaderTitle?: boolean;
+  boxPrefix?: string;
+  accordion?: AccordionCtrl;
   onModeChange: (mode: MessageMode) => void;
   onCopyClient?: () => void;
   onUpdateSteps: (next: MessageStep[]) => void;
@@ -1508,6 +1712,8 @@ function AudienceBlock({
           title={`Universal ${who === "client" ? "Client" : "Admin"} message`}
           step={primaryStep}
           showTiming={false}
+          boxId={boxPrefix ? `${boxPrefix}-u` : undefined}
+          accordion={accordion}
           onChange={patch => onUpdateSteps(steps.map(st => ({ ...st, channel: patch.channel ?? st.channel, subject: patch.subject ?? st.subject, text: patch.text ?? st.text })))}
         />
       ) : (
@@ -1520,12 +1726,28 @@ function AudienceBlock({
               showTiming={true}
               baseDate={baseDate}
               canRemove={steps.length > 1}
+              boxId={boxPrefix ? `${boxPrefix}-${idx}` : undefined}
+              accordion={accordion}
               onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
-              onRemove={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}
+              onRemove={() => {
+                const next = steps.filter((_, i) => i !== idx);
+                onUpdateSteps(next);
+                if (accordion && boxPrefix && accordion.isOpen(`${boxPrefix}-${idx}`)) {
+                  accordion.openOnly(`${boxPrefix}-${Math.max(0, idx - 1)}`);
+                }
+              }}
             />
           ))}
           {steps.length < 10 && (
-            <button type="button" className={s.subtleAdd} onClick={() => onUpdateSteps([...steps, blankStep("after", 2)])}>
+            <button
+              type="button"
+              className={s.subtleAdd}
+              onClick={() => {
+                const newIdx = steps.length;
+                onUpdateSteps([...steps, blankStep("after", 2)]);
+                if (accordion && boxPrefix) accordion.openOnly(`${boxPrefix}-${newIdx}`);
+              }}
+            >
               + Add follow-up message
             </button>
           )}
@@ -1538,6 +1760,8 @@ function AudienceBlock({
 function ReminderCard({
   index,
   depth,
+  stagePrefix = "s0",
+  accordion,
   reminder,
   stageTriggers,
   stageTriggersLabel,
@@ -1552,6 +1776,8 @@ function ReminderCard({
 }: {
   index: number;
   depth: number;
+  stagePrefix?: string;
+  accordion?: AccordionCtrl;
   reminder: Reminder;
   stageTriggers: string[];
   stageTriggersLabel: string;
@@ -1674,7 +1900,14 @@ function ReminderCard({
           mode={reminder.clientMode}
           steps={reminder.clientSteps}
           baseDate={reminder.countDaysFrom}
-          onModeChange={clientMode => set({ clientMode })}
+          boxPrefix={`${stagePrefix}-r${reminder.id}-client`}
+          accordion={accordion}
+          onModeChange={clientMode => {
+            set({ clientMode });
+            if (accordion) {
+              accordion.openOnly(`${stagePrefix}-r${reminder.id}-client-${clientMode === "universal" ? "u" : "0"}`);
+            }
+          }}
           onUpdateSteps={clientSteps => set({ clientSteps })}
         />
       )}
@@ -1687,7 +1920,14 @@ function ReminderCard({
           steps={reminder.adminSteps}
           baseDate={reminder.countDaysFrom}
           canCopyClient={showClient}
-          onModeChange={adminMode => set({ adminMode })}
+          boxPrefix={`${stagePrefix}-r${reminder.id}-admin`}
+          accordion={accordion}
+          onModeChange={adminMode => {
+            set({ adminMode });
+            if (accordion) {
+              accordion.openOnly(`${stagePrefix}-r${reminder.id}-admin-${adminMode === "universal" ? "u" : "0"}`);
+            }
+          }}
           onCopyClient={copyClientDays}
           onUpdateSteps={adminSteps => set({ adminSteps })}
         />
@@ -1861,6 +2101,8 @@ function ReminderCard({
 }
 
 function TrailStageBlock({
+  stagePrefix = "s0",
+  accordion,
   stageTriggers,
   stageTriggersLabel,
   depth,
@@ -1884,6 +2126,8 @@ function TrailStageBlock({
   onChangeInstant,
   onChangeReminders,
 }: {
+  stagePrefix?: string;
+  accordion?: AccordionCtrl;
   stageTriggers: string[];
   stageTriggersLabel: string;
   depth: number;
@@ -1911,7 +2155,9 @@ function TrailStageBlock({
     const defaultStops = [...new Set(
       stageTriggers.flatMap(k => byKey.get(k)?.defaultStopOn || []),
     )].filter(k => byKey.has(k) && !stageTriggers.includes(k));
-    onChangeReminders([...reminders, newReminder(defaultStops, stageTriggers[0])]);
+    const created = newReminder(defaultStops, stageTriggers[0]);
+    onChangeReminders([...reminders, created]);
+    if (accordion) accordion.openOnly(`${stagePrefix}-r${created.id}-client-0`);
   }
 
   return (
@@ -1954,6 +2200,8 @@ function TrailStageBlock({
       {/* 1. Template (Instant Auto Message) */}
       <InstantAutoMsgBlock
         state={instant}
+        stagePrefix={stagePrefix}
+        accordion={accordion}
         adminActionControl={adminActionControl}
         userActionControl={userActionControl}
         focusAudience={focusAudience}
@@ -1984,6 +2232,8 @@ function TrailStageBlock({
             key={rem.id}
             index={idx}
             depth={depth}
+            stagePrefix={stagePrefix}
+            accordion={accordion}
             reminder={rem}
             stageTriggers={stageTriggers}
             stageTriggersLabel={stageTriggersLabel}
@@ -2036,10 +2286,44 @@ function FormDialog({
 }) {
   const [form, setForm] = useState<TrailForm>(initial);
   const [activeFocus, setActiveFocus] = useState<EditFocus>(initialFocus || { mode: "full" });
+  const [openBoxIds, setOpenBoxIds] = useState<Set<string>>(() => {
+    const first = defaultOpenBoxId(initial, initialFocus || { mode: "full" });
+    return first ? new Set([first]) : new Set();
+  });
   const [localError, setLocalError] = useState("");
   const [legacyData, setLegacyData] = useState<LegacyPullPayload | null>(null);
   const [legacyPulled, setLegacyPulled] = useState(false);
   const [pullSeq, setPullSeq] = useState(0);
+
+  const accordion = useMemo<AccordionCtrl>(() => ({
+    isOpen: (id: string) => openBoxIds.has(id),
+    toggle: (id: string, multi: boolean) => {
+      setOpenBoxIds(curr => {
+        if (multi) {
+          const next = new Set(curr);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        }
+        if (curr.size === 1 && curr.has(id)) return new Set();
+        return new Set([id]);
+      });
+    },
+    openOnly: (id: string) => {
+      setOpenBoxIds(new Set([id]));
+    },
+  }), [openBoxIds]);
+
+  const visibleBoxIds = useMemo(() => collectVisibleBoxIds(form, activeFocus), [form, activeFocus]);
+  const allBoxesOpen = visibleBoxIds.length > 1 && visibleBoxIds.every(id => openBoxIds.has(id));
+  function toggleExpandAll() {
+    if (allBoxesOpen) {
+      const keep = visibleBoxIds.find(id => openBoxIds.has(id)) || visibleBoxIds[0];
+      setOpenBoxIds(keep ? new Set([keep]) : new Set());
+    } else {
+      setOpenBoxIds(new Set(visibleBoxIds));
+    }
+  }
   const set = (patch: Partial<TrailForm>) => {
     if (localError) setLocalError("");
     setForm(curr => ({ ...curr, ...patch }));
@@ -2147,6 +2431,9 @@ function FormDialog({
     }));
     setLegacyPulled(true);
     setPullSeq(v => v + 1);
+    if (hasClient) accordion.openOnly("s0-tpl-client");
+    else if (hasAdmin) accordion.openOnly("s0-tpl-admin");
+    else if (pulledReminders.length > 0) accordion.openOnly(`s0-r${pulledReminders[0].id}-client-0`);
   }
 
   const primaryKey = form.triggers[0] || "";
@@ -2205,7 +2492,10 @@ function FormDialog({
     const defaultStops = [...new Set(
       prefill.flatMap(k => byKey.get(k)?.defaultStopOn || []),
     )].filter(k => byKey.has(k) && !prefill.includes(k));
-    set({ stages: [...form.stages, newTrailStage(mode, prefill, defaultStops)] });
+    const created = newTrailStage(mode, prefill, defaultStops);
+    set({ stages: [...form.stages, created] });
+    if (mode === "template") accordion.openOnly(`st${created.id}-tpl-client`);
+    else if (created.reminder) accordion.openOnly(`st${created.id}-r${created.reminder.id}-client-0`);
   }
 
   function updateStage(stageId: number, patch: Partial<TrailStage>) {
@@ -2240,9 +2530,10 @@ function FormDialog({
   }
 
   function handleSaveClick() {
-    const { trail, error: valError } = prepareTrailForSave(form, byKey);
+    const { trail, error: valError, errorBoxId } = prepareTrailForSave(form, byKey);
     if (valError) {
       setLocalError(valError);
+      if (errorBoxId) accordion.openOnly(errorBoxId);
       return;
     }
     setLocalError("");
@@ -2267,10 +2558,13 @@ function FormDialog({
     const defaultStops = [...new Set(
       focusStageTriggers.flatMap(k => byKey.get(k)?.defaultStopOn || []),
     )].filter(k => byKey.has(k) && !focusStageTriggers.includes(k));
+    const created = newReminder(defaultStops, focusStageTriggers[0]);
     if (focusStageIdx === 0) {
-      updateRootReminders([...form.reminders, newReminder(defaultStops, focusStageTriggers[0])]);
+      updateRootReminders([...form.reminders, created]);
+      accordion.openOnly(`s0-r${created.id}-client-0`);
     } else if (focusStageObj) {
-      updateStage(focusStageObj.id, { reminder: newReminder(defaultStops, focusStageTriggers[0]) });
+      updateStage(focusStageObj.id, { reminder: created });
+      accordion.openOnly(`st${focusStageObj.id}-r${created.id}-client-0`);
     }
   }
 
@@ -2309,26 +2603,52 @@ function FormDialog({
             <span className={s.badge}>Stage {focusStageIdx + 1}</span>
             {focusScopeLabel && <span className={s.badge}>{focusScopeLabel}</span>}
           </div>
-          <button
-            type="button"
-            className={s.miniBtn}
-            onClick={() => setActiveFocus({ mode: "full" })}
-          >
-            Open full trail →
-          </button>
+          <div className={s.flowStripActions}>
+            {visibleBoxIds.length > 1 && (
+              <button
+                type="button"
+                className={s.miniBtn}
+                title="Expand all message boxes or return to one-at-a-time"
+                onClick={toggleExpandAll}
+              >
+                {allBoxesOpen ? "Collapse to 1" : "Expand all"}
+              </button>
+            )}
+            <button
+              type="button"
+              className={s.miniBtn}
+              onClick={() => setActiveFocus({ mode: "full" })}
+            >
+              Open full trail →
+            </button>
+          </div>
         </div>
       ) : (
         /* Fixed-height Live Flow Strip — zero blink/jump */
         <div className={s.flowStrip} aria-label="Live trail summary">
-          {flowTokens.length === 0 ? (
-            <span className={s.flowEmpty}>Trail preview: choose a Trigger point below to see your live automation flow.</span>
-          ) : (
-            flowTokens.map((tok, i) => (
-              <span key={`${tok}-${i}`} className={s.flowItem}>
-                {i > 0 && <span className={s.flowArrow}>→</span>}
-                <span className={s.flowPill} data-kind={i === 0 ? "trigger" : "step"}>{tok}</span>
-              </span>
-            ))
+          <div className={s.flowStripTokens}>
+            {flowTokens.length === 0 ? (
+              <span className={s.flowEmpty}>Trail preview: choose a Trigger point below to see your live automation flow.</span>
+            ) : (
+              flowTokens.map((tok, i) => (
+                <span key={`${tok}-${i}`} className={s.flowItem}>
+                  {i > 0 && <span className={s.flowArrow}>→</span>}
+                  <span className={s.flowPill} data-kind={i === 0 ? "trigger" : "step"}>{tok}</span>
+                </span>
+              ))
+            )}
+          </div>
+          {visibleBoxIds.length > 1 && (
+            <div className={s.flowStripActions}>
+              <button
+                type="button"
+                className={s.miniBtn}
+                title="Expand all message boxes or return to one-at-a-time (Tip: Ctrl+Click any box to keep multiple open)"
+                onClick={toggleExpandAll}
+              >
+                {allBoxesOpen ? "Collapse to 1" : "Expand all"}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -2346,6 +2666,8 @@ function FormDialog({
             <InstantAutoMsgBlock
               key={`focus-tpl-${form._id || "new"}-s${focusStageIdx}-${activeFocus.audience || "all"}-${activeFocus.templateId || "def"}`}
               state={focusStageIdx === 0 ? form.instant : (focusStageObj?.instant || blankInstant("client"))}
+              stagePrefix={focusStageIdx === 0 ? "s0" : `st${focusStageObj?.id ?? 0}`}
+              accordion={accordion}
               adminActionControl={focusStageIdx === 0 ? (form.adminActionControl || (form.control === "review" ? "review" : "auto")) : undefined}
               userActionControl={focusStageIdx === 0 ? (form.userActionControl || (form.control === "review" ? "review" : "auto")) : undefined}
               focusAudience={activeFocus.audience}
@@ -2378,6 +2700,8 @@ function FormDialog({
                       key={rem.id}
                       index={idx}
                       depth={focusStageIdx}
+                      stagePrefix={focusStageIdx === 0 ? "s0" : `st${focusStageObj?.id ?? 0}`}
+                      accordion={accordion}
                       reminder={rem}
                       stageTriggers={focusStageTriggers}
                       stageTriggersLabel={focusStageLabel}
@@ -2545,6 +2869,8 @@ function FormDialog({
                           setLegacyPulled(false);
                           setForm(match.trail);
                           setPullSeq(v => v + 1);
+                          const first = defaultOpenBoxId(match.trail, { mode: "full" });
+                          if (first) accordion.openOnly(first);
                         }}
                       >
                         Load &amp; Edit here
@@ -2569,6 +2895,8 @@ function FormDialog({
 
           <TrailStageBlock
             key={`${form._id || "new-root"}-${pullSeq}`}
+            stagePrefix="s0"
+            accordion={accordion}
             stageTriggers={form.triggers}
             stageTriggersLabel={rootTrigLabel}
             depth={0}
@@ -2615,6 +2943,8 @@ function FormDialog({
                 </div>
 
                 <TrailStageBlock
+                  stagePrefix={`st${stage.id}`}
+                  accordion={accordion}
                   stageTriggers={stage.triggers}
                   stageTriggersLabel={stageLabel}
                   depth={idx + 1}
