@@ -1,0 +1,9 @@
+node_modules
+.next
+.next-build
+.next-plans-check
+test-results
+tests
+work41-offers-*
+.data
+docs

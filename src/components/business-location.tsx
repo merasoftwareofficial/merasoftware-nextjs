@@ -11,7 +11,7 @@ export function BusinessLocation() {
       <div className="location-copy">
         <p className="eyebrow"><i /> VISIT US</p>
         <h2 id="visit-us-heading">Find your way<br />to <em>Mera Software.</em></h2>
-        <p className="location-intro">Find us in Majitha. Open directions for the route to our location.</p>
+        <p className="location-intro">Visit our office or get directions via Google Maps.</p>
         <div className="location-address"><span className="location-pin"><LocationPin /></span><div>
           <h3>{BUSINESS_LOCATION.name}</h3>
           <address>{BUSINESS_LOCATION.addressLines.map(line => <span key={line}>{line}</span>)}</address>
@@ -23,7 +23,7 @@ export function BusinessLocation() {
         {BUSINESS_LOCATION.reviewsUrl ? <a className="text-link" href={BUSINESS_LOCATION.reviewsUrl} target="_blank" rel="noopener noreferrer">Write a Google review ↗</a> : null}
       </div>
       <div className="location-map-card">
-        <div className="location-map-caption"><span><LocationPin /> MAJITHA, PUNJAB</span><a href={BUSINESS_LOCATION.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a></div>
+        <div className="location-map-caption"><span><LocationPin /> AMRITSAR, PUNJAB</span><a href={BUSINESS_LOCATION.mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps ↗</a></div>
         <iframe src={BUSINESS_LOCATION.embedUrl} title="Mera Software Digital Solutions location on Google Maps" loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
         <p>{BUSINESS_LOCATION.shortAddress}</p>
       </div>

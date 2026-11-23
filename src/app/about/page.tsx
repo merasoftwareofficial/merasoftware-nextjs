@@ -36,7 +36,7 @@ export default async function About() {
       <div className={s.frame}><SectionVisual data={visuals["about.presence"]} label="Understanding your business and digital needs" /></div>
       <div><p className={s.eyebrow}>{content.approach.eyebrow}</p><ContentHeading content={content.approach} />
         {content.approach.paragraphs.map((paragraph, index) => <p className={s.copy} key={index}>{paragraph}</p>)}
-        {content.approach.buttonHref && content.approach.buttonLabel ? <Link className={s.textLink} href={content.approach.buttonHref}>{content.approach.buttonLabel} <span aria-hidden="true">↗</span></Link> : null}
+        {content.approach.buttonHref && content.approach.buttonLabel ? <Link className={s.button} href={content.approach.buttonHref}>{content.approach.buttonLabel} <span aria-hidden="true">↗</span></Link> : null}
       </div>
     </div></section> : null}
 

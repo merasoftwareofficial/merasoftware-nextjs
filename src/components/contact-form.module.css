@@ -1,0 +1,259 @@
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.badge b {
+  color: var(--brand-link);
+}
+
+.writeBtn {
+  margin-top: 18px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 56px;
+  align-items: start;
+}
+
+.info h2 {
+  font-size: clamp(32px, 3.6vw, 48px);
+  line-height: 1.08;
+  margin: 20px 0 18px;
+}
+
+.lead {
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.65;
+  max-width: 420px;
+  margin-bottom: 30px;
+}
+
+.meta {
+  display: grid;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  max-width: 380px;
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.metaIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--brand-link);
+}
+
+.metaText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metaLabel {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--brand-link);
+}
+
+.metaValue {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 18px 44px rgb(0 36 61 / 0.06);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.field {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.field > span {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.control {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.control:focus,
+.field :global(.phone-field-row select):focus,
+.field :global(.phone-field-row input):focus {
+  outline: none;
+  border-color: var(--brand-link);
+  box-shadow: 0 0 0 3px rgb(0 123 255 / 0.12);
+}
+
+.field :global(.phone-field-row) {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+}
+
+.field :global(.phone-field-row select),
+.field :global(.phone-field-row input) {
+  width: 100%;
+  max-width: none;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 15px;
+  margin: 0 0 16px;
+}
+
+.submit {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.dialog {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.2);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.dialog h2 {
+  margin: 0 0 10px;
+  font-size: 24px;
+}
+
+.dialog p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.dialogBtn {
+  border: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.badge b {
+  color: var(--brand-link);
+}
+
+.writeBtn {
+  margin-top: 18px;
+}
+
+.grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+}
+
+@media (max-width: 600px) {
+  .card {
+    padding: 22px 18px;
+  }
+  .row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

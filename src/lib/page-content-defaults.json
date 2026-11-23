@@ -6,10 +6,10 @@
       "heading": "Built around business.",
       "emphasis": "Driven by responsibility.",
       "lineBreak": true,
-      "lead": "Established in 2022, Mera Software helps local businesses build their online presence, connect with customers and improve operations through digital solutions.",
+      "lead": "Established in 2022, Mera Software helps growing businesses build their online presence, connect with customers and improve operations through digital solutions.",
       "description": "We bring business understanding, creative design and technical development into one coordinated service.",
-      "buttonLabel": "Talk to our team",
-      "buttonHref": "/contact"
+      "buttonLabel": "",
+      "buttonHref": ""
     },
     "purpose": {
       "enabled": true,
@@ -33,7 +33,7 @@
         "From business profiles and websites to mobile apps, CRM and marketing, our work follows a plan suited to your needs. We coordinate the content, design and development required to deliver it."
       ],
       "buttonLabel": "Explore our expertise",
-      "buttonHref": "/services"
+      "buttonHref": "/services#catalogue"
     },
     "leadership": {
       "enabled": true,
@@ -110,8 +110,8 @@
       "emphasis": "next.",
       "lineBreak": false,
       "description": "Share your requirements with our team. We will help you define a practical way forward.",
-      "buttonLabel": "Start a conversation",
-      "buttonHref": "/contact"
+      "buttonLabel": "Let's talk",
+      "buttonHref": "/contact#contact-form"
     }
   },
   "services": {

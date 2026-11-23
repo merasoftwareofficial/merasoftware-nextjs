@@ -54,7 +54,7 @@ export function SiteFooter({ whatsappSubject }: { whatsappSubject?: string } = {
       <div className="container footer-cta">
         <p>Have a project in mind? Let&apos;s talk about it.</p>
         <div className="footer-cta-actions">
-          <a className="footer-cta-whatsapp" href={chat} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>
+          <Link className="footer-cta-whatsapp" href="/contact">Contact Sales →</Link>
         </div>
       </div>
 
@@ -63,7 +63,7 @@ export function SiteFooter({ whatsappSubject }: { whatsappSubject?: string } = {
           <Link className="brand brand-logo" href="/">
             <img src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} loading="lazy" />
           </Link>
-          <p>Helping local businesses get online with websites, apps, business software and digital marketing.</p>
+          <p>Helping growing businesses get online with websites, apps, business software and digital marketing.</p>
           <Suspense fallback={null}><SocialRow /></Suspense>
         </div>
 
@@ -90,7 +90,6 @@ export function SiteFooter({ whatsappSubject }: { whatsappSubject?: string } = {
         <div>
           <p className="footer-label">CONTACT</p>
           <a href="mailto:contact@merasoftware.com">contact@merasoftware.com</a>
-          <a href={`https://wa.me/${BUSINESS_LOCATION.whatsapp}`} target="_blank" rel="noopener noreferrer">+91 96530 13530</a>
           <address className="footer-address">{BUSINESS_LOCATION.shortAddress}</address>
           <a href={BUSINESS_LOCATION.directionsUrl} target="_blank" rel="noopener noreferrer">View location ↗</a>
         </div>

@@ -14,25 +14,41 @@ function SessionSlot() {
   return <SessionMenu portalApiUrl={apiUrl} />;
 }
 
-/** The main pages, shared by the inline nav and the phone menu. */
-const NAV_LINKS: MenuLink[] = [
-  ["Services", "/services"],
-  ...(FEATURES.portfolio ? [["Work", "/work"] as MenuLink] : []),
+const SERVICE_LINKS: MenuLink[] = [
+  ["All Services", "/services"],
+  ["Websites & Software", "/services/website-development"],
+  ["Online Setup & Search", "/services/seo"],
+  ["Content & Promotion", "/services/performance-marketing"],
+];
+
+const COMMUNITY_LINKS: MenuLink[] = [
   ["Blog", "/blog"],
   ["Community", "/community"],
-  ["About", "/about"],
+];
+
+const ABOUT_LINKS: MenuLink[] = [
+  ["About Us", "/about"],
+  ...(FEATURES.portfolio ? [["Our Work", "/work"] as MenuLink] : []),
   ["Contact Us", "/contact"],
 ];
 
 /**
- * The menu with "Packages" after Services, listing the admin-made package pages
- * (lib/package-pages.ts). null = still loading: the entry shows without sub-pages, so the
- * header does not shift; with no pages at all it is left out.
+ * Compact 5-item header menu shared by desktop nav and mobile menu:
+ * Home · Services (dropdown) · Packages (dropdown, omitted if empty) · Community (dropdown) · About (dropdown).
  */
 function navEntries(packageLinks: MenuLink[] | null): MenuEntry[] {
-  const [services, ...rest] = NAV_LINKS;
-  if (packageLinks && !packageLinks.length) return NAV_LINKS;
-  return [services, { label: "Packages", links: packageLinks ?? [] }, ...rest];
+  const entries: MenuEntry[] = [
+    ["Home", "/"],
+    { label: "Services", links: SERVICE_LINKS },
+  ];
+  if (!packageLinks || packageLinks.length > 0) {
+    entries.push({ label: "Packages", links: packageLinks ?? [] });
+  }
+  entries.push(
+    { label: "Community", links: COMMUNITY_LINKS },
+    { label: "About", links: ABOUT_LINKS },
+  );
+  return entries;
 }
 
 /** The header is on every public page; the list itself lives in lib/package-pages-server.ts (shared with the footer). */

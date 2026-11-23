@@ -23,7 +23,7 @@ export default async function ServicesPage() {
       <div><p className={s.eyebrow}>{content.hero.eyebrow}</p><ContentHeading content={content.hero} level={1} /><p>{content.hero.description}</p></div>
       <div className={s.heroVisual}>{settings.sectionVisuals?.["services.hero"] || visuals["services.hero"]?.asset ? <SectionVisual data={visuals["services.hero"]} label="Mera Software services" /> : null}</div>
     </div></section> : null}
-    {content.catalogue.enabled ? <section className={s.catalogue} aria-label="Available services"><div className="container">
+    {content.catalogue.enabled ? <section id="catalogue" className={s.catalogue} aria-label="Available services"><div className="container">
       <p className={s.hint}>{content.catalogue.hint}</p>
       <div className={s.groups}>{content.catalogue.groups.map(group => <div className={s.group} key={group.id}>
         <div className={s.groupHeading}><span>{group.label}</span><h2>{group.title}</h2><p>{group.description}</p></div>

@@ -32,7 +32,7 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     label: "Services",
     path: "/services",
     title: "Services",
-    description: "Strategy, design and technology for local businesses. Explore online presence, website, app, business software and marketing services.",
+    description: "Strategy, design and technology for growing businesses. Explore online presence, website, app, business software and marketing services.",
   },
   ...services.map(service => ({
     key: `service-${service.slug}`,
@@ -60,7 +60,7 @@ export const PAGE_SEO_PAGES: SeoPage[] = [
     label: "About",
     path: "/about",
     title: "About",
-    description: "Established in 2022, Mera Software helps local businesses build their online presence, connect with customers and improve operations through digital solutions.",
+    description: "Established in 2022, Mera Software helps growing businesses build their online presence, connect with customers and improve operations through digital solutions.",
   },
   {
     key: "contact",
