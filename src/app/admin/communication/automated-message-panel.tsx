@@ -573,10 +573,173 @@ function countTemplates(instant: InstantBlockState, stages: TrailStage[] = []): 
   return rootCount + stageCount;
 }
 
+type PreviewRequest = {
+  title: string;
+  channel: Channel;
+  subject: string;
+  text: string;
+  triggerLabel?: string;
+};
+
+const SAMPLE_PREVIEW_VALUES: Record<string, string> = {
+  name: "Rahul Sharma",
+  package: "Monthly Growth Plan",
+  planName: "Monthly Growth Plan",
+  project: "Website Redesign",
+  amount: "₹4,999",
+  dueDate: "15 Dec 2026",
+  progress: "60%",
+  remainingLimit: "2",
+  invoiceLink: "https://merasoftware.com/invoice/sample",
+  portalLink: "https://merasoftware.com/portal",
+  planLink: "https://merasoftware.com/plan/sample",
+  projectLink: "https://merasoftware.com/project/sample",
+  packageLink: "https://merasoftware.com/package/monthly-growth",
+  email: "rahul@example.com",
+  phone: "+91 98765 43210",
+  duration: "1 month",
+};
+
+function fillSampleVariables(raw: string): string {
+  return String(raw || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => (
+    Object.prototype.hasOwnProperty.call(SAMPLE_PREVIEW_VALUES, key) ? SAMPLE_PREVIEW_VALUES[key] : match
+  ));
+}
+
+function smartPreviewSubject(subject: string, text: string, fallback = "Automated Message"): { value: string; isFallback: boolean } {
+  const cleanSub = fillSampleVariables(subject).replace(/[\r\n]+/g, " ").trim();
+  if (cleanSub) return { value: cleanSub, isFallback: false };
+  const firstLine = fillSampleVariables(text)
+    .split(/\r?\n/)
+    .map(l => l.replace(/^[\s#*•\-_]+/, "").replace(/[*_]+/g, "").trim())
+    .find(Boolean);
+  if (firstLine) return { value: firstLine.slice(0, 80), isFallback: true };
+  return { value: fallback, isFallback: true };
+}
+
+function renderFormattedLines(text: string) {
+  const lines = text.split(/\r?\n/);
+  return lines.map((line, lineIdx) => {
+    const tokens: (string | { kind: "bold" | "italic"; val: string })[] = [];
+    const regex = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|_[^_\n]+_)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(line)) !== null) {
+      if (m.index > last) tokens.push(line.slice(last, m.index));
+      const raw = m[0];
+      if (raw.startsWith("**") && raw.endsWith("**")) tokens.push({ kind: "bold", val: raw.slice(2, -2) });
+      else if (raw.startsWith("*") && raw.endsWith("*")) tokens.push({ kind: "bold", val: raw.slice(1, -1) });
+      else if (raw.startsWith("_") && raw.endsWith("_")) tokens.push({ kind: "italic", val: raw.slice(1, -1) });
+      last = m.index + raw.length;
+    }
+    if (last < line.length) tokens.push(line.slice(last));
+    return (
+      <span key={lineIdx}>
+        {lineIdx > 0 && "\n"}
+        {tokens.map((tok, i) => (
+          typeof tok === "string"
+            ? tok
+            : tok.kind === "bold"
+              ? <strong key={i}>{tok.val}</strong>
+              : <em key={i}>{tok.val}</em>
+        ))}
+      </span>
+    );
+  });
+}
+
+function MessagePreviewModal({
+  item,
+  onClose,
+}: {
+  item: PreviewRequest;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"whatsapp" | "email">(item.channel === "email" ? "email" : "whatsapp");
+  const filledText = fillSampleVariables(item.text);
+  const sub = smartPreviewSubject(item.subject, item.text, item.triggerLabel || "Mera Software Notification");
+
+  return (
+    <div className={s.previewOverlay}>
+      <div className={s.previewBackdrop} onClick={onClose} />
+      <div className={s.previewDialog} role="dialog" aria-modal="true" aria-label="Message preview">
+        <header className={s.previewHead}>
+          <div>
+            <h3>Message preview — {item.title}</h3>
+            <p>Sample values filled (Rahul Sharma · ₹4,999 · 15 Dec 2026 · Monthly Growth Plan)</p>
+          </div>
+          <button type="button" className={s.closeBtn} aria-label="Close preview" onClick={onClose}>✕</button>
+        </header>
+
+        {item.channel === "both" && (
+          <div className={s.previewTabs} role="tablist" aria-label="Preview channel">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "whatsapp"}
+              className={s.viewTab}
+              data-active={tab === "whatsapp"}
+              onClick={() => setTab("whatsapp")}
+            >
+              WhatsApp Preview
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "email"}
+              className={s.viewTab}
+              data-active={tab === "email"}
+              onClick={() => setTab("email")}
+            >
+              Email HTML Preview
+            </button>
+          </div>
+        )}
+
+        <div className={s.previewBody}>
+          {(item.channel === "whatsapp" || (item.channel === "both" && tab === "whatsapp")) ? (
+            <>
+              <div className={s.waCanvas}>
+                <div className={s.waBubble}>
+                  {filledText.trim() ? renderFormattedLines(filledText) : <em>(Message box is empty)</em>}
+                </div>
+              </div>
+              <p className={s.waMetaNote}>
+                WhatsApp sends your exact Message box as-is (Email subject is never added as a heading on WhatsApp).
+              </p>
+            </>
+          ) : (
+            <div className={s.emailPreviewCard}>
+              <div className={s.emailSubjectBar}>
+                <strong>Subject:</strong>{" "}
+                {sub.value}
+                {sub.isFallback && <span className={s.labelMuted}> (auto fallback — add an Email subject before saving)</span>}
+              </div>
+              <div className={s.emailShell}>
+                <div className={s.emailBrandHead}>Mera Software</div>
+                <div className={s.emailBrandBody}>
+                  {filledText.trim() ? renderFormattedLines(filledText) : <em>(Message box is empty)</em>}
+                </div>
+                <div className={s.emailBrandFoot}>© {new Date().getFullYear()} Mera Software. All rights reserved.</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <footer className={s.previewFoot}>
+          <small>Press Esc or Close to return to editing.</small>
+          <button type="button" className={s.primaryBtn} onClick={onClose}>Close preview</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 type AccordionCtrl = {
   isOpen: (id: string) => boolean;
   toggle: (id: string, multi: boolean) => void;
   openOnly: (id: string) => void;
+  openPreview: (req: PreviewRequest) => void;
 };
 
 function collectVisibleBoxIds(form: TrailForm, focus: EditFocus): string[] {
@@ -661,10 +824,17 @@ function cleanSingleReminder(
       if (!clientSteps[0]?.text.trim()) {
         return { error: `Write the Client message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-client-u` };
       }
+      if (clientSteps[0]?.channel !== "whatsapp" && !clientSteps[0]?.subject.trim()) {
+        return { error: `Write the Email subject for Client message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-client-u` };
+      }
     } else {
       const badIdx = clientSteps.findIndex(st => !st.text.trim());
       if (badIdx >= 0) {
         return { error: `Write the Client message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-client-${badIdx}` };
+      }
+      const badSubIdx = clientSteps.findIndex(st => st.channel !== "whatsapp" && !st.subject.trim());
+      if (badSubIdx >= 0) {
+        return { error: `Write the Email subject for Client Message ${badSubIdx + 1} in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-client-${badSubIdx}` };
       }
     }
   }
@@ -673,10 +843,17 @@ function cleanSingleReminder(
       if (!adminSteps[0]?.text.trim()) {
         return { error: `Write the Admin message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-admin-u` };
       }
+      if (adminSteps[0]?.channel !== "whatsapp" && !adminSteps[0]?.subject.trim()) {
+        return { error: `Write the Email subject for Admin message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-admin-u` };
+      }
     } else {
       const badIdx = adminSteps.findIndex(st => !st.text.trim());
       if (badIdx >= 0) {
         return { error: `Write the Admin message in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-admin-${badIdx}` };
+      }
+      const badSubIdx = adminSteps.findIndex(st => st.channel !== "whatsapp" && !st.subject.trim());
+      if (badSubIdx >= 0) {
+        return { error: `Write the Email subject for Admin Message ${badSubIdx + 1} in ${stageLabel} Reminder (${label}).`, errorBoxId: `${stagePrefix}-r${rem.id}-admin-${badSubIdx}` };
       }
     }
   }
@@ -698,6 +875,35 @@ function cleanSingleReminder(
   };
 }
 
+function checkInstantSubjects(
+  inst: InstantBlockState,
+  stageLabel: string,
+  stagePrefix: string,
+): { error: string; errorBoxId: string } | null {
+  if (inst.audience === "off") return null;
+  const checkWho = (who: "client" | "admin", msg: SingleMsg) => {
+    for (const tpl of msg.templates || []) {
+      if (!tpl.text.trim()) continue;
+      if (tpl.channel !== "whatsapp" && !tpl.subject.trim()) {
+        return {
+          error: `Write the Email subject for ${who === "admin" ? "Admin" : "Client"} template “${tpl.name}” in ${stageLabel}.`,
+          errorBoxId: `${stagePrefix}-tpl-${who}`,
+        };
+      }
+    }
+    return null;
+  };
+  if (inst.audience === "client" || inst.audience === "both") {
+    const err = checkWho("client", inst.client);
+    if (err) return err;
+  }
+  if (inst.audience === "admin" || inst.audience === "both") {
+    const err = checkWho("admin", inst.admin);
+    if (err) return err;
+  }
+  return null;
+}
+
 function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null; errorBoxId?: string } {
   if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
 
@@ -710,6 +916,8 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
   }
 
   const cleanInstant = cleanInstantForSave(form.instant);
+  const rootSubErr = checkInstantSubjects(cleanInstant, "Stage 1", "s0");
+  if (rootSubErr) return { trail: form, error: rootSubErr.error, errorBoxId: rootSubErr.errorBoxId };
   const cleanReminders: Reminder[] = [];
   for (let i = 0; i < form.reminders.length; i++) {
     const rem = form.reminders[i];
@@ -725,6 +933,8 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
     const stageNum = i + 2;
     if (!st.triggers.length) return { trail: form, error: `Choose at least one trigger point for Stage ${stageNum}.` };
     const stInstant = cleanInstantForSave(st.instant);
+    const stSubErr = checkInstantSubjects(stInstant, `Stage ${stageNum}`, `st${st.id}`);
+    if (stSubErr) return { trail: form, error: stSubErr.error, errorBoxId: stSubErr.errorBoxId };
     let stReminder: Reminder | null = null;
     if (st.reminder) {
       const effTriggers = st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : st.triggers;
@@ -1056,6 +1266,7 @@ function MessageEditor({
   canRemove,
   boxId,
   accordion,
+  onPreview,
   onChange,
   onRemove,
 }: {
@@ -1066,6 +1277,7 @@ function MessageEditor({
   canRemove?: boolean;
   boxId?: string;
   accordion?: AccordionCtrl;
+  onPreview?: (req: PreviewRequest) => void;
   onChange: (patch: Partial<MessageStep>) => void;
   onRemove?: () => void;
 }) {
@@ -1160,19 +1372,39 @@ function MessageEditor({
             <option key={ph.token} value={ph.token}>{ph.label} ({ph.token})</option>
           ))}
         </select>
+        {(onPreview || accordion?.openPreview) && (
+          <button
+            type="button"
+            className={s.miniBtn}
+            onClick={() => (onPreview || accordion!.openPreview)({
+              title,
+              channel: step.channel,
+              subject: step.subject,
+              text: step.text,
+            })}
+          >
+            Preview
+          </button>
+        )}
       </div>
     </div>
 
-    {step.channel !== "whatsapp" && (
+    <div className={s.subjectFieldWrap}>
       <input
         type="text"
         className={s.textInput}
-        placeholder="Email subject…"
+        aria-label={`${title} email subject`}
+        placeholder={step.channel === "whatsapp"
+          ? "Email subject (optional for WhatsApp — ready if switched to Email/Both later)"
+          : "Email subject (required for Email)…"}
         maxLength={300}
         value={step.subject}
         onChange={e => onChange({ subject: e.target.value })}
       />
-    )}
+      {step.channel !== "whatsapp" && !step.subject.trim() && (
+        <span className={s.subjectWarn}>Add an Email subject to send via Email.</span>
+      )}
+    </div>
 
     <textarea
       ref={ref}
@@ -1425,9 +1657,10 @@ function TemplateEditorBlock({
     </div>
 
     <MessageEditor
-      title={label}
+      title={`${label} — ${activeTpl.name}`}
       step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
       showTiming={false}
+      onPreview={accordion?.openPreview}
       onChange={patch => patchActive(patch)}
     />
   </>;
@@ -2291,10 +2524,12 @@ function FormDialog({
     return first ? new Set([first]) : new Set();
   });
   const [localError, setLocalError] = useState("");
+  const [previewItem, setPreviewItem] = useState<PreviewRequest | null>(null);
   const [legacyData, setLegacyData] = useState<LegacyPullPayload | null>(null);
   const [legacyPulled, setLegacyPulled] = useState(false);
   const [pullSeq, setPullSeq] = useState(0);
 
+  const rootTrigLabelRef = useRef("");
   const accordion = useMemo<AccordionCtrl>(() => ({
     isOpen: (id: string) => openBoxIds.has(id),
     toggle: (id: string, multi: boolean) => {
@@ -2311,6 +2546,9 @@ function FormDialog({
     },
     openOnly: (id: string) => {
       setOpenBoxIds(new Set([id]));
+    },
+    openPreview: (req: PreviewRequest) => {
+      setPreviewItem({ ...req, triggerLabel: req.triggerLabel || rootTrigLabelRef.current });
     },
   }), [openBoxIds]);
 
@@ -2330,10 +2568,17 @@ function FormDialog({
   };
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (previewItem) {
+        setPreviewItem(null);
+        return;
+      }
+      onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, previewItem]);
 
   const triggersCsv = useMemo(() => [...form.triggers].sort().join(","), [form.triggers]);
   useEffect(() => {
@@ -2541,6 +2786,7 @@ function FormDialog({
   }
 
   const rootTrigLabel = triggersLabel(form.triggers, byKey);
+  rootTrigLabelRef.current = rootTrigLabel;
   const lastStops = lastStopTriggers();
   const lastStopActiveCov = useMemo(
     () => describeTriggerCoverage(lastStops, existingTrails, form._id, form.stages, byKey).filter(c => c.activeCount > 0),
@@ -3013,6 +3259,9 @@ function FormDialog({
         </div>
       </footer>
     </div>
+    {previewItem && (
+      <MessagePreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />
+    )}
   </div>;
 }
 

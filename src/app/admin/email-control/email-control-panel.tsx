@@ -372,9 +372,17 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
           <button disabled={busy} onClick={() => setTemplateAction("")}>Cancel</button><button disabled={busy || ((templateAction === "new" || templateAction === "rename") && !templateName.trim()) || ((templateAction === "new" || templateAction === "update") && !docHasContent(reviewDoc))} onClick={() => void saveReviewTemplate()}>{templateAction === "new" ? "Save template" : templateAction === "rename" ? "Save name" : templateAction === "delete" ? "Delete template" : "Update template"}</button>
         </div>}
         {pendingChoice !== null && <div className={styles.templateTools} role="alert"><span>{pendingChoice === "close" ? "Don't send this message and close the review?" : "Discard message edits and switch templates?"}</span><button disabled={busy} onClick={() => setPendingChoice(null)}>Keep editing</button><button disabled={busy} onClick={() => { if (pendingChoice === "close") { setPendingChoice(null); void decide("skip"); } else void applyTemplate(pendingChoice); }}>{pendingChoice === "close" ? "Don't send and close" : "Discard edits"}</button></div>}
-        {reviewSubjectDoc ? <EmailEditor id="review-subject" label="Subject" singleLine compact value={reviewSubjectDoc} onChange={value => { setReviewSubjectDoc(value); setDirty(true); }} disabled={busy || draft.status !== "pending"} variables={draft.editorFields?.variables} /> : <>
-          <label htmlFor="review-subject">Subject</label><input id="review-subject" maxLength={300} value={subject} disabled={busy || draft.status !== "pending"} onChange={e => { setSubject(e.target.value); setDirty(true); }} />
-        </>}
+        {(() => {
+          const subjectOptional = Boolean(draft.trailId) && channel === "whatsapp";
+          const needsEmailSubject = Boolean(draft.trailId) && (channel === "email" || channel === "both") && !subject.trim();
+          return <>
+            {reviewSubjectDoc ? <EmailEditor id="review-subject" label={subjectOptional ? "Email subject (optional for WhatsApp)" : "Subject"} singleLine compact value={reviewSubjectDoc} onChange={value => { setReviewSubjectDoc(value); setDirty(true); }} disabled={busy || draft.status !== "pending"} variables={draft.editorFields?.variables} /> : <>
+              <label htmlFor="review-subject">{subjectOptional ? "Email subject (optional for WhatsApp)" : "Subject"}</label>
+              <input id="review-subject" maxLength={300} placeholder={subjectOptional ? "Optional for WhatsApp only" : "Write Email subject…"} value={subject} disabled={busy || draft.status !== "pending"} onChange={e => { setSubject(e.target.value); setDirty(true); }} />
+            </>}
+            {needsEmailSubject && <p role="status" className={styles.error}>Add an Email subject before sending via Email.</p>}
+          </>;
+        })()}
         <EmailEditor id="review-message" label="Message" compact value={reviewDoc} disabled={busy || draft.status !== "pending"} onChange={value => { setReviewDoc(value); setDirty(true); }} variables={draft.editorFields?.variables} blocks={draft.editorFields?.blocks} />
         {draft.status === "pending" && <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewEdits()}>Update preview</button></div>}
         {previewHtml && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>Preview</summary><EmailPreview html={previewHtml} /></details>}
@@ -385,7 +393,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         {off && <p className={styles.error}>Email for this action is Off. You can skip this draft or change its rule.</p>}
         {dialogError && <p className={styles.error} role="alert">{dialogError}</p>}
         </div><footer className={`${styles.actions} ${styles.reviewFooter}`}>
-          <button disabled={busy} onClick={() => void decide("skip")}>Don’t Send Mail</button><button className="admin-button" disabled={busy || draft.status === "sending" || !!off || !subject.trim() || !docHasContent(reviewDoc) || (!!draft.channelOptions && !draft.delivery?.lockedAt && !draft.channelOptions.find(row => row.id === channel)?.enabled)} onClick={() => void decide("send")}>{busy ? "Working…" : channel === "both" ? "Send" : channel === "whatsapp" ? "Send WhatsApp" : "Send Mail"}</button>
+          <button disabled={busy} onClick={() => void decide("skip")}>Don’t Send Mail</button><button className="admin-button" disabled={busy || draft.status === "sending" || !!off || (!(Boolean(draft.trailId) && channel === "whatsapp") && !subject.trim()) || !docHasContent(reviewDoc) || (!!draft.channelOptions && !draft.delivery?.lockedAt && !draft.channelOptions.find(row => row.id === channel)?.enabled)} onClick={() => void decide("send")}>{busy ? "Working…" : channel === "both" ? "Send" : channel === "whatsapp" ? "Send WhatsApp" : "Send Mail"}</button>
         </footer>
       </div>}
   </>;
