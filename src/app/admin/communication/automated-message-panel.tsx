@@ -363,18 +363,184 @@ function sameSorted(a: string[], b: string[]): boolean {
   return sa.every((val, i) => val === sb[i]);
 }
 
-function findMatchingTrail(form: TrailForm, trails: TrailForm[], byKey: Map<string, WorkItem>): TrailForm | null {
-  if (form._id || !form.triggers.length) return null;
-  const formHasScope = allTrailTriggerKeys(form).some(k => byKey.get(k)?.supportsScope);
-  return trails.find(t => {
-    if (!t._id || !sameSorted(t.triggers, form.triggers)) return false;
-    if (!formHasScope) return true;
-    if (t.scope !== form.scope) return false;
-    if (form.scope === "include" || form.scope === "exclude") {
-      return sameSorted(t.selectedPackages, form.selectedPackages);
+type EditFocus =
+  | { mode: "full" }
+  | { mode: "template"; stageIndex: number; audience?: "client" | "admin"; templateId?: string }
+  | { mode: "reminder"; stageIndex: number };
+
+type RelatedTrailMatch = {
+  trail: TrailForm;
+  isExactMatch: boolean;
+  whereLabels: string[];
+  scopeLabel: string;
+  templateSummaries: string[];
+  reminderCount: number;
+  isOn: boolean;
+};
+
+type TriggerCoverageInfo = {
+  triggerKey: string;
+  triggerLabel: string;
+  activeCount: number;
+  pausedCount: number;
+  activeTemplates: number;
+  activeReminders: number;
+  inCurrentTrailStage: number | null;
+  scopeLabels: string[];
+};
+
+function summarizeInstantNames(inst: InstantBlockState): string[] {
+  if (inst.audience === "off") return [];
+  const out: string[] = [];
+  const push = (who: "Client" | "Admin", msg: SingleMsg) => {
+    for (const tpl of msg.templates || []) {
+      if (!tpl.text.trim()) continue;
+      out.push(`${tpl.name}${tpl.isDefault ? " ★" : ""} (${who})`);
     }
-    return true;
-  }) || null;
+  };
+  if (inst.audience === "client" || inst.audience === "both") push("Client", inst.client);
+  if (inst.audience === "admin" || inst.audience === "both") push("Admin", inst.admin);
+  return out;
+}
+
+function findRelatedTrails(form: TrailForm, trails: TrailForm[], byKey: Map<string, WorkItem>): RelatedTrailMatch[] {
+  if (form._id || !form.triggers.length) return [];
+  const selected = new Set(form.triggers);
+  const formHasScope = allTrailTriggerKeys(form).some(k => byKey.get(k)?.supportsScope);
+  const matches: RelatedTrailMatch[] = [];
+
+  for (const t of trails) {
+    if (!t._id) continue;
+    const whereLabels: string[] = [];
+    const templateSummaries: string[] = [];
+    let reminderCount = 0;
+
+    const rootMatches = t.triggers.some(k => selected.has(k));
+    const rootCustomRemMatches = t.reminders.filter(
+      rem => rem.startTrigger && rem.startTrigger !== "__main__" && selected.has(rem.startTrigger),
+    );
+    if (rootMatches || rootCustomRemMatches.length > 0) {
+      whereLabels.push("Stage 1");
+      if (rootMatches) {
+        templateSummaries.push(...summarizeInstantNames(t.instant));
+        reminderCount += t.reminders.filter(rem => !rem.startTrigger || rem.startTrigger === "__main__").length;
+      }
+      reminderCount += rootCustomRemMatches.length;
+    }
+
+    t.stages.forEach((st, idx) => {
+      const stMatches = st.triggers.some(k => selected.has(k));
+      const stCustomRem = st.reminder?.startTrigger && st.reminder.startTrigger !== "__main__" && selected.has(st.reminder.startTrigger);
+      if (stMatches || stCustomRem) {
+        whereLabels.push(`Stage ${idx + 2}`);
+        if (stMatches) {
+          templateSummaries.push(...summarizeInstantNames(st.instant));
+          if (st.reminder && (!st.reminder.startTrigger || st.reminder.startTrigger === "__main__")) reminderCount += 1;
+        }
+        if (stCustomRem) reminderCount += 1;
+      }
+    });
+
+    if (whereLabels.length === 0) continue;
+
+    const exactScope = !formHasScope
+      || (t.scope === form.scope && (
+        (form.scope !== "include" && form.scope !== "exclude")
+        || sameSorted(t.selectedPackages, form.selectedPackages)
+      ));
+    const isExactMatch = sameSorted(t.triggers, form.triggers) && exactScope;
+    const trailHasScope = allTrailTriggerKeys(t).some(k => byKey.get(k)?.supportsScope);
+    const scopeLabel = trailHasScope
+      ? (t.scope === "include" || t.scope === "exclude"
+        ? `${t.scope === "include" ? "Include" : "Exclude"} ${t.selectedPackages.length} pkg${t.selectedPackages.length === 1 ? "" : "s"}`
+        : (PACKAGE_SCOPES.find(p => p.id === t.scope)?.label || ""))
+      : "";
+
+    matches.push({
+      trail: t,
+      isExactMatch,
+      whereLabels,
+      scopeLabel,
+      templateSummaries,
+      reminderCount,
+      isOn: t.enabled !== false,
+    });
+  }
+
+  return matches.sort((a, b) => {
+    if (a.isExactMatch !== b.isExactMatch) return a.isExactMatch ? -1 : 1;
+    if (a.isOn !== b.isOn) return a.isOn ? -1 : 1;
+    return 0;
+  });
+}
+
+function describeTriggerCoverage(
+  triggerKeys: string[],
+  trails: TrailForm[],
+  currentTrailId: string | undefined,
+  currentStages: TrailStage[],
+  byKey: Map<string, WorkItem>,
+): TriggerCoverageInfo[] {
+  const uniqueKeys = [...new Set(triggerKeys.filter(Boolean))];
+  const out: TriggerCoverageInfo[] = [];
+
+  for (const key of uniqueKeys) {
+    let activeCount = 0;
+    let pausedCount = 0;
+    let activeTemplates = 0;
+    let activeReminders = 0;
+    const scopeSet = new Set<string>();
+
+    for (const t of trails) {
+      if (!t._id || (currentTrailId && t._id === currentTrailId)) continue;
+      let tTpl = 0;
+      let tRem = 0;
+      if (t.triggers.includes(key)) {
+        tTpl += countInstantTemplates(t.instant);
+        tRem += t.reminders.filter(rem => !rem.startTrigger || rem.startTrigger === "__main__").length;
+      }
+      tRem += t.reminders.filter(rem => rem.startTrigger === key).length;
+      for (const st of t.stages) {
+        if (st.triggers.includes(key)) {
+          tTpl += countInstantTemplates(st.instant);
+          if (st.reminder && (!st.reminder.startTrigger || st.reminder.startTrigger === "__main__")) tRem += 1;
+        }
+        if (st.reminder?.startTrigger === key) tRem += 1;
+      }
+      if (tTpl === 0 && tRem === 0) continue;
+
+      if (t.enabled !== false) {
+        activeCount += 1;
+        activeTemplates += tTpl;
+        activeReminders += tRem;
+        const hasScope = allTrailTriggerKeys(t).some(k => byKey.get(k)?.supportsScope);
+        if (hasScope) {
+          const lbl = PACKAGE_SCOPES.find(p => p.id === t.scope)?.label;
+          if (lbl) scopeSet.add(lbl);
+        }
+      } else {
+        pausedCount += 1;
+      }
+    }
+
+    const stageIdx = currentStages.findIndex(st => st.triggers.includes(key));
+    const inCurrentTrailStage = stageIdx >= 0 ? stageIdx + 2 : null;
+
+    if (activeCount > 0 || pausedCount > 0 || inCurrentTrailStage !== null) {
+      out.push({
+        triggerKey: key,
+        triggerLabel: workLabel(key, byKey),
+        activeCount,
+        pausedCount,
+        activeTemplates,
+        activeReminders,
+        inCurrentTrailStage,
+        scopeLabels: [...scopeSet],
+      });
+    }
+  }
+
+  return out;
 }
 
 function triggersLabel(keys: string[], byKey: Map<string, WorkItem>) {
@@ -940,15 +1106,19 @@ function MessageEditor({
 function TemplateEditorBlock({
   label,
   msg,
+  initialTemplateId,
   onChange,
 }: {
   label: string;
   msg: SingleMsg;
+  initialTemplateId?: string;
   onChange: (next: SingleMsg) => void;
 }) {
   const list = msg.templates?.length ? msg.templates : syncSingleMsg([]).templates;
   const defaultTpl = list.find(t => t.isDefault) || list[0];
-  const [selectedId, setSelectedId] = useState<string>(defaultTpl.id);
+  const [selectedId, setSelectedId] = useState<string>(() => (
+    initialTemplateId && list.some(t => t.id === initialTemplateId) ? initialTemplateId : defaultTpl.id
+  ));
   const [promptMode, setPromptMode] = useState<"" | "new" | "save_as" | "rename">("");
   const [nameInput, setNameInput] = useState("");
   const [promptError, setPromptError] = useState("");
@@ -1132,6 +1302,8 @@ function InstantAutoMsgBlock({
   state,
   adminActionControl,
   userActionControl,
+  focusAudience,
+  focusTemplateId,
   onChangeAdminControl,
   onChangeUserControl,
   onChange,
@@ -1139,6 +1311,8 @@ function InstantAutoMsgBlock({
   state: InstantBlockState;
   adminActionControl?: "auto" | "review" | "off";
   userActionControl?: "auto" | "review" | "off";
+  focusAudience?: "client" | "admin";
+  focusTemplateId?: string;
   onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
   onChangeUserControl?: (next: "auto" | "review" | "off") => void;
   onChange: (next: InstantBlockState) => void;
@@ -1209,6 +1383,7 @@ function InstantAutoMsgBlock({
         <TemplateEditorBlock
           label="Client instant message"
           msg={state.client}
+          initialTemplateId={focusAudience === "client" ? focusTemplateId : undefined}
           onChange={client => onChange({ ...state, client })}
         />
       )}
@@ -1219,6 +1394,7 @@ function InstantAutoMsgBlock({
         <TemplateEditorBlock
           label="Admin / Team instant message"
           msg={state.admin}
+          initialTemplateId={focusAudience === "admin" ? focusTemplateId : undefined}
           onChange={admin => onChange({ ...state, admin })}
         />
       )}
@@ -1367,6 +1543,10 @@ function ReminderCard({
   stageTriggersLabel,
   folders,
   byKey,
+  triggerBadges,
+  existingTrails,
+  currentTrailId,
+  currentStages,
   onChange,
   onRemove,
 }: {
@@ -1377,6 +1557,10 @@ function ReminderCard({
   stageTriggersLabel: string;
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
+  triggerBadges?: Map<string, TriggerBadgeInfo>;
+  existingTrails?: TrailForm[];
+  currentTrailId?: string;
+  currentStages?: TrailStage[];
   onChange: (reminder: Reminder) => void;
   onRemove: () => void;
 }) {
@@ -1628,8 +1812,48 @@ function ReminderCard({
             exclude={effectiveTriggers}
             folders={folders}
             byKey={byKey}
+            triggerBadges={triggerBadges}
             onChange={stopOn => set({ stopOn })}
           />
+          {(() => {
+            const cov = describeTriggerCoverage(
+              reminder.stopOn,
+              existingTrails || [],
+              currentTrailId,
+              currentStages || [],
+              byKey,
+            );
+            if (!cov.length) return null;
+            return (
+              <div className={s.stopNotes}>
+                {cov.map(info => {
+                  const parts: string[] = [];
+                  if (info.activeTemplates > 0) parts.push(`${info.activeTemplates} active template${info.activeTemplates === 1 ? "" : "s"}`);
+                  if (info.activeReminders > 0) parts.push(`${info.activeReminders} active reminder${info.activeReminders === 1 ? "" : "s"}`);
+                  if (info.activeCount > 0) {
+                    const scopeNote = info.scopeLabels.length ? ` (${info.scopeLabels.join(", ")})` : "";
+                    return (
+                      <div key={info.triggerKey} className={s.stopInfoNote}>
+                        ✓ “{info.triggerLabel}” already has {parts.join(" & ")} in another trail{scopeNote} — it will run automatically when this reminder stops. No need to add Stage 2 unless you want a separate message.
+                      </div>
+                    );
+                  }
+                  if (info.inCurrentTrailStage !== null) {
+                    return (
+                      <div key={info.triggerKey} className={s.stopInfoNote}>
+                        ✓ “{info.triggerLabel}” is already handled in Stage {info.inCurrentTrailStage} of this trail.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={info.triggerKey} className={s.stopInfoNote} data-kind="paused">
+                      Note: “{info.triggerLabel}” exists in {info.pausedCount} paused trail{info.pausedCount === 1 ? "" : "s"} (currently off — won&apos;t send until activated).
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -1644,12 +1868,18 @@ function TrailStageBlock({
   instant,
   adminActionControl,
   userActionControl,
+  focusAudience,
+  focusTemplateId,
   onChangeAdminControl,
   onChangeUserControl,
   reminders,
   folders,
   byKey,
   triggerBadges,
+  existingTrails,
+  currentTrailId,
+  currentStages,
+  duplicateWarningItems,
   onChangeTriggers,
   onChangeInstant,
   onChangeReminders,
@@ -1661,12 +1891,18 @@ function TrailStageBlock({
   instant: InstantBlockState;
   adminActionControl?: "auto" | "review" | "off";
   userActionControl?: "auto" | "review" | "off";
+  focusAudience?: "client" | "admin";
+  focusTemplateId?: string;
   onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
   onChangeUserControl?: (next: "auto" | "review" | "off") => void;
   reminders: Reminder[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
   triggerBadges?: Map<string, TriggerBadgeInfo>;
+  existingTrails?: TrailForm[];
+  currentTrailId?: string;
+  currentStages?: TrailStage[];
+  duplicateWarningItems?: TriggerCoverageInfo[];
   onChangeTriggers?: (next: string[]) => void;
   onChangeInstant: (next: InstantBlockState) => void;
   onChangeReminders: (next: Reminder[]) => void;
@@ -1697,6 +1933,21 @@ function TrailStageBlock({
             showHint={true}
             onChange={onChangeTriggers}
           />
+          {duplicateWarningItems && duplicateWarningItems.length > 0 && (
+            <div className={s.stopNotes}>
+              {duplicateWarningItems.map(info => {
+                const parts: string[] = [];
+                if (info.activeTemplates > 0) parts.push(`${info.activeTemplates} active template${info.activeTemplates === 1 ? "" : "s"}`);
+                if (info.activeReminders > 0) parts.push(`${info.activeReminders} active reminder${info.activeReminders === 1 ? "" : "s"}`);
+                const scopeNote = info.scopeLabels.length ? ` (${info.scopeLabels.join(", ")})` : "";
+                return (
+                  <div key={info.triggerKey} className={s.dupWarnNote} role="status">
+                    Heads up: “{info.triggerLabel}” already has {parts.join(" & ")} in another active trail{scopeNote}. Adding a message here may send a duplicate.
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1705,6 +1956,8 @@ function TrailStageBlock({
         state={instant}
         adminActionControl={adminActionControl}
         userActionControl={userActionControl}
+        focusAudience={focusAudience}
+        focusTemplateId={focusTemplateId}
         onChangeAdminControl={onChangeAdminControl}
         onChangeUserControl={onChangeUserControl}
         onChange={onChangeInstant}
@@ -1736,6 +1989,10 @@ function TrailStageBlock({
             stageTriggersLabel={stageTriggersLabel}
             folders={folders}
             byKey={byKey}
+            triggerBadges={triggerBadges}
+            existingTrails={existingTrails}
+            currentTrailId={currentTrailId}
+            currentStages={currentStages}
             onChange={next => onChangeReminders(reminders.map(item => item.id === rem.id ? next : item))}
             onRemove={() => onChangeReminders(reminders.filter(item => item.id !== rem.id))}
           />
@@ -1752,6 +2009,7 @@ function TrailStageBlock({
 
 function FormDialog({
   initial,
+  initialFocus,
   existingTrails,
   triggerBadges,
   folders,
@@ -1764,6 +2022,7 @@ function FormDialog({
   onSave,
 }: {
   initial: TrailForm;
+  initialFocus?: EditFocus;
   existingTrails: TrailForm[];
   triggerBadges: Map<string, TriggerBadgeInfo>;
   folders: WorkFolder[];
@@ -1776,6 +2035,7 @@ function FormDialog({
   onSave: (form: TrailForm) => void;
 }) {
   const [form, setForm] = useState<TrailForm>(initial);
+  const [activeFocus, setActiveFocus] = useState<EditFocus>(initialFocus || { mode: "full" });
   const [localError, setLocalError] = useState("");
   const [legacyData, setLegacyData] = useState<LegacyPullPayload | null>(null);
   const [legacyPulled, setLegacyPulled] = useState(false);
@@ -1893,7 +2153,7 @@ function FormDialog({
   const supportsScopeFor = (next: Pick<TrailForm, "triggers" | "reminders" | "stages">) =>
     allTrailTriggerKeys(next).some(k => byKey.get(k)?.supportsScope);
   const hasPackageScope = supportsScopeFor(form);
-  const matchingTrail = useMemo(() => findMatchingTrail(form, existingTrails, byKey), [form, existingTrails, byKey]);
+  const relatedTrails = useMemo(() => findRelatedTrails(form, existingTrails, byKey), [form, existingTrails, byKey]);
   const flowTokens = useMemo(() => buildFlowTokens(form, byKey), [form, byKey]);
   const totalTemplates = useMemo(() => countTemplates(form.instant, form.stages), [form.instant, form.stages]);
   const totalReminders = useMemo(() => countReminders(form.reminders, form.stages), [form.reminders, form.stages]);
@@ -1990,14 +2250,47 @@ function FormDialog({
   }
 
   const rootTrigLabel = triggersLabel(form.triggers, byKey);
+  const lastStops = lastStopTriggers();
+  const lastStopActiveCov = useMemo(
+    () => describeTriggerCoverage(lastStops, existingTrails, form._id, form.stages, byKey).filter(c => c.activeCount > 0),
+    [lastStops, existingTrails, form._id, form.stages, byKey],
+  );
+
+  const isFocused = activeFocus.mode !== "full";
+  const focusStageIdx = activeFocus.mode !== "full" ? activeFocus.stageIndex : 0;
+  const focusStageObj = focusStageIdx > 0 ? form.stages[focusStageIdx - 1] : null;
+  const focusStageTriggers = focusStageIdx === 0 ? form.triggers : (focusStageObj?.triggers || []);
+  const focusStageLabel = triggersLabel(focusStageTriggers, byKey) || rootTrigLabel;
+  const focusScopeLabel = hasPackageScope ? (PACKAGE_SCOPES.find(p => p.id === form.scope)?.label || "") : "";
+
+  function addFocusedStageReminder() {
+    const defaultStops = [...new Set(
+      focusStageTriggers.flatMap(k => byKey.get(k)?.defaultStopOn || []),
+    )].filter(k => byKey.has(k) && !focusStageTriggers.includes(k));
+    if (focusStageIdx === 0) {
+      updateRootReminders([...form.reminders, newReminder(defaultStops, focusStageTriggers[0])]);
+    } else if (focusStageObj) {
+      updateStage(focusStageObj.id, { reminder: newReminder(defaultStops, focusStageTriggers[0]) });
+    }
+  }
 
   return <div className={s.overlay}>
     <div className={s.backdrop} onClick={onClose} />
     <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="amsg-title">
       <header className={s.dialogHead}>
         <div>
-          <h2 id="amsg-title">{form._id ? "Edit automated message" : "Create automated message"}</h2>
-          <p>Configure trigger, instant message, follow-up reminders, and next stages in one compact flow.</p>
+          <h2 id="amsg-title">
+            {activeFocus.mode === "template"
+              ? `Edit templates — ${focusStageLabel || "Trigger"}`
+              : activeFocus.mode === "reminder"
+                ? `Edit reminders — ${focusStageLabel || "Trigger"}`
+                : (form._id ? "Edit automated message" : "Create automated message")}
+          </h2>
+          <p>
+            {isFocused
+              ? "Editing directly inside the saved trail — other stages and rules stay untouched."
+              : "Configure trigger, instant message, follow-up reminders, and next stages in one compact flow."}
+          </p>
         </div>
         <div className={s.headRight}>
           <span className={s.liveTag} data-live={isLive}>
@@ -2008,21 +2301,119 @@ function FormDialog({
         </div>
       </header>
 
-      {/* Fixed-height Live Flow Strip — zero blink/jump */}
-      <div className={s.flowStrip} aria-label="Live trail summary">
-        {flowTokens.length === 0 ? (
-          <span className={s.flowEmpty}>Trail preview: choose a Trigger point below to see your live automation flow.</span>
-        ) : (
-          flowTokens.map((tok, i) => (
-            <span key={`${tok}-${i}`} className={s.flowItem}>
-              {i > 0 && <span className={s.flowArrow}>→</span>}
-              <span className={s.flowPill} data-kind={i === 0 ? "trigger" : "step"}>{tok}</span>
-            </span>
-          ))
-        )}
-      </div>
+      {isFocused ? (
+        <div className={s.focusStrip} aria-label="Parent trail context">
+          <div className={s.focusStripInfo}>
+            <span>Part of Trail:</span>
+            <strong>{rootTrigLabel || "Saved trail"}</strong>
+            <span className={s.badge}>Stage {focusStageIdx + 1}</span>
+            {focusScopeLabel && <span className={s.badge}>{focusScopeLabel}</span>}
+          </div>
+          <button
+            type="button"
+            className={s.miniBtn}
+            onClick={() => setActiveFocus({ mode: "full" })}
+          >
+            Open full trail →
+          </button>
+        </div>
+      ) : (
+        /* Fixed-height Live Flow Strip — zero blink/jump */
+        <div className={s.flowStrip} aria-label="Live trail summary">
+          {flowTokens.length === 0 ? (
+            <span className={s.flowEmpty}>Trail preview: choose a Trigger point below to see your live automation flow.</span>
+          ) : (
+            flowTokens.map((tok, i) => (
+              <span key={`${tok}-${i}`} className={s.flowItem}>
+                {i > 0 && <span className={s.flowArrow}>→</span>}
+                <span className={s.flowPill} data-kind={i === 0 ? "trigger" : "step"}>{tok}</span>
+              </span>
+            ))
+          )}
+        </div>
+      )}
 
       <div className={s.dialogBody}>
+        {activeFocus.mode === "template" ? (
+          <section className={s.card}>
+            <div className={s.cardHead}>
+              <div className={s.cardTitle}>
+                <span className={s.stepNum}>{focusStageIdx + 1}</span>
+                <h3>Stage {focusStageIdx + 1} — Templates</h3>
+              </div>
+              <span className={s.cardSub}>On: {focusStageLabel}</span>
+            </div>
+            <InstantAutoMsgBlock
+              key={`focus-tpl-${form._id || "new"}-s${focusStageIdx}-${activeFocus.audience || "all"}-${activeFocus.templateId || "def"}`}
+              state={focusStageIdx === 0 ? form.instant : (focusStageObj?.instant || blankInstant("client"))}
+              adminActionControl={focusStageIdx === 0 ? (form.adminActionControl || (form.control === "review" ? "review" : "auto")) : undefined}
+              userActionControl={focusStageIdx === 0 ? (form.userActionControl || (form.control === "review" ? "review" : "auto")) : undefined}
+              focusAudience={activeFocus.audience}
+              focusTemplateId={activeFocus.templateId}
+              onChangeAdminControl={focusStageIdx === 0 ? (adminActionControl => set({ adminActionControl })) : undefined}
+              onChangeUserControl={focusStageIdx === 0 ? (userActionControl => set({ userActionControl })) : undefined}
+              onChange={instant => {
+                if (focusStageIdx === 0) set({ instant });
+                else if (focusStageObj) updateStage(focusStageObj.id, { instant });
+              }}
+            />
+          </section>
+        ) : activeFocus.mode === "reminder" ? (
+          <section className={s.card}>
+            <div className={s.cardHead}>
+              <div className={s.cardTitle}>
+                <span className={s.stepNum}>{focusStageIdx + 1}</span>
+                <h3>Stage {focusStageIdx + 1} — Follow-up reminders</h3>
+              </div>
+              <span className={s.cardSub}>On: {focusStageLabel}</span>
+            </div>
+            {(() => {
+              const stageRems = focusStageIdx === 0
+                ? form.reminders
+                : (focusStageObj?.reminder ? [focusStageObj.reminder] : []);
+              return (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {stageRems.map((rem, idx) => (
+                    <ReminderCard
+                      key={rem.id}
+                      index={idx}
+                      depth={focusStageIdx}
+                      reminder={rem}
+                      stageTriggers={focusStageTriggers}
+                      stageTriggersLabel={focusStageLabel}
+                      folders={folders}
+                      byKey={byKey}
+                      triggerBadges={triggerBadges}
+                      existingTrails={existingTrails}
+                      currentTrailId={form._id}
+                      currentStages={form.stages}
+                      onChange={next => {
+                        if (focusStageIdx === 0) {
+                          updateRootReminders(form.reminders.map(item => item.id === rem.id ? next : item));
+                        } else if (focusStageObj) {
+                          updateStage(focusStageObj.id, { reminder: next });
+                        }
+                      }}
+                      onRemove={() => {
+                        if (focusStageIdx === 0) {
+                          updateRootReminders(form.reminders.filter(item => item.id !== rem.id));
+                        } else if (focusStageObj) {
+                          updateStage(focusStageObj.id, { reminder: null });
+                        }
+                      }}
+                    />
+                  ))}
+                  {stageRems.length === 0 && (
+                    <button type="button" className={s.addBtn} onClick={addFocusedStageReminder}>
+                      {focusStageLabel ? `+ Add reminder on “${focusStageLabel}”` : "+ Add follow-up reminder"}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </section>
+        ) : (
+        <>
         {/* CARD 1: Trigger & Package Scope */}
         <section className={s.card}>
           <div className={s.cardHead}>
@@ -2116,19 +2507,52 @@ function FormDialog({
             </div>
           )}
 
-          {matchingTrail && (
-            <div className={s.noticeBanner} role="status">
-              <div className={s.noticeText}>
-                <strong>Trail already exists for this trigger &amp; package scope</strong>
-                <span>Edit the existing trail in-place instead of creating a duplicate.</span>
+          {relatedTrails.length > 0 && (
+            <div className={s.relatedBox} role="status">
+              <div className={s.relatedHead}>
+                <strong>Already configured on this trigger ({relatedTrails.length})</strong>
+                <span>Edit an existing trail below instead of creating a duplicate, or continue for a different package scope.</span>
               </div>
-              <button
-                type="button"
-                className={s.primaryBtn}
-                onClick={() => { setLocalError(""); setForm(matchingTrail); }}
-              >
-                Load &amp; Edit here
-              </button>
+              <div className={s.relatedList}>
+                {relatedTrails.map(match => {
+                  const title = match.trail.triggers.map(k => workLabel(k, byKey)).join(" + ");
+                  const tplPreview = match.templateSummaries.length
+                    ? `Templates: ${match.templateSummaries.slice(0, 3).join(", ")}${match.templateSummaries.length > 3 ? ` +${match.templateSummaries.length - 3} more` : ""}`
+                    : "No templates";
+                  const remPreview = match.reminderCount > 0
+                    ? `${match.reminderCount} reminder${match.reminderCount === 1 ? "" : "s"}`
+                    : "No reminders";
+                  return (
+                    <div key={match.trail._id} className={s.relatedItem} data-exact={match.isExactMatch}>
+                      <div className={s.relatedMain}>
+                        <div className={s.listTitleRow}>
+                          <strong>{title}</strong>
+                          {match.isExactMatch && <span className={s.exactTag}>Exact match</span>}
+                          {match.whereLabels.map(lbl => <span key={lbl} className={s.badge}>{lbl}</span>)}
+                          {match.scopeLabel && <span className={s.badge}>{match.scopeLabel}</span>}
+                          <span className={s.liveTag} data-live={match.isOn}>
+                            <span className={s.liveDot} aria-hidden="true" />
+                            {match.isOn ? "Active" : "Paused"}
+                          </span>
+                        </div>
+                        <span className={s.relatedMeta}>{tplPreview} · {remPreview}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={match.isExactMatch ? s.primaryBtn : s.ghostBtn}
+                        onClick={() => {
+                          setLocalError("");
+                          setLegacyPulled(false);
+                          setForm(match.trail);
+                          setPullSeq(v => v + 1);
+                        }}
+                      >
+                        Load &amp; Edit here
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </section>
@@ -2157,6 +2581,9 @@ function FormDialog({
             folders={folders}
             byKey={byKey}
             triggerBadges={triggerBadges}
+            existingTrails={existingTrails}
+            currentTrailId={form._id}
+            currentStages={form.stages}
             onChangeInstant={instant => set({ instant })}
             onChangeReminders={updateRootReminders}
           />
@@ -2166,6 +2593,13 @@ function FormDialog({
         {form.stages.map((stage, idx) => {
           const stageNum = idx + 3;
           const stageLabel = triggersLabel(stage.triggers, byKey);
+          const stageDupWarn = describeTriggerCoverage(
+            stage.triggers,
+            existingTrails,
+            form._id,
+            [],
+            byKey,
+          ).filter(c => c.activeCount > 0);
           return (
             <div key={stage.id} style={{ display: "grid", gap: "14px" }}>
               <div className={s.sectionDivider} role="separator" aria-label={`Start of Stage ${idx + 2}`}>
@@ -2190,6 +2624,10 @@ function FormDialog({
                   folders={folders}
                   byKey={byKey}
                   triggerBadges={triggerBadges}
+                  existingTrails={existingTrails}
+                  currentTrailId={form._id}
+                  currentStages={form.stages}
+                  duplicateWarningItems={stageDupWarn}
                   onChangeTriggers={next => changeStageTriggers(stage, next)}
                   onChangeInstant={instant => updateStage(stage.id, { instant })}
                   onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
@@ -2207,9 +2645,11 @@ function FormDialog({
               <span>
                 {!primaryKey
                   ? "Choose a trigger point first to add follow-up stages"
-                  : lastStopTriggers().length > 0
-                    ? `Next stage pre-selects “${triggersLabel(lastStopTriggers(), byKey)}” (editable)`
-                    : "Add another Template or Reminder stage"}
+                  : lastStopActiveCov.length > 0
+                    ? `“${lastStopActiveCov.map(c => c.triggerLabel).join(", ")}” already has an active trail (runs automatically on stop). Add a stage only if you need a separate message.`
+                    : lastStops.length > 0
+                      ? `Next stage pre-selects “${triggersLabel(lastStops, byKey)}” (editable)`
+                      : "Add another Template or Reminder stage"}
               </span>
             </div>
             <div className={s.continueActions}>
@@ -2217,6 +2657,8 @@ function FormDialog({
               <button type="button" className={s.ghostBtn} disabled={!primaryKey} onClick={() => addStage("reminder")}>+ Reminder stage</button>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
 
@@ -2248,10 +2690,14 @@ type ListViewTab = "trails" | "templates" | "reminders";
 
 type DerivedTemplateRow = {
   rowKey: string;
+  cardKey: string;
   trail: TrailForm;
+  trailRootLabel: string;
+  stageTriggers: string[];
   triggerKey: string;
   triggerLabel: string;
   stageNum: number;
+  stageIndex: number;
   audience: "client" | "admin";
   template: TemplateItem;
   scope: PackageScopeMode;
@@ -2261,10 +2707,14 @@ type DerivedTemplateRow = {
 
 type DerivedReminderRow = {
   rowKey: string;
+  cardKey: string;
   trail: TrailForm;
+  trailRootLabel: string;
+  stageTriggers: string[];
   triggerKey: string;
   triggerLabel: string;
   stageNum: number;
+  stageIndex: number;
   reminder: Reminder;
   channels: Channel[];
   timingSummary: string;
@@ -2304,7 +2754,9 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   const [loading, setLoading] = useState(false);
   const [trails, setTrails] = useState<TrailForm[]>([]);
   const [legacyTriggers, setLegacyTriggers] = useState<string[]>([]);
-  const [editing, setEditing] = useState<TrailForm | null>(null);
+  const [editing, setEditing] = useState<{ trail: TrailForm; focus: EditFocus } | null>(null);
+  const [expandedTplCards, setExpandedTplCards] = useState<Record<string, boolean>>({});
+  const [expandedRemCards, setExpandedRemCards] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -2393,20 +2845,26 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       const isOn = trail.enabled !== false;
       const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
       const scopeLabel = hasScope ? (PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label || "") : "";
+      const trailRootLabel = trail.triggers.map(k => workLabel(k, catalog.byKey)).join(" + ") || "Saved trail";
       const collectStage = (triggers: string[], inst: InstantBlockState, stageNum: number) => {
         if (inst.audience === "off") return;
         const primaryTrig = triggers[0] || "";
         const trigLabel = triggers.map(k => workLabel(k, catalog.byKey)).join(" + ") || "Unspecified trigger";
+        const cardKey = `${trail._id || "t"}::s${stageNum}`;
         const pushWho = (who: "client" | "admin", msg: SingleMsg) => {
           const list = msg.templates?.length ? msg.templates : [];
           for (const tpl of list) {
             if (!tpl.text.trim()) continue;
             out.push({
               rowKey: `${trail._id || "t"}-s${stageNum}-${who}-${tpl.id}`,
+              cardKey,
               trail,
+              trailRootLabel,
+              stageTriggers: triggers,
               triggerKey: primaryTrig,
               triggerLabel: trigLabel,
               stageNum,
+              stageIndex: stageNum - 1,
               audience: who,
               template: tpl,
               scope: trail.scope,
@@ -2431,6 +2889,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       const isOn = trail.enabled !== false;
       const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
       const scopeLabel = hasScope ? (PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label || "") : "";
+      const trailRootLabel = trail.triggers.map(k => workLabel(k, catalog.byKey)).join(" + ") || "Saved trail";
       const pushRem = (rem: Reminder, stageTriggers: string[], stageNum: number, idx: number) => {
         const effTrigs = rem.startTrigger && rem.startTrigger !== "__main__" ? [rem.startTrigger] : stageTriggers;
         const primaryTrig = effTrigs[0] || "";
@@ -2442,10 +2901,14 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         const condLabel = rem.condition === "any" ? "" : (condObj?.label || rem.condition);
         out.push({
           rowKey: `${trail._id || "t"}-s${stageNum}-r${rem.id}-${idx}`,
+          cardKey: `${trail._id || "t"}::s${stageNum}::${primaryTrig}`,
           trail,
+          trailRootLabel,
+          stageTriggers: effTrigs,
           triggerKey: primaryTrig,
           triggerLabel: trigLabel,
           stageNum,
+          stageIndex: stageNum - 1,
           reminder: rem,
           channels: [...chSet],
           timingSummary: summarizeReminderTiming(rem),
@@ -2516,7 +2979,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
     if (filterStatus === "active" && !row.isOn) return false;
     if (filterStatus === "paused" && row.isOn) return false;
     if (filterScope && row.scope !== filterScope) return false;
-    if (filterTrigger && row.triggerKey !== filterTrigger && !row.trail.triggers.includes(filterTrigger)) return false;
+    if (filterTrigger && !row.stageTriggers.includes(filterTrigger)) return false;
     if (filterAudience && row.audience !== filterAudience) return false;
     if (filterChannel && row.template.channel !== filterChannel) return false;
     return true;
@@ -2526,30 +2989,70 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
     if (filterStatus === "active" && !row.isOn) return false;
     if (filterStatus === "paused" && row.isOn) return false;
     if (filterScope && row.scope !== filterScope) return false;
-    if (filterTrigger && row.triggerKey !== filterTrigger) return false;
+    if (filterTrigger && !row.stageTriggers.includes(filterTrigger)) return false;
     if (filterAudience && row.reminder.audience !== filterAudience && row.reminder.audience !== "both") return false;
     if (filterChannel && !row.channels.includes(filterChannel)) return false;
     return true;
   }), [allReminderRows, filterTrigger, filterScope, filterAudience, filterChannel, filterStatus]);
 
-  const groupedTemplates = useMemo(() => {
-    const map = new Map<string, { label: string; rows: DerivedTemplateRow[] }>();
+  const templateCards = useMemo(() => {
+    const map = new Map<string, {
+      cardKey: string;
+      triggerLabel: string;
+      trail: TrailForm;
+      trailRootLabel: string;
+      stageNum: number;
+      stageIndex: number;
+      scopeLabel: string;
+      isOn: boolean;
+      rows: DerivedTemplateRow[];
+    }>();
     for (const row of filteredTemplates) {
-      const entry = map.get(row.triggerLabel) || { label: row.triggerLabel, rows: [] };
+      const entry = map.get(row.cardKey) || {
+        cardKey: row.cardKey,
+        triggerLabel: row.triggerLabel,
+        trail: row.trail,
+        trailRootLabel: row.trailRootLabel,
+        stageNum: row.stageNum,
+        stageIndex: row.stageIndex,
+        scopeLabel: row.scopeLabel,
+        isOn: row.isOn,
+        rows: [],
+      };
       entry.rows.push(row);
-      map.set(row.triggerLabel, entry);
+      map.set(row.cardKey, entry);
     }
-    return [...map.values()];
+    return [...map.values()].sort((a, b) => a.triggerLabel.localeCompare(b.triggerLabel));
   }, [filteredTemplates]);
 
-  const groupedReminders = useMemo(() => {
-    const map = new Map<string, { label: string; rows: DerivedReminderRow[] }>();
+  const reminderCards = useMemo(() => {
+    const map = new Map<string, {
+      cardKey: string;
+      triggerLabel: string;
+      trail: TrailForm;
+      trailRootLabel: string;
+      stageNum: number;
+      stageIndex: number;
+      scopeLabel: string;
+      isOn: boolean;
+      rows: DerivedReminderRow[];
+    }>();
     for (const row of filteredReminders) {
-      const entry = map.get(row.triggerLabel) || { label: row.triggerLabel, rows: [] };
+      const entry = map.get(row.cardKey) || {
+        cardKey: row.cardKey,
+        triggerLabel: row.triggerLabel,
+        trail: row.trail,
+        trailRootLabel: row.trailRootLabel,
+        stageNum: row.stageNum,
+        stageIndex: row.stageIndex,
+        scopeLabel: row.scopeLabel,
+        isOn: row.isOn,
+        rows: [],
+      };
       entry.rows.push(row);
-      map.set(row.triggerLabel, entry);
+      map.set(row.cardKey, entry);
     }
-    return [...map.values()];
+    return [...map.values()].sort((a, b) => a.triggerLabel.localeCompare(b.triggerLabel));
   }, [filteredReminders]);
 
   async function saveTrail(form: TrailForm) {
@@ -2641,7 +3144,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         <button type="button" className={s.ghostBtn} disabled={loading} onClick={() => setReloadSeq(v => v + 1)}>
           {loading ? "Refreshing…" : "Refresh"}
         </button>
-        <button type="button" className={s.primaryBtn} onClick={() => { setSaveError(""); setEditing(emptyForm()); }}>
+        <button type="button" className={s.primaryBtn} onClick={() => { setSaveError(""); setEditing({ trail: emptyForm(), focus: { mode: "full" } }); }}>
           + Create automated msg
         </button>
       </div>
@@ -2739,7 +3242,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
                   <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => void toggleEnabled(trail)}>
                     {isOn ? "Pause" : "Activate"}
                   </button>
-                  <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing(trail); }}>
+                  <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing({ trail, focus: { mode: "full" } }); }}>
                     Edit
                   </button>
                   <button type="button" className={s.iconBtn} disabled={busy} aria-label={`Delete ${title}`} onClick={() => void removeTrail(trail)}>✕</button>
@@ -2750,98 +3253,210 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         </div>
       )
     ) : viewTab === "templates" ? (
-      groupedTemplates.length === 0 ? (
+      templateCards.length === 0 ? (
         <div className={s.empty}>
           <strong>No matching templates</strong>
-          <span>Templates inside your saved trails appear here grouped by Trigger Point.</span>
+          <span>Templates inside your saved trails appear here organized by Trigger Point.</span>
         </div>
       ) : (
         <div className={s.list}>
-          {groupedTemplates.map(group => (
-            <div key={group.label} className={s.groupSection}>
-              <div className={s.groupHead}>
-                <span>{group.label}</span>
-                <span className={s.labelMuted}>{group.rows.length} template{group.rows.length === 1 ? "" : "s"}</span>
-              </div>
-              {group.rows.map(row => (
-                <article key={row.rowKey} className={s.listRow}>
+          {templateCards.map(card => {
+            const expanded = Boolean(expandedTplCards[card.cardKey]);
+            const clientCount = card.rows.filter(r => r.audience === "client").length;
+            const adminCount = card.rows.filter(r => r.audience === "admin").length;
+            const splitParts = [
+              clientCount ? `${clientCount} Client` : "",
+              adminCount ? `${adminCount} Admin` : "",
+            ].filter(Boolean).join(", ");
+            return (
+              <article key={card.cardKey} className={s.triggerCard}>
+                <div className={s.triggerCardHead}>
                   <div className={s.listMain}>
                     <div className={s.listTitleRow}>
-                      <strong>{row.template.name}</strong>
-                      {row.template.isDefault && <span className={s.defaultBadge}>★ Default</span>}
-                      <span className={s.badge}>{row.audience === "admin" ? "Admin" : "Client"}</span>
-                      <span className={s.badge}>{channelLabel(row.template.channel)}</span>
-                      {row.stageNum > 1 && <span className={s.badge}>Stage {row.stageNum}</span>}
-                      {row.scopeLabel && <span className={s.badge}>{row.scopeLabel}</span>}
-                      <span className={s.liveTag} data-live={row.isOn}>
+                      <strong>{card.triggerLabel}</strong>
+                      <span className={s.badge}>
+                        {card.rows.length} template{card.rows.length === 1 ? "" : "s"}{splitParts ? ` (${splitParts})` : ""}
+                      </span>
+                      {card.scopeLabel && <span className={s.badge}>{card.scopeLabel}</span>}
+                      {card.stageNum > 1 && (
+                        <span className={s.badge}>From: {card.trailRootLabel} · Stage {card.stageNum}</span>
+                      )}
+                      <span className={s.liveTag} data-live={card.isOn}>
                         <span className={s.liveDot} aria-hidden="true" />
-                        {row.isOn ? "Active" : "Paused"}
+                        {card.isOn ? "Active" : "Paused"}
                       </span>
                     </div>
                     <p className={s.listSummary}>
-                      {row.template.subject ? `${row.template.subject} — ` : ""}{row.template.text}
+                      {card.rows.slice(0, 3).map(r => `${r.template.name}${r.template.isDefault ? " ★" : ""} (${r.audience === "admin" ? "Admin" : "Client"})`).join(" · ")}
+                      {card.rows.length > 3 ? ` · +${card.rows.length - 3} more` : ""}
                     </p>
                   </div>
                   <div className={s.listActions}>
-                    <button type="button" className={s.ghostBtn} onClick={() => { setSaveError(""); setEditing(row.trail); }}>
+                    <button
+                      type="button"
+                      className={s.miniBtn}
+                      aria-expanded={expanded}
+                      onClick={() => setExpandedTplCards(curr => ({ ...curr, [card.cardKey]: !curr[card.cardKey] }))}
+                    >
+                      {expanded ? "▴ Hide" : "▾ Details"}
+                    </button>
+                    <button
+                      type="button"
+                      className={s.ghostBtn}
+                      onClick={() => {
+                        setSaveError("");
+                        setEditing({ trail: card.trail, focus: { mode: "template", stageIndex: card.stageIndex } });
+                      }}
+                    >
                       Edit
                     </button>
                   </div>
-                </article>
-              ))}
-            </div>
-          ))}
+                </div>
+                {expanded && (
+                  <div className={s.triggerCardBody}>
+                    {card.rows.map(row => (
+                      <div key={row.rowKey} className={s.subItemRow}>
+                        <div className={s.listMain}>
+                          <div className={s.listTitleRow}>
+                            <strong>{row.template.name}</strong>
+                            {row.template.isDefault && <span className={s.defaultBadge}>★ Default</span>}
+                            <span className={s.badge}>{row.audience === "admin" ? "Admin" : "Client"}</span>
+                            <span className={s.badge}>{channelLabel(row.template.channel)}</span>
+                          </div>
+                          <p className={s.listSummary}>
+                            {row.template.subject ? `${row.template.subject} — ` : ""}{row.template.text}
+                          </p>
+                        </div>
+                        <div className={s.listActions}>
+                          <button
+                            type="button"
+                            className={s.miniBtn}
+                            onClick={() => {
+                              setSaveError("");
+                              setEditing({
+                                trail: row.trail,
+                                focus: {
+                                  mode: "template",
+                                  stageIndex: row.stageIndex,
+                                  audience: row.audience,
+                                  templateId: row.template.id,
+                                },
+                              });
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       )
     ) : (
-      groupedReminders.length === 0 ? (
+      reminderCards.length === 0 ? (
         <div className={s.empty}>
           <strong>No matching reminders</strong>
-          <span>Follow-up reminders inside your saved trails appear here grouped by Trigger Point.</span>
+          <span>Follow-up reminders inside your saved trails appear here organized by Trigger Point.</span>
         </div>
       ) : (
         <div className={s.list}>
-          {groupedReminders.map(group => (
-            <div key={group.label} className={s.groupSection}>
-              <div className={s.groupHead}>
-                <span>{group.label}</span>
-                <span className={s.labelMuted}>{group.rows.length} reminder{group.rows.length === 1 ? "" : "s"}</span>
-              </div>
-              {group.rows.map(row => (
-                <article key={row.rowKey} className={s.listRow}>
+          {reminderCards.map(card => {
+            const expanded = Boolean(expandedRemCards[card.cardKey]);
+            const firstRow = card.rows[0];
+            return (
+              <article key={card.cardKey} className={s.triggerCard}>
+                <div className={s.triggerCardHead}>
                   <div className={s.listMain}>
                     <div className={s.listTitleRow}>
-                      <strong>{row.timingSummary}</strong>
-                      <span className={s.badge}>{audienceShort(row.reminder.audience)}</span>
-                      {row.channels.map(ch => <span key={ch} className={s.badge}>{channelLabel(ch)}</span>)}
-                      {row.stageNum > 1 && <span className={s.badge}>Stage {row.stageNum}</span>}
-                      {row.scopeLabel && <span className={s.badge}>{row.scopeLabel}</span>}
-                      <span className={s.liveTag} data-live={row.isOn}>
+                      <strong>{card.triggerLabel}</strong>
+                      <span className={s.badge}>
+                        {card.rows.length} reminder{card.rows.length === 1 ? "" : "s"}
+                      </span>
+                      {card.scopeLabel && <span className={s.badge}>{card.scopeLabel}</span>}
+                      {card.stageNum > 1 && (
+                        <span className={s.badge}>From: {card.trailRootLabel} · Stage {card.stageNum}</span>
+                      )}
+                      <span className={s.liveTag} data-live={card.isOn}>
                         <span className={s.liveDot} aria-hidden="true" />
-                        {row.isOn ? "Active" : "Paused"}
+                        {card.isOn ? "Active" : "Paused"}
                       </span>
                     </div>
                     <p className={s.listSummary}>
-                      {[row.repeatLabel, row.conditionLabel ? `Only when: ${row.conditionLabel}` : "", row.stopLabel ? `Stop: ${row.stopLabel}` : ""].filter(Boolean).join(" · ")}
+                      {[
+                        firstRow.timingSummary,
+                        audienceShort(firstRow.reminder.audience),
+                        firstRow.stopLabel ? `Stop: ${firstRow.stopLabel}` : "",
+                        card.rows.length > 1 ? `+${card.rows.length - 1} more` : "",
+                      ].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <div className={s.listActions}>
-                    <button type="button" className={s.ghostBtn} onClick={() => { setSaveError(""); setEditing(row.trail); }}>
+                    <button
+                      type="button"
+                      className={s.miniBtn}
+                      aria-expanded={expanded}
+                      onClick={() => setExpandedRemCards(curr => ({ ...curr, [card.cardKey]: !curr[card.cardKey] }))}
+                    >
+                      {expanded ? "▴ Hide" : "▾ Details"}
+                    </button>
+                    <button
+                      type="button"
+                      className={s.ghostBtn}
+                      onClick={() => {
+                        setSaveError("");
+                        setEditing({ trail: card.trail, focus: { mode: "reminder", stageIndex: card.stageIndex } });
+                      }}
+                    >
                       Edit
                     </button>
                   </div>
-                </article>
-              ))}
-            </div>
-          ))}
+                </div>
+                {expanded && (
+                  <div className={s.triggerCardBody}>
+                    {card.rows.map(row => (
+                      <div key={row.rowKey} className={s.subItemRow}>
+                        <div className={s.listMain}>
+                          <div className={s.listTitleRow}>
+                            <strong>{row.timingSummary}</strong>
+                            <span className={s.badge}>{audienceShort(row.reminder.audience)}</span>
+                            {row.channels.map(ch => <span key={ch} className={s.badge}>{channelLabel(ch)}</span>)}
+                          </div>
+                          <p className={s.listSummary}>
+                            {[row.repeatLabel, row.conditionLabel ? `Only when: ${row.conditionLabel}` : "", row.stopLabel ? `Stop: ${row.stopLabel}` : ""].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        <div className={s.listActions}>
+                          <button
+                            type="button"
+                            className={s.miniBtn}
+                            onClick={() => {
+                              setSaveError("");
+                              setEditing({ trail: row.trail, focus: { mode: "reminder", stageIndex: row.stageIndex } });
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       )
     )}
 
     {editing && (
       <FormDialog
-        key={editing._id || "new"}
-        initial={editing}
+        key={`${editing.trail._id || "new"}-${editing.focus.mode}-${editing.focus.mode !== "full" ? editing.focus.stageIndex : "all"}`}
+        initial={editing.trail}
+        initialFocus={editing.focus}
         existingTrails={trails}
         triggerBadges={triggerBadges}
         folders={catalog.folders}

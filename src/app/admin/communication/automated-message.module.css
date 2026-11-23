@@ -865,6 +865,135 @@
   font-size: var(--fs-meta);
 }
 
+/* Already Configured on This Trigger Box (Card 1) */
+.relatedBox {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--pn-accent);
+  border-radius: 9px;
+  background: var(--pn-raised);
+}
+.relatedHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.relatedHead strong { font-size: var(--fs-ui); color: var(--pn-text); }
+.relatedHead span { font-size: var(--fs-meta); color: var(--pn-muted); }
+.relatedList { display: grid; gap: 7px; }
+.relatedItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--pn-line);
+  border-radius: 8px;
+  background: var(--pn-card);
+}
+.relatedItem[data-exact="true"] {
+  border-color: var(--pn-accent);
+  box-shadow: 0 0 0 1px rgb(37 99 235 / .12);
+}
+.relatedMain { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.relatedMeta { font-size: var(--fs-meta); color: var(--pn-muted); line-height: 1.4; }
+.exactTag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: var(--fs-tag);
+  font-weight: 700;
+}
+
+/* Focused Stage Edit Context Strip */
+.focusStrip {
+  min-height: 44px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--pn-line);
+  background: var(--pn-raised);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.focusStripInfo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  font-size: var(--fs-meta);
+  color: var(--pn-text);
+}
+
+/* Trigger-First Collapsible Cards (Templates & Reminders Tabs) */
+.triggerCard {
+  border: 1px solid var(--pn-line);
+  border-radius: 10px;
+  background: var(--pn-card);
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+.triggerCard:hover {
+  border-color: var(--pn-accent);
+  box-shadow: 0 2px 10px rgb(0 0 0 / .06);
+}
+.triggerCardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 13px 16px;
+}
+.triggerCardBody {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  border-top: 1px dashed var(--pn-line);
+  background: var(--pn-raised);
+}
+.subItemRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--pn-line);
+  border-radius: 8px;
+  background: var(--pn-card);
+}
+
+/* Stop Trigger Existing Coverage & Stage 2 Soft Duplicate Warnings */
+.stopNotes { display: grid; gap: 5px; margin-top: 2px; }
+.stopInfoNote {
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--pn-ok);
+  background: var(--pn-ok-bg);
+  color: var(--pn-ok);
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+}
+.stopInfoNote[data-kind="paused"],
+.dupWarnNote {
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1px solid #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+}
+
 @media (max-width: 680px) {
   .grid2 { grid-template-columns: 1fr; }
 }
