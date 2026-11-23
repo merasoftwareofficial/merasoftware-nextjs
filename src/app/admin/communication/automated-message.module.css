@@ -484,7 +484,33 @@
   border-color: var(--pn-accent);
   color: var(--brand-white, #fff);
 }
-.comboOptLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comboOptLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.optBadges { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
+.optBadgeT, .optBadgeR, .optBadgeL {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.optBadgeT {
+  background: var(--pn-accent);
+  color: var(--brand-white, #fff);
+}
+.optBadgeR {
+  background: var(--pn-ok-bg);
+  color: var(--pn-ok);
+  border: 1px solid currentColor;
+}
+.optBadgeL {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #f59e0b;
+}
 .comboEmpty { padding: 12px; font-size: var(--fs-meta); color: var(--pn-muted); text-align: center; }
 
 /* Section Headers inside Stage */
@@ -632,6 +658,183 @@
 .continueText strong { font-size: var(--fs-ui); color: var(--pn-text); }
 .continueText span { font-size: var(--fs-meta); color: var(--pn-muted); }
 .continueActions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* View Tabs & Filters Bar (Phase 1A) */
+.viewBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-bottom: 1px solid var(--pn-line);
+  padding-bottom: 10px;
+}
+.viewTabs { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.viewTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--pn-line);
+  border-radius: 8px;
+  background: var(--pn-card);
+  color: var(--pn-muted);
+  font: inherit;
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.viewTab:hover { background: var(--pn-raised); color: var(--pn-text); }
+.viewTab[data-active="true"] {
+  background: var(--pn-accent);
+  border-color: var(--pn-accent);
+  color: var(--brand-white, #fff);
+}
+.tabCount {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / .08);
+  font-size: var(--fs-tag);
+  font-weight: 700;
+}
+.viewTab[data-active="true"] .tabCount { background: rgb(255 255 255 / .22); color: inherit; }
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--pn-line);
+  border-radius: 10px;
+  background: var(--pn-raised);
+}
+.filterSelect {
+  padding: 6px 10px;
+  border: 1px solid var(--pn-line);
+  border-radius: 7px;
+  background: var(--pn-card);
+  color: var(--pn-text);
+  font: inherit;
+  font-size: var(--fs-meta);
+  max-width: 240px;
+}
+
+.groupSection { display: grid; gap: 8px; }
+.groupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: var(--fs-ui);
+  font-weight: 700;
+  color: var(--pn-soft);
+}
+.defaultBadge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--pn-ok-bg);
+  color: var(--pn-ok);
+  font-size: var(--fs-tag);
+  font-weight: 700;
+}
+.reviewBadge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--pn-raised);
+  border: 1px solid var(--pn-accent);
+  color: var(--pn-accent);
+  font-size: var(--fs-tag);
+  font-weight: 700;
+}
+
+/* Existing Trail Duplicate Guard Banner */
+.noticeBanner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--pn-accent);
+  border-radius: 9px;
+  background: var(--pn-raised);
+  font-size: var(--fs-ui);
+  color: var(--pn-text);
+}
+.noticeText { display: grid; gap: 2px; }
+.noticeText strong { font-size: var(--fs-ui); color: var(--pn-text); }
+.noticeText span { font-size: var(--fs-meta); color: var(--pn-muted); }
+.legacyBanner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px dashed var(--pn-accent);
+  border-radius: 9px;
+  background: var(--pn-raised);
+  font-size: var(--fs-ui);
+  color: var(--pn-text);
+}
+.legacyBanner[data-pulled="true"] {
+  border-style: solid;
+  border-color: var(--pn-ok);
+  background: var(--pn-ok-bg);
+}
+
+/* Multiple Templates Bar inside Instant Message */
+.tplBar {
+  display: grid;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--pn-line);
+  border-radius: 8px;
+  background: var(--pn-card);
+}
+.tplBarRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tplSelectGroup {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.tplActions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.tplPromptRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--pn-line);
+}
+.tplPromptInput {
+  flex: 1;
+  min-width: 160px;
+  padding: 6px 9px;
+  border: 1px solid var(--pn-accent);
+  border-radius: 6px;
+  background: var(--pn-field);
+  color: var(--pn-text);
+  font: inherit;
+  font-size: var(--fs-meta);
+}
 
 @media (max-width: 680px) {
   .grid2 { grid-template-columns: 1fr; }

@@ -209,14 +209,15 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     if (!draft || busy || draft.status !== "pending" || (action !== "new" && !reviewTemplate)) return;
     setBusy(true); setDialogError("");
     try {
+      const trailFields = draft.trailId ? { trailId: draft.trailId, trailAudience: draft.trailAudience } : {};
       if (action === "delete") {
-        await request(`/templates/${reviewTemplate!.id}`, "DELETE", { expectedUpdatedAt: reviewTemplate!.revision, replacementTemplateId: replacementId || undefined });
+        await request(`/templates/${reviewTemplate!.id}`, "DELETE", { expectedUpdatedAt: reviewTemplate!.revision, replacementTemplateId: replacementId || undefined, ...trailFields });
         setDraft(current => current ? { ...current, templateOptions: current.templateOptions?.filter(row => row.id !== reviewTemplate!.id) } : current);
         setReviewTemplate(null); setTemplateId("current"); setTemplateAction("");
         await remember({ templateId: null }); await load();
         setDialogNotice("Template deleted. Your current message is kept."); return;
       }
-      const saved = await request<EmailTemplate>(action === "new" ? "/templates" : `/templates/${reviewTemplate!.id}`, action === "new" ? "POST" : action === "rename" ? "PATCH" : "PUT", action === "rename" ? { name: templateName.trim(), expectedUpdatedAt: reviewTemplate!.revision } : { event: draft.event, ...(action === "new" && reviewTemplate ? { sourceTemplateId: reviewTemplate.id } : {}), expectedUpdatedAt: reviewTemplate?.revision, name: action === "new" ? templateName.trim() : reviewTemplate!.name, doc: reviewDoc, subjectDoc: reviewSubjectDoc, subject });
+      const saved = await request<EmailTemplate>(action === "new" ? "/templates" : `/templates/${reviewTemplate!.id}`, action === "new" ? "POST" : action === "rename" ? "PATCH" : "PUT", action === "rename" ? { name: templateName.trim(), expectedUpdatedAt: reviewTemplate!.revision, event: draft.event, ...trailFields } : { event: draft.event, ...(action === "new" && reviewTemplate ? { sourceTemplateId: reviewTemplate.id } : {}), expectedUpdatedAt: reviewTemplate?.revision, name: action === "new" ? templateName.trim() : reviewTemplate!.name, doc: reviewDoc, subjectDoc: reviewSubjectDoc, subject, ...trailFields });
       setReviewTemplate({ id: saved._id, name: saved.name, revision: saved.updatedAt });
       setTemplateId(saved._id);
       setDraft(current => current ? { ...current, templateOptions: [...(current.templateOptions || []).filter(row => row.id !== saved._id), { id: saved._id, name: saved.name, system: !!saved.system }] } : current);
@@ -277,7 +278,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
   const drafts = data?.drafts.filter(row => ["pending", "failed", "sending"].includes(row.status)) || [];
   const status = (row: { status: string; expiresAt: string }) => ["pending", "failed", "sending"].includes(row.status) && Date.parse(row.expiresAt) <= (serverNow ?? observedAt) ? "expired" : row.status;
   const history = data?.history.filter(row => historyFilter === "all" || status(row) === historyFilter) || [];
-  const off = draft && data?.policies.find(row => row.event === draft.event)?.mode === "off";
+  const off = draft && !draft.trailId && data?.policies.find(row => row.event === draft.event)?.mode === "off";
   const reviewCount = data ? drafts.length : null;
   useEffect(() => { if (reviewCount !== null) onReviewCount?.(reviewCount); }, [reviewCount, onReviewCount]);
   // No saved rule: server-sent mail is On, customer-started mail Off until an admin turns it on, admin actions ask.

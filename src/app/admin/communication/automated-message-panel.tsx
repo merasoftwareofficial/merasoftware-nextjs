@@ -19,7 +19,8 @@ import {
 
 type TimingSlot = { amount: number; unit: Unit; pos: TimingPos };
 type MessageStep = TimingSlot & { channel: Channel; subject: string; text: string };
-type SingleMsg = { channel: Channel; subject: string; text: string };
+type TemplateItem = { id: string; name: string; channel: Channel; subject: string; text: string; isDefault: boolean };
+type SingleMsg = { channel: Channel; subject: string; text: string; templates: TemplateItem[] };
 type InstantBlockState = { audience: InstantAudience; client: SingleMsg; admin: SingleMsg };
 
 type StopChain = {
@@ -53,6 +54,18 @@ type TrailStage = {
   reminder: Reminder | null;
 };
 
+type TriggerBadgeInfo = { hasTemplate: boolean; hasReminder: boolean; hasLegacy: boolean };
+type MigratedLegacyMeta = { events: string[]; templateIds: string[]; ruleIds: string[] };
+type LegacyPullPayload = {
+  clientTemplates: TemplateItem[];
+  adminTemplates: TemplateItem[];
+  reminders: Partial<Reminder>[];
+  control?: "auto" | "review";
+  events: string[];
+  templateIds: string[];
+  ruleIds: string[];
+};
+
 type TrailForm = {
   _id?: string;
   triggers: string[];
@@ -63,11 +76,52 @@ type TrailForm = {
   stages: TrailStage[];
   enabled?: boolean;
   control?: "auto" | "review" | "off";
+  migratedLegacy?: MigratedLegacyMeta;
 };
 
-type ComboOption = { key: string; label: string; group: string; sub?: string };
+type ComboOption = { key: string; label: string; group: string; sub?: string; badges?: ("T" | "R" | "L")[] };
 
-const blankMsg = (): SingleMsg => ({ channel: "whatsapp", subject: "", text: "" });
+function newObjectIdHex(): string {
+  const bytes = new Uint8Array(12);
+  const nowSec = Math.floor(Date.now() / 1000);
+  bytes[0] = (nowSec >>> 24) & 0xff;
+  bytes[1] = (nowSec >>> 16) & 0xff;
+  bytes[2] = (nowSec >>> 8) & 0xff;
+  bytes[3] = nowSec & 0xff;
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(bytes.subarray(4));
+  } else {
+    for (let i = 4; i < 12; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+const isHexObjectId = (id: unknown): id is string => typeof id === "string" && /^[a-f\d]{24}$/i.test(id);
+
+const blankTemplate = (name = "Default", isDefault = true, base?: Partial<Pick<TemplateItem, "channel" | "subject" | "text">>): TemplateItem => ({
+  id: newObjectIdHex(),
+  name,
+  channel: base?.channel === "email" || base?.channel === "both" ? base.channel : "whatsapp",
+  subject: typeof base?.subject === "string" ? base.subject : "",
+  text: typeof base?.text === "string" ? base.text : "",
+  isDefault,
+});
+
+function syncSingleMsg(templates: TemplateItem[]): SingleMsg {
+  const list = templates.length ? templates : [blankTemplate("Default", true)];
+  const defIdx = list.findIndex(t => t.isDefault);
+  const effectiveIdx = defIdx >= 0 ? defIdx : 0;
+  const normalized = list.map((t, i) => ({ ...t, isDefault: i === effectiveIdx }));
+  const def = normalized[effectiveIdx];
+  return {
+    channel: def.channel,
+    subject: def.subject,
+    text: def.text,
+    templates: normalized,
+  };
+}
+
+const blankMsg = (): SingleMsg => syncSingleMsg([blankTemplate("Default", true)]);
 const blankStep = (pos: TimingPos = "before", amount = 3, unit: Unit = "days"): MessageStep => ({
   amount, unit, pos, channel: "whatsapp", subject: "", text: "",
 });
@@ -115,12 +169,25 @@ const emptyForm = (): TrailForm => ({
 });
 
 function normalizeMsg(raw: Partial<SingleMsg> | null | undefined): SingleMsg {
-  const base = blankMsg();
-  return {
-    channel: raw?.channel === "email" || raw?.channel === "both" ? raw.channel : base.channel,
+  if (Array.isArray(raw?.templates) && raw.templates.length > 0) {
+    const items: TemplateItem[] = raw.templates.map((item, idx) => {
+      const t = (item && typeof item === "object" ? item : {}) as Partial<TemplateItem>;
+      return {
+        id: isHexObjectId(t.id) ? t.id : newObjectIdHex(),
+        name: typeof t.name === "string" && t.name.trim() ? t.name.trim() : (idx === 0 ? "Default" : `Template ${idx + 1}`),
+        channel: t.channel === "email" || t.channel === "both" ? t.channel : "whatsapp",
+        subject: typeof t.subject === "string" ? t.subject : "",
+        text: typeof t.text === "string" ? t.text : "",
+        isDefault: Boolean(t.isDefault),
+      };
+    });
+    return syncSingleMsg(items);
+  }
+  return syncSingleMsg([blankTemplate("Default", true, {
+    channel: raw?.channel === "email" || raw?.channel === "both" ? raw.channel : "whatsapp",
     subject: typeof raw?.subject === "string" ? raw.subject : "",
     text: typeof raw?.text === "string" ? raw.text : "",
-  };
+  })]);
 }
 
 function normalizeInstant(raw: Partial<InstantBlockState> | null | undefined): InstantBlockState {
@@ -246,23 +313,62 @@ function audienceShort(aud: InstantAudience | ReminderAudience) {
   return "Off";
 }
 
+function hasMsgContent(msg: SingleMsg): boolean {
+  if (msg.text.trim()) return true;
+  return (msg.templates || []).some(t => Boolean(t.text.trim()));
+}
+
 function hasInstantContent(inst: InstantBlockState): boolean {
   if (inst.audience === "off") return false;
-  if (inst.audience === "client") return Boolean(inst.client.text.trim());
-  if (inst.audience === "admin") return Boolean(inst.admin.text.trim());
-  return Boolean(inst.client.text.trim() || inst.admin.text.trim());
+  if (inst.audience === "client") return hasMsgContent(inst.client);
+  if (inst.audience === "admin") return hasMsgContent(inst.admin);
+  return hasMsgContent(inst.client) || hasMsgContent(inst.admin);
 }
 
 function cleanInstantForSave(inst: InstantBlockState): InstantBlockState {
   if (inst.audience === "off") return inst;
-  const hasClient = Boolean(inst.client.text.trim());
-  const hasAdmin = Boolean(inst.admin.text.trim());
+  const hasClient = hasMsgContent(inst.client);
+  const hasAdmin = hasMsgContent(inst.admin);
   if (inst.audience === "client") return hasClient ? inst : { ...inst, audience: "off" };
   if (inst.audience === "admin") return hasAdmin ? inst : { ...inst, audience: "off" };
   if (hasClient && hasAdmin) return inst;
   if (hasClient) return { ...inst, audience: "client" };
   if (hasAdmin) return { ...inst, audience: "admin" };
   return { ...inst, audience: "off" };
+}
+
+function countMsgTemplates(msg: SingleMsg): number {
+  const filled = (msg.templates || []).filter(t => Boolean(t.text.trim())).length;
+  return filled || (msg.text.trim() ? 1 : 0);
+}
+
+function countInstantTemplates(inst: InstantBlockState): number {
+  if (inst.audience === "off") return 0;
+  let total = 0;
+  if (inst.audience === "client" || inst.audience === "both") total += countMsgTemplates(inst.client);
+  if (inst.audience === "admin" || inst.audience === "both") total += countMsgTemplates(inst.admin);
+  return total;
+}
+
+function sameSorted(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((val, i) => val === sb[i]);
+}
+
+function findMatchingTrail(form: TrailForm, trails: TrailForm[], byKey: Map<string, WorkItem>): TrailForm | null {
+  if (form._id || !form.triggers.length) return null;
+  const formHasScope = allTrailTriggerKeys(form).some(k => byKey.get(k)?.supportsScope);
+  return trails.find(t => {
+    if (!t._id || !sameSorted(t.triggers, form.triggers)) return false;
+    if (!formHasScope) return true;
+    if (t.scope !== form.scope) return false;
+    if (form.scope === "include" || form.scope === "exclude") {
+      return sameSorted(t.selectedPackages, form.selectedPackages);
+    }
+    return true;
+  }) || null;
 }
 
 function triggersLabel(keys: string[], byKey: Map<string, WorkItem>) {
@@ -290,8 +396,8 @@ function countReminders(reminders: Reminder[], stages: TrailStage[] = []): numbe
 }
 
 function countTemplates(instant: InstantBlockState, stages: TrailStage[] = []): number {
-  const rootCount = hasInstantContent(instant) ? 1 : 0;
-  const stageCount = stages.reduce((sum, st) => sum + (hasInstantContent(st.instant) ? 1 : 0), 0);
+  const rootCount = countInstantTemplates(instant);
+  const stageCount = stages.reduce((sum, st) => sum + countInstantTemplates(st.instant), 0);
   return rootCount + stageCount;
 }
 
@@ -575,6 +681,19 @@ function SearchableMultiSelect({
                     >
                       <span className={s.comboCheck} aria-hidden="true">✓</span>
                       <span className={s.comboOptLabel}>{item.label}</span>
+                      {item.badges && item.badges.length > 0 && (
+                        <span className={s.optBadges}>
+                          {item.badges.includes("T") && (
+                            <span className={s.optBadgeT} title="Template configured on this trigger">T</span>
+                          )}
+                          {item.badges.includes("R") && (
+                            <span className={s.optBadgeR} title="Reminder configured on this trigger">R</span>
+                          )}
+                          {item.badges.includes("L") && (
+                            <span className={s.optBadgeL} title="Unmigrated legacy templates or reminders available">L</span>
+                          )}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -595,6 +714,7 @@ function MultiTriggerSelect({
   exclude = [],
   folders,
   byKey,
+  triggerBadges,
   showHint = false,
   onChange,
 }: {
@@ -605,6 +725,7 @@ function MultiTriggerSelect({
   exclude?: string[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
+  triggerBadges?: Map<string, TriggerBadgeInfo>;
   showHint?: boolean;
   onChange: (next: string[]) => void;
 }) {
@@ -613,12 +734,17 @@ function MultiTriggerSelect({
     for (const group of folders) {
       for (const item of group.items) {
         if (!exclude.includes(item.key)) {
-          out.push({ key: item.key, label: item.label, group: group.folder, sub: item.when });
+          const info = triggerBadges?.get(item.key);
+          const badges: ("T" | "R" | "L")[] = [];
+          if (info?.hasTemplate) badges.push("T");
+          if (info?.hasReminder) badges.push("R");
+          if (info?.hasLegacy) badges.push("L");
+          out.push({ key: item.key, label: item.label, group: group.folder, sub: item.when, ...(badges.length ? { badges } : {}) });
         }
       }
     }
     return out;
-  }, [folders, exclude]);
+  }, [folders, exclude, triggerBadges]);
 
   const primaryWork = values.length === 1 ? byKey.get(values[0]) : undefined;
   const hintText = values.length === 0
@@ -805,11 +931,152 @@ function MessageEditor({
   </div>;
 }
 
+function TemplateEditorBlock({
+  label,
+  msg,
+  onChange,
+}: {
+  label: string;
+  msg: SingleMsg;
+  onChange: (next: SingleMsg) => void;
+}) {
+  const list = msg.templates?.length ? msg.templates : syncSingleMsg([]).templates;
+  const defaultTpl = list.find(t => t.isDefault) || list[0];
+  const [selectedId, setSelectedId] = useState<string>(defaultTpl.id);
+  const [promptMode, setPromptMode] = useState<"" | "new" | "save_as" | "rename">("");
+  const [nameInput, setNameInput] = useState("");
+
+  const activeTpl = list.find(t => t.id === selectedId) || defaultTpl;
+
+  function patchActive(patch: Partial<Pick<TemplateItem, "channel" | "subject" | "text">>) {
+    const nextList = list.map(t => (t.id === activeTpl.id ? { ...t, ...patch } : t));
+    onChange(syncSingleMsg(nextList));
+  }
+
+  function openPrompt(mode: "new" | "save_as" | "rename") {
+    setPromptMode(mode);
+    if (mode === "rename") setNameInput(activeTpl.name);
+    else if (mode === "save_as") setNameInput(`${activeTpl.name} copy`);
+    else setNameInput(`Template ${list.length + 1}`);
+  }
+
+  function confirmPrompt() {
+    const clean = nameInput.trim();
+    if (!clean) return;
+    if (promptMode === "rename") {
+      onChange(syncSingleMsg(list.map(t => (t.id === activeTpl.id ? { ...t, name: clean } : t))));
+    } else if (promptMode === "save_as") {
+      const created = blankTemplate(clean, false, {
+        channel: activeTpl.channel,
+        subject: activeTpl.subject,
+        text: activeTpl.text,
+      });
+      onChange(syncSingleMsg([...list, created]));
+      setSelectedId(created.id);
+    } else if (promptMode === "new") {
+      const created = blankTemplate(clean, false, { channel: activeTpl.channel, subject: "", text: "" });
+      onChange(syncSingleMsg([...list, created]));
+      setSelectedId(created.id);
+    }
+    setPromptMode("");
+    setNameInput("");
+  }
+
+  function setAsDefault() {
+    onChange(syncSingleMsg(list.map(t => ({ ...t, isDefault: t.id === activeTpl.id }))));
+  }
+
+  function deleteActive() {
+    if (list.length <= 1) return;
+    const remaining = list.filter(t => t.id !== activeTpl.id);
+    const next = syncSingleMsg(remaining);
+    onChange(next);
+    setSelectedId(next.templates[0].id);
+  }
+
+  return (
+    <div style={{ display: "grid", gap: "8px" }}>
+      <div className={s.blockHead}>
+        <strong className={s.labelRow}>{label}</strong>
+        <span className={s.cardSub}>
+          {list.length > 1
+            ? `${list.length} templates · Auto sends ★ Default`
+            : "Sent immediately · Auto sends ★ Default"}
+        </span>
+      </div>
+
+      <div className={s.tplBar}>
+        <div className={s.tplBarRow}>
+          <div className={s.tplSelectGroup}>
+            <span className={s.miniLabel}>Template</span>
+            <select
+              className={s.compactSelect}
+              aria-label={`${label} template`}
+              value={activeTpl.id}
+              onChange={e => { setSelectedId(e.target.value); setPromptMode(""); }}
+            >
+              {list.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.isDefault ? " ★ Default" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={s.tplActions}>
+            <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
+            <button type="button" className={s.miniBtn} onClick={() => openPrompt("save_as")}>Save as new</button>
+            {!activeTpl.isDefault && (
+              <button type="button" className={s.miniBtn} onClick={setAsDefault}>Set Default</button>
+            )}
+            <button type="button" className={s.miniBtn} onClick={() => openPrompt("rename")}>Rename</button>
+            {list.length > 1 && (
+              <button type="button" className={s.miniDangerBtn} onClick={deleteActive}>Delete</button>
+            )}
+          </div>
+        </div>
+
+        {promptMode && (
+          <div className={s.tplPromptRow}>
+            <span className={s.miniLabel}>
+              {promptMode === "new" ? "New template name:" : promptMode === "save_as" ? "Save copy as:" : "Rename to:"}
+            </span>
+            <input
+              type="text"
+              className={s.tplPromptInput}
+              maxLength={80}
+              autoFocus
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") { e.preventDefault(); confirmPrompt(); }
+                if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); }
+              }}
+            />
+            <button type="button" className={s.miniBtn} disabled={!nameInput.trim()} onClick={confirmPrompt}>Save</button>
+            <button type="button" className={s.miniDangerBtn} onClick={() => setPromptMode("")}>Cancel</button>
+          </div>
+        )}
+      </div>
+
+      <MessageEditor
+        title={label}
+        step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
+        showTiming={false}
+        onChange={patch => patchActive(patch)}
+      />
+    </div>
+  );
+}
+
 function InstantAutoMsgBlock({
   state,
+  control,
+  onChangeControl,
   onChange,
 }: {
   state: InstantBlockState;
+  control?: "auto" | "review" | "off";
+  onChangeControl?: (next: "auto" | "review") => void;
   onChange: (next: InstantBlockState) => void;
 }) {
   const showClient = state.audience === "client" || state.audience === "both";
@@ -822,17 +1089,30 @@ function InstantAutoMsgBlock({
           <span className={s.stageBadge}>Template</span>
           <span>Instant auto message</span>
         </div>
-        <select
-          className={s.compactSelect}
-          aria-label="Instant message audience"
-          value={state.audience}
-          onChange={e => onChange({ ...state, audience: e.target.value as InstantAudience })}
-        >
-          <option value="off">Off (Don&apos;t send instant message)</option>
-          <option value="client">Client only</option>
-          <option value="admin">Admin / Team only</option>
-          <option value="both">Both (Client &amp; Admin)</option>
-        </select>
+        <div className={s.inlineGroup}>
+          {onChangeControl && state.audience !== "off" && (
+            <select
+              className={s.compactSelect}
+              aria-label="Instant message sending mode"
+              value={control === "review" ? "review" : "auto"}
+              onChange={e => onChangeControl(e.target.value === "review" ? "review" : "auto")}
+            >
+              <option value="auto">Auto (send immediately)</option>
+              <option value="review">Review before send (Admin popup)</option>
+            </select>
+          )}
+          <select
+            className={s.compactSelect}
+            aria-label="Instant message audience"
+            value={state.audience}
+            onChange={e => onChange({ ...state, audience: e.target.value as InstantAudience })}
+          >
+            <option value="off">Off (Don&apos;t send instant message)</option>
+            <option value="client">Client only</option>
+            <option value="admin">Admin / Team only</option>
+            <option value="both">Both (Client &amp; Admin)</option>
+          </select>
+        </div>
       </div>
 
       {state.audience === "off" && (
@@ -840,35 +1120,21 @@ function InstantAutoMsgBlock({
       )}
 
       {showClient && (
-        <div style={{ display: "grid", gap: "6px" }}>
-          <div className={s.blockHead}>
-            <strong className={s.labelRow}>Client instant message</strong>
-            <span className={s.cardSub}>Sent immediately</span>
-          </div>
-          <MessageEditor
-            title="Client instant message"
-            step={{ amount: 0, unit: "days", pos: "after", ...state.client }}
-            showTiming={false}
-            onChange={patch => onChange({ ...state, client: { ...state.client, ...patch } })}
-          />
-        </div>
+        <TemplateEditorBlock
+          label="Client instant message"
+          msg={state.client}
+          onChange={client => onChange({ ...state, client })}
+        />
       )}
 
       {showClient && showAdmin && <div className={s.subDivider} role="separator" />}
 
       {showAdmin && (
-        <div style={{ display: "grid", gap: "6px" }}>
-          <div className={s.blockHead}>
-            <strong className={s.labelRow}>Admin / Team instant message</strong>
-            <span className={s.cardSub}>Sent immediately</span>
-          </div>
-          <MessageEditor
-            title="Admin instant message"
-            step={{ amount: 0, unit: "days", pos: "after", ...state.admin }}
-            showTiming={false}
-            onChange={patch => onChange({ ...state, admin: { ...state.admin, ...patch } })}
-          />
-        </div>
+        <TemplateEditorBlock
+          label="Admin / Team instant message"
+          msg={state.admin}
+          onChange={admin => onChange({ ...state, admin })}
+        />
       )}
     </div>
   );
@@ -1290,9 +1556,12 @@ function TrailStageBlock({
   depth,
   showTriggerSelect,
   instant,
+  control,
+  onChangeControl,
   reminders,
   folders,
   byKey,
+  triggerBadges,
   onChangeTriggers,
   onChangeInstant,
   onChangeReminders,
@@ -1302,9 +1571,12 @@ function TrailStageBlock({
   depth: number;
   showTriggerSelect?: boolean;
   instant: InstantBlockState;
+  control?: "auto" | "review" | "off";
+  onChangeControl?: (next: "auto" | "review") => void;
   reminders: Reminder[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
+  triggerBadges?: Map<string, TriggerBadgeInfo>;
   onChangeTriggers?: (next: string[]) => void;
   onChangeInstant: (next: InstantBlockState) => void;
   onChangeReminders: (next: Reminder[]) => void;
@@ -1331,6 +1603,7 @@ function TrailStageBlock({
             values={stageTriggers}
             folders={folders}
             byKey={byKey}
+            triggerBadges={triggerBadges}
             showHint={true}
             onChange={onChangeTriggers}
           />
@@ -1338,7 +1611,12 @@ function TrailStageBlock({
       )}
 
       {/* 1. Template (Instant Auto Message) */}
-      <InstantAutoMsgBlock state={instant} onChange={onChangeInstant} />
+      <InstantAutoMsgBlock
+        state={instant}
+        control={control}
+        onChangeControl={onChangeControl}
+        onChange={onChangeInstant}
+      />
 
       <div className={s.sectionDivider} role="separator" aria-label="End of Template, start of Follow-up Reminder">
         <span>Follow-up Reminder</span>
@@ -1382,6 +1660,8 @@ function TrailStageBlock({
 
 function FormDialog({
   initial,
+  existingTrails,
+  triggerBadges,
   folders,
   byKey,
   packages,
@@ -1392,6 +1672,8 @@ function FormDialog({
   onSave,
 }: {
   initial: TrailForm;
+  existingTrails: TrailForm[];
+  triggerBadges: Map<string, TriggerBadgeInfo>;
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
   packages: ActionPackageOption[];
@@ -1403,6 +1685,9 @@ function FormDialog({
 }) {
   const [form, setForm] = useState<TrailForm>(initial);
   const [localError, setLocalError] = useState("");
+  const [legacyData, setLegacyData] = useState<LegacyPullPayload | null>(null);
+  const [legacyPulled, setLegacyPulled] = useState(false);
+  const [pullSeq, setPullSeq] = useState(0);
   const set = (patch: Partial<TrailForm>) => {
     if (localError) setLocalError("");
     setForm(curr => ({ ...curr, ...patch }));
@@ -1414,10 +1699,77 @@ function FormDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const triggersCsv = useMemo(() => [...form.triggers].sort().join(","), [form.triggers]);
+  useEffect(() => {
+    setLegacyPulled(false);
+    if (!triggersCsv) {
+      setLegacyData(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/auto-reply/action-rules/legacy-for-trigger?triggers=${encodeURIComponent(triggersCsv)}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(res => (res.ok ? res.json().catch(() => null) : null))
+      .then(json => {
+        if (controller.signal.aborted) return;
+        const d = json?.data as LegacyPullPayload | null;
+        if (d && ((d.clientTemplates?.length || 0) > 0 || (d.adminTemplates?.length || 0) > 0 || (d.reminders?.length || 0) > 0)) {
+          setLegacyData(d);
+        } else {
+          setLegacyData(null);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLegacyData(null);
+      });
+    return () => controller.abort();
+  }, [triggersCsv]);
+
+  function applyLegacyPull() {
+    if (!legacyData) return;
+    const hasClient = (legacyData.clientTemplates?.length || 0) > 0;
+    const hasAdmin = (legacyData.adminTemplates?.length || 0) > 0;
+    const nextClient = hasClient
+      ? normalizeMsg({ templates: legacyData.clientTemplates })
+      : form.instant.client;
+    const nextAdmin = hasAdmin
+      ? normalizeMsg({ templates: legacyData.adminTemplates })
+      : form.instant.admin;
+    let nextAudience: InstantAudience = form.instant.audience;
+    if (hasClient && hasAdmin) nextAudience = "both";
+    else if (hasClient) nextAudience = (nextAudience === "admin" || nextAudience === "both") ? "both" : "client";
+    else if (hasAdmin) nextAudience = (nextAudience === "client" || nextAudience === "both") ? "both" : "admin";
+
+    const pulledReminders = Array.isArray(legacyData.reminders) && legacyData.reminders.length > 0
+      ? legacyData.reminders.map(r => normalizeReminder(r, 0))
+      : [];
+
+    setForm(curr => ({
+      ...curr,
+      control: legacyData.control || curr.control || "auto",
+      instant: {
+        audience: nextAudience,
+        client: nextClient,
+        admin: nextAdmin,
+      },
+      reminders: pulledReminders.length > 0 ? [...curr.reminders, ...pulledReminders] : curr.reminders,
+      migratedLegacy: {
+        events: [...new Set([...(curr.migratedLegacy?.events || []), ...(legacyData.events || [])])],
+        templateIds: [...new Set([...(curr.migratedLegacy?.templateIds || []), ...(legacyData.templateIds || [])])],
+        ruleIds: [...new Set([...(curr.migratedLegacy?.ruleIds || []), ...(legacyData.ruleIds || [])])],
+      },
+    }));
+    setLegacyPulled(true);
+    setPullSeq(v => v + 1);
+  }
+
   const primaryKey = form.triggers[0] || "";
   const supportsScopeFor = (next: Pick<TrailForm, "triggers" | "reminders" | "stages">) =>
     allTrailTriggerKeys(next).some(k => byKey.get(k)?.supportsScope);
   const hasPackageScope = supportsScopeFor(form);
+  const matchingTrail = useMemo(() => findMatchingTrail(form, existingTrails, byKey), [form, existingTrails, byKey]);
   const flowTokens = useMemo(() => buildFlowTokens(form, byKey), [form, byKey]);
   const totalTemplates = useMemo(() => countTemplates(form.instant, form.stages), [form.instant, form.stages]);
   const totalReminders = useMemo(() => countReminders(form.reminders, form.stages), [form.reminders, form.stages]);
@@ -1570,6 +1922,7 @@ function FormDialog({
                 values={form.triggers}
                 folders={folders}
                 byKey={byKey}
+                triggerBadges={triggerBadges}
                 showHint={true}
                 onChange={changeRootTriggers}
               />
@@ -1604,6 +1957,56 @@ function FormDialog({
               )}
             </div>
           </div>
+
+          {legacyData && (
+            <div className={s.legacyBanner} data-pulled={legacyPulled} role="status">
+              <div className={s.noticeText}>
+                <strong>
+                  {legacyPulled
+                    ? "Legacy templates loaded into this form"
+                    : (() => {
+                        const cCount = legacyData.clientTemplates?.length || 0;
+                        const aCount = legacyData.adminTemplates?.length || 0;
+                        const totalTpl = cCount + aCount;
+                        const remCount = legacyData.reminders?.length || 0;
+                        const parts: string[] = [];
+                        if (totalTpl > 0) {
+                          const split = [cCount ? `${cCount} Client` : "", aCount ? `${aCount} Admin` : ""].filter(Boolean).join(", ");
+                          parts.push(`${totalTpl} legacy template${totalTpl === 1 ? "" : "s"} (${split})`);
+                        }
+                        if (remCount > 0) parts.push(`${remCount} reminder${remCount === 1 ? "" : "s"}`);
+                        return `${parts.join(" & ")} found for this trigger`;
+                      })()}
+                </strong>
+                <span>
+                  {legacyPulled
+                    ? "Review or edit below. Old system stays untouched until you click Save."
+                    : "Pull existing templates & reminders into this form as-is. Old system stays safe until Save."}
+                </span>
+              </div>
+              {!legacyPulled && (
+                <button type="button" className={s.primaryBtn} onClick={applyLegacyPull}>
+                  Get Legacy
+                </button>
+              )}
+            </div>
+          )}
+
+          {matchingTrail && (
+            <div className={s.noticeBanner} role="status">
+              <div className={s.noticeText}>
+                <strong>Trail already exists for this trigger &amp; package scope</strong>
+                <span>Edit the existing trail in-place instead of creating a duplicate.</span>
+              </div>
+              <button
+                type="button"
+                className={s.primaryBtn}
+                onClick={() => { setLocalError(""); setForm(matchingTrail); }}
+              >
+                Load &amp; Edit here
+              </button>
+            </div>
+          )}
         </section>
 
         {/* CARD 2: Stage 1 (Template + Reminder) */}
@@ -1617,13 +2020,17 @@ function FormDialog({
           </div>
 
           <TrailStageBlock
+            key={`${form._id || "new-root"}-${pullSeq}`}
             stageTriggers={form.triggers}
             stageTriggersLabel={rootTrigLabel}
             depth={0}
             instant={form.instant}
+            control={form.control || "auto"}
+            onChangeControl={control => set({ control })}
             reminders={form.reminders}
             folders={folders}
             byKey={byKey}
+            triggerBadges={triggerBadges}
             onChangeInstant={instant => set({ instant })}
             onChangeReminders={updateRootReminders}
           />
@@ -1656,6 +2063,7 @@ function FormDialog({
                   reminders={stage.reminder ? [stage.reminder] : []}
                   folders={folders}
                   byKey={byKey}
+                  triggerBadges={triggerBadges}
                   onChangeTriggers={next => changeStageTriggers(stage, next)}
                   onChangeInstant={instant => updateStage(stage.id, { instant })}
                   onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
@@ -1710,10 +2118,66 @@ function FormDialog({
   </div>;
 }
 
+type ListViewTab = "trails" | "templates" | "reminders";
+
+type DerivedTemplateRow = {
+  rowKey: string;
+  trail: TrailForm;
+  triggerKey: string;
+  triggerLabel: string;
+  stageNum: number;
+  audience: "client" | "admin";
+  template: TemplateItem;
+  scope: PackageScopeMode;
+  scopeLabel: string;
+  isOn: boolean;
+};
+
+type DerivedReminderRow = {
+  rowKey: string;
+  trail: TrailForm;
+  triggerKey: string;
+  triggerLabel: string;
+  stageNum: number;
+  reminder: Reminder;
+  channels: Channel[];
+  timingSummary: string;
+  conditionLabel: string;
+  repeatLabel: string;
+  stopLabel: string;
+  scope: PackageScopeMode;
+  scopeLabel: string;
+  isOn: boolean;
+};
+
+function channelLabel(ch: Channel) {
+  if (ch === "email") return "Email";
+  if (ch === "both") return "Email + WhatsApp";
+  return "WhatsApp";
+}
+
+function summarizeReminderTiming(rem: Reminder): string {
+  const showClient = rem.audience === "client" || rem.audience === "both";
+  const steps = showClient ? rem.clientSteps : rem.adminSteps;
+  if (!steps.length) return "No timing";
+  const first = steps[0];
+  const firstText = first.pos === "on"
+    ? timingPositionLabel("on", rem.countDaysFrom)
+    : `${first.amount}${first.unit === "hours" ? "h" : "d"} ${timingPositionLabel(first.pos, rem.countDaysFrom)}`;
+  return steps.length > 1 ? `${firstText} (+${steps.length - 1} more)` : firstText;
+}
+
+function summarizeRepeat(rem: Reminder): string {
+  if (rem.repeatMode === "permanent") return `Every ${rem.repeatEveryDays}d (${rem.repeatPerDay}x/day) until stop`;
+  if (rem.repeatMode === "limited") return `Every ${rem.repeatEveryDays}d for ${rem.repeatForDays}d (${rem.repeatPerDay}x/day)`;
+  return "No repeat";
+}
+
 export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   const [actionsData, setActionsData] = useState<ActionsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [trails, setTrails] = useState<TrailForm[]>([]);
+  const [legacyTriggers, setLegacyTriggers] = useState<string[]>([]);
   const [editing, setEditing] = useState<TrailForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -1721,16 +2185,26 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   const [panelError, setPanelError] = useState("");
   const [reloadSeq, setReloadSeq] = useState(0);
 
+  // 3 View Tabs + Filters (derived SSOT from trails)
+  const [viewTab, setViewTab] = useState<ListViewTab>("trails");
+  const [filterTrigger, setFilterTrigger] = useState("");
+  const [filterScope, setFilterScope] = useState<"" | PackageScopeMode>("");
+  const [filterAudience, setFilterAudience] = useState<"" | "client" | "admin">("");
+  const [filterChannel, setFilterChannel] = useState<"" | Channel>("");
+  const [filterStatus, setFilterStatus] = useState<"" | "active" | "paused">("");
+
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     try {
-      const [actionsRes, trailsRes] = await Promise.all([
+      const [actionsRes, trailsRes, legacyRes] = await Promise.all([
         fetch("/api/auto-reply/actions?view=catalog", { signal, cache: "no-store" }),
         fetch("/api/auto-reply/action-rules/trails", { signal, cache: "no-store" }),
+        fetch("/api/auto-reply/action-rules/legacy-summary", { signal, cache: "no-store" }).catch(() => null),
       ]);
-      const [actionsJson, trailsJson] = await Promise.all([
+      const [actionsJson, trailsJson, legacyJson] = await Promise.all([
         actionsRes.json().catch(() => null),
         trailsRes.json().catch(() => null),
+        legacyRes && legacyRes.ok ? legacyRes.json().catch(() => null) : Promise.resolve(null),
       ]);
       if (!signal.aborted) {
         if (actionsRes.ok && actionsJson?.data) setActionsData(actionsJson.data as ActionsData);
@@ -1739,6 +2213,9 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
           setPanelError("");
         } else if (!trailsRes.ok) {
           setPanelError(trailsJson?.error || "Could not load saved automated messages.");
+        }
+        if (Array.isArray(legacyJson?.data)) {
+          setLegacyTriggers(legacyJson.data.filter((k: unknown): k is string => typeof k === "string"));
         }
       }
     } catch {
@@ -1751,6 +2228,203 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   useCommunicationRefresh(load, active, 0, String(reloadSeq), "");
 
   const catalog = useMemo(() => buildWorkCatalog(actionsData), [actionsData]);
+
+  // Trigger dropdown T / R / L badges derived SSOT from saved Trails + unmigrated legacy summary
+  const triggerBadges = useMemo(() => {
+    const map = new Map<string, TriggerBadgeInfo>();
+    const mark = (key: string, field: "hasTemplate" | "hasReminder" | "hasLegacy") => {
+      if (!key) return;
+      const prev = map.get(key) || { hasTemplate: false, hasReminder: false, hasLegacy: false };
+      prev[field] = true;
+      map.set(key, prev);
+    };
+    for (const trail of trails) {
+      if (hasInstantContent(trail.instant)) {
+        for (const k of trail.triggers) mark(k, "hasTemplate");
+      }
+      for (const rem of trail.reminders) {
+        const eff = rem.startTrigger && rem.startTrigger !== "__main__" ? [rem.startTrigger] : trail.triggers;
+        for (const k of eff) mark(k, "hasReminder");
+      }
+      for (const st of trail.stages) {
+        if (hasInstantContent(st.instant)) {
+          for (const k of st.triggers) mark(k, "hasTemplate");
+        }
+        if (st.reminder) {
+          const eff = st.reminder.startTrigger && st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : st.triggers;
+          for (const k of eff) mark(k, "hasReminder");
+        }
+      }
+    }
+    for (const k of legacyTriggers) mark(k, "hasLegacy");
+    return map;
+  }, [trails, legacyTriggers]);
+
+  // Derived Templates list (SSOT from trails)
+  const allTemplateRows = useMemo<DerivedTemplateRow[]>(() => {
+    const out: DerivedTemplateRow[] = [];
+    for (const trail of trails) {
+      const isOn = trail.enabled !== false;
+      const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
+      const scopeLabel = hasScope ? (PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label || "") : "";
+      const collectStage = (triggers: string[], inst: InstantBlockState, stageNum: number) => {
+        if (inst.audience === "off") return;
+        const primaryTrig = triggers[0] || "";
+        const trigLabel = triggers.map(k => workLabel(k, catalog.byKey)).join(" + ") || "Unspecified trigger";
+        const pushWho = (who: "client" | "admin", msg: SingleMsg) => {
+          const list = msg.templates?.length ? msg.templates : [];
+          for (const tpl of list) {
+            if (!tpl.text.trim()) continue;
+            out.push({
+              rowKey: `${trail._id || "t"}-s${stageNum}-${who}-${tpl.id}`,
+              trail,
+              triggerKey: primaryTrig,
+              triggerLabel: trigLabel,
+              stageNum,
+              audience: who,
+              template: tpl,
+              scope: trail.scope,
+              scopeLabel,
+              isOn,
+            });
+          }
+        };
+        if (inst.audience === "client" || inst.audience === "both") pushWho("client", inst.client);
+        if (inst.audience === "admin" || inst.audience === "both") pushWho("admin", inst.admin);
+      };
+      collectStage(trail.triggers, trail.instant, 1);
+      trail.stages.forEach((st, idx) => collectStage(st.triggers, st.instant, idx + 2));
+    }
+    return out;
+  }, [trails, catalog.byKey]);
+
+  // Derived Reminders list (SSOT from trails)
+  const allReminderRows = useMemo<DerivedReminderRow[]>(() => {
+    const out: DerivedReminderRow[] = [];
+    for (const trail of trails) {
+      const isOn = trail.enabled !== false;
+      const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
+      const scopeLabel = hasScope ? (PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label || "") : "";
+      const pushRem = (rem: Reminder, stageTriggers: string[], stageNum: number, idx: number) => {
+        const effTrigs = rem.startTrigger && rem.startTrigger !== "__main__" ? [rem.startTrigger] : stageTriggers;
+        const primaryTrig = effTrigs[0] || "";
+        const trigLabel = effTrigs.map(k => workLabel(k, catalog.byKey)).join(" + ") || "Unspecified trigger";
+        const chSet = new Set<Channel>();
+        if (rem.audience === "client" || rem.audience === "both") rem.clientSteps.forEach(st => chSet.add(st.channel));
+        if (rem.audience === "admin" || rem.audience === "both") rem.adminSteps.forEach(st => chSet.add(st.channel));
+        const condObj = CONDITIONS.find(c => c.id === rem.condition);
+        const condLabel = rem.condition === "any" ? "" : (condObj?.label || rem.condition);
+        out.push({
+          rowKey: `${trail._id || "t"}-s${stageNum}-r${rem.id}-${idx}`,
+          trail,
+          triggerKey: primaryTrig,
+          triggerLabel: trigLabel,
+          stageNum,
+          reminder: rem,
+          channels: [...chSet],
+          timingSummary: summarizeReminderTiming(rem),
+          conditionLabel: condLabel,
+          repeatLabel: summarizeRepeat(rem),
+          stopLabel: rem.stopOn.length ? rem.stopOn.map(k => workLabel(k, catalog.byKey)).join(", ") : "",
+          scope: trail.scope,
+          scopeLabel,
+          isOn,
+        });
+      };
+      trail.reminders.forEach((rem, idx) => pushRem(rem, trail.triggers, 1, idx));
+      trail.stages.forEach((st, idx) => {
+        if (st.reminder) pushRem(st.reminder, st.triggers, idx + 2, 0);
+      });
+    }
+    return out;
+  }, [trails, catalog.byKey]);
+
+  // Distinct Trigger options present in saved trails for the filter dropdown
+  const filterTriggerOptions = useMemo(() => {
+    const keys = new Set<string>();
+    for (const trail of trails) {
+      for (const k of allTrailTriggerKeys(trail)) keys.add(k);
+    }
+    return [...keys].map(k => ({ key: k, label: workLabel(k, catalog.byKey) })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [trails, catalog.byKey]);
+
+  const hasActiveFilter = Boolean(filterTrigger || filterScope || filterAudience || filterChannel || filterStatus);
+  function clearFilters() {
+    setFilterTrigger("");
+    setFilterScope("");
+    setFilterAudience("");
+    setFilterChannel("");
+    setFilterStatus("");
+  }
+
+  const filteredTrails = useMemo(() => trails.filter(trail => {
+    const isOn = trail.enabled !== false;
+    if (filterStatus === "active" && !isOn) return false;
+    if (filterStatus === "paused" && isOn) return false;
+    if (filterScope && trail.scope !== filterScope) return false;
+    if (filterTrigger && !allTrailTriggerKeys(trail).includes(filterTrigger)) return false;
+    if (filterAudience) {
+      const matchesInstant = (inst: InstantBlockState) => inst.audience === filterAudience || inst.audience === "both";
+      const matchesRem = (rem: Reminder) => rem.audience === filterAudience || rem.audience === "both";
+      const ok = matchesInstant(trail.instant)
+        || trail.reminders.some(matchesRem)
+        || trail.stages.some(st => matchesInstant(st.instant) || (st.reminder ? matchesRem(st.reminder) : false));
+      if (!ok) return false;
+    }
+    if (filterChannel) {
+      const hasTplCh = (msg: SingleMsg) => (msg.templates || []).some(t => t.text.trim() && t.channel === filterChannel);
+      const hasInstCh = (inst: InstantBlockState) => inst.audience !== "off"
+        && (((inst.audience === "client" || inst.audience === "both") && hasTplCh(inst.client))
+          || ((inst.audience === "admin" || inst.audience === "both") && hasTplCh(inst.admin)));
+      const hasRemCh = (rem: Reminder) => ((rem.audience === "client" || rem.audience === "both") && rem.clientSteps.some(st => st.channel === filterChannel))
+        || ((rem.audience === "admin" || rem.audience === "both") && rem.adminSteps.some(st => st.channel === filterChannel));
+      const ok = hasInstCh(trail.instant)
+        || trail.reminders.some(hasRemCh)
+        || trail.stages.some(st => hasInstCh(st.instant) || (st.reminder ? hasRemCh(st.reminder) : false));
+      if (!ok) return false;
+    }
+    return true;
+  }), [trails, filterTrigger, filterScope, filterAudience, filterChannel, filterStatus]);
+
+  const filteredTemplates = useMemo(() => allTemplateRows.filter(row => {
+    if (filterStatus === "active" && !row.isOn) return false;
+    if (filterStatus === "paused" && row.isOn) return false;
+    if (filterScope && row.scope !== filterScope) return false;
+    if (filterTrigger && row.triggerKey !== filterTrigger && !row.trail.triggers.includes(filterTrigger)) return false;
+    if (filterAudience && row.audience !== filterAudience) return false;
+    if (filterChannel && row.template.channel !== filterChannel) return false;
+    return true;
+  }), [allTemplateRows, filterTrigger, filterScope, filterAudience, filterChannel, filterStatus]);
+
+  const filteredReminders = useMemo(() => allReminderRows.filter(row => {
+    if (filterStatus === "active" && !row.isOn) return false;
+    if (filterStatus === "paused" && row.isOn) return false;
+    if (filterScope && row.scope !== filterScope) return false;
+    if (filterTrigger && row.triggerKey !== filterTrigger) return false;
+    if (filterAudience && row.reminder.audience !== filterAudience && row.reminder.audience !== "both") return false;
+    if (filterChannel && !row.channels.includes(filterChannel)) return false;
+    return true;
+  }), [allReminderRows, filterTrigger, filterScope, filterAudience, filterChannel, filterStatus]);
+
+  const groupedTemplates = useMemo(() => {
+    const map = new Map<string, { label: string; rows: DerivedTemplateRow[] }>();
+    for (const row of filteredTemplates) {
+      const entry = map.get(row.triggerLabel) || { label: row.triggerLabel, rows: [] };
+      entry.rows.push(row);
+      map.set(row.triggerLabel, entry);
+    }
+    return [...map.values()];
+  }, [filteredTemplates]);
+
+  const groupedReminders = useMemo(() => {
+    const map = new Map<string, { label: string; rows: DerivedReminderRow[] }>();
+    for (const row of filteredReminders) {
+      const entry = map.get(row.triggerLabel) || { label: row.triggerLabel, rows: [] };
+      entry.rows.push(row);
+      map.set(row.triggerLabel, entry);
+    }
+    return [...map.values()];
+  }, [filteredReminders]);
 
   async function saveTrail(form: TrailForm) {
     setSaving(true);
@@ -1771,6 +2445,15 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       setTrails(curr => isEdit ? curr.map(t => t._id === saved._id ? saved : t) : [saved, ...curr]);
       setEditing(null);
       setPanelError("");
+      // Refresh legacy summary immediately so migrated triggers drop the L badge without a page reload.
+      fetch("/api/auto-reply/action-rules/legacy-summary", { cache: "no-store" })
+        .then(r => (r.ok ? r.json().catch(() => null) : null))
+        .then(j => {
+          if (Array.isArray(j?.data)) {
+            setLegacyTriggers(j.data.filter((k: unknown): k is string => typeof k === "string"));
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Could not save automated message.");
     } finally {
@@ -1822,7 +2505,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   return <section className={s.panel} aria-label="Automated message system">
     <div className={s.toolbar}>
       <div className={s.toolbarText}>
-        <p>Every automated message and reminder trail, one row per work. Click <strong>Edit</strong> to open its form.</p>
+        <p>Create end-to-end trails in one form and manage Trails, Templates, and Reminders cleanly below.</p>
         <span className={s.liveTag} data-live={catalog.isLive}>
           <span className={s.liveDot} aria-hidden="true" />
           {loading && !catalog.isLive ? "Loading live works…" : catalog.isLive ? `${catalog.byKey.size} works · ${catalog.packages.length} packages` : "Fallback catalog"}
@@ -1840,54 +2523,201 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
 
     {panelError && <p className={s.whenHint} style={{ color: "var(--pn-err, #b91c1c)", fontWeight: 600 }}>{panelError}</p>}
 
+    {/* 3 View Tabs + Filters (SSOT derived from saved Trails) */}
+    <div className={s.viewBar}>
+      <div className={s.viewTabs} role="tablist" aria-label="Automated message views">
+        <button type="button" role="tab" aria-selected={viewTab === "trails"} className={s.viewTab} data-active={viewTab === "trails"} onClick={() => setViewTab("trails")}>
+          <span>Trails</span>
+          <span className={s.tabCount}>{filteredTrails.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={viewTab === "templates"} className={s.viewTab} data-active={viewTab === "templates"} onClick={() => setViewTab("templates")}>
+          <span>Templates</span>
+          <span className={s.tabCount}>{filteredTemplates.length}</span>
+        </button>
+        <button type="button" role="tab" aria-selected={viewTab === "reminders"} className={s.viewTab} data-active={viewTab === "reminders"} onClick={() => setViewTab("reminders")}>
+          <span>Reminders</span>
+          <span className={s.tabCount}>{filteredReminders.length}</span>
+        </button>
+      </div>
+    </div>
+
+    {trails.length > 0 && (
+      <div className={s.filterBar} aria-label="Filter automated messages">
+        <select className={s.filterSelect} aria-label="Filter by trigger point" value={filterTrigger} onChange={e => setFilterTrigger(e.target.value)}>
+          <option value="">All trigger points</option>
+          {filterTriggerOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
+        </select>
+        <select className={s.filterSelect} aria-label="Filter by package scope" value={filterScope} onChange={e => setFilterScope(e.target.value as "" | PackageScopeMode)}>
+          <option value="">All package scopes</option>
+          {PACKAGE_SCOPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+        <select className={s.filterSelect} aria-label="Filter by audience" value={filterAudience} onChange={e => setFilterAudience(e.target.value as "" | "client" | "admin")}>
+          <option value="">All audiences</option>
+          <option value="client">Client</option>
+          <option value="admin">Admin / Team</option>
+        </select>
+        <select className={s.filterSelect} aria-label="Filter by channel" value={filterChannel} onChange={e => setFilterChannel(e.target.value as "" | Channel)}>
+          <option value="">All channels</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="email">Email</option>
+          <option value="both">Email + WhatsApp</option>
+        </select>
+        <select className={s.filterSelect} aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value as "" | "active" | "paused")}>
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+        </select>
+        {hasActiveFilter && (
+          <button type="button" className={s.miniBtn} onClick={clearFilters}>Clear filters</button>
+        )}
+      </div>
+    )}
+
     {trails.length === 0 ? (
       <div className={s.empty}>
         <strong>No automated messages yet</strong>
         <span>Click “+ Create automated msg” to create your first automated message trail.</span>
       </div>
-    ) : (
-      <div className={s.list}>
-        {trails.map(trail => {
-          const title = trail.triggers.map(k => workLabel(k, catalog.byKey)).join(" + ");
-          const tokens = buildFlowTokens(trail, catalog.byKey).slice(1);
-          const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
-          const scopeLabel = PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label;
-          const isOn = trail.enabled !== false;
-          const busy = busyId === trail._id;
-          return (
-            <article key={trail._id} className={s.listRow}>
-              <div className={s.listMain}>
-                <div className={s.listTitleRow}>
-                  <strong>{title}</strong>
-                  {hasScope && scopeLabel && <span className={s.badge}>{scopeLabel}</span>}
-                  <span className={s.liveTag} data-live={isOn}>
-                    <span className={s.liveDot} aria-hidden="true" />
-                    {isOn ? "Active" : "Paused"}
-                  </span>
+    ) : viewTab === "trails" ? (
+      filteredTrails.length === 0 ? (
+        <div className={s.empty}>
+          <strong>No matching trails</strong>
+          <span>Try clearing or adjusting your filters above.</span>
+        </div>
+      ) : (
+        <div className={s.list}>
+          {filteredTrails.map(trail => {
+            const title = trail.triggers.map(k => workLabel(k, catalog.byKey)).join(" + ");
+            const tokens = buildFlowTokens(trail, catalog.byKey).slice(1);
+            const hasScope = allTrailTriggerKeys(trail).some(k => catalog.byKey.get(k)?.supportsScope);
+            const scopeLabel = PACKAGE_SCOPES.find(p => p.id === trail.scope)?.label;
+            const isOn = trail.enabled !== false;
+            const busy = busyId === trail._id;
+            return (
+              <article key={trail._id} className={s.listRow}>
+                <div className={s.listMain}>
+                  <div className={s.listTitleRow}>
+                    <strong>{title}</strong>
+                    {hasScope && scopeLabel && <span className={s.badge}>{scopeLabel}</span>}
+                    {trail.control === "review" && <span className={s.reviewBadge}>Review</span>}
+                    <span className={s.liveTag} data-live={isOn}>
+                      <span className={s.liveDot} aria-hidden="true" />
+                      {isOn ? "Active" : "Paused"}
+                    </span>
+                  </div>
+                  <p className={s.listSummary}>
+                    {tokens.length ? tokens.join(" → ") : "Trigger only (no message or reminder added yet)"}
+                  </p>
                 </div>
-                <p className={s.listSummary}>
-                  {tokens.length ? tokens.join(" → ") : "Trigger only (no message or reminder added yet)"}
-                </p>
+                <div className={s.listActions}>
+                  <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => void toggleEnabled(trail)}>
+                    {isOn ? "Pause" : "Activate"}
+                  </button>
+                  <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing(trail); }}>
+                    Edit
+                  </button>
+                  <button type="button" className={s.iconBtn} disabled={busy} aria-label={`Delete ${title}`} onClick={() => void removeTrail(trail)}>✕</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )
+    ) : viewTab === "templates" ? (
+      groupedTemplates.length === 0 ? (
+        <div className={s.empty}>
+          <strong>No matching templates</strong>
+          <span>Templates inside your saved trails appear here grouped by Trigger Point.</span>
+        </div>
+      ) : (
+        <div className={s.list}>
+          {groupedTemplates.map(group => (
+            <div key={group.label} className={s.groupSection}>
+              <div className={s.groupHead}>
+                <span>{group.label}</span>
+                <span className={s.labelMuted}>{group.rows.length} template{group.rows.length === 1 ? "" : "s"}</span>
               </div>
-              <div className={s.listActions}>
-                <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => void toggleEnabled(trail)}>
-                  {isOn ? "Pause" : "Activate"}
-                </button>
-                <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing(trail); }}>
-                  Edit
-                </button>
-                <button type="button" className={s.iconBtn} disabled={busy} aria-label={`Delete ${title}`} onClick={() => void removeTrail(trail)}>✕</button>
+              {group.rows.map(row => (
+                <article key={row.rowKey} className={s.listRow}>
+                  <div className={s.listMain}>
+                    <div className={s.listTitleRow}>
+                      <strong>{row.template.name}</strong>
+                      {row.template.isDefault && <span className={s.defaultBadge}>★ Default</span>}
+                      <span className={s.badge}>{row.audience === "admin" ? "Admin" : "Client"}</span>
+                      <span className={s.badge}>{channelLabel(row.template.channel)}</span>
+                      {row.stageNum > 1 && <span className={s.badge}>Stage {row.stageNum}</span>}
+                      {row.scopeLabel && <span className={s.badge}>{row.scopeLabel}</span>}
+                      <span className={s.liveTag} data-live={row.isOn}>
+                        <span className={s.liveDot} aria-hidden="true" />
+                        {row.isOn ? "Active" : "Paused"}
+                      </span>
+                    </div>
+                    <p className={s.listSummary}>
+                      {row.template.subject ? `${row.template.subject} — ` : ""}{row.template.text}
+                    </p>
+                  </div>
+                  <div className={s.listActions}>
+                    <button type="button" className={s.ghostBtn} onClick={() => { setSaveError(""); setEditing(row.trail); }}>
+                      Edit
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ))}
+        </div>
+      )
+    ) : (
+      groupedReminders.length === 0 ? (
+        <div className={s.empty}>
+          <strong>No matching reminders</strong>
+          <span>Follow-up reminders inside your saved trails appear here grouped by Trigger Point.</span>
+        </div>
+      ) : (
+        <div className={s.list}>
+          {groupedReminders.map(group => (
+            <div key={group.label} className={s.groupSection}>
+              <div className={s.groupHead}>
+                <span>{group.label}</span>
+                <span className={s.labelMuted}>{group.rows.length} reminder{group.rows.length === 1 ? "" : "s"}</span>
               </div>
-            </article>
-          );
-        })}
-      </div>
+              {group.rows.map(row => (
+                <article key={row.rowKey} className={s.listRow}>
+                  <div className={s.listMain}>
+                    <div className={s.listTitleRow}>
+                      <strong>{row.timingSummary}</strong>
+                      <span className={s.badge}>{audienceShort(row.reminder.audience)}</span>
+                      {row.channels.map(ch => <span key={ch} className={s.badge}>{channelLabel(ch)}</span>)}
+                      {row.stageNum > 1 && <span className={s.badge}>Stage {row.stageNum}</span>}
+                      {row.scopeLabel && <span className={s.badge}>{row.scopeLabel}</span>}
+                      <span className={s.liveTag} data-live={row.isOn}>
+                        <span className={s.liveDot} aria-hidden="true" />
+                        {row.isOn ? "Active" : "Paused"}
+                      </span>
+                    </div>
+                    <p className={s.listSummary}>
+                      {[row.repeatLabel, row.conditionLabel ? `Only when: ${row.conditionLabel}` : "", row.stopLabel ? `Stop: ${row.stopLabel}` : ""].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                  <div className={s.listActions}>
+                    <button type="button" className={s.ghostBtn} onClick={() => { setSaveError(""); setEditing(row.trail); }}>
+                      Edit
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ))}
+        </div>
+      )
     )}
 
     {editing && (
       <FormDialog
         key={editing._id || "new"}
         initial={editing}
+        existingTrails={trails}
+        triggerBadges={triggerBadges}
         folders={catalog.folders}
         byKey={catalog.byKey}
         packages={catalog.packages}

@@ -26,6 +26,8 @@ export type EmailDraft = {
   delivery?: { channels?: string[]; lockedAt?: string; emailStatus?: string; whatsappStatus?: string };
   // The review as an editor document, and the chips it may use.
   doc?: JSONContent; editorFields?: { variables: TemplateVariable[]; blocks: TemplateVariable[] };
+  // Set when this draft belongs to an Automated Message System trail.
+  trailId?: string; trailAudience?: "client" | "admin";
 };
 export type EmailHistory = {
   _id: string; draftId: string; event: string; to: string[]; subject: string; status: string;

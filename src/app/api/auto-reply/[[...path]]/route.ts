@@ -4,7 +4,7 @@ import { AuthError, getSession } from "@/lib/auth";
 import { PortalApiError, portalApiRequest } from "@/lib/portal-api";
 
 type Context = { params: Promise<{ path?: string[] }> };
-const allowed = (method: string, path: string) => (method === "GET" && (["status", "final-message", "reservations", "payment-reminders", "business-activity", "reminder-rules", "reminder-work-summary", "reminder-runs", "legacy-reminder-history", "actions", "action-rules", "action-rules/runs", "action-rules/trails"].includes(path) || /^reminder-rules\/[a-f\d]{24}\/preview$/i.test(path) || /^reservations\/[a-f\d]{24}\/paid-projects$/i.test(path))) || (method === "POST" && (["switches", "message", "reply", "final-message/time", "final-message/ignored", "final-message/decision", "reminder-rules", "reminder-controls", "action-rules", "action-rules/trails", "action-rules/cleanup", "action-rules/migrate"].includes(path) || /^reminder-rules\/[a-f\d]{24}\/enabled$/i.test(path) || /^action-rules\/[a-f\d]{24}\/(enabled|delete|enroll-pending)$/i.test(path) || /^action-rules\/trails\/[a-f\d]{24}\/(enabled|delete)$/i.test(path) || /^action-rules\/runs\/[a-f\d]{24}\/cancel$/i.test(path) || /^reminder-runs\/[a-f\d]{24}\/retry$/i.test(path) || /^reservations\/[a-f\d]{24}\/reminders$/i.test(path) || /^reservations\/[a-f\d]{24}\/reconcile-paid-project$/i.test(path) || /^package-starts\/[a-f\d]{24}\/close$/i.test(path))) || (method === "PUT" && (/^reminder-rules\/[a-f\d]{24}$/i.test(path) || /^action-rules\/[a-f\d]{24}$/i.test(path) || /^action-rules\/trails\/[a-f\d]{24}$/i.test(path) || /^actions\/[AB]\d{2,3}$/.test(path)));
+const allowed = (method: string, path: string) => (method === "GET" && (["status", "final-message", "reservations", "payment-reminders", "business-activity", "reminder-rules", "reminder-work-summary", "reminder-runs", "legacy-reminder-history", "actions", "action-rules", "action-rules/runs", "action-rules/trails", "action-rules/legacy-for-trigger", "action-rules/legacy-summary"].includes(path) || /^reminder-rules\/[a-f\d]{24}\/preview$/i.test(path) || /^reservations\/[a-f\d]{24}\/paid-projects$/i.test(path))) || (method === "POST" && (["switches", "message", "reply", "final-message/time", "final-message/ignored", "final-message/decision", "reminder-rules", "reminder-controls", "action-rules", "action-rules/trails", "action-rules/cleanup", "action-rules/migrate"].includes(path) || /^reminder-rules\/[a-f\d]{24}\/enabled$/i.test(path) || /^action-rules\/[a-f\d]{24}\/(enabled|delete|enroll-pending)$/i.test(path) || /^action-rules\/trails\/[a-f\d]{24}\/(enabled|delete)$/i.test(path) || /^action-rules\/runs\/[a-f\d]{24}\/cancel$/i.test(path) || /^reminder-runs\/[a-f\d]{24}\/retry$/i.test(path) || /^reservations\/[a-f\d]{24}\/reminders$/i.test(path) || /^reservations\/[a-f\d]{24}\/reconcile-paid-project$/i.test(path) || /^package-starts\/[a-f\d]{24}\/close$/i.test(path))) || (method === "PUT" && (/^reminder-rules\/[a-f\d]{24}$/i.test(path) || /^action-rules\/[a-f\d]{24}$/i.test(path) || /^action-rules\/trails\/[a-f\d]{24}$/i.test(path) || /^actions\/[AB]\d{2,3}$/.test(path)));
 async function handle(request: Request, context: Context) {
   try {
     const path = ((await context.params).path || []).join("/");
@@ -28,6 +28,10 @@ async function handle(request: Request, context: Context) {
     if (path === "legacy-reminder-history") {
       const search = new URL(request.url).searchParams;
       for (const name of ["source", "entityId"]) { const value = search.get(name); if (value) params.set(name, value); }
+    }
+    if (path === "action-rules/legacy-for-trigger") {
+      const triggers = new URL(request.url).searchParams.get("triggers");
+      if (triggers) params.set("triggers", triggers);
     }
     const query = params.size ? `?${params}` : "";
     const data = await portalApiRequest("Auto Reply", `/api/auto-reply/${path}${query}`, request.method, { Cookie: `token=${token}` }, body);
