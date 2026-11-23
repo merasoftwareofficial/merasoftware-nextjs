@@ -155,6 +155,35 @@
   border-color: var(--pn-accent);
   color: var(--pn-accent);
 }
+.miniBtn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.miniPrimaryBtn {
+  padding: 5px 12px;
+  border: 1px solid var(--pn-accent);
+  border-radius: 7px;
+  background: var(--pn-accent);
+  color: #fff;
+  font: inherit;
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .12s;
+}
+.miniPrimaryBtn:hover { opacity: .9; }
+.miniPrimaryBtn:disabled { opacity: .5; cursor: not-allowed; }
+.tplSavedTag {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--pn-ok);
+  white-space: nowrap;
+}
+.tplErrText {
+  font-size: var(--fs-meta);
+  color: var(--pn-danger, #b91c1c);
+}
 .miniDangerBtn { color: var(--pn-muted); }
 .miniDangerBtn:hover {
   background: var(--pn-err-bg, #fef2f2);

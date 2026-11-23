@@ -61,6 +61,8 @@ type LegacyPullPayload = {
   adminTemplates: TemplateItem[];
   reminders: Partial<Reminder>[];
   control?: "auto" | "review";
+  adminActionControl?: "auto" | "review" | "off";
+  userActionControl?: "auto" | "review" | "off";
   events: string[];
   templateIds: string[];
   ruleIds: string[];
@@ -76,6 +78,8 @@ type TrailForm = {
   stages: TrailStage[];
   enabled?: boolean;
   control?: "auto" | "review" | "off";
+  adminActionControl?: "auto" | "review" | "off";
+  userActionControl?: "auto" | "review" | "off";
   migratedLegacy?: MigratedLegacyMeta;
 };
 
@@ -299,6 +303,8 @@ function normalizeTrail(raw: unknown): TrailForm {
     stages,
     ...(t.enabled !== undefined ? { enabled: Boolean(t.enabled) } : {}),
     ...(t.control === "auto" || t.control === "review" || t.control === "off" ? { control: t.control } : {}),
+    ...(t.adminActionControl === "auto" || t.adminActionControl === "review" || t.adminActionControl === "off" ? { adminActionControl: t.adminActionControl } : {}),
+    ...(t.userActionControl === "auto" || t.userActionControl === "review" || t.userActionControl === "off" ? { userActionControl: t.userActionControl } : {}),
   };
 }
 
@@ -945,16 +951,39 @@ function TemplateEditorBlock({
   const [selectedId, setSelectedId] = useState<string>(defaultTpl.id);
   const [promptMode, setPromptMode] = useState<"" | "new" | "save_as" | "rename">("");
   const [nameInput, setNameInput] = useState("");
+  const [promptError, setPromptError] = useState("");
+  const [savedNotice, setSavedNotice] = useState("");
+  const [savedSnap, setSavedSnap] = useState<Record<string, { channel: Channel; subject: string; text: string }>>(() =>
+    Object.fromEntries(list.map(t => [t.id, { channel: t.channel, subject: t.subject, text: t.text }])),
+  );
 
   const activeTpl = list.find(t => t.id === selectedId) || defaultTpl;
+  const snap = savedSnap[activeTpl.id] || { channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text };
+  const isDirty = activeTpl.channel !== snap.channel || activeTpl.subject !== snap.subject || activeTpl.text !== snap.text;
+
+  function flashSaved(labelText = "Saved ✓") {
+    setSavedNotice(labelText);
+    window.setTimeout(() => setSavedNotice(curr => (curr === labelText ? "" : curr)), 2000);
+  }
 
   function patchActive(patch: Partial<Pick<TemplateItem, "channel" | "subject" | "text">>) {
+    if (savedNotice) setSavedNotice("");
     const nextList = list.map(t => (t.id === activeTpl.id ? { ...t, ...patch } : t));
     onChange(syncSingleMsg(nextList));
   }
 
+  function saveActive() {
+    if (!isDirty || !activeTpl.text.trim()) return;
+    setSavedSnap(curr => ({
+      ...curr,
+      [activeTpl.id]: { channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text },
+    }));
+    flashSaved("Saved ✓");
+  }
+
   function openPrompt(mode: "new" | "save_as" | "rename") {
     setPromptMode(mode);
+    setPromptError("");
     if (mode === "rename") setNameInput(activeTpl.name);
     else if (mode === "save_as") setNameInput(`${activeTpl.name} copy`);
     else setNameInput(`Template ${list.length + 1}`);
@@ -963,23 +992,44 @@ function TemplateEditorBlock({
   function confirmPrompt() {
     const clean = nameInput.trim();
     if (!clean) return;
+    const duplicate = list.some(t =>
+      (promptMode === "rename" ? t.id !== activeTpl.id : true)
+      && t.name.trim().toLowerCase() === clean.toLowerCase(),
+    );
+    if (duplicate) {
+      setPromptError("A template with this name already exists.");
+      return;
+    }
     if (promptMode === "rename") {
       onChange(syncSingleMsg(list.map(t => (t.id === activeTpl.id ? { ...t, name: clean } : t))));
+      flashSaved("Renamed ✓");
     } else if (promptMode === "save_as") {
       const created = blankTemplate(clean, false, {
         channel: activeTpl.channel,
         subject: activeTpl.subject,
         text: activeTpl.text,
       });
-      onChange(syncSingleMsg([...list, created]));
+      // Keep original template at its last saved snapshot so Save as new never overwrites it.
+      const restored = list.map(t => (t.id === activeTpl.id ? { ...t, ...snap } : t));
+      onChange(syncSingleMsg([...restored, created]));
+      setSavedSnap(curr => ({
+        ...curr,
+        [created.id]: { channel: created.channel, subject: created.subject, text: created.text },
+      }));
       setSelectedId(created.id);
+      flashSaved("Saved as new ✓");
     } else if (promptMode === "new") {
       const created = blankTemplate(clean, false, { channel: activeTpl.channel, subject: "", text: "" });
       onChange(syncSingleMsg([...list, created]));
+      setSavedSnap(curr => ({
+        ...curr,
+        [created.id]: { channel: created.channel, subject: "", text: "" },
+      }));
       setSelectedId(created.id);
     }
     setPromptMode("");
     setNameInput("");
+    setPromptError("");
   }
 
   function setAsDefault() {
@@ -1013,7 +1063,7 @@ function TemplateEditorBlock({
               className={s.compactSelect}
               aria-label={`${label} template`}
               value={activeTpl.id}
-              onChange={e => { setSelectedId(e.target.value); setPromptMode(""); }}
+              onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
             >
               {list.map(t => (
                 <option key={t.id} value={t.id}>
@@ -1023,8 +1073,16 @@ function TemplateEditorBlock({
             </select>
           </div>
           <div className={s.tplActions}>
-            <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
+            <button
+              type="button"
+              className={isDirty && activeTpl.text.trim() ? s.miniPrimaryBtn : s.miniBtn}
+              disabled={!isDirty || !activeTpl.text.trim()}
+              onClick={saveActive}
+            >
+              Save
+            </button>
             <button type="button" className={s.miniBtn} onClick={() => openPrompt("save_as")}>Save as new</button>
+            <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
             {!activeTpl.isDefault && (
               <button type="button" className={s.miniBtn} onClick={setAsDefault}>Set Default</button>
             )}
@@ -1032,6 +1090,7 @@ function TemplateEditorBlock({
             {list.length > 1 && (
               <button type="button" className={s.miniDangerBtn} onClick={deleteActive}>Delete</button>
             )}
+            {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
           </div>
         </div>
 
@@ -1046,16 +1105,17 @@ function TemplateEditorBlock({
               maxLength={80}
               autoFocus
               value={nameInput}
-              onChange={e => setNameInput(e.target.value)}
+              onChange={e => { setNameInput(e.target.value); if (promptError) setPromptError(""); }}
               onKeyDown={e => {
                 if (e.key === "Enter") { e.preventDefault(); confirmPrompt(); }
-                if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); }
+                if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); setPromptError(""); }
               }}
             />
             <button type="button" className={s.miniBtn} disabled={!nameInput.trim()} onClick={confirmPrompt}>Save</button>
-            <button type="button" className={s.miniDangerBtn} onClick={() => setPromptMode("")}>Cancel</button>
+            <button type="button" className={s.miniDangerBtn} onClick={() => { setPromptMode(""); setPromptError(""); }}>Cancel</button>
           </div>
         )}
+        {promptError && <span className={s.tplErrText}>{promptError}</span>}
       </div>
 
       <MessageEditor
@@ -1070,13 +1130,17 @@ function TemplateEditorBlock({
 
 function InstantAutoMsgBlock({
   state,
-  control,
-  onChangeControl,
+  adminActionControl,
+  userActionControl,
+  onChangeAdminControl,
+  onChangeUserControl,
   onChange,
 }: {
   state: InstantBlockState;
-  control?: "auto" | "review" | "off";
-  onChangeControl?: (next: "auto" | "review") => void;
+  adminActionControl?: "auto" | "review" | "off";
+  userActionControl?: "auto" | "review" | "off";
+  onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
+  onChangeUserControl?: (next: "auto" | "review" | "off") => void;
   onChange: (next: InstantBlockState) => void;
 }) {
   const showClient = state.audience === "client" || state.audience === "both";
@@ -1090,17 +1154,6 @@ function InstantAutoMsgBlock({
           <span>Instant auto message</span>
         </div>
         <div className={s.inlineGroup}>
-          {onChangeControl && state.audience !== "off" && (
-            <select
-              className={s.compactSelect}
-              aria-label="Instant message sending mode"
-              value={control === "review" ? "review" : "auto"}
-              onChange={e => onChangeControl(e.target.value === "review" ? "review" : "auto")}
-            >
-              <option value="auto">Auto (send immediately)</option>
-              <option value="review">Review before send (Admin popup)</option>
-            </select>
-          )}
           <select
             className={s.compactSelect}
             aria-label="Instant message audience"
@@ -1114,6 +1167,39 @@ function InstantAutoMsgBlock({
           </select>
         </div>
       </div>
+
+      {onChangeAdminControl && onChangeUserControl && state.audience !== "off" && (
+        <div className={s.tplBar}>
+          <div className={s.tplBarRow}>
+            <div className={s.tplSelectGroup}>
+              <span className={s.miniLabel}>When Admin does it</span>
+              <select
+                className={s.compactSelect}
+                aria-label="When Admin performs this trigger"
+                value={adminActionControl || "auto"}
+                onChange={e => onChangeAdminControl(e.target.value as "auto" | "review" | "off")}
+              >
+                <option value="auto">Auto (send immediately)</option>
+                <option value="review">Review popup</option>
+                <option value="off">Off</option>
+              </select>
+            </div>
+            <div className={s.tplSelectGroup}>
+              <span className={s.miniLabel}>When User/Client does it</span>
+              <select
+                className={s.compactSelect}
+                aria-label="When User or Client performs this trigger"
+                value={userActionControl || "auto"}
+                onChange={e => onChangeUserControl(e.target.value as "auto" | "review" | "off")}
+              >
+                <option value="auto">Auto (send immediately)</option>
+                <option value="review">Hold in Review &amp; delivery</option>
+                <option value="off">Off</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {state.audience === "off" && (
         <span className={s.cardSub}>Instant auto message is off for this stage.</span>
@@ -1556,8 +1642,10 @@ function TrailStageBlock({
   depth,
   showTriggerSelect,
   instant,
-  control,
-  onChangeControl,
+  adminActionControl,
+  userActionControl,
+  onChangeAdminControl,
+  onChangeUserControl,
   reminders,
   folders,
   byKey,
@@ -1571,8 +1659,10 @@ function TrailStageBlock({
   depth: number;
   showTriggerSelect?: boolean;
   instant: InstantBlockState;
-  control?: "auto" | "review" | "off";
-  onChangeControl?: (next: "auto" | "review") => void;
+  adminActionControl?: "auto" | "review" | "off";
+  userActionControl?: "auto" | "review" | "off";
+  onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
+  onChangeUserControl?: (next: "auto" | "review" | "off") => void;
   reminders: Reminder[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
@@ -1613,8 +1703,10 @@ function TrailStageBlock({
       {/* 1. Template (Instant Auto Message) */}
       <InstantAutoMsgBlock
         state={instant}
-        control={control}
-        onChangeControl={onChangeControl}
+        adminActionControl={adminActionControl}
+        userActionControl={userActionControl}
+        onChangeAdminControl={onChangeAdminControl}
+        onChangeUserControl={onChangeUserControl}
         onChange={onChangeInstant}
       />
 
@@ -1727,28 +1819,60 @@ function FormDialog({
     return () => controller.abort();
   }, [triggersCsv]);
 
+  function mergeLegacyTemplates(current: SingleMsg, pulled: TemplateItem[]): SingleMsg {
+    const existing = (current.templates || []).filter(t => t.text.trim().length > 0);
+    const normalizedPulled = normalizeMsg({ templates: pulled }).templates.filter(t => t.text.trim().length > 0);
+    if (existing.length === 0) return normalizeMsg({ templates: normalizedPulled });
+    const seenIds = new Set(existing.map(t => t.id.toLowerCase()));
+    const seenContent = new Set(existing.map(t => `${t.name.trim().toLowerCase()}::${t.text.trim()}`));
+    const extras: TemplateItem[] = [];
+    for (const item of normalizedPulled) {
+      const idKey = item.id.toLowerCase();
+      const contentKey = `${item.name.trim().toLowerCase()}::${item.text.trim()}`;
+      if (seenIds.has(idKey) || seenContent.has(contentKey)) continue;
+      seenIds.add(idKey);
+      seenContent.add(contentKey);
+      extras.push({ ...item, isDefault: false });
+    }
+    return syncSingleMsg([...existing, ...extras].slice(0, 25));
+  }
+
   function applyLegacyPull() {
     if (!legacyData) return;
     const hasClient = (legacyData.clientTemplates?.length || 0) > 0;
     const hasAdmin = (legacyData.adminTemplates?.length || 0) > 0;
+    const hadExistingTemplates =
+      (form.instant.client.templates || []).some(t => t.text.trim().length > 0)
+      || (form.instant.admin.templates || []).some(t => t.text.trim().length > 0);
+
     const nextClient = hasClient
-      ? normalizeMsg({ templates: legacyData.clientTemplates })
+      ? mergeLegacyTemplates(form.instant.client, legacyData.clientTemplates)
       : form.instant.client;
     const nextAdmin = hasAdmin
-      ? normalizeMsg({ templates: legacyData.adminTemplates })
+      ? mergeLegacyTemplates(form.instant.admin, legacyData.adminTemplates)
       : form.instant.admin;
     let nextAudience: InstantAudience = form.instant.audience;
     if (hasClient && hasAdmin) nextAudience = "both";
     else if (hasClient) nextAudience = (nextAudience === "admin" || nextAudience === "both") ? "both" : "client";
     else if (hasAdmin) nextAudience = (nextAudience === "client" || nextAudience === "both") ? "both" : "admin";
 
+    const alreadyPulledRules = new Set(form.migratedLegacy?.ruleIds || []);
+    const incomingRuleIds = Array.isArray(legacyData.ruleIds) ? legacyData.ruleIds : [];
     const pulledReminders = Array.isArray(legacyData.reminders) && legacyData.reminders.length > 0
-      ? legacyData.reminders.map(r => normalizeReminder(r, 0))
+      ? legacyData.reminders
+          .filter((_, idx) => !incomingRuleIds[idx] || !alreadyPulledRules.has(incomingRuleIds[idx]))
+          .map(r => normalizeReminder(r, 0))
       : [];
 
     setForm(curr => ({
       ...curr,
-      control: legacyData.control || curr.control || "auto",
+      control: hadExistingTemplates ? (curr.control || "auto") : (legacyData.control || curr.control || "auto"),
+      adminActionControl: hadExistingTemplates
+        ? (curr.adminActionControl || (curr.control === "review" ? "review" : "auto"))
+        : (legacyData.adminActionControl || legacyData.control || curr.adminActionControl || "auto"),
+      userActionControl: hadExistingTemplates
+        ? (curr.userActionControl || (curr.control === "review" ? "review" : "auto"))
+        : (legacyData.userActionControl || curr.userActionControl || "auto"),
       instant: {
         audience: nextAudience,
         client: nextClient,
@@ -2025,8 +2149,10 @@ function FormDialog({
             stageTriggersLabel={rootTrigLabel}
             depth={0}
             instant={form.instant}
-            control={form.control || "auto"}
-            onChangeControl={control => set({ control })}
+            adminActionControl={form.adminActionControl || (form.control === "review" ? "review" : "auto")}
+            userActionControl={form.userActionControl || (form.control === "review" ? "review" : "auto")}
+            onChangeAdminControl={adminActionControl => set({ adminActionControl })}
+            onChangeUserControl={userActionControl => set({ userActionControl })}
             reminders={form.reminders}
             folders={folders}
             byKey={byKey}
@@ -2599,7 +2725,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
                   <div className={s.listTitleRow}>
                     <strong>{title}</strong>
                     {hasScope && scopeLabel && <span className={s.badge}>{scopeLabel}</span>}
-                    {trail.control === "review" && <span className={s.reviewBadge}>Review</span>}
+                    {(trail.control === "review" || trail.adminActionControl === "review" || trail.userActionControl === "review") && <span className={s.reviewBadge}>Review</span>}
                     <span className={s.liveTag} data-live={isOn}>
                       <span className={s.liveDot} aria-hidden="true" />
                       {isOn ? "Active" : "Paused"}
