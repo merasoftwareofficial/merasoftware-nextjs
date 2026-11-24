@@ -2,6 +2,7 @@
 
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { PhoneField, type PhoneCountry } from "@/components/phone-field";
+import { notifySessionChanged } from "@/components/session-menu";
 import { useState } from "react";
 
 const INDIA: PhoneCountry[] = [{ code: "+91", label: "India", digits: 10 }];
@@ -66,6 +67,7 @@ export function LoginForm({ next, portalApiUrl, portalUrl, countries = INDIA }: 
         }
         const signedIn = await callPortal("signin", { email: email.trim(), password });
         if (!signedIn.success) throw new Error(signedIn.message || "Sign in failed.");
+        notifySessionChanged();
         goOn(signedIn);
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : "Could not reach the sign-in service. Try again.");

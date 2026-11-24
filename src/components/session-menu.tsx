@@ -10,7 +10,24 @@ type PortalEntry = { label: string; href: string };
 type SessionState = { user: SessionUser | null; portal: PortalEntry | null };
 
 const SESSION_CACHE_KEY = "ms_header_session_v1";
+const SESSION_CHANGED_EVENT = "ms:session-changed";
 const SESSION_CACHE_TTL_MS = 5 * 60_000;
+
+/** Clears cached header session and notifies mounted SessionMenu instances to re-check `/api/auth`. */
+export function notifySessionChanged() {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.removeItem(SESSION_CACHE_KEY); } catch { /* ignore storage errors */ }
+  window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+}
+
+function cameFromExternalOrigin(): boolean {
+  if (typeof document === "undefined" || !document.referrer) return false;
+  try {
+    return new URL(document.referrer).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
 
 export function SessionMenu({
   user: initialUser = null,
@@ -33,30 +50,47 @@ export function SessionMenu({
 
   useEffect(() => {
     if (initialUser) return;
-    try {
-      const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SessionState & { expiresAt?: number };
-        if (parsed.expiresAt && parsed.expiresAt > Date.now()) {
-          setSession({ user: parsed.user ?? null, portal: parsed.portal ?? null });
-          return;
-        }
-      }
-    } catch { /* ignore storage errors */ }
+    let activeController: AbortController | null = null;
 
-    const controller = new AbortController();
-    fetch("/api/auth", { cache: "no-store", signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: SessionState | null) => {
-        if (!data || controller.signal.aborted) return;
-        const next = { user: data.user ?? null, portal: data.portal ?? null };
-        setSession(next);
+    const loadSession = (forceFresh: boolean) => {
+      if (!forceFresh) {
         try {
-          sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ...next, expiresAt: Date.now() + SESSION_CACHE_TTL_MS }));
+          const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as SessionState & { expiresAt?: number };
+            const staleGuestFromExternal = !parsed.user && cameFromExternalOrigin();
+            if (!staleGuestFromExternal && parsed.expiresAt && parsed.expiresAt > Date.now()) {
+              setSession({ user: parsed.user ?? null, portal: parsed.portal ?? null });
+              return;
+            }
+          }
         } catch { /* ignore storage errors */ }
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
+      }
+
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+      fetch("/api/auth", { cache: "no-store", signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: SessionState | null) => {
+          if (!data || controller.signal.aborted) return;
+          const next = { user: data.user ?? null, portal: data.portal ?? null };
+          setSession(next);
+          try {
+            sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ...next, expiresAt: Date.now() + SESSION_CACHE_TTL_MS }));
+          } catch { /* ignore storage errors */ }
+        })
+        .catch(() => undefined);
+    };
+
+    const onSessionChanged = () => loadSession(true);
+    window.addEventListener(SESSION_CHANGED_EVENT, onSessionChanged);
+    loadSession(false);
+
+    return () => {
+      window.removeEventListener(SESSION_CHANGED_EVENT, onSessionChanged);
+      activeController?.abort();
+    };
   }, [initialUser]);
 
   const { user, portal } = session;
@@ -73,7 +107,7 @@ export function SessionMenu({
     track(async () => {
       // The portal owns the shared cookie, so signing out here signs out of the portal too.
       await fetch(`${portalApiUrl}/api/userLogout`, { credentials: "include" });
-      try { sessionStorage.removeItem(SESSION_CACHE_KEY); } catch { /* ignore */ }
+      notifySessionChanged();
       setSession({ user: null, portal: null });
       setOpen(false);
       router.push("/");

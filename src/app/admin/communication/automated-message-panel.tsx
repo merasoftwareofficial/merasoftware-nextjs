@@ -2755,6 +2755,11 @@ function FormDialog({
       return;
     }
 
+    // If user cleared all triggers in a fresh new form, re-enable auto-load for the next trigger they pick.
+    if (!form._id && nextTriggers.length === 0 && skipAutoLoad) {
+      setSkipAutoLoad(false);
+    }
+
     // Auto-get existing saved trail when creating a new trail on an untouched form and 1 exact match exists.
     if (!form._id && !skipAutoLoad && nextTriggers.length > 0 && isFormBlank(form)) {
       const exactMatches = existingTrails.filter(t => Boolean(t._id) && sameSorted(t.triggers, nextTriggers));
