@@ -90,12 +90,22 @@ export function ContactForm({ countries }: { countries: PhoneCountry[] }) {
           </label>
         </div>
 
-        <label className={s.field}>
+        <div className={s.field}>
           <span>What do you need?</span>
-          <select className={s.control} value={project} onChange={e => setProject(e.target.value)}>
-            {PROJECT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        </label>
+          <div className={s.topicPills} role="group" aria-label="What do you need?">
+            {PROJECT_OPTIONS.map(opt => (
+              <button
+                key={opt}
+                type="button"
+                className={s.topicChip}
+                aria-pressed={project === opt}
+                onClick={() => setProject(opt)}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <PhoneField className={s.field} countries={countries} value={phone} onChange={setPhone} />
 

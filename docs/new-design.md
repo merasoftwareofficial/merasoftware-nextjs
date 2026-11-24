@@ -172,3 +172,22 @@ An initial CSS pass was applied to `src/components/plans/plans.module.css` and `
    - Match `.range` to `.pkgAmount` (`34px` bold `--brand-teal` with hairline divider) and style `.benefit` cleanly.
 3. **Verify:** `npx eslint src/app/plans/page.tsx src/components/plans/plan-card.tsx && npm run test:public-typography && node --import tsx --test tests/public-plans.test.ts && npm run build`.
 4. After `/plans`, proceed to `/plans/[plan]` (PlanBuilder), `/package/[id]`, `/offers`, `/about`, `/work`, `/contact`, `/blog`, `/community`, and Auth/Account pages.
+
+---
+
+## 7. Interactive Hover, Dropdown & Surface Alternation SSOT
+
+To prevent visual inconsistencies across public pages, always reuse these exact verified patterns:
+
+1. **Surface Alternation (`#ffffff` vs `#f4f8fc`):**
+   - Adjacent sections must strictly alternate between `var(--brand-white)` (`#ffffff`) and `var(--brand-paper)` (`#f4f8fc`, `.section-soft`).
+   - `.business-location` defaults to `--brand-paper` (for Homepage after white `.contact`), and switches to `--brand-white` when preceded by `.section-soft` (`.section-soft + .business-location` on `/contact`).
+   - Cards on `--brand-paper` (`.section-soft`) use `background: var(--brand-white)` so they lift off the soft background.
+
+2. **Interactive Accordions & List Rows (`.service`, `.faq-list details`, `.discussion-row`):**
+   - Resting: `border: 1px solid var(--brand-line)`, `border-radius: var(--r-md)` (`16px`), `background: var(--brand-white)` (on soft sections), `box-shadow: 0 2px 6px rgb(0 36 61 / .03)`.
+   - Left cyan accent bar (`::before`): `width: 3.5px; top: 14px; bottom: 14px; background: var(--brand-cyan); transform: scaleY(0)` → `scaleY(1)` on `:hover` and `[open]`.
+   - Hover / Open: `border-color: var(--brand-teal)`, `transform: translateY(-2px)` on hover, `box-shadow: var(--shadow-md)`, title shifts to `var(--brand-link)`, and circular `+` / `↗` icon fills `--brand-navy` with `--brand-cyan-light`.
+
+3. **Filter & Sort Dropdowns (`src/components/campaign/sort-menu.tsx`):**
+   - Never use native `<select>` for public listing filters/sorts. Always use the shared `SortMenu` capsule dropdown (hover on mouse + click/tap on touch, `▾` chevron rotation, `--r-md` floating panel) paired with `.pkgFilterRow` segmented pill chips for category filters.
