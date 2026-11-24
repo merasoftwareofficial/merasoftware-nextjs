@@ -212,7 +212,9 @@ function normalizeSteps(raw: unknown): MessageStep[] {
       amount: typeof st.amount === "number" && Number.isFinite(st.amount) ? Math.max(0, st.amount) : 3,
       unit: st.unit === "hours" ? "hours" : "days",
       pos: st.pos === "on" || st.pos === "after" ? st.pos : "before",
-      ...normalizeMsg(st),
+      channel: st.channel === "email" || st.channel === "both" ? st.channel : "whatsapp",
+      subject: typeof st.subject === "string" ? st.subject : "",
+      text: typeof st.text === "string" ? st.text : "",
     };
   });
 }
@@ -860,7 +862,8 @@ function cleanSingleReminder(
   }
 
   const maxSteps = Math.max(showClient ? clientSteps.length : 0, showAdmin ? adminSteps.length : 0);
-  if ((rem.repeatMode === "permanent" || rem.repeatMode === "limited" || maxSteps > 1) && rem.stopOn.length === 0) {
+  const cleanStopOn = rem.stopOn.filter(k => !effTriggers.includes(k));
+  if ((rem.repeatMode === "permanent" || rem.repeatMode === "limited" || maxSteps > 1) && cleanStopOn.length === 0) {
     return { error: `Add at least one Stop Trigger for ${stageLabel} Reminder (${label}).` };
   }
 
@@ -868,7 +871,7 @@ function cleanSingleReminder(
     reminder: {
       ...rem,
       condition,
-      stopOn: rem.stopOn.filter(k => !effTriggers.includes(k)),
+      stopOn: cleanStopOn,
       clientSteps,
       adminSteps,
       stopChains: {},
@@ -1502,9 +1505,8 @@ function TemplateEditorBlock({
 
   const activeTpl = list.find(t => t.id === selectedId) || defaultTpl;
   const snap = savedSnap[activeTpl.id] || { channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text };
-  const isDirty = activeTpl.channel !== snap.channel || activeTpl.subject !== snap.subject || activeTpl.text !== snap.text;
 
-  function flashSaved(labelText = "Saved ✓") {
+  function flashSaved(labelText = "Updated ✓") {
     setSavedNotice(labelText);
     window.setTimeout(() => setSavedNotice(curr => (curr === labelText ? "" : curr)), 2000);
   }
@@ -1513,15 +1515,6 @@ function TemplateEditorBlock({
     if (savedNotice) setSavedNotice("");
     const nextList = list.map(t => (t.id === activeTpl.id ? { ...t, ...patch } : t));
     onChange(syncSingleMsg(nextList));
-  }
-
-  function saveActive() {
-    if (!isDirty || !activeTpl.text.trim()) return;
-    setSavedSnap(curr => ({
-      ...curr,
-      [activeTpl.id]: { channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text },
-    }));
-    flashSaved("Saved ✓");
   }
 
   function openPrompt(mode: "new" | "save_as" | "rename") {
@@ -1560,7 +1553,7 @@ function TemplateEditorBlock({
         [created.id]: { channel: created.channel, subject: created.subject, text: created.text },
       }));
       setSelectedId(created.id);
-      flashSaved("Saved as new ✓");
+      flashSaved("Added to form ✓");
     } else if (promptMode === "new") {
       const created = blankTemplate(clean, false, { channel: activeTpl.channel, subject: "", text: "" });
       onChange(syncSingleMsg([...list, created]));
@@ -1612,14 +1605,6 @@ function TemplateEditorBlock({
           </select>
         </div>
         <div className={s.tplActions}>
-          <button
-            type="button"
-            className={isDirty && activeTpl.text.trim() ? s.miniPrimaryBtn : s.miniBtn}
-            disabled={!isDirty || !activeTpl.text.trim()}
-            onClick={saveActive}
-          >
-            Save
-          </button>
           <button type="button" className={s.miniBtn} onClick={() => openPrompt("save_as")}>Save as new</button>
           <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
           {!activeTpl.isDefault && (
@@ -2117,7 +2102,21 @@ function ReminderCard({
             className={s.select}
             aria-label="Reminder audience"
             value={reminder.audience}
-            onChange={e => set({ audience: e.target.value as ReminderAudience })}
+            onChange={e => {
+              const nextAud = e.target.value as ReminderAudience;
+              set({ audience: nextAud });
+              if (accordion) {
+                if (nextAud === "admin") {
+                  accordion.openOnly(`${stagePrefix}-r${reminder.id}-admin-${reminder.adminMode === "universal" ? "u" : "0"}`);
+                } else if (nextAud === "client") {
+                  accordion.openOnly(`${stagePrefix}-r${reminder.id}-client-${reminder.clientMode === "universal" ? "u" : "0"}`);
+                } else if (nextAud === "both" && reminder.audience === "client") {
+                  accordion.openOnly(`${stagePrefix}-r${reminder.id}-admin-${reminder.adminMode === "universal" ? "u" : "0"}`);
+                } else if (nextAud === "both" && reminder.audience === "admin") {
+                  accordion.openOnly(`${stagePrefix}-r${reminder.id}-client-${reminder.clientMode === "universal" ? "u" : "0"}`);
+                }
+              }
+            }}
           >
             <option value="client">Client only</option>
             <option value="admin">Admin / Team only</option>
@@ -2529,6 +2528,9 @@ function FormDialog({
   const [legacyData, setLegacyData] = useState<LegacyPullPayload | null>(null);
   const [legacyPulled, setLegacyPulled] = useState(false);
   const [pullSeq, setPullSeq] = useState(0);
+  const [autoLoadedFromTrigger, setAutoLoadedFromTrigger] = useState(false);
+  const [autoLoadedDirty, setAutoLoadedDirty] = useState(false);
+  const [skipAutoLoad, setSkipAutoLoad] = useState(false);
 
   const rootTrigLabelRef = useRef("");
   const accordion = useMemo<AccordionCtrl>(() => ({
@@ -2565,6 +2567,22 @@ function FormDialog({
   }
   const set = (patch: Partial<TrailForm>) => {
     if (localError) setLocalError("");
+    if (
+      autoLoadedFromTrigger
+      && !autoLoadedDirty
+      && (
+        "instant" in patch
+        || "reminders" in patch
+        || "stages" in patch
+        || "scope" in patch
+        || "selectedPackages" in patch
+        || "control" in patch
+        || "adminActionControl" in patch
+        || "userActionControl" in patch
+      )
+    ) {
+      setAutoLoadedDirty(true);
+    }
     setForm(curr => ({ ...curr, ...patch }));
   };
 
@@ -2695,7 +2713,57 @@ function FormDialog({
     packages.map(p => ({ key: p.slug, label: p.name, group: "Packages & Plans" }))
   ), [packages]);
 
+  function isFormBlank(f: TrailForm): boolean {
+    return !hasInstantContent(f.instant) && f.reminders.length === 0 && f.stages.length === 0 && !f.migratedLegacy;
+  }
+
+  function loadExistingIntoForm(trail: TrailForm, fromAuto: boolean) {
+    setLocalError("");
+    setLegacyPulled(false);
+    setForm(trail);
+    setAutoLoadedFromTrigger(fromAuto);
+    setAutoLoadedDirty(false);
+    setPullSeq(v => v + 1);
+    const first = defaultOpenBoxId(trail, { mode: "full" });
+    if (first) accordion.openOnly(first);
+  }
+
   function changeRootTriggers(nextTriggers: string[]) {
+    // If an existing trail was just auto-loaded and the user has not edited it yet,
+    // clearing or switching triggers resets cleanly instead of mutating the loaded trail's triggers.
+    if (autoLoadedFromTrigger && !autoLoadedDirty) {
+      if (nextTriggers.length === 0) {
+        setLocalError("");
+        setLegacyPulled(false);
+        setAutoLoadedFromTrigger(false);
+        setForm(emptyForm());
+        setPullSeq(v => v + 1);
+        accordion.openOnly("s0-tpl-client");
+        return;
+      }
+      const exactMatches = existingTrails.filter(t => Boolean(t._id) && sameSorted(t.triggers, nextTriggers));
+      if (exactMatches.length === 1) {
+        loadExistingIntoForm(exactMatches[0], true);
+        return;
+      }
+      setLocalError("");
+      setLegacyPulled(false);
+      setAutoLoadedFromTrigger(false);
+      setForm({ ...emptyForm(), triggers: nextTriggers });
+      setPullSeq(v => v + 1);
+      accordion.openOnly("s0-tpl-client");
+      return;
+    }
+
+    // Auto-get existing saved trail when creating a new trail on an untouched form and 1 exact match exists.
+    if (!form._id && !skipAutoLoad && nextTriggers.length > 0 && isFormBlank(form)) {
+      const exactMatches = existingTrails.filter(t => Boolean(t._id) && sameSorted(t.triggers, nextTriggers));
+      if (exactMatches.length === 1) {
+        loadExistingIntoForm(exactMatches[0], true);
+        return;
+      }
+    }
+
     const nextAllowed = allowedConditionIds(nextTriggers.map(k => byKey.get(k)));
     const nextReminders = form.reminders.map(rem => (
       rem.startTrigger === "__main__"
@@ -3078,6 +3146,32 @@ function FormDialog({
             </div>
           )}
 
+          {autoLoadedFromTrigger && (
+            <div className={s.legacyBanner} data-pulled={true} role="status">
+              <div className={s.noticeText}>
+                <strong>Existing trail loaded for this trigger</strong>
+                <span>You are editing the saved trail (templates, reminders &amp; settings loaded as-is).</span>
+              </div>
+              <button
+                type="button"
+                className={s.ghostBtn}
+                onClick={() => {
+                  const keepTriggers = [...form.triggers];
+                  setLocalError("");
+                  setLegacyPulled(false);
+                  setAutoLoadedFromTrigger(false);
+                  setAutoLoadedDirty(false);
+                  setSkipAutoLoad(true);
+                  setForm({ ...emptyForm(), triggers: keepTriggers });
+                  setPullSeq(v => v + 1);
+                  accordion.openOnly("s0-tpl-client");
+                }}
+              >
+                Create separate instead
+              </button>
+            </div>
+          )}
+
           {relatedTrails.length > 0 && (
             <div className={s.relatedBox} role="status">
               <div className={s.relatedHead}>
@@ -3111,14 +3205,7 @@ function FormDialog({
                       <button
                         type="button"
                         className={match.isExactMatch ? s.primaryBtn : s.ghostBtn}
-                        onClick={() => {
-                          setLocalError("");
-                          setLegacyPulled(false);
-                          setForm(match.trail);
-                          setPullSeq(v => v + 1);
-                          const first = defaultOpenBoxId(match.trail, { mode: "full" });
-                          if (first) accordion.openOnly(first);
-                        }}
+                        onClick={() => loadExistingIntoForm(match.trail, false)}
                       >
                         Load &amp; Edit here
                       </button>
@@ -3190,6 +3277,7 @@ function FormDialog({
                 </div>
 
                 <TrailStageBlock
+                  key={`st-${stage.id}-${form._id || "new"}-${pullSeq}`}
                   stagePrefix={`st${stage.id}`}
                   accordion={accordion}
                   stageTriggers={stage.triggers}
