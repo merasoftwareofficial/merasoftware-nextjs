@@ -14,11 +14,17 @@ export function PlanCard({ plan, categoryLabel }: { plan: PublicPlan; categoryLa
   return (
     <article className={s.card}>
       <p className={s.fine}>{categoryLabel}</p>
-      <h3>{plan.serviceName}</h3>
+      <h3>
+        <Link className={s.cardLink} href={planPagePath(plan)}>
+          {plan.serviceName}
+        </Link>
+      </h3>
       {description && <p className={s.description}>{description}</p>}
       <div className={s.range}>{rangeLabel(plan.priceRange) || "See the price for your choice"}</div>
       {benefit && <p className={s.benefit}>{benefit}</p>}
-      <Link className={s.button} href={planPagePath(plan)}>{plan.pricingMode === "flexible" ? "Customize & see price" : "See plan & price"} →</Link>
+      <span className={s.button} aria-hidden="true">
+        {plan.pricingMode === "flexible" ? "Customize & see price" : "See plan & price"} →
+      </span>
     </article>
   );
 }

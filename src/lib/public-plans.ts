@@ -11,8 +11,8 @@ import { z } from "zod";
 import { slugify } from "@/lib/slug";
 
 export const PLANS_PAGE_PATH = "/plans";
-export const PLANS_PAGE_TITLE = "Plans";
-export const PLANS_PAGE_INTRO = "Ongoing website and business work on a plan: choose how many updates you need and for how long. You buy and manage a plan in your client portal.";
+export const PLANS_PAGE_TITLE = "Service Plans";
+export const PLANS_PAGE_INTRO = "Ongoing website and service plans: choose the updates, features, and duration you need. You buy and manage a plan in your client portal.";
 
 export type PriceRange = { unit: "update" | "month" | "one_time"; from: number; to: number };
 export type BillingCycle = "monthly" | "quarterly" | "half_yearly" | "yearly";

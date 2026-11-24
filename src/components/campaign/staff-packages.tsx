@@ -4,6 +4,7 @@ import { useServerTime } from "@/components/use-server-time";
 import { arrangePackages, categoryFilterChoices, DEFAULT_PACKAGE_LIST, publicEntry, typeFilterChoices, usableOptions, type PackageListOptions, type PackageSort } from "@/lib/package-list";
 import { type ProjectCategory, type QuotedPackage } from "@/lib/sales-packages";
 import { PackageCard, packageOfferRunning, timeLeft } from "./package-card";
+import { SortMenu } from "./sort-menu";
 import s from "./campaign.module.css";
 
 const SORTS: { value: PackageSort; label: string }[] = [
@@ -54,7 +55,7 @@ export function StaffPackages({ title, intro, items, categories }: { title: stri
     {items.length > 0 && <div className={s.pkgFilters}>
       {types.length > 1 && <FilterRow label="Type" choices={[{ value: "all", label: "All", count: items.length }, ...types]} selected={options.type} onPick={value => change({ type: value as PackageListOptions["type"] })} />}
       {cats.length > 1 && <FilterRow label="Category" choices={[{ value: "all", label: "All", count: items.length }, ...cats]} selected={options.category} onPick={value => change({ category: value })} />}
-      {items.length > 1 && <label className={s.pkgSort}><span>Sort by</span><select value={options.sort} onChange={event => change({ sort: event.target.value as PackageSort })}>{SORTS.map(sort => <option key={sort.value} value={sort.value}>{sort.label}</option>)}</select></label>}
+      {items.length > 1 && <SortMenu options={SORTS} value={options.sort} onChange={sort => change({ sort })} />}
     </div>}
     {items.length > 0 && !shown.length && <div className={s.pkgFilterEmpty}><p>No packages match this filter.</p><button type="button" className={s.pkgChip} onClick={() => setChosen(DEFAULT_PACKAGE_LIST)}>Show all packages</button></div>}
     <div className={s.pkgGrid}>{shown.map(item => <PackageCard key={item.id} item={item} now={now} />)}</div>

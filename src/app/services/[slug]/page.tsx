@@ -27,15 +27,15 @@ export default async function ServiceDetail({ params }: { params: Promise<{ slug
     </div><SectionVisual data={visuals[heroSlot]} label={`${service.title} illustration`} /></div></section>
     <section className="content-section section-soft"><div className="container">
       <div className="section-top"><p className="eyebrow"><i /> HOW WE CAN HELP</p><p className="side-note">A focused service, planned around your business priorities.</p></div>
-      <div className="visual-feature"><div><div className="service-list" style={{ marginTop: 48 }}>
-        {service.points.map((point, index) => <div className="service" key={point}><span className="service-number">0{index + 1}</span><h2 style={{ fontSize: 23, margin: 0 }}>{point}</h2><span className="service-arrow" aria-hidden="true">+</span></div>)}
+      <div className="visual-feature"><div><div className="service-list service-detail-list">
+        {service.points.map((point, index) => <div className="service" key={point}><span className="service-number">0{index + 1}</span><h2>{point}</h2><span className="service-arrow" aria-hidden="true">+</span></div>)}
       </div></div><SectionVisual data={visuals[includedSlot]} label="Service options illustration" /></div>
     </div></section>
     <section className="content-section"><div className="container">
-      <div className="result-grid" style={{ marginTop: 0 }}>
-        <article><span>01</span><h2 style={{ fontSize: 26 }}>Who this is for</h2><p>{service.audience}</p></article>
-        <article><span>02</span><h2 style={{ fontSize: 26 }}>What we need from you</h2><p>{service.preparation}</p></article>
-        <article><span>03</span><h2 style={{ fontSize: 26 }}>What we take care of</h2><p>{service.support}</p></article>
+      <div className="result-grid">
+        <article><span>01</span><h2>Who this is for</h2><p>{service.audience}</p></article>
+        <article><span>02</span><h2>What we need from you</h2><p>{service.preparation}</p></article>
+        <article><span>03</span><h2>What we take care of</h2><p>{service.support}</p></article>
       </div>
       <div className="hero-actions" style={{ flexWrap: "wrap" }}><Link className="button button-dark" href="/contact">Discuss your requirements <span aria-hidden="true">→</span></Link><Link className="text-link" href={packagesLink}>Explore packages <span aria-hidden="true">↗</span></Link></div>
     </div></section>
