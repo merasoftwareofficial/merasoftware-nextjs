@@ -816,12 +816,13 @@ html{scroll-padding-top:var(--header-height,0px)}
 .visual-callout h3{font-size:var(--pub-card-title)}
 .visual-callout p{font-size:var(--pub-body)}
 
-.marquee{position:relative;overflow:hidden;background:var(--brand-navy);color:var(--brand-paper);border-top:1px solid rgb(102 228 238 / .16);border-bottom:1px solid rgb(102 228 238 / .16);padding:16px 0;font-family:var(--font-mono);font-size:var(--pub-tag);letter-spacing:.14em;font-weight:600}
+.marquee{position:relative;overflow:hidden;background:var(--brand-navy);color:var(--brand-paper);border-top:1px solid rgb(102 228 238 / .16);border-bottom:1px solid rgb(102 228 238 / .16);padding:16px 0;font-family:var(--font-mono);font-size:0.875em;letter-spacing:.14em;font-weight:600}
 .marquee::before,.marquee::after{content:"";position:absolute;top:0;bottom:0;width:clamp(28px,7vw,96px);z-index:2;pointer-events:none}
 .marquee::before{left:0;background:linear-gradient(90deg,var(--brand-navy),transparent)}
 .marquee::after{right:0;background:linear-gradient(270deg,var(--brand-navy),transparent)}
 .marquee:hover .marquee-track{animation-play-state:paused}
-.marquee b{color:var(--brand-cyan-light);margin:0 24px;font-size:.9em}
+.marquee b{color:var(--brand-cyan-light);margin:0 32px;font-size:1em}
+.marquee-round{display:inline-block;padding-right:clamp(260px,70vw,960px)}
 
 /* 3. SECTION HEADINGS & SERVICES ("WHAT WE DO") */
 .section{padding:clamp(72px,8vw,112px) 0}
@@ -1018,3 +1019,9 @@ html{scroll-padding-top:var(--header-height,0px)}
 .faq-list details:hover summary::after,.faq-list details[open] summary::after{background:var(--brand-navy);border-color:var(--brand-navy);color:var(--brand-cyan-light)}
 .faq-list details[open] summary::after{transform:rotate(45deg)}
 .faq-list p{padding:0 22px 20px;margin:0;max-width:none;font-size:var(--pub-body);line-height:1.65;color:var(--muted)}
+
+/* 12. BRAND LOGO INTERACTION SSOT (Public Header/Footer + Admin Panel; matches Portal BrandLogo.js) */
+.brand-logo,.admin-nav .admin-brand{transition:opacity .18s ease,transform .09s ease}
+.brand-logo:hover,.admin-nav .admin-brand:hover{opacity:.82;background:transparent}
+.brand-logo:active,.admin-nav .admin-brand:active{transform:scale(.95);opacity:.76}
+@media(prefers-reduced-motion:reduce){.brand-logo,.admin-nav .admin-brand{transition:none}.brand-logo:active,.admin-nav .admin-brand:active{transform:none}}

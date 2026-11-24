@@ -62,7 +62,7 @@ export default async function Home() {
         </div>
         {/* Two identical copies slide by exactly one copy's width, so the strip loops with no jump; the second is hidden from screen readers.
             Each copy holds the items MARQUEE_REPEAT times so it is wider than a large screen, and the time grows with it so the speed stays the same. */}
-        <div className="marquee"><div className="marquee-track" style={{ animationDuration: `${26 * MARQUEE_REPEAT}s` }}>{[false, true].map(copy => <div key={String(copy)} aria-hidden={copy || undefined}>{Array.from({ length: MARQUEE_REPEAT }, (_, round) => content.marquee.map((item, index) => <span key={`${round}-${index}`}>{item} <b>✦</b> </span>))}</div>)}</div></div>
+        <div className="marquee"><div className="marquee-track" style={{ animationDuration: `${26 * MARQUEE_REPEAT}s` }}>{[false, true].map(copy => <div key={String(copy)} aria-hidden={copy || undefined}>{Array.from({ length: MARQUEE_REPEAT }, (_, round) => <span className="marquee-round" key={round}>{content.marquee.map((item, index) => <span key={index}><b>✦</b>{item}</span>)}</span>)}</div>)}</div></div>
       </section>
 
       <section className="section section-soft"><div className="container">

@@ -161,17 +161,25 @@ These exact constraints were verified against `tests/` and core components and *
 - **Phase 3a — Packages Pages (`/packages/one-time-packages`, `/packages/monthly-packages`, `/packages/[slug]`):**
   - `src/components/campaign/staff-packages.tsx` (replaced native `<select>` with header-consistent `SortMenu` capsule dropdown opening on hover or click/tap)
   - `src/components/campaign/campaign.module.css` (centered compact `.pkgHero`, Option 3 Apple/Linear segmented pill track with `.pkgFilterLabel` hidden, capsule `SortMenu` panel, modern `24px`-radius `.pkgCard` with `✓` checkmarks, price divider, pill CTA)
-- **Backups:** `work104` through `work114` saved under `E:\Allprojects\backup\merasoftware\`. **Next available backup folder: `work115`**.
+- **Phase 3b — Service Plans (`/plans`):**
+  - `src/lib/public-plans.ts` (`PLANS_PAGE_TITLE = "Service Plans"`, updated `PLANS_PAGE_INTRO` SSOT)
+  - `src/components/campaign/sort-menu.tsx` (extracted shared `SortMenu` capsule dropdown with `label` & `ariaLabel` props, reused by `StaffPackages`, `PlansCatalogue`, and `PortfolioFilters`)
+  - `src/app/plans/page.tsx`, `src/components/plans/plans-catalogue.tsx`, `src/components/plans/plan-card.tsx`, `src/components/plans/plans.module.css` (removed `← Back to home` & `4 plans` pill; unified `.pkgGrid` with `.pkgFilterRow` category chips + `SortMenu`; `PackageCard` parity with `2-line` clamps, `34px` teal `.range`, whole-card clickable `.cardLink::after`, builder `.button` rules untouched)
+- **Phase 4 — Community Pages (`/blog`, `/blog/[slug]`, `/community`, `/community/write`, `/topics/[slug]`, `/discussions`, `/members/[username]`):**
+  - `src/app/globals.css` (Section 10: modern pill `.search-box`, `.popular-week` `--r-lg` card + `Geist_Mono` rank badges, `.discussion-row` cards, `--r-pill` `.article-tags` & `.reaction-button`, `.article-toc`, `.subscribe-box`, `.comments`, `.community-editor` with `--pub-*` tokens; `<PageHero>` frameless media & `.reader` untouched)
+- **Phase 5 — About, Our Work & Contact (`/about`, `/work`, `/work/[slug]`, `/contact`):**
+  - `src/app/about/about.module.css` (`--pub-*` tokens, `var(--font-editorial)` `em`, pill `.eyebrow`, ambient hero glow, `.leadership`/`.project` cards, rounded `.cta` spotlight card, frameless media & `data-custom-frame` geometry intact)
+  - `src/app/work/page.tsx`, `src/components/portfolio-filters.tsx`, `src/app/portfolio.css` (exact `/packages/[slug]` parity: `.pkgHero`, `.pkgFilterRow` category chips + `Work type:` `SortMenu` with instant `useNavigate()`, `grid-auto-rows: 1fr`, `3-line` description clamp, `1.5em` card titles, `--pub-body` services, modernized `/work/[slug]` story/gallery/reactions)
+  - `src/app/contact/page.tsx`, `src/components/contact-form.tsx`, `src/components/contact-form.module.css`, `src/app/globals.css` (Section 11: `.section-soft + .business-location` alternating surface, `.service`-matching `.faq-list` accordions with left cyan `::before` bar, 1-tap pill chips replacing native `<select>` for `"What do you need?"`, `--pub-tag` hero trust badges)
+- **Cross-App SSOT Polish (Homepage Marquee & Brand Logo):**
+  - `src/app/page.tsx`, `src/app/globals.css` (`.marquee` `0.875em` / `14px`, `<b>✦</b>{item}` leading star per item, `32px` star margin, `.marquee-round` `padding-right: clamp(260px, 70vw, 960px)` cycle-end gap)
+  - `src/app/globals.css` (Section 12) + `E:\Allprojects\frontend\src\components\BrandLogo.js` + `E:\Allprojects\frontend\src\index.css` (clean minimal logo `:hover { opacity: .82 }` + `:active { transform: scale(.95); opacity: .76 }`)
+- **Backups:** `work104` through `work123` saved under `E:\Allprojects\backup\merasoftware\` (and `work122` under `E:\Allprojects\backup\frontend\`). **Next available backup folder: `work124`**.
 
-### Immediate Next Task for New Chat (Phase 3b — `/plans` & `/plans/[plan]`)
-An initial CSS pass was applied to `src/components/plans/plans.module.css` and `.showcaseHero` in `campaign.module.css`, **but the owner noted `/plans` still lacks full parity with `/packages/one-time-packages`**. Before editing, take `work115` backup of `src/app/plans/page.tsx`, `src/components/plans/plan-card.tsx`, and `src/components/plans/plans.module.css`, then:
-1. **`src/app/plans/page.tsx`:** Remove the leftover `← Back to home` link (line 36) and the standalone `4 plans` pill (`<div className={c.pills}>...</div>`, line 41) so the hero matches `/packages/[slug]`.
-2. **`src/components/plans/plan-card.tsx` & `src/components/plans/plans.module.css`:**
-   - Match `PackageCard` visual rhythm: `grid-auto-rows: 1fr` on `.grid`, equal-height `h3` (`2-line` clamp + `min-height: 2.5em`) and `.description` (`2-line` clamp + `min-height: 3.1em`) so price & CTA align horizontally across every row.
-   - Make the whole card clickable (`::after { inset: 0 }` on `.button` link + `.card:has(a:focus-visible)` focus ring).
-   - Match `.range` to `.pkgAmount` (`34px` bold `--brand-teal` with hairline divider) and style `.benefit` cleanly.
-3. **Verify:** `npx eslint src/app/plans/page.tsx src/components/plans/plan-card.tsx && npm run test:public-typography && node --import tsx --test tests/public-plans.test.ts && npm run build`.
-4. After `/plans`, proceed to `/plans/[plan]` (PlanBuilder), `/package/[id]`, `/offers`, `/about`, `/work`, `/contact`, `/blog`, `/community`, and Auth/Account pages.
+### Immediate Next Task for New Chat (Remaining Public Pages)
+1. **Interactive Builders & Checkout:** `/plans/[plan]` (`PlanBuilder` in `src/components/plans/plans.module.css` lines 26–130), `/package/[id]`, `/package/[id]/customize`.
+2. **Offers & Auth/Account/Legal:** `/offers`, `/offers/[slug]`, `/offer`, `/offer/[slug]`, `/login`, `/subscribe`, `/subscribe/manage`, `/account/*`, `/privacy`, `/terms`.
+3. **Final Verification:** Run `npm run lint`, `npm run test:public-typography`, `npm run test:content`, `npm run test:content:browser`, `npm run test:portfolio`, and `npm run build` after final edits.
 
 ---
 
@@ -191,3 +199,7 @@ To prevent visual inconsistencies across public pages, always reuse these exact 
 
 3. **Filter & Sort Dropdowns (`src/components/campaign/sort-menu.tsx`):**
    - Never use native `<select>` for public listing filters/sorts. Always use the shared `SortMenu` capsule dropdown (hover on mouse + click/tap on touch, `▾` chevron rotation, `--r-md` floating panel) paired with `.pkgFilterRow` segmented pill chips for category filters.
+
+4. **Brand Logo Interaction SSOT (Public, Admin & Portal):**
+   - Shared across `merasoftware` (`.brand-logo`, `.admin-nav .admin-brand` in `globals.css`) and Portal (`BrandLogo.js` + `.brand-logo-link` in `frontend/src/index.css`).
+   - Clean minimal (no box, no glow, no `display` override on `.admin-brand`): `:hover { opacity: .82; background: transparent; }` and `:active { transform: scale(.95); opacity: .76; }` (`90ms` snap), with `prefers-reduced-motion: reduce`.
