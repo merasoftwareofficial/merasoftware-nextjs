@@ -4,12 +4,16 @@ import s from "./campaign.module.css";
 
 export type SortOption<T extends string> = { value: T; label: string };
 
-/** Capsule sort dropdown matching the header NavDropdown (opens on hover or click/tap). */
+/** Capsule dropdown matching the header NavDropdown (opens on hover or click/tap). */
 export function SortMenu<T extends string>({
+  label = "Sort by:",
+  ariaLabel = "Sort by",
   options,
   value,
   onChange,
 }: {
+  label?: string;
+  ariaLabel?: string;
   options: readonly SortOption<T>[];
   value: T;
   onChange: (value: T) => void;
@@ -62,11 +66,11 @@ export function SortMenu<T extends string>({
           setOpen(cur => (mouse ? true : !cur));
         }}
       >
-        <span className={s.pkgSortLabel}>Sort by:</span>
+        <span className={s.pkgSortLabel}>{label}</span>
         <b>{current.label}</b>
         <span className={s.pkgSortChev} aria-hidden="true">▾</span>
       </button>
-      <div className={s.pkgSortPanel} role="listbox" aria-label="Sort by">
+      <div className={s.pkgSortPanel} role="listbox" aria-label={ariaLabel}>
         {options.map(option => (
           <button
             key={option.value}

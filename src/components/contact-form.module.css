@@ -8,18 +8,18 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 15px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 14px;
+  gap: 8px;
+  padding: 8px 15px;
+  border: 1px solid rgb(0 127 153 / 0.18);
+  border-radius: var(--r-pill, 999px);
+  background: var(--brand-ice);
+  color: var(--brand-navy);
+  font-size: var(--pub-body, 16px);
   font-weight: 600;
 }
 
 .badge b {
-  color: var(--brand-link);
+  color: var(--brand-teal);
 }
 
 .writeBtn {
@@ -29,29 +29,31 @@
 .grid {
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
-  gap: 56px;
+  gap: clamp(32px, 4.5vw, 56px);
   align-items: start;
 }
 
 .info h2 {
-  font-size: clamp(32px, 3.6vw, 48px);
+  font-size: var(--pub-h2-sm, clamp(28px, 3.8vw, 48px));
+  font-weight: 800;
   line-height: 1.08;
-  margin: 20px 0 18px;
+  letter-spacing: -0.035em;
+  margin: 18px 0 18px;
 }
 
 .lead {
   color: var(--muted);
-  font-size: 17px;
+  font-size: var(--pub-lead, clamp(17px, 1.35vw, 19.5px));
   line-height: 1.65;
-  max-width: 420px;
-  margin-bottom: 30px;
+  max-width: 440px;
+  margin-bottom: 28px;
 }
 
 .meta {
   display: grid;
   gap: 16px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
+  padding-top: 22px;
+  border-top: 1px solid var(--brand-line);
   max-width: 380px;
 }
 
@@ -65,11 +67,11 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--paper);
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgb(0 127 153 / 0.18);
+  border-radius: 12px;
+  background: var(--brand-ice);
   color: var(--brand-link);
 }
 
@@ -80,24 +82,25 @@
 }
 
 .metaLabel {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 1.2px;
+  font-family: var(--font-mono);
+  font-size: var(--pub-tag, 13px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
   color: var(--brand-link);
 }
 
 .metaValue {
-  font-size: 16px;
+  font-size: var(--pub-body, 16px);
   font-weight: 600;
   color: var(--ink);
 }
 
 .card {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 20px;
+  background: var(--brand-white);
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-lg, 24px);
   padding: 32px;
-  box-shadow: 0 18px 44px rgb(0 36 61 / 0.06);
+  box-shadow: var(--shadow-md);
 }
 
 .row {
@@ -113,7 +116,7 @@
 
 .field > span {
   display: block;
-  font-size: 15px;
+  font-size: var(--pub-body, 16px);
   font-weight: 700;
   margin-bottom: 8px;
   color: var(--ink);
@@ -122,21 +125,22 @@
 .control {
   width: 100%;
   padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper);
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-sm, 10px);
+  background: var(--brand-paper);
   color: var(--ink);
   font: inherit;
-  font-size: 16px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-size: var(--pub-body, 16px);
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
 
 .control:focus,
 .field :global(.phone-field-row select):focus,
 .field :global(.phone-field-row input):focus {
   outline: none;
-  border-color: var(--brand-link);
-  box-shadow: 0 0 0 3px rgb(0 123 255 / 0.12);
+  border-color: var(--brand-teal);
+  background: var(--brand-white);
+  box-shadow: 0 0 0 3px rgb(0 127 153 / 0.14);
 }
 
 .field :global(.phone-field-row) {
@@ -150,13 +154,13 @@
   width: 100%;
   max-width: none;
   padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper);
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-sm, 10px);
+  background: var(--brand-paper);
   color: var(--ink);
   font: inherit;
-  font-size: 16px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-size: var(--pub-body, 16px);
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
 
 .textarea {
@@ -166,7 +170,7 @@
 
 .error {
   color: #b91c1c;
-  font-size: 15px;
+  font-size: var(--pub-body, 16px);
   margin: 0 0 16px;
 }
 
@@ -182,29 +186,30 @@
 }
 
 .dialog {
-  border: 1px solid var(--line);
-  border-radius: 20px;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-lg, 24px);
   padding: 32px;
   max-width: 420px;
   width: calc(100% - 32px);
-  background: var(--paper);
+  background: var(--brand-white);
   color: var(--ink);
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .dialog::backdrop {
-  background: rgb(0 0 0 / 0.45);
+  background: rgb(0 24 41 / 0.5);
 }
 
 .dialog h2 {
   margin: 0 0 10px;
-  font-size: 24px;
+  font-size: var(--pub-card-title, 21px);
+  font-weight: 700;
 }
 
 .dialog p {
   margin: 0 0 24px;
   color: var(--muted);
-  font-size: 16px;
+  font-size: var(--pub-body, 16px);
   line-height: 1.6;
 }
 
@@ -214,35 +219,7 @@
 }
 
 @media (max-width: 900px) {
-  .badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 24px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 15px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.badge b {
-  color: var(--brand-link);
-}
-
-.writeBtn {
-  margin-top: 18px;
-}
-
-.grid {
+  .grid {
     grid-template-columns: 1fr;
     gap: 36px;
   }
