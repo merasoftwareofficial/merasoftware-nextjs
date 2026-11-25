@@ -2,11 +2,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { NumberInput } from "@/components/number-input";
-import type { ActionPackageOption, ActionsData } from "./action-rule-helpers";
+import type {
+  ActionPackageOption,
+  ActionsData,
+  ConditionCatalogItem,
+  SystemActionCatalogItem,
+  SystemActionControlDef,
+} from "./action-rule-helpers";
 import s from "./automated-message.module.css";
 import {
   allowedConditionIds, BASE_DATES, buildWorkCatalog, CONDITIONS,
-  defaultReminderTiming, MAX_CHAIN_DEPTH, PACKAGE_SCOPES, PLACEHOLDERS,
+  defaultReminderTiming, getApplicableConditions, getApplicableSystemActions,
+  MAX_CHAIN_DEPTH, PACKAGE_SCOPES, PLACEHOLDERS,
   timingPositionLabel,
   type BaseDate, type Channel, type InstantAudience, type MessageMode,
   type PackageScopeMode, type ReminderAudience, type RepeatMode,
@@ -29,6 +36,20 @@ type StopChain = {
   reminders: Reminder[];
 };
 
+type SystemActionItem = {
+  key: string;
+  config: Record<string, string | number | boolean>;
+};
+
+type TimeoutConfig = {
+  enabled: boolean;
+  afterDays: number;
+  condition: string;
+  conditionValue: number;
+  actions: SystemActionItem[];
+  nextStageId: number | null;
+};
+
 type Reminder = {
   id: number;
   startTrigger: string;
@@ -45,12 +66,16 @@ type Reminder = {
   condition: string;
   conditionValue: number;
   stopOn: string[];
+  onTimeout?: TimeoutConfig;
   stopChains: Record<string, StopChain>;
 };
 
 type TrailStage = {
   id: number;
+  source?: "trigger" | "previous_timeout";
+  parentStageId?: number;
   triggers: string[];
+  onStartActions?: SystemActionItem[];
   instant: InstantBlockState;
   reminder: Reminder | null;
   migratedLegacy?: MigratedLegacyMeta;
@@ -222,6 +247,62 @@ function normalizeSteps(raw: unknown): MessageStep[] {
   });
 }
 
+const defaultTimeoutConfig = (fallbackDays = 5): TimeoutConfig => ({
+  enabled: false,
+  afterDays: fallbackDays,
+  condition: "not_stopped",
+  conditionValue: 50,
+  actions: [],
+  nextStageId: null,
+});
+
+function normalizeSystemActions(raw: unknown): SystemActionItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SystemActionItem[] = [];
+  for (const item of raw.slice(0, 5)) {
+    if (!item || typeof item !== "object") continue;
+    const obj = item as { key?: unknown; config?: unknown };
+    const key = typeof obj.key === "string" ? obj.key.trim() : "";
+    if (!key) continue;
+    const rawCfg = obj.config && typeof obj.config === "object" ? (obj.config as Record<string, unknown>) : {};
+    const config: Record<string, string | number | boolean> = {};
+    for (const [k, v] of Object.entries(rawCfg)) {
+      if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") config[k] = v;
+    }
+    out.push({ key, config });
+  }
+  return out;
+}
+
+function normalizeTimeoutConfig(raw: unknown, fallbackDays = 5): TimeoutConfig {
+  const t = (raw && typeof raw === "object" ? raw : {}) as Partial<TimeoutConfig>;
+  const afterDays = typeof t.afterDays === "number" && Number.isFinite(t.afterDays)
+    ? Math.max(0, Math.min(365, Math.round(t.afterDays)))
+    : Math.max(0, fallbackDays);
+  const condVal = typeof t.conditionValue === "number" && Number.isFinite(t.conditionValue)
+    ? Math.max(0, t.conditionValue)
+    : 50;
+  const nextStageId = typeof t.nextStageId === "number" && Number.isFinite(t.nextStageId) && t.nextStageId > 0
+    ? Math.round(t.nextStageId)
+    : null;
+  return {
+    enabled: Boolean(t.enabled),
+    afterDays,
+    condition: typeof t.condition === "string" && t.condition.trim() ? t.condition.trim() : "not_stopped",
+    conditionValue: condVal,
+    actions: normalizeSystemActions(t.actions),
+    nextStageId,
+  };
+}
+
+function defaultConfigForAction(def: SystemActionCatalogItem): Record<string, string | number | boolean> {
+  const cfg: Record<string, string | number | boolean> = {};
+  for (const ctrl of def.controls || []) {
+    cfg[ctrl.key] = ctrl.defaultVal;
+  }
+  return cfg;
+}
+
 function normalizeReminder(raw: unknown, depth = 0): Reminder {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Reminder>;
   const id = typeof r.id === "number" && Number.isFinite(r.id) ? r.id : nextId++;
@@ -236,6 +317,7 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
       reminders: Array.isArray(rawCh.reminders) ? rawCh.reminders.map(sub => normalizeReminder(sub, depth + 1)) : [],
     };
   }
+  const safeForDays = typeof r.repeatForDays === "number" && Number.isFinite(r.repeatForDays) ? Math.max(1, r.repeatForDays) : 7;
   return {
     id,
     startTrigger: typeof r.startTrigger === "string" && r.startTrigger ? r.startTrigger : "__main__",
@@ -245,13 +327,14 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
     clientSteps: normalizeSteps(r.clientSteps),
     adminSteps: normalizeSteps(r.adminSteps),
     repeatMode: r.repeatMode === "permanent" || r.repeatMode === "limited" ? r.repeatMode : "off",
-    repeatForDays: typeof r.repeatForDays === "number" && Number.isFinite(r.repeatForDays) ? Math.max(1, r.repeatForDays) : 7,
+    repeatForDays: safeForDays,
     repeatEveryDays: typeof r.repeatEveryDays === "number" && Number.isFinite(r.repeatEveryDays) ? Math.max(1, r.repeatEveryDays) : 2,
     repeatPerDay: typeof r.repeatPerDay === "number" && Number.isFinite(r.repeatPerDay) ? Math.min(4, Math.max(1, r.repeatPerDay)) : 1,
     countDaysFrom: r.countDaysFrom === "trigger_date" || r.countDaysFrom === "expiry_date" || r.countDaysFrom === "deadline_date" ? r.countDaysFrom : "due_date",
     condition: typeof r.condition === "string" && r.condition ? r.condition : "any",
     conditionValue: typeof r.conditionValue === "number" && Number.isFinite(r.conditionValue) ? Math.max(0, r.conditionValue) : 50,
     stopOn: Array.isArray(r.stopOn) ? r.stopOn.filter((k): k is string => typeof k === "string" && Boolean(k)) : [],
+    onTimeout: normalizeTimeoutConfig(r.onTimeout, safeForDays),
     stopChains,
   };
 }
@@ -289,7 +372,10 @@ function normalizeTrail(raw: unknown): TrailForm {
         : (typeof st.trigger === "string" && st.trigger ? [st.trigger] : []);
       return {
         id,
+        source: st.source === "previous_timeout" ? "previous_timeout" : "trigger",
+        parentStageId: typeof st.parentStageId === "number" && Number.isFinite(st.parentStageId) ? st.parentStageId : 0,
         triggers: [...new Set(stageTriggers)],
+        onStartActions: normalizeSystemActions(st.onStartActions),
         instant: normalizeInstant(st.instant),
         reminder: st.reminder ? normalizeReminder(st.reminder, 0) : null,
       };
@@ -979,23 +1065,29 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
   for (let i = 0; i < form.stages.length; i++) {
     const st = form.stages[i];
     const stageNum = i + 2;
-    if (!st.triggers.length) return { trail: form, error: `Choose at least one trigger point for Stage ${stageNum}.` };
+    const isTimeoutStage = st.source === "previous_timeout";
+    const effStageTriggers = st.triggers.length ? st.triggers : (isTimeoutStage ? form.triggers : []);
+    if (!effStageTriggers.length) return { trail: form, error: `Choose at least one trigger point for Stage ${stageNum}.` };
     const stInstant = cleanInstantForSave(st.instant);
     const stSubErr = checkInstantSubjects(stInstant, `Stage ${stageNum}`, `st${st.id}`);
     if (stSubErr) return { trail: form, error: stSubErr.error, errorBoxId: stSubErr.errorBoxId };
     let stReminder: Reminder | null = null;
     if (st.reminder) {
-      const effTriggers = st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : st.triggers;
+      const effTriggers = st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : effStageTriggers;
       const res = cleanSingleReminder(st.reminder, effTriggers, `Stage ${stageNum}`, `st${st.id}`, byKey);
       if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder.", errorBoxId: res.errorBoxId };
       stReminder = res.reminder;
     }
-    if (stInstant.audience === "off" && !stReminder) {
-      return { trail: form, error: `Stage ${stageNum} (${triggersLabel(st.triggers, byKey)}) is empty — write a Template, add a Reminder, or remove Stage ${stageNum}.` };
+    const cleanStartActions = normalizeSystemActions(st.onStartActions);
+    if (stInstant.audience === "off" && !stReminder && cleanStartActions.length === 0) {
+      return { trail: form, error: `Stage ${stageNum} (${isTimeoutStage ? "After timeout" : triggersLabel(effStageTriggers, byKey)}) is empty — write a Template, add a Reminder, select a Start Action, or remove Stage ${stageNum}.` };
     }
     cleanStages.push({
       id: st.id,
-      triggers: st.triggers,
+      source: isTimeoutStage ? "previous_timeout" : "trigger",
+      parentStageId: st.parentStageId ?? 0,
+      triggers: effStageTriggers,
+      onStartActions: cleanStartActions,
       instant: stInstant,
       reminder: stReminder,
     });
@@ -2172,46 +2264,236 @@ function AudienceBlock({
   );
 }
 
+function ActionControlField({
+  ctrl,
+  value,
+  onChange,
+}: {
+  ctrl: SystemActionControlDef;
+  value: string | number | boolean | undefined;
+  onChange: (next: string | number | boolean) => void;
+}) {
+  if (ctrl.type === "boolean") {
+    return (
+      <label className={s.actionCheckLabel}>
+        <input
+          type="checkbox"
+          checked={value !== undefined ? Boolean(value) : Boolean(ctrl.defaultVal)}
+          onChange={e => onChange(e.target.checked)}
+        />
+        <span>{ctrl.label}</span>
+      </label>
+    );
+  }
+  if (ctrl.type === "select") {
+    const val = typeof value === "string" ? value : String(ctrl.defaultVal ?? "");
+    return (
+      <div className={s.stackField}>
+        <label className={s.stackLabel}>{ctrl.label}</label>
+        <select className={s.select} value={val} onChange={e => onChange(e.target.value)}>
+          {(ctrl.options || []).map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+  if (ctrl.type === "number") {
+    const numVal = typeof value === "number" && Number.isFinite(value) ? value : Number(ctrl.defaultVal ?? 1);
+    return (
+      <div className={s.stackField}>
+        <label className={s.stackLabel}>{ctrl.label}{ctrl.unit ? ` (${ctrl.unit})` : ""}</label>
+        <NumberInput
+          className={s.numInput}
+          min={ctrl.min ?? 0}
+          max={ctrl.max ?? 365}
+          value={numVal}
+          emptyOnBlur="revert"
+          onValueChange={n => onChange(n)}
+        />
+      </div>
+    );
+  }
+  const strVal = typeof value === "string" ? value : String(ctrl.defaultVal ?? "");
+  return (
+    <div className={s.stackField}>
+      <label className={s.stackLabel}>{ctrl.label}</label>
+      <input
+        type="text"
+        className={s.input}
+        maxLength={ctrl.maxLength ?? 300}
+        placeholder={ctrl.placeholder || ""}
+        value={strVal}
+        onChange={e => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function SystemActionsEditor({
+  actions,
+  availableActions,
+  onChange,
+  emptyLabel = "+ Select system action…",
+}: {
+  actions: SystemActionItem[];
+  availableActions: SystemActionCatalogItem[];
+  onChange: (next: SystemActionItem[]) => void;
+  emptyLabel?: string;
+}) {
+  const byActionKey = useMemo(() => new Map(availableActions.map(a => [a.key, a])), [availableActions]);
+  const selectedKeys = useMemo(() => new Set(actions.map(a => a.key)), [actions]);
+  const pickable = useMemo(() => availableActions.filter(a => !selectedKeys.has(a.key)), [availableActions, selectedKeys]);
+
+  function addAction(key: string) {
+    if (!key) return;
+    const def = byActionKey.get(key);
+    if (!def) return;
+    onChange([...actions, { key, config: defaultConfigForAction(def) }]);
+  }
+
+  function updateActionConfig(idx: number, ctrlKey: string, val: string | number | boolean) {
+    onChange(actions.map((item, i) => (
+      i === idx ? { ...item, config: { ...item.config, [ctrlKey]: val } } : item
+    )));
+  }
+
+  function removeAction(idx: number) {
+    onChange(actions.filter((_, i) => i !== idx));
+  }
+
+  const groupedPickable = useMemo(() => {
+    const map = new Map<string, SystemActionCatalogItem[]>();
+    for (const item of pickable) {
+      const list = map.get(item.group) || [];
+      list.push(item);
+      map.set(item.group, list);
+    }
+    return [...map.entries()];
+  }, [pickable]);
+
+  return (
+    <div className={s.actionList}>
+      {actions.map((item, idx) => {
+        const def = byActionKey.get(item.key);
+        return (
+          <div key={`${item.key}-${idx}`} className={s.actionItemCard}>
+            <div className={s.actionItemHead}>
+              <span className={s.actionItemTitle}>{def?.label || item.key}</span>
+              <button type="button" className={s.miniDangerBtn} onClick={() => removeAction(idx)}>
+                Remove
+              </button>
+            </div>
+            {def?.description && <span className={s.stackHint}>{def.description}</span>}
+            {def && def.controls.length > 0 && (
+              <div className={s.actionControlsGrid}>
+                {def.controls.map(ctrl => (
+                  <ActionControlField
+                    key={ctrl.key}
+                    ctrl={ctrl}
+                    value={item.config[ctrl.key]}
+                    onChange={val => updateActionConfig(idx, ctrl.key, val)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {pickable.length > 0 && actions.length < 5 && (
+        <select
+          className={s.select}
+          aria-label="Add system action"
+          value=""
+          onChange={e => addAction(e.target.value)}
+        >
+          <option value="">{emptyLabel}</option>
+          {groupedPickable.map(([group, items]) => (
+            <optgroup key={group} label={group}>
+              {items.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function ReminderCard({
   index,
   depth,
   stagePrefix = "s0",
+  stageId = 0,
   accordion,
   reminder,
   stageTriggers,
   stageTriggersLabel,
   folders,
   byKey,
+  catalogConditions = [],
+  catalogActions = [],
   triggerBadges,
   existingTrails,
   currentTrailId,
   currentStages,
+  onCreateTimeoutStage,
   onChange,
   onRemove,
 }: {
   index: number;
   depth: number;
   stagePrefix?: string;
+  stageId?: number;
   accordion?: AccordionCtrl;
   reminder: Reminder;
   stageTriggers: string[];
   stageTriggersLabel: string;
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
+  catalogConditions?: ConditionCatalogItem[];
+  catalogActions?: SystemActionCatalogItem[];
   triggerBadges?: Map<string, TriggerBadgeInfo>;
   existingTrails?: TrailForm[];
   currentTrailId?: string;
   currentStages?: TrailStage[];
+  onCreateTimeoutStage?: (parentStageId: number, parentTriggers: string[], parentStopOn: string[]) => number;
   onChange: (reminder: Reminder) => void;
   onRemove: () => void;
 }) {
   const set = (patch: Partial<Reminder>) => onChange({ ...reminder, ...patch });
 
   const effectiveTriggers = reminder.startTrigger !== "__main__" ? [reminder.startTrigger] : stageTriggers;
-  const allowedConds = allowedConditionIds(effectiveTriggers.map(k => byKey.get(k)));
-  const visibleConditions = CONDITIONS.filter(c => allowedConds.includes(c.id));
+  const effectiveWorks = effectiveTriggers.map(k => byKey.get(k));
+  const liveReminderConds = useMemo(
+    () => getApplicableConditions(effectiveWorks, catalogConditions, "reminder"),
+    [effectiveWorks, catalogConditions],
+  );
+  const liveEscalationConds = useMemo(
+    () => getApplicableConditions(effectiveWorks, catalogConditions, "escalation"),
+    [effectiveWorks, catalogConditions],
+  );
+  const liveEscalationActions = useMemo(
+    () => getApplicableSystemActions(effectiveWorks, catalogActions, "escalation"),
+    [effectiveWorks, catalogActions],
+  );
+  const allowedConds = liveReminderConds.length > 0
+    ? liveReminderConds.map(c => c.key)
+    : allowedConditionIds(effectiveWorks);
+  const visibleConditions = liveReminderConds.length > 0
+    ? liveReminderConds.map(c => ({ id: c.key, label: c.label, valueConfig: c.valueConfig }))
+    : CONDITIONS.filter(c => allowedConds.includes(c.id)).map(c => ({
+        id: c.id,
+        label: c.label,
+        valueConfig: "value" in c && c.value ? { min: 0, max: c.max, defaultVal: c.defaultVal } : undefined,
+      }));
   const safeCondition = allowedConds.includes(reminder.condition) ? reminder.condition : "any";
-  const conditionDef = CONDITIONS.find(item => item.id === safeCondition);
+  const conditionDef = visibleConditions.find(item => item.id === safeCondition);
+
+  const timeoutCfg: TimeoutConfig = reminder.onTimeout || defaultTimeoutConfig(reminder.repeatForDays || 5);
+  const setTimeoutCfg = (patch: Partial<TimeoutConfig>) => set({ onTimeout: { ...timeoutCfg, ...patch } });
+  const timeoutCondDef = liveEscalationConds.find(c => c.key === timeoutCfg.condition);
+  const hasStageContinueAction = timeoutCfg.actions.some(a => a.key === "stage.continue");
+  const timeoutStages = (currentStages || []).filter(st => st.source === "previous_timeout" && st.id !== stageId);
 
   const showClient = reminder.audience === "client" || reminder.audience === "both";
   const showAdmin = reminder.audience === "admin" || reminder.audience === "both";
@@ -2277,8 +2559,8 @@ function ReminderCard({
     </header>
 
     <div className={s.remBody}>
-      {/* 1. Start trigger + Send to (2-column compact row) */}
-      <div className={s.grid2}>
+      {/* 1. Start trigger + Send to + Count days from (3-column compact header row) */}
+      <div className={s.grid3}>
         <div className={s.field}>
           <label className={s.labelRow}><span>Start when</span></label>
           <select
@@ -2317,6 +2599,18 @@ function ReminderCard({
             <option value="client">Client only</option>
             <option value="admin">Admin / Team only</option>
             <option value="both">Both (Client &amp; Admin)</option>
+          </select>
+        </div>
+
+        <div className={s.field}>
+          <label className={s.labelRow}><span>Count days from</span></label>
+          <select
+            className={s.select}
+            aria-label="Count days from"
+            value={reminder.countDaysFrom}
+            onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
+          >
+            {BASE_DATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </div>
       </div>
@@ -2366,22 +2660,10 @@ function ReminderCard({
         </div>
       )}
 
-      {/* 3. Base Date & Only When (2-column) + Repeat (clean full row) + Stop triggers */}
+      {/* 3. Only When (live SSOT condition) + Repeat + Stop triggers + Escalation */}
       <div className={s.grid2}>
-        <div className={s.field}>
-          <label className={s.labelRow}><span>Count days from</span></label>
-          <select
-            className={s.select}
-            aria-label="Count days from"
-            value={reminder.countDaysFrom}
-            onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
-          >
-            {BASE_DATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-        </div>
-
-        <div className={s.field} data-disabled={visibleConditions.length <= 1}>
-          <label className={s.labelRow}><span>Only when</span></label>
+        <div className={`${s.field} ${s.fieldFull}`} data-disabled={visibleConditions.length <= 1}>
+          <label className={s.labelRow}><span>Only when (reminder condition)</span></label>
           <div className={s.inlineRow}>
             <select
               className={s.select}
@@ -2391,20 +2673,20 @@ function ReminderCard({
               value={safeCondition}
               onChange={e => {
                 const nextIdVal = e.target.value;
-                const found = CONDITIONS.find(c => c.id === nextIdVal);
+                const found = visibleConditions.find(c => c.id === nextIdVal);
                 set({
                   condition: nextIdVal,
-                  conditionValue: found && "defaultVal" in found ? found.defaultVal : reminder.conditionValue,
+                  conditionValue: found?.valueConfig ? found.valueConfig.defaultVal : reminder.conditionValue,
                 });
               }}
             >
               {visibleConditions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
-            {conditionDef && "value" in conditionDef && (
+            {conditionDef?.valueConfig && (
               <NumberInput
                 className={s.numInput}
-                min={0}
-                max={conditionDef.max}
+                min={conditionDef.valueConfig.min}
+                max={conditionDef.valueConfig.max}
                 aria-label="Condition value"
                 value={reminder.conditionValue}
                 emptyOnBlur="zero"
@@ -2531,6 +2813,132 @@ function ReminderCard({
             );
           })()}
         </div>
+
+        {/* 5. After Wait / Timeout: Condition (Left) -> System Action (Right) */}
+        <div className={`${s.timeoutBox} ${s.fieldFull}`} data-enabled={timeoutCfg.enabled}>
+          <div className={s.timeoutHead}>
+            <label className={s.timeoutToggle}>
+              <input
+                type="checkbox"
+                checked={timeoutCfg.enabled}
+                onChange={e => {
+                  const enabled = e.target.checked;
+                  setTimeoutCfg({
+                    enabled,
+                    ...(enabled && !timeoutCfg.afterDays && reminder.repeatMode === "limited" ? { afterDays: reminder.repeatForDays } : {}),
+                  });
+                }}
+              />
+              <span>If not stopped after wait period — run Condition → System Action</span>
+            </label>
+            {timeoutCfg.enabled && (
+              <div className={s.timeoutWaitRow}>
+                <span>After</span>
+                <NumberInput
+                  className={s.numInput}
+                  min={0}
+                  max={365}
+                  aria-label="Wait days before system action"
+                  value={timeoutCfg.afterDays}
+                  emptyOnBlur="zero"
+                  onValueChange={n => setTimeoutCfg({ afterDays: Math.max(0, Math.min(365, n)) })}
+                />
+                <span>days</span>
+              </div>
+            )}
+          </div>
+
+          {timeoutCfg.enabled && (
+            <div className={s.grid2}>
+              {/* Left: Condition (SSOT from backend) */}
+              <div className={s.stackField}>
+                <label className={s.stackLabel}>Condition (when to run)</label>
+                <div className={s.inlineRow}>
+                  <select
+                    className={s.select}
+                    style={{ flex: 1 }}
+                    aria-label="Escalation condition"
+                    value={timeoutCfg.condition}
+                    onChange={e => {
+                      const nextKey = e.target.value;
+                      const found = liveEscalationConds.find(c => c.key === nextKey);
+                      setTimeoutCfg({
+                        condition: nextKey,
+                        ...(found?.valueConfig ? { conditionValue: found.valueConfig.defaultVal } : {}),
+                      });
+                    }}
+                  >
+                    {(liveEscalationConds.length > 0 ? liveEscalationConds : [{ key: "not_stopped", label: "Still not stopped by any Stop trigger" }]).map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </select>
+                  {timeoutCondDef?.valueConfig && (
+                    <NumberInput
+                      className={s.numInput}
+                      min={timeoutCondDef.valueConfig.min}
+                      max={timeoutCondDef.valueConfig.max}
+                      aria-label="Escalation condition value"
+                      value={timeoutCfg.conditionValue}
+                      emptyOnBlur="zero"
+                      onValueChange={n => setTimeoutCfg({ conditionValue: Math.max(0, n) })}
+                    />
+                  )}
+                </div>
+                {timeoutCondDef?.description && <span className={s.stackHint}>{timeoutCondDef.description}</span>}
+              </div>
+
+              {/* Right: System Action (SSOT from backend) */}
+              <div className={s.stackField}>
+                <label className={s.stackLabel}>System Action (what system does)</label>
+                <SystemActionsEditor
+                  actions={timeoutCfg.actions}
+                  availableActions={liveEscalationActions}
+                  onChange={nextActions => {
+                    const stillHasContinue = nextActions.some(a => a.key === "stage.continue");
+                    setTimeoutCfg({
+                      actions: nextActions,
+                      ...(!stillHasContinue ? { nextStageId: null } : {}),
+                    });
+                  }}
+                />
+                {hasStageContinueAction && (
+                  <div className={s.stageLinkRow}>
+                    <span>Target stage:</span>
+                    <select
+                      className={s.select}
+                      style={{ flex: 1, minWidth: 160 }}
+                      aria-label="Target timeout stage"
+                      value={timeoutCfg.nextStageId ?? ""}
+                      onChange={e => setTimeoutCfg({ nextStageId: e.target.value ? Number(e.target.value) : null })}
+                    >
+                      <option value="">Select linked stage…</option>
+                      {timeoutStages.map(st => {
+                        const idxPos = (currentStages || []).findIndex(item => item.id === st.id);
+                        return (
+                          <option key={st.id} value={st.id}>
+                            Stage {idxPos >= 0 ? idxPos + 2 : st.id} (After timeout)
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {onCreateTimeoutStage && (currentStages?.length || 0) < MAX_CHAIN_DEPTH && (
+                      <button
+                        type="button"
+                        className={s.miniBtn}
+                        onClick={() => {
+                          const newId = onCreateTimeoutStage(stageId, effectiveTriggers, reminder.stopOn);
+                          setTimeoutCfg({ nextStageId: newId });
+                        }}
+                      >
+                        + Create &amp; link Stage {(currentStages?.length || 0) + 2}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   </div>;
@@ -2538,6 +2946,7 @@ function ReminderCard({
 
 function TrailStageBlock({
   stagePrefix = "s0",
+  stageId = 0,
   accordion,
   stageTriggers,
   stageTriggersLabel,
@@ -2559,16 +2968,20 @@ function TrailStageBlock({
   reminders,
   folders,
   byKey,
+  catalogConditions = [],
+  catalogActions = [],
   triggerBadges,
   existingTrails,
   currentTrailId,
   currentStages,
   duplicateWarningItems,
+  onCreateTimeoutStage,
   onChangeTriggers,
   onChangeInstant,
   onChangeReminders,
 }: {
   stagePrefix?: string;
+  stageId?: number;
   accordion?: AccordionCtrl;
   stageTriggers: string[];
   stageTriggersLabel: string;
@@ -2590,11 +3003,14 @@ function TrailStageBlock({
   reminders: Reminder[];
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
+  catalogConditions?: ConditionCatalogItem[];
+  catalogActions?: SystemActionCatalogItem[];
   triggerBadges?: Map<string, TriggerBadgeInfo>;
   existingTrails?: TrailForm[];
   currentTrailId?: string;
   currentStages?: TrailStage[];
   duplicateWarningItems?: TriggerCoverageInfo[];
+  onCreateTimeoutStage?: (parentStageId: number, parentTriggers: string[], parentStopOn: string[]) => number;
   onChangeTriggers?: (next: string[]) => void;
   onChangeInstant: (next: InstantBlockState) => void;
   onChangeReminders: (next: Reminder[]) => void;
@@ -2757,10 +3173,14 @@ function TrailStageBlock({
             stageTriggersLabel={stageTriggersLabel}
             folders={folders}
             byKey={byKey}
+            stageId={stageId}
+            catalogConditions={catalogConditions}
+            catalogActions={catalogActions}
             triggerBadges={triggerBadges}
             existingTrails={existingTrails}
             currentTrailId={currentTrailId}
             currentStages={currentStages}
+            onCreateTimeoutStage={onCreateTimeoutStage}
             onChange={next => onChangeReminders(reminders.map(item => item.id === rem.id ? next : item))}
             onRemove={() => onChangeReminders(reminders.filter(item => item.id !== rem.id))}
           />
@@ -2783,6 +3203,8 @@ function FormDialog({
   folders,
   byKey,
   packages,
+  catalogConditions = [],
+  catalogActions = [],
   isLive,
   saving,
   error,
@@ -2797,6 +3219,8 @@ function FormDialog({
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
   packages: ActionPackageOption[];
+  catalogConditions?: ConditionCatalogItem[];
+  catalogActions?: SystemActionCatalogItem[];
   isLive: boolean;
   saving: boolean;
   error: string;
@@ -3322,10 +3746,42 @@ function FormDialog({
     }));
   }
 
+  function createTimeoutStage(parentStageId: number, parentTriggers: string[], parentStopOn: string[]): number {
+    const newId = nextId++;
+    const rem = newReminder(parentStopOn, parentTriggers[0]);
+    rem.countDaysFrom = "trigger_date";
+    rem.clientSteps = [blankStep("after", 1, "days")];
+    rem.adminSteps = [blankStep("after", 1, "days")];
+    rem.repeatMode = "limited";
+    rem.repeatForDays = 3;
+    rem.repeatEveryDays = 1;
+    const created: TrailStage = {
+      id: newId,
+      source: "previous_timeout",
+      parentStageId,
+      triggers: [...parentTriggers],
+      onStartActions: [],
+      instant: blankInstant("client"),
+      reminder: rem,
+    };
+    set({ stages: [...form.stages, created] });
+    accordion.openOnly(`st${created.id}-tpl-client`);
+    return newId;
+  }
+
   function removeStage(stageId: number) {
-    const nextStages = form.stages.filter(st => st.id !== stageId);
-    const stillSupportsScope = supportsScopeFor({ ...form, stages: nextStages });
+    const clearDangling = (r: Reminder): Reminder => (
+      r.onTimeout?.nextStageId === stageId
+        ? { ...r, onTimeout: { ...r.onTimeout, nextStageId: null } }
+        : r
+    );
+    const nextReminders = form.reminders.map(clearDangling);
+    const nextStages = form.stages
+      .filter(st => st.id !== stageId)
+      .map(st => (st.reminder ? { ...st, reminder: clearDangling(st.reminder) } : st));
+    const stillSupportsScope = supportsScopeFor({ ...form, reminders: nextReminders, stages: nextStages });
     set({
+      reminders: nextReminders,
       stages: nextStages,
       ...(stillSupportsScope ? {} : { scope: "all", selectedPackages: [] }),
     });
@@ -3483,7 +3939,9 @@ function FormDialog({
                   prefix: `st${stage.id}`,
                   num: idx + 3,
                   title: `Stage ${idx + 2}`,
-                  sub: lbl ? lbl.split("(")[0].trim() : "Follow-up stage",
+                  sub: stage.source === "previous_timeout"
+                    ? "After timeout"
+                    : (lbl ? lbl.split("(")[0].trim() : "Follow-up stage"),
                   instant: stage.instant,
                   rem: stage.reminder,
                 };
@@ -3882,9 +4340,13 @@ function FormDialog({
             folders={folders}
             byKey={byKey}
             triggerBadges={triggerBadges}
+            stageId={0}
+            catalogConditions={catalogConditions}
+            catalogActions={catalogActions}
             existingTrails={existingTrails}
             currentTrailId={form._id}
             currentStages={form.stages}
+            onCreateTimeoutStage={createTimeoutStage}
             onChangeInstant={instant => set({ instant })}
             onChangeReminders={updateRootReminders}
           />
@@ -3893,36 +4355,61 @@ function FormDialog({
         {/* CARD 3..N: Linear Follow-up Stages */}
         {form.stages.map((stage, idx) => {
           const stageNum = idx + 3;
+          const isTimeoutStage = stage.source === "previous_timeout";
           const stageLabel = triggersLabel(stage.triggers, byKey);
-          const stageDupWarn = describeTriggerCoverage(
-            stage.triggers,
-            existingTrails,
-            form._id,
-            [],
-            byKey,
-          ).filter(c => c.activeCount > 0);
+          const stageWorks = stage.triggers.map(k => byKey.get(k));
+          const stageStartActionsAvail = getApplicableSystemActions(stageWorks, catalogActions, "stage_start");
+          const stageDupWarn = isTimeoutStage
+            ? []
+            : describeTriggerCoverage(
+                stage.triggers,
+                existingTrails,
+                form._id,
+                [],
+                byKey,
+              ).filter(c => c.activeCount > 0);
           return (
             <div key={stage.id} data-outline-section={`st${stage.id}`} style={{ display: "grid", gap: "14px" }}>
               <div className={s.sectionDivider} role="separator" aria-label={`Start of Stage ${idx + 2}`}>
-                <span>Stage {idx + 2}{stageLabel ? ` — ${stageLabel}` : ""}</span>
+                <span>
+                  Stage {idx + 2}{isTimeoutStage ? " — After previous stage timeout" : (stageLabel ? ` — ${stageLabel}` : "")}
+                </span>
               </div>
               <section className={s.card} data-stage="followup">
                 <div className={s.cardHead}>
                   <div className={s.cardTitle}>
                     <span className={s.stepNum}>{stageNum}</span>
-                    <h3>Stage {idx + 2}{stageLabel ? ` — On “${stageLabel}”` : ""}</h3>
+                    <h3>
+                      Stage {idx + 2}{isTimeoutStage ? " — After timeout (Grace / Follow-up)" : (stageLabel ? ` — On “${stageLabel}”` : "")}
+                    </h3>
                   </div>
                   <button type="button" className={s.miniDangerBtn} onClick={() => removeStage(stage.id)}>Remove stage</button>
                 </div>
 
+                {isTimeoutStage && (
+                  <div className={s.stageStartBox}>
+                    <div className={s.stageStartHead}>
+                      <strong>On Stage {idx + 2} Start — System Action (Optional)</strong>
+                      <span className={s.stackHint}>Runs automatically the moment this stage begins (e.g. Start Deactivation Countdown)</span>
+                    </div>
+                    <SystemActionsEditor
+                      actions={stage.onStartActions || []}
+                      availableActions={stageStartActionsAvail}
+                      emptyLabel="+ Add start action (e.g. Plan Deactivation Countdown)…"
+                      onChange={onStartActions => updateStage(stage.id, { onStartActions })}
+                    />
+                  </div>
+                )}
+
                 <TrailStageBlock
                   key={`st-${stage.id}-${pullSeq}-${stagePullSeq[stage.id] || 0}`}
                   stagePrefix={`st${stage.id}`}
+                  stageId={stage.id}
                   accordion={accordion}
                   stageTriggers={stage.triggers}
                   stageTriggersLabel={stageLabel}
                   depth={idx + 1}
-                  showTriggerSelect={true}
+                  showTriggerSelect={!isTimeoutStage}
                   instant={stage.instant}
                   saving={saving}
                   legacyRefreshSeq={legacyRefreshSeq}
@@ -3933,11 +4420,14 @@ function FormDialog({
                   reminders={stage.reminder ? [stage.reminder] : []}
                   folders={folders}
                   byKey={byKey}
+                  catalogConditions={catalogConditions}
+                  catalogActions={catalogActions}
                   triggerBadges={triggerBadges}
                   existingTrails={existingTrails}
                   currentTrailId={form._id}
                   currentStages={form.stages}
                   duplicateWarningItems={stageDupWarn}
+                  onCreateTimeoutStage={createTimeoutStage}
                   onChangeTriggers={next => changeStageTriggers(stage, next)}
                   onChangeInstant={instant => updateStage(stage.id, { instant })}
                   onChangeReminders={rems => updateStage(stage.id, { reminder: rems[0] || null })}
@@ -4816,6 +5306,8 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         folders={catalog.folders}
         byKey={catalog.byKey}
         packages={catalog.packages}
+        catalogConditions={catalog.conditions}
+        catalogActions={catalog.systemActions}
         isLive={catalog.isLive}
         saving={saving}
         error={saveError}

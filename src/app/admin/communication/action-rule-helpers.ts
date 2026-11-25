@@ -15,6 +15,7 @@ export type TriggerGroup = {
   label: string;
   folder?: string;
   when?: string;
+  entityType?: string;
   supportsScope?: boolean;
   supportsProgress?: boolean;
   supportsLimit?: boolean;
@@ -24,6 +25,47 @@ export type TriggerGroup = {
   origins: TriggerOrigin[];
   builtIn?: BuiltInInfo;
   rules?: ActionRuleRecord[];
+};
+
+export type ConditionCatalogItem = {
+  key: string;
+  ruleKey?: string;
+  label: string;
+  group: string;
+  description?: string;
+  entityTypes: string[];
+  requiresFeature?: "progress" | "limit";
+  usableIn: ("reminder" | "escalation")[];
+  valueConfig?: { min: number; max: number; defaultVal: number; unit?: string };
+};
+
+export type SystemActionControlOption = {
+  value: string;
+  label: string;
+};
+
+export type SystemActionControlDef = {
+  key: string;
+  label: string;
+  type: "number" | "select" | "boolean" | "text";
+  defaultVal: number | string | boolean;
+  min?: number;
+  max?: number;
+  unit?: string;
+  maxLength?: number;
+  placeholder?: string;
+  options?: SystemActionControlOption[];
+};
+
+export type SystemActionCatalogItem = {
+  key: string;
+  label: string;
+  group: string;
+  description?: string;
+  entityTypes: string[];
+  emitsTrigger?: string;
+  usableIn: ("escalation" | "stage_start")[];
+  controls: SystemActionControlDef[];
 };
 
 export type ActionRow = {
@@ -56,6 +98,8 @@ export type ActionsData = {
   surfaces: ActionSurface[];
   categories: ActionCategory[];
   packages?: ActionPackageOption[];
+  conditions?: ConditionCatalogItem[];
+  systemActions?: SystemActionCatalogItem[];
 };
 
 export function triggersToFormOptions(triggers: TriggerGroup[]): FormActionOption[] {

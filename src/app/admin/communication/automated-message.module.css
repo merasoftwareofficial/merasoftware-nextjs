@@ -1552,3 +1552,124 @@
   display: grid;
   gap: 12px;
 }
+
+/* Phase 3: Inline Base Date + Condition -> System Action Escalation & Stage Start Controls */
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 720px) {
+  .grid3 { grid-template-columns: 1fr; }
+}
+.timeoutBox {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--pn-control-line);
+  background: var(--pn-bg);
+}
+.timeoutBox[data-enabled="true"] {
+  border-style: solid;
+  border-color: var(--pn-accent);
+  background: color-mix(in srgb, var(--pn-accent) 4%, var(--pn-card));
+}
+.timeoutHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.timeoutToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pn-ink);
+  cursor: pointer;
+}
+.timeoutToggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--pn-accent);
+  cursor: pointer;
+}
+.timeoutWaitRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--pn-muted);
+}
+.actionList {
+  display: grid;
+  gap: 8px;
+}
+.actionItemCard {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--pn-line);
+  background: var(--pn-card);
+}
+.actionItemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.actionItemTitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pn-ink);
+}
+.actionControlsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px 12px;
+  padding-top: 6px;
+  border-top: 1px solid var(--pn-line);
+}
+.actionCheckLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--pn-ink);
+  cursor: pointer;
+  padding-top: 4px;
+}
+.actionCheckLabel input[type="checkbox"] {
+  accent-color: var(--pn-accent);
+}
+.stageStartBox {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--pn-line);
+  background: var(--pn-bg);
+}
+.stageStartHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stageStartHead strong {
+  font-size: 13px;
+  color: var(--pn-ink);
+}
+.stageLinkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--pn-muted);
+}

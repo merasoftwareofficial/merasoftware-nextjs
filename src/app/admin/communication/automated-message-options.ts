@@ -1,4 +1,10 @@
-import type { ActionPackageOption, ActionsData, TriggerGroup } from "./action-rule-helpers";
+import type {
+  ActionPackageOption,
+  ActionsData,
+  ConditionCatalogItem,
+  SystemActionCatalogItem,
+  TriggerGroup,
+} from "./action-rule-helpers";
 
 /**
  * Unified options & live read-only catalog builder for the Automated message system UI.
@@ -22,6 +28,7 @@ export type WorkItem = {
   label: string;
   folder: string;
   when: string;
+  entityType: string;
   supportsScope: boolean;
   supportsProgress: boolean;
   supportsLimit: boolean;
@@ -43,6 +50,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Package purchased",
     folder: "Plans & Packages",
     when: "When a client buys a sales package.",
+    entityType: "order",
     supportsScope: true,
     supportsProgress: false,
     supportsLimit: true,
@@ -54,6 +62,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Plan / Package Expired",
     folder: "Plans & Packages",
     when: "When a monthly plan or package expires (can filter by remaining portal upload limit).",
+    entityType: "order",
     supportsScope: true,
     supportsProgress: false,
     supportsLimit: true,
@@ -65,6 +74,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Payment Due (Any Bill / Order / Installment / Renewal)",
     folder: "Payments & Invoices",
     when: "When any project, plan, package, installment, or monthly renewal creates a due bill.",
+    entityType: "invoice",
     supportsScope: true,
     supportsProgress: false,
     supportsLimit: true,
@@ -76,6 +86,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Payment Submitted by Client (Approval Pending)",
     folder: "Payments & Invoices",
     when: "When a client submits a UPI order or installment payment waiting for admin approval.",
+    entityType: "order",
     supportsScope: true,
     supportsProgress: false,
     supportsLimit: false,
@@ -87,6 +98,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Payment Approved / Recorded (Paid)",
     folder: "Payments & Invoices",
     when: "When an invoice or order is approved, recorded paid, or paid via wallet/installment.",
+    entityType: "invoice",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -98,6 +110,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Payment Rejected (by Admin)",
     folder: "Payments & Invoices",
     when: "When an admin rejects a submitted plan, order, or wallet payment.",
+    entityType: "order",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -109,6 +122,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Project created",
     folder: "Projects & Previews",
     when: "When a new project is created by an admin, requested by a client, or started from a package.",
+    entityType: "order",
     supportsScope: true,
     supportsProgress: true,
     supportsLimit: false,
@@ -120,6 +134,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Project step update",
     folder: "Projects & Previews",
     when: "When project steps or progress % change (use Progress >= X% or Installment due for milestone reminders).",
+    entityType: "order",
     supportsScope: true,
     supportsProgress: true,
     supportsLimit: false,
@@ -131,6 +146,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Update request / upload completed",
     folder: "Data Uploads & Documents",
     when: "When a client uploads files (portal or external link) or submits an update request.",
+    entityType: "none",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -142,6 +158,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Support ticket opened or replied",
     folder: "Login, Profile, Accounts & Support",
     when: "When a client opens a support ticket or a client/admin replies to a ticket.",
+    entityType: "none",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -153,6 +170,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "User sign up, OTP or profile updated",
     folder: "Login, Profile, Accounts & Support",
     when: "When someone signs up, verifies/resends OTP, sets password, or updates their profile.",
+    entityType: "none",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -164,6 +182,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Website Comment / Review Posted",
     folder: "Website Content, Products, Broadcast & Settings",
     when: "When a visitor or client posts a new comment or review on the website.",
+    entityType: "none",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -175,6 +194,7 @@ const FALLBACK_WORKS: WorkItem[] = [
     label: "Comment Approved / Moderated",
     folder: "Website Content, Products, Broadcast & Settings",
     when: "When an admin approves or moderates a website comment.",
+    entityType: "none",
     supportsScope: false,
     supportsProgress: false,
     supportsLimit: false,
@@ -189,6 +209,7 @@ function triggerToWork(t: TriggerGroup): WorkItem {
     label: t.label,
     folder: t.folder || "Other works",
     when: t.when || "",
+    entityType: t.entityType || "none",
     supportsScope: Boolean(t.supportsScope),
     supportsProgress: Boolean(t.supportsProgress),
     supportsLimit: Boolean(t.supportsLimit),
@@ -203,6 +224,8 @@ export function buildWorkCatalog(data: ActionsData | null): {
   folders: WorkFolder[];
   byKey: Map<string, WorkItem>;
   packages: ActionPackageOption[];
+  conditions: ConditionCatalogItem[];
+  systemActions: SystemActionCatalogItem[];
   isLive: boolean;
 } {
   const isLive = Boolean(data?.triggers && data.triggers.length > 0);
@@ -224,12 +247,68 @@ export function buildWorkCatalog(data: ActionsData | null): {
     if (items.length > 0) folders.push({ folder, items });
   }
 
+  const conditions: ConditionCatalogItem[] = Array.isArray(data?.conditions) && data.conditions.length > 0
+    ? data.conditions
+    : CONDITIONS.map(c => ({
+        key: c.id,
+        ruleKey: c.id === "any" ? "anytime" : c.id,
+        label: c.label,
+        group: "General",
+        entityTypes: c.id === "any" ? ["*"] : ["invoice", "order"],
+        usableIn: ["reminder", "escalation"] as ("reminder" | "escalation")[],
+        ...("value" in c && c.value ? { valueConfig: { min: 0, max: c.max, defaultVal: c.defaultVal } } : {}),
+      }));
+
+  const systemActions: SystemActionCatalogItem[] = Array.isArray(data?.systemActions)
+    ? data.systemActions
+    : [];
+
   return {
     folders,
     byKey,
     packages: data?.packages ?? [],
+    conditions,
+    systemActions,
     isLive,
   };
+}
+
+export function getApplicableConditions(
+  workOrList: WorkItem | (WorkItem | undefined)[] | null | undefined,
+  catalogConditions: ConditionCatalogItem[],
+  mode: "reminder" | "escalation" = "reminder",
+): ConditionCatalogItem[] {
+  const list = Array.isArray(workOrList)
+    ? workOrList.filter((w): w is WorkItem => Boolean(w))
+    : (workOrList ? [workOrList] : []);
+  const entityTypes = new Set(list.map(w => w.entityType || "none"));
+  const hasProgress = list.some(w => w.supportsProgress);
+  const hasLimit = list.some(w => w.supportsLimit);
+
+  return catalogConditions.filter(item => {
+    if (!item.usableIn.includes(mode)) return false;
+    if (item.requiresFeature === "progress" && !hasProgress) return false;
+    if (item.requiresFeature === "limit" && !hasLimit) return false;
+    if (item.entityTypes.includes("*")) return true;
+    return item.entityTypes.some(et => entityTypes.has(et));
+  });
+}
+
+export function getApplicableSystemActions(
+  workOrList: WorkItem | (WorkItem | undefined)[] | null | undefined,
+  catalogActions: SystemActionCatalogItem[],
+  mode: "escalation" | "stage_start" = "escalation",
+): SystemActionCatalogItem[] {
+  const list = Array.isArray(workOrList)
+    ? workOrList.filter((w): w is WorkItem => Boolean(w))
+    : (workOrList ? [workOrList] : []);
+  const entityTypes = new Set(list.map(w => w.entityType || "none"));
+
+  return catalogActions.filter(item => {
+    if (!item.usableIn.includes(mode)) return false;
+    if (item.entityTypes.includes("*")) return true;
+    return item.entityTypes.some(et => entityTypes.has(et));
+  });
 }
 
 export const PACKAGE_SCOPES: { id: PackageScopeMode; label: string }[] = [
@@ -266,6 +345,8 @@ export const PLACEHOLDERS: { token: string; label: string }[] = [
   { token: "{{dueDate}}", label: "Due date" },
   { token: "{{progress}}", label: "Progress %" },
   { token: "{{remainingLimit}}", label: "Upload limit left" },
+  { token: "{{deactivationDays}}", label: "Deactivation days left" },
+  { token: "{{deactivationDate}}", label: "Deactivation date" },
   { token: "{{invoiceLink}}", label: "Invoice link" },
   { token: "{{portalLink}}", label: "Portal link" },
   { token: "{{planLink}}", label: "Plan link" },
