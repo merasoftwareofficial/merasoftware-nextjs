@@ -82,6 +82,7 @@ async function fetchAccount(token: string): Promise<PortalAccount | null> {
   const response = await fetch(`${base}/api/user-details`, {
     headers: { cookie: `${PORTAL_COOKIE}=${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(25000),
   });
   if (response.status === 401) return null;
   // An unavailable service is not evidence of an invalid session. Do not
