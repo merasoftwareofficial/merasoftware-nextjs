@@ -937,6 +937,21 @@ function mergeLegacyMeta(items: Array<MigratedLegacyMeta | undefined>): Migrated
   return { events, templateIds, ruleIds };
 }
 
+function formSnapshotKey(f: TrailForm): string {
+  return JSON.stringify({
+    triggers: f.triggers,
+    scope: f.scope,
+    selectedPackages: f.selectedPackages,
+    instant: f.instant,
+    reminders: f.reminders,
+    stages: f.stages,
+    control: f.control,
+    adminActionControl: f.adminActionControl,
+    userActionControl: f.userActionControl,
+    migratedLegacy: f.migratedLegacy,
+  });
+}
+
 function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null; errorBoxId?: string } {
   if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
 
@@ -1508,6 +1523,7 @@ function TemplateEditorBlock({
   accordion,
   saving,
   hasUnsavedLegacy,
+  syncSnapSeq = 0,
   onQuickSave,
   onChange,
 }: {
@@ -1518,6 +1534,7 @@ function TemplateEditorBlock({
   accordion?: AccordionCtrl;
   saving?: boolean;
   hasUnsavedLegacy?: boolean;
+  syncSnapSeq?: number;
   onQuickSave?: (next: SingleMsg) => Promise<QuickSaveResult>;
   onChange: (next: SingleMsg) => void;
 }) {
@@ -1534,6 +1551,12 @@ function TemplateEditorBlock({
   const [savedSnap, setSavedSnap] = useState<Record<string, { channel: Channel; subject: string; text: string }>>(() =>
     Object.fromEntries(list.map(t => [t.id, { channel: t.channel, subject: t.subject, text: t.text }])),
   );
+
+  useEffect(() => {
+    if (!syncSnapSeq) return;
+    setSavedSnap(Object.fromEntries(list.map(t => [t.id, { channel: t.channel, subject: t.subject, text: t.text }])));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncSnapSeq]);
 
   const activeTpl = list.find(t => t.id === selectedId) || defaultTpl;
   const snap = savedSnap[activeTpl.id] || { channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text };
@@ -1785,6 +1808,7 @@ function InstantAutoMsgBlock({
   focusTemplateId,
   saving,
   hasUnsavedLegacy,
+  syncSnapSeq = 0,
   onQuickSaveAudience,
   onChangeAdminControl,
   onChangeUserControl,
@@ -1799,6 +1823,7 @@ function InstantAutoMsgBlock({
   focusTemplateId?: string;
   saving?: boolean;
   hasUnsavedLegacy?: boolean;
+  syncSnapSeq?: number;
   onQuickSaveAudience?: (who: "client" | "admin", next: SingleMsg) => Promise<QuickSaveResult>;
   onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
   onChangeUserControl?: (next: "auto" | "review" | "off") => void;
@@ -1881,6 +1906,7 @@ function InstantAutoMsgBlock({
             accordion={accordion}
             saving={saving}
             hasUnsavedLegacy={hasUnsavedLegacy}
+            syncSnapSeq={syncSnapSeq}
             onQuickSave={onQuickSaveAudience ? next => onQuickSaveAudience("client", next) : undefined}
             onChange={client => onChange({ ...state, client })}
           />
@@ -1899,6 +1925,7 @@ function InstantAutoMsgBlock({
             accordion={accordion}
             saving={saving}
             hasUnsavedLegacy={hasUnsavedLegacy}
+            syncSnapSeq={syncSnapSeq}
             onQuickSave={onQuickSaveAudience ? next => onQuickSaveAudience("admin", next) : undefined}
             onChange={admin => onChange({ ...state, admin })}
           />
@@ -2523,6 +2550,7 @@ function TrailStageBlock({
   focusTemplateId,
   saving,
   legacyRefreshSeq = 0,
+  syncSnapSeq = 0,
   stageLegacyPulled = false,
   onApplyStageLegacy,
   onQuickSaveAudience,
@@ -2553,6 +2581,7 @@ function TrailStageBlock({
   focusTemplateId?: string;
   saving?: boolean;
   legacyRefreshSeq?: number;
+  syncSnapSeq?: number;
   stageLegacyPulled?: boolean;
   onApplyStageLegacy?: (payload: LegacyPullPayload) => void;
   onQuickSaveAudience?: (who: "client" | "admin", next: SingleMsg) => Promise<QuickSaveResult>;
@@ -2694,6 +2723,7 @@ function TrailStageBlock({
         focusTemplateId={focusTemplateId}
         saving={saving}
         hasUnsavedLegacy={stageLegacyPulled}
+        syncSnapSeq={syncSnapSeq}
         onQuickSaveAudience={onQuickSaveAudience}
         onChangeAdminControl={onChangeAdminControl}
         onChangeUserControl={onChangeUserControl}
@@ -2758,6 +2788,7 @@ function FormDialog({
   error,
   onClose,
   onSave,
+  onRefresh,
 }: {
   initial: TrailForm;
   initialFocus?: EditFocus;
@@ -2771,10 +2802,16 @@ function FormDialog({
   error: string;
   onClose: () => void;
   onSave: (form: TrailForm, opts?: { keepOpen?: boolean }) => Promise<TrailForm | null> | void;
+  onRefresh?: (trailId?: string) => Promise<{ ok: boolean; trail?: TrailForm | null; deleted?: boolean; error?: string }>;
 }) {
   const [form, setForm] = useState<TrailForm>(initial);
   const formRef = useRef<TrailForm>(form);
   formRef.current = form;
+  const [savedSnapKey, setSavedSnapKey] = useState<string>(() => formSnapshotKey(initial));
+  const [refreshing, setRefreshing] = useState(false);
+  const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
+  const [statusNotice, setStatusNotice] = useState("");
+  const [syncSnapSeq, setSyncSnapSeq] = useState(0);
   const [activeFocus, setActiveFocus] = useState<EditFocus>(initialFocus || { mode: "full" });
   const [activeOutline, setActiveOutline] = useState<string>("trigger");
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -2881,11 +2918,15 @@ function FormDialog({
         setPreviewItem(null);
         return;
       }
+      if (confirmRefreshOpen) {
+        setConfirmRefreshOpen(false);
+        return;
+      }
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, previewItem]);
+  }, [onClose, previewItem, confirmRefreshOpen]);
 
   const triggersCsv = useMemo(() => [...form.triggers].sort().join(","), [form.triggers]);
   useEffect(() => {
@@ -2989,7 +3030,9 @@ function FormDialog({
   function loadExistingIntoForm(trail: TrailForm, fromAuto: boolean) {
     setLocalError("");
     setLegacyPulled(false);
+    setConfirmRefreshOpen(false);
     setForm(trail);
+    setSavedSnapKey(formSnapshotKey(trail));
     setAutoLoadedFromTrigger(fromAuto);
     setAutoLoadedDirty(false);
     setPullSeq(v => v + 1);
@@ -3165,7 +3208,12 @@ function FormDialog({
     else if (nextReminder) accordion.openOnly(`st${stageId}-r${nextReminder.id}-client-0`);
   }
 
-  async function quickSaveWithPatch(buildNext: (curr: TrailForm) => TrailForm): Promise<QuickSaveResult> {
+  function flashStatus(labelText: string) {
+    setStatusNotice(labelText);
+    window.setTimeout(() => setStatusNotice(curr => (curr === labelText ? "" : curr)), 2600);
+  }
+
+  async function quickSaveWithPatch(buildNext: (curr: TrailForm) => TrailForm, opts?: { syncTemplates?: boolean }): Promise<QuickSaveResult> {
     const nextForm = buildNext(formRef.current);
     const { trail, error: valError, errorBoxId } = prepareTrailForSave(nextForm, byKey);
     if (valError) {
@@ -3178,18 +3226,84 @@ function FormDialog({
     if (!saved) {
       return { ok: false, message: "Could not save changes." };
     }
+    const cleanNext: TrailForm = {
+      ...nextForm,
+      _id: saved._id,
+      migratedLegacy: undefined,
+      stages: nextForm.stages.map(st => ({ ...st, migratedLegacy: undefined })),
+    };
     setForm(curr => ({
       ...curr,
       _id: saved._id,
       migratedLegacy: undefined,
       stages: curr.stages.map(st => ({ ...st, migratedLegacy: undefined })),
     }));
+    setSavedSnapKey(formSnapshotKey(cleanNext));
+    setConfirmRefreshOpen(false);
+    if (opts?.syncTemplates) setSyncSnapSeq(v => v + 1);
     if (trail.migratedLegacy) {
       setLegacyData(null);
       setLegacyPulled(false);
       setLegacyRefreshSeq(v => v + 1);
     }
     return { ok: true };
+  }
+
+  const hasPendingChanges = useMemo(() => formSnapshotKey(form) !== savedSnapKey, [form, savedSnapKey]);
+
+  async function runRefresh() {
+    if (refreshing || saving) return;
+    setConfirmRefreshOpen(false);
+    setLocalError("");
+    if (!onRefresh) {
+      const next = form._id ? initial : emptyForm();
+      setForm(next);
+      setSavedSnapKey(formSnapshotKey(next));
+      setPullSeq(v => v + 1);
+      setLegacyRefreshSeq(v => v + 1);
+      flashStatus("Refreshed ✓");
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const res = await onRefresh(formRef.current._id);
+      if (!res.ok) {
+        setLocalError(res.error || "Could not refresh latest data.");
+        return;
+      }
+      if (res.deleted) {
+        setLocalError("This trail was deleted elsewhere.");
+        return;
+      }
+      const next = res.trail || emptyForm();
+      setForm(next);
+      setSavedSnapKey(formSnapshotKey(next));
+      setLegacyPulled(false);
+      setAutoLoadedFromTrigger(false);
+      setAutoLoadedDirty(false);
+      setPullSeq(v => v + 1);
+      setLegacyRefreshSeq(v => v + 1);
+      const first = defaultOpenBoxId(next, activeFocus);
+      if (first) accordion.openOnly(first);
+      flashStatus("Refreshed ✓");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  function handleRefreshClick() {
+    if (refreshing || saving) return;
+    if (hasPendingChanges) {
+      setConfirmRefreshOpen(true);
+      return;
+    }
+    void runRefresh();
+  }
+
+  async function handleSaveStayOpen() {
+    if (saving || refreshing) return;
+    const res = await quickSaveWithPatch(curr => curr, { syncTemplates: true });
+    if (res.ok) flashStatus("Saved ✓");
   }
 
   function quickSaveRootAudience(who: "client" | "admin", nextMsg: SingleMsg) {
@@ -3276,6 +3390,16 @@ function FormDialog({
           </p>
         </div>
         <div className={s.headRight}>
+          {statusNotice && <span className={s.tplSavedTag}>{statusNotice}</span>}
+          <button
+            type="button"
+            className={s.miniBtn}
+            disabled={saving || refreshing}
+            title="Fetch latest saved data from server (or undo unsaved edits)"
+            onClick={handleRefreshClick}
+          >
+            {refreshing ? "Refreshing…" : "↻ Refresh"}
+          </button>
           <span className={s.liveTag} data-live={isLive}>
             <span className={s.liveDot} aria-hidden="true" />
             {isLive ? "Live catalog" : "Preview catalog"}
@@ -3283,6 +3407,23 @@ function FormDialog({
           <button type="button" className={s.closeBtn} aria-label="Close" onClick={onClose}>✕</button>
         </div>
       </header>
+
+      {confirmRefreshOpen && (
+        <div className={s.focusStrip} role="alert" style={{ background: "#fff7ed", borderBottomColor: "#fed7aa" }}>
+          <div className={s.focusStripInfo}>
+            <strong style={{ color: "#9a3412" }}>Unsaved changes pending</strong>
+            <span style={{ color: "#9a3412" }}>
+              Refreshing will discard your unsaved edits and load the latest saved data.
+            </span>
+          </div>
+          <div className={s.flowStripActions}>
+            <button type="button" className={s.miniBtn} onClick={() => setConfirmRefreshOpen(false)}>Keep editing</button>
+            <button type="button" className={s.miniDangerBtn} disabled={refreshing} onClick={() => { void runRefresh(); }}>
+              Discard &amp; Refresh
+            </button>
+          </div>
+        </div>
+      )}
 
       {isFocused && (
         <div className={s.focusStrip} aria-label="Parent trail context">
@@ -3475,6 +3616,7 @@ function FormDialog({
               focusAudience={activeFocus.audience}
               focusTemplateId={activeFocus.templateId}
               saving={saving}
+              syncSnapSeq={syncSnapSeq}
               onQuickSaveAudience={(who, nextMsg) => (
                 focusStageIdx === 0
                   ? quickSaveRootAudience(who, nextMsg)
@@ -3731,6 +3873,7 @@ function FormDialog({
             adminActionControl={form.adminActionControl || (form.control === "review" ? "review" : "auto")}
             userActionControl={form.userActionControl || (form.control === "review" ? "review" : "auto")}
             saving={saving}
+            syncSnapSeq={syncSnapSeq}
             stageLegacyPulled={Boolean(form.migratedLegacy)}
             onQuickSaveAudience={quickSaveRootAudience}
             onChangeAdminControl={adminActionControl => set({ adminActionControl })}
@@ -3783,6 +3926,7 @@ function FormDialog({
                   instant={stage.instant}
                   saving={saving}
                   legacyRefreshSeq={legacyRefreshSeq}
+                  syncSnapSeq={syncSnapSeq}
                   stageLegacyPulled={Boolean(stage.migratedLegacy)}
                   onApplyStageLegacy={payload => applyStageLegacyPull(stage.id, payload)}
                   onQuickSaveAudience={(who, nextMsg) => quickSaveStageAudience(stage.id, who, nextMsg)}
@@ -3838,14 +3982,23 @@ function FormDialog({
               : "Choose a trigger point to save."}
         </small>
         <div className={s.footActions}>
-          <button type="button" className={s.ghostBtn} disabled={saving} onClick={onClose}>Cancel</button>
+          {statusNotice && <span className={s.tplSavedTag}>{statusNotice}</span>}
+          <button type="button" className={s.ghostBtn} disabled={saving || refreshing} onClick={onClose}>Cancel</button>
+          <button
+            type="button"
+            className={s.ghostBtn}
+            disabled={!primaryKey || saving || refreshing}
+            onClick={() => { void handleSaveStayOpen(); }}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
           <button
             type="button"
             className={s.primaryBtn}
-            disabled={!primaryKey || saving}
+            disabled={!primaryKey || saving || refreshing}
             onClick={handleSaveClick}
           >
-            {saving ? "Saving…" : form._id ? "Save changes" : "Save automated msg"}
+            {saving ? "Saving…" : "Save changes & close"}
           </button>
         </div>
       </footer>
@@ -4224,6 +4377,35 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
     }
     return [...map.values()].sort((a, b) => a.triggerLabel.localeCompare(b.triggerLabel));
   }, [filteredReminders]);
+
+  async function refreshTrailData(trailId?: string): Promise<{ ok: boolean; trail?: TrailForm | null; deleted?: boolean; error?: string }> {
+    try {
+      const [trailsRes, legacyRes] = await Promise.all([
+        fetch("/api/auto-reply/action-rules/trails", { cache: "no-store" }),
+        fetch("/api/auto-reply/action-rules/legacy-summary", { cache: "no-store" }).catch(() => null),
+      ]);
+      const [trailsJson, legacyJson] = await Promise.all([
+        trailsRes.json().catch(() => null),
+        legacyRes && legacyRes.ok ? legacyRes.json().catch(() => null) : Promise.resolve(null),
+      ]);
+      if (!trailsRes.ok) {
+        return { ok: false, error: trailsJson?.error || "Could not refresh latest trails." };
+      }
+      const nextTrails = Array.isArray(trailsJson?.data) ? trailsJson.data.map(normalizeTrail) : [];
+      setTrails(nextTrails);
+      if (Array.isArray(legacyJson?.data)) {
+        setLegacyTriggers(legacyJson.data.filter((k: unknown): k is string => typeof k === "string"));
+      }
+      if (trailId) {
+        const found = nextTrails.find((t: TrailForm) => t._id === trailId) || null;
+        if (!found) return { ok: true, deleted: true, trail: null };
+        return { ok: true, trail: found };
+      }
+      return { ok: true, trail: null };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Could not refresh latest data." };
+    }
+  }
 
   async function saveTrail(form: TrailForm, opts?: { keepOpen?: boolean }): Promise<TrailForm | null> {
     setSaving(true);
@@ -4639,6 +4821,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         error={saveError}
         onClose={() => { if (!saving) { setSaveError(""); setEditing(null); } }}
         onSave={(form, opts) => saveTrail(form, opts)}
+        onRefresh={refreshTrailData}
       />
     )}
   </section>;

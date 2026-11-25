@@ -187,15 +187,14 @@
   color: var(--pn-danger, #b91c1c);
 }
 .miniDangerBtn {
-  background: var(--pn-err, #b91c1c);
-  border-color: var(--pn-err, #b91c1c);
+  background: #dc2626;
+  border-color: #dc2626;
   color: #ffffff;
 }
 .miniDangerBtn:hover:not(:disabled) {
-  background: var(--pn-err, #b91c1c);
-  border-color: var(--pn-err, #b91c1c);
+  background: #b91c1c;
+  border-color: #b91c1c;
   color: #ffffff;
-  opacity: .9;
 }
 
 .iconBtn, .closeBtn {
@@ -1488,7 +1487,7 @@
   gap: 10px;
   padding: 14px 16px;
   background: var(--pn-bg);
-  border: 1px solid var(--pn-line);
+  border: 1.5px solid var(--pn-control-line);
   border-radius: 10px;
   box-shadow: 0 1px 3px rgb(0 0 0 / .04);
   transition: background-color 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease, opacity 0.36s ease;
@@ -1531,7 +1530,7 @@
   gap: 10px;
   padding: 14px 16px;
   background: var(--pn-bg);
-  border: 1px solid var(--pn-line);
+  border: 1.5px solid var(--pn-control-line);
   border-radius: 10px;
   box-shadow: 0 1px 3px rgb(0 0 0 / .04);
   transition: background-color 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease, opacity 0.36s ease;
