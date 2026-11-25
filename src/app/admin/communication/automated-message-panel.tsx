@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { NumberInput } from "@/components/number-input";
 import type { ActionPackageOption, ActionsData } from "./action-rule-helpers";
@@ -1309,6 +1309,7 @@ function MessageEditor({
   baseDate = "due_date",
   canRemove,
   flat = false,
+  hideChannel = false,
   onPreview,
   onMoveUp,
   onMoveDown,
@@ -1321,6 +1322,7 @@ function MessageEditor({
   baseDate?: BaseDate;
   canRemove?: boolean;
   flat?: boolean;
+  hideChannel?: boolean;
   boxId?: string;
   accordion?: AccordionCtrl;
   onPreview?: (req: PreviewRequest) => void;
@@ -1365,61 +1367,65 @@ function MessageEditor({
       </div>
     )}
 
-    <div className={showTiming ? s.grid2 : s.stackField}>
-      {showTiming && (
-        <div className={s.stackField}>
-          <label className={s.stackLabel}>When to send</label>
-          <div className={effectivePos !== "on" ? s.grid3 : s.stackField}>
-            {effectivePos !== "on" && <>
-              <NumberInput
-                className={s.numInput}
-                min={0}
-                max={step.unit === "hours" ? 720 : 365}
-                aria-label={`${title} amount`}
-                value={step.amount}
-                emptyOnBlur="zero"
-                onValueChange={n => onChange({ amount: Math.max(0, n) })}
-              />
+    {(showTiming || !hideChannel) && (
+      <div className={showTiming && !hideChannel ? s.grid2 : s.stackField}>
+        {showTiming && (
+          <div className={s.stackField}>
+            <label className={s.stackLabel}>When to send</label>
+            <div className={effectivePos !== "on" ? s.grid3 : s.stackField}>
+              {effectivePos !== "on" && <>
+                <NumberInput
+                  className={s.numInput}
+                  min={0}
+                  max={step.unit === "hours" ? 720 : 365}
+                  aria-label={`${title} amount`}
+                  value={step.amount}
+                  emptyOnBlur="zero"
+                  onValueChange={n => onChange({ amount: Math.max(0, n) })}
+                />
+                <select
+                  className={s.select}
+                  aria-label={`${title} unit`}
+                  value={step.unit}
+                  onChange={e => onChange({ unit: e.target.value as Unit })}
+                >
+                  <option value="days">days</option>
+                  <option value="hours">hours</option>
+                </select>
+              </>}
               <select
                 className={s.select}
-                aria-label={`${title} unit`}
-                value={step.unit}
-                onChange={e => onChange({ unit: e.target.value as Unit })}
+                aria-label={`${title} position`}
+                value={effectivePos}
+                onChange={e => onChange({ pos: e.target.value as TimingPos })}
               >
-                <option value="days">days</option>
-                <option value="hours">hours</option>
+                {baseDate !== "trigger_date" && (
+                  <option value="before">{timingPositionLabel("before", baseDate)}</option>
+                )}
+                <option value="on">{timingPositionLabel("on", baseDate)}</option>
+                <option value="after">{timingPositionLabel("after", baseDate)}</option>
               </select>
-            </>}
+            </div>
+          </div>
+        )}
+
+        {!hideChannel && (
+          <div className={s.stackField}>
+            <label className={s.stackLabel}>Channel</label>
             <select
               className={s.select}
-              aria-label={`${title} position`}
-              value={effectivePos}
-              onChange={e => onChange({ pos: e.target.value as TimingPos })}
+              aria-label={`${title} channel`}
+              value={step.channel}
+              onChange={e => onChange({ channel: e.target.value as Channel })}
             >
-              {baseDate !== "trigger_date" && (
-                <option value="before">{timingPositionLabel("before", baseDate)}</option>
-              )}
-              <option value="on">{timingPositionLabel("on", baseDate)}</option>
-              <option value="after">{timingPositionLabel("after", baseDate)}</option>
+              <option value="whatsapp">WhatsApp only</option>
+              <option value="email">Email only</option>
+              <option value="both">Both (WhatsApp + Email)</option>
             </select>
           </div>
-        </div>
-      )}
-
-      <div className={s.stackField}>
-        <label className={s.stackLabel}>Channel</label>
-        <select
-          className={s.select}
-          aria-label={`${title} channel`}
-          value={step.channel}
-          onChange={e => onChange({ channel: e.target.value as Channel })}
-        >
-          <option value="whatsapp">WhatsApp only</option>
-          <option value="email">Email only</option>
-          <option value="both">Both (WhatsApp + Email)</option>
-        </select>
+        )}
       </div>
-    </div>
+    )}
 
     <div className={s.stackField}>
       <label className={s.stackLabel}>Email subject</label>
@@ -1662,80 +1668,97 @@ function TemplateEditorBlock({
   const tplCountBrief = list.length > 1 ? `${list.length} templates · ${activeTpl.name}` : activeTpl.name;
   const textSnippet = activeTpl.text.trim() ? activeTpl.text.trim().replace(/\s+/g, " ") : "Not written yet";
 
-  const bodyContent = <>
-    <div className={s.docFlatGroup}>
-      <div className={s.stackField}>
-        <label className={s.stackLabel}>Saved template</label>
-        <select
-          className={s.select}
-          aria-label={`${label} template`}
-          value={activeTpl.id}
-          onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
-        >
-          {list.map(t => (
-            <option key={t.id} value={t.id}>
-              {t.name}{t.isDefault ? " ★ Default" : ""}
-            </option>
-          ))}
-        </select>
-        <span className={s.stackHint}>Automatic sending always uses the ★ Default template</span>
-      </div>
-      <div className={s.tplActions}>
-        <button
-          type="button"
-          className={canSave ? s.miniPrimaryBtn : s.miniBtn}
-          disabled={!canSave || busy}
-          onClick={() => { void saveActiveTemplate(); }}
-        >
-          {quickBusy ? "Saving…" : "Save"}
-        </button>
-        <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("save_as")}>Save as new</button>
-        <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("new")}>+ New</button>
-        {!activeTpl.isDefault && (
-          <button type="button" className={s.miniBtn} disabled={busy} onClick={setAsDefault}>Set Default</button>
-        )}
-        <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("rename")}>Rename</button>
-        {list.length > 1 && (
-          <button type="button" className={s.miniDangerBtn} disabled={busy} onClick={deleteActive}>Delete</button>
-        )}
-        {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
-      </div>
+  const bodyContent = (
+    <div className={s.docMsgItem}>
+      <div className={s.docFlatGroup}>
+        <div className={s.gridTemplateChannel}>
+          <div className={s.stackField}>
+            <label className={s.stackLabel}>Saved template</label>
+            <select
+              className={s.select}
+              aria-label={`${label} template`}
+              value={activeTpl.id}
+              onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
+            >
+              {list.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.isDefault ? " ★ Default" : ""}
+                </option>
+              ))}
+            </select>
+            <span className={s.stackHint}>Automatic sending always uses the ★ Default template</span>
+          </div>
 
-      {promptMode && (
-        <div className={s.tplPromptRow}>
-          <span className={s.miniLabel}>
-            {promptMode === "new" ? "New template name:" : promptMode === "save_as" ? "Save copy as:" : "Rename to:"}
-          </span>
-          <input
-            type="text"
-            className={s.tplPromptInput}
-            maxLength={80}
-            autoFocus
-            value={nameInput}
-            onChange={e => { setNameInput(e.target.value); if (promptError) setPromptError(""); }}
-            onKeyDown={e => {
-              if (e.key === "Enter") { e.preventDefault(); void confirmPrompt(); }
-              if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); setPromptError(""); }
-            }}
-          />
-          <button type="button" className={s.miniBtn} disabled={!nameInput.trim() || busy} onClick={() => { void confirmPrompt(); }}>Save</button>
-          <button type="button" className={s.miniDangerBtn} onClick={() => { setPromptMode(""); setPromptError(""); }}>Cancel</button>
+          <div className={s.stackField}>
+            <label className={s.stackLabel}>Channel</label>
+            <select
+              className={s.select}
+              aria-label={`${label} channel`}
+              value={activeTpl.channel}
+              onChange={e => patchActive({ channel: e.target.value as Channel })}
+            >
+              <option value="whatsapp">WhatsApp only</option>
+              <option value="email">Email only</option>
+              <option value="both">Both (WhatsApp + Email)</option>
+            </select>
+          </div>
         </div>
-      )}
-      {promptError && <span className={s.tplErrText}>{promptError}</span>}
+        <div className={s.tplActions}>
+          <button
+            type="button"
+            className={canSave ? s.miniPrimaryBtn : s.miniBtn}
+            disabled={!canSave || busy}
+            onClick={() => { void saveActiveTemplate(); }}
+          >
+            {quickBusy ? "Saving…" : "Save"}
+          </button>
+          <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("save_as")}>Save as new</button>
+          <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("new")}>+ New</button>
+          {!activeTpl.isDefault && (
+            <button type="button" className={s.miniBtn} disabled={busy} onClick={setAsDefault}>Set Default</button>
+          )}
+          <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("rename")}>Rename</button>
+          {list.length > 1 && (
+            <button type="button" className={s.miniDangerBtn} disabled={busy} onClick={deleteActive}>Delete</button>
+          )}
+          {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
+        </div>
+
+        {promptMode && (
+          <div className={s.tplPromptRow}>
+            <span className={s.miniLabel}>
+              {promptMode === "new" ? "New template name:" : promptMode === "save_as" ? "Save copy as:" : "Rename to:"}
+            </span>
+            <input
+              type="text"
+              className={s.tplPromptInput}
+              maxLength={80}
+              autoFocus
+              value={nameInput}
+              onChange={e => { setNameInput(e.target.value); if (promptError) setPromptError(""); }}
+              onKeyDown={e => {
+                if (e.key === "Enter") { e.preventDefault(); void confirmPrompt(); }
+                if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); setPromptError(""); }
+              }}
+            />
+            <button type="button" className={s.miniBtn} disabled={!nameInput.trim() || busy} onClick={() => { void confirmPrompt(); }}>Save</button>
+            <button type="button" className={s.miniBtn} onClick={() => { setPromptMode(""); setPromptError(""); }}>Cancel</button>
+          </div>
+        )}
+        {promptError && <span className={s.tplErrText}>{promptError}</span>}
+      </div>
+
+      <MessageEditor
+        title={`${label} — ${activeTpl.name}`}
+        step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
+        showTiming={false}
+        hideChannel={true}
+        flat={true}
+        onPreview={accordion?.openPreview}
+        onChange={patch => patchActive(patch)}
+      />
     </div>
-
-    <div className={s.docDivider} role="separator" />
-
-    <MessageEditor
-      title={`${label} — ${activeTpl.name}`}
-      step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
-      showTiming={false}
-      flat={true}
-      onPreview={accordion?.openPreview}
-      onChange={patch => patchActive(patch)}
-    />
-  </>;
+  );
 
   return (
     <div className={s.docBox}>
@@ -1814,34 +1837,32 @@ function InstantAutoMsgBlock({
       </div>
 
       {onChangeAdminControl && onChangeUserControl && state.audience !== "off" && (
-        <div className={s.tplBar}>
-          <div className={s.tplBarRow}>
-            <div className={s.tplSelectGroup}>
-              <span className={s.miniLabel}>When Admin does it</span>
-              <select
-                className={s.compactSelect}
-                aria-label="When Admin performs this trigger"
-                value={adminActionControl || "auto"}
-                onChange={e => onChangeAdminControl(e.target.value as "auto" | "review" | "off")}
-              >
-                <option value="auto">Auto (send immediately)</option>
-                <option value="review">Review popup</option>
-                <option value="off">Off</option>
-              </select>
-            </div>
-            <div className={s.tplSelectGroup}>
-              <span className={s.miniLabel}>When User/Client does it</span>
-              <select
-                className={s.compactSelect}
-                aria-label="When User or Client performs this trigger"
-                value={userActionControl || "auto"}
-                onChange={e => onChangeUserControl(e.target.value as "auto" | "review" | "off")}
-              >
-                <option value="auto">Auto (send immediately)</option>
-                <option value="review">Hold in Review &amp; delivery</option>
-                <option value="off">Off</option>
-              </select>
-            </div>
+        <div className={s.grid2}>
+          <div className={s.stackField}>
+            <label className={s.stackLabel}>When Admin does it</label>
+            <select
+              className={s.select}
+              aria-label="When Admin performs this trigger"
+              value={adminActionControl || "auto"}
+              onChange={e => onChangeAdminControl(e.target.value as "auto" | "review" | "off")}
+            >
+              <option value="auto">Auto (send immediately)</option>
+              <option value="review">Review popup</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div className={s.stackField}>
+            <label className={s.stackLabel}>When User / Client does it</label>
+            <select
+              className={s.select}
+              aria-label="When User or Client performs this trigger"
+              value={userActionControl || "auto"}
+              onChange={e => onChangeUserControl(e.target.value as "auto" | "review" | "off")}
+            >
+              <option value="auto">Auto (send immediately)</option>
+              <option value="review">Hold in Review &amp; delivery</option>
+              <option value="off">Off</option>
+            </select>
           </div>
         </div>
       )}
@@ -1914,30 +1935,109 @@ function AudienceBlock({
   onCopyClient?: () => void;
   onUpdateSteps: (next: MessageStep[]) => void;
 }) {
-  const universal = mode === "universal";
+  const universal = who === "admin" && mode === "universal";
   const adminSyncsClient = who === "admin" && Boolean(canCopyClient) && universal;
   const primaryStep = steps[0] || blankStep(baseDate === "trigger_date" ? "after" : "before", 3);
+
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const pendingFlipRef = useRef<{ oldTops: number[]; fromIdx: number; toIdx: number } | null>(null);
+  const moveTimerRef = useRef<number | null>(null);
+  const displacedTimerRef = useRef<number | null>(null);
+  const [moveAnim, setMoveAnim] = useState<{ movedIdx: number; displacedIdx: number | null } | null>(null);
+
+  useEffect(() => () => {
+    if (moveTimerRef.current !== null) window.clearTimeout(moveTimerRef.current);
+    if (displacedTimerRef.current !== null) window.clearTimeout(displacedTimerRef.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    const flip = pendingFlipRef.current;
+    if (!flip) return;
+    pendingFlipRef.current = null;
+
+    const reducedMotion = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const { oldTops, fromIdx, toIdx } = flip;
+    const elTo = itemRefs.current[toIdx];
+    const elFrom = itemRefs.current[fromIdx];
+    const targets: Array<{ el: HTMLDivElement; oldTop: number; scale: number; zIndex: string }> = [];
+    if (elTo && oldTops[fromIdx] !== undefined) targets.push({ el: elTo, oldTop: oldTops[fromIdx], scale: 1.01, zIndex: "2" });
+    if (elFrom && oldTops[toIdx] !== undefined) targets.push({ el: elFrom, oldTop: oldTops[toIdx], scale: 0.985, zIndex: "1" });
+
+    if (!reducedMotion && targets.length > 0) {
+      for (const { el, oldTop, scale, zIndex } of targets) {
+        const newTop = el.getBoundingClientRect().top;
+        const deltaY = oldTop - newTop;
+        el.style.position = "relative";
+        el.style.zIndex = zIndex;
+        if (Math.abs(deltaY) > 1) {
+          el.style.transition = "none";
+          el.style.transform = `translateY(${deltaY}px) scale(${scale})`;
+        }
+      }
+      // Force reflow so the inverted transform commits before transitioning
+      void elTo?.offsetHeight;
+      void elFrom?.offsetHeight;
+      for (const { el } of targets) {
+        el.style.transition = "transform 360ms cubic-bezier(0.22, 1, 0.36, 1)";
+        el.style.transform = "";
+      }
+    }
+
+    if (displacedTimerRef.current !== null) window.clearTimeout(displacedTimerRef.current);
+    displacedTimerRef.current = window.setTimeout(() => {
+      for (const { el } of targets) {
+        el.style.transition = "";
+        el.style.transform = "";
+        el.style.zIndex = "";
+        el.style.position = "";
+      }
+      setMoveAnim(prev => (prev ? { ...prev, displacedIdx: null } : null));
+      if (elTo) {
+        const rect = elTo.getBoundingClientRect();
+        if (rect.top < 0 || rect.bottom > window.innerHeight) {
+          elTo.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" });
+        }
+      }
+    }, reducedMotion ? 0 : 380);
+  }, [steps]);
+
+  function moveStep(idx: number, dir: -1 | 1) {
+    const nextIdx = idx + dir;
+    if (nextIdx < 0 || nextIdx >= steps.length) return;
+    const oldTops = steps.map((_, i) => itemRefs.current[i]?.getBoundingClientRect().top ?? 0);
+    pendingFlipRef.current = { oldTops, fromIdx: idx, toIdx: nextIdx };
+    setMoveAnim({ movedIdx: nextIdx, displacedIdx: idx });
+    if (moveTimerRef.current !== null) window.clearTimeout(moveTimerRef.current);
+    moveTimerRef.current = window.setTimeout(() => setMoveAnim(null), 900);
+    const next = [...steps];
+    const [moved] = next.splice(idx, 1);
+    next.splice(nextIdx, 0, moved);
+    onUpdateSteps(next);
+  }
 
   return (
     <div className={s.docBox}>
       <div className={s.blockHead}>
         {!hideHeaderTitle ? <span className={s.audienceBadge}>{title}</span> : <span />}
-        <div className={s.inlineGroup}>
-          {who === "admin" && canCopyClient && mode === "separate" && onCopyClient && (
-            <button type="button" className={s.miniBtn} onClick={onCopyClient}>Copy client&apos;s days</button>
-          )}
-          <select
-            className={s.compactSelect}
-            aria-label={`${title} message style`}
-            value={mode}
-            onChange={e => onModeChange(e.target.value as MessageMode)}
-          >
-            <option value="separate">Separate message per timing</option>
-            <option value="universal">
-              {who === "admin" && canCopyClient ? "1 universal message (same days as Client)" : "1 universal message (all timings)"}
-            </option>
-          </select>
-        </div>
+        {who === "admin" && (
+          <div className={s.inlineGroup}>
+            {canCopyClient && mode === "separate" && onCopyClient && (
+              <button type="button" className={s.miniBtn} onClick={onCopyClient}>Copy client&apos;s days</button>
+            )}
+            <select
+              className={s.compactSelect}
+              aria-label={`${title} message style`}
+              value={mode}
+              onChange={e => onModeChange(e.target.value as MessageMode)}
+            >
+              <option value="separate">Separate message per timing</option>
+              <option value="universal">
+                {canCopyClient ? "1 universal message (same days as Client)" : "1 universal message (all timings)"}
+              </option>
+            </select>
+          </div>
+        )}
       </div>
 
       {universal && !adminSyncsClient && (
@@ -1996,7 +2096,7 @@ function AudienceBlock({
         <>
           <div className={s.docDivider} role="separator" />
           <MessageEditor
-            title={`Universal ${who === "client" ? "Client" : "Admin"} message`}
+            title="Universal Admin message"
             step={primaryStep}
             showTiming={false}
             flat={true}
@@ -2008,7 +2108,13 @@ function AudienceBlock({
         <div className={s.docFlatGroup}>
           <div className={s.docDivider} role="separator" />
           {steps.map((step, idx) => (
-            <div key={idx} className={s.docMsgItem}>
+            <div
+              key={idx}
+              ref={el => { itemRefs.current[idx] = el; }}
+              className={s.docMsgItem}
+              data-just-moved={moveAnim?.movedIdx === idx ? "true" : undefined}
+              data-just-displaced={moveAnim?.displacedIdx === idx ? "true" : undefined}
+            >
               <MessageEditor
                 title={`Message #${idx + 1}`}
                 step={step}
@@ -2017,18 +2123,8 @@ function AudienceBlock({
                 canRemove={steps.length > 1}
                 flat={true}
                 onPreview={accordion?.openPreview}
-                onMoveUp={idx > 0 ? () => {
-                  const next = [...steps];
-                  const [moved] = next.splice(idx, 1);
-                  next.splice(idx - 1, 0, moved);
-                  onUpdateSteps(next);
-                } : undefined}
-                onMoveDown={idx < steps.length - 1 ? () => {
-                  const next = [...steps];
-                  const [moved] = next.splice(idx, 1);
-                  next.splice(idx + 1, 0, moved);
-                  onUpdateSteps(next);
-                } : undefined}
+                onMoveUp={idx > 0 ? () => moveStep(idx, -1) : undefined}
+                onMoveDown={idx < steps.length - 1 ? () => moveStep(idx, 1) : undefined}
                 onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
                 onRemove={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}
               />
@@ -2291,22 +2387,24 @@ function ReminderCard({
           </div>
         </div>
 
-        <div className={`${s.field} ${s.fieldFull}`}>
-          <label className={s.labelRow}><span>Repeat</span></label>
-          <div className={s.inlineRow}>
-            <select
-              className={s.compactSelect}
-              aria-label="Repeat mode"
-              value={reminder.repeatMode}
-              onChange={e => set({ repeatMode: e.target.value as RepeatMode })}
-            >
-              <option value="off">Off (No repeat — scheduled messages only)</option>
-              <option value="permanent">Permanent (until stop trigger happens)</option>
-              <option value="limited">Fixed days limit</option>
-            </select>
+        <div className={`${s.stackField} ${s.fieldFull}`}>
+          <div className={s.gridRepeat}>
+            <div className={s.stackField}>
+              <label className={s.stackLabel}>Repeat mode</label>
+              <select
+                className={s.select}
+                aria-label="Repeat mode"
+                value={reminder.repeatMode}
+                onChange={e => set({ repeatMode: e.target.value as RepeatMode })}
+              >
+                <option value="off">Off (No repeat — scheduled only)</option>
+                <option value="permanent">Permanent (until stop trigger)</option>
+                <option value="limited">Fixed days limit</option>
+              </select>
+            </div>
             {reminder.repeatMode === "limited" && (
-              <div className={s.inlineGroup}>
-                <span className={s.miniLabel}>For</span>
+              <div className={s.stackField}>
+                <label className={s.stackLabel}>For (days)</label>
                 <NumberInput
                   className={s.numInput}
                   min={1}
@@ -2316,44 +2414,44 @@ function ReminderCard({
                   emptyOnBlur="revert"
                   onValueChange={n => set({ repeatForDays: Math.max(1, n) })}
                 />
-                <span className={s.unitText}>days</span>
               </div>
             )}
             {reminder.repeatMode !== "off" && (
-              <div className={s.inlineGroup}>
-                <span className={s.miniLabel}>Every</span>
-                <NumberInput
-                  className={s.numInput}
-                  min={1}
-                  max={90}
-                  aria-label="Repeat every days"
-                  value={reminder.repeatEveryDays}
-                  emptyOnBlur="revert"
-                  onValueChange={n => set({ repeatEveryDays: Math.max(1, n) })}
-                />
-                <span className={s.unitText}>days</span>
-                <select
-                  className={s.compactSelect}
-                  aria-label="Per day frequency"
-                  value={reminder.repeatPerDay}
-                  onChange={e => set({ repeatPerDay: Number(e.target.value || 1) })}
-                >
-                  <option value={1}>1x / day</option>
-                  <option value={2}>2x / day (every 12h)</option>
-                  <option value={3}>3x / day (every 8h)</option>
-                  <option value={4}>4x / day (every 6h)</option>
-                </select>
-              </div>
+              <>
+                <div className={s.stackField}>
+                  <label className={s.stackLabel}>Every (days)</label>
+                  <NumberInput
+                    className={s.numInput}
+                    min={1}
+                    max={90}
+                    aria-label="Repeat every days"
+                    value={reminder.repeatEveryDays}
+                    emptyOnBlur="revert"
+                    onValueChange={n => set({ repeatEveryDays: Math.max(1, n) })}
+                  />
+                </div>
+                <div className={s.stackField}>
+                  <label className={s.stackLabel}>Per day</label>
+                  <select
+                    className={s.select}
+                    aria-label="Per day frequency"
+                    value={reminder.repeatPerDay}
+                    onChange={e => set({ repeatPerDay: Number(e.target.value || 1) })}
+                  >
+                    <option value={1}>1x / day</option>
+                    <option value={2}>2x / day (every 12h)</option>
+                    <option value={3}>3x / day (every 8h)</option>
+                    <option value={4}>4x / day (every 6h)</option>
+                  </select>
+                </div>
+              </>
             )}
           </div>
         </div>
 
         {/* 4. Stop triggers (searchable multi-select SSOT) */}
-        <div className={`${s.field} ${s.fieldFull}`}>
-          <label className={s.labelRow}>
-            <span>Stop when</span>
-            <span className={s.labelMuted}>Reminders stop immediately when any selected work happens</span>
-          </label>
+        <div className={`${s.stackField} ${s.fieldFull}`}>
+          <label className={s.stackLabel}>Stop when</label>
           <MultiTriggerSelect
             ariaLabel="Add stop trigger"
             emptyPlaceholder="Search & select stop triggers…"
@@ -2365,6 +2463,7 @@ function ReminderCard({
             triggerBadges={triggerBadges}
             onChange={stopOn => set({ stopOn })}
           />
+          <span className={s.stackHint}>Reminders stop immediately when any selected work happens</span>
           {(() => {
             const cov = describeTriggerCoverage(
               reminder.stopOn,
