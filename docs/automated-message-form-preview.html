@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automated Message Form — Clean Stacked Labels Preview (Dummy)</title>
+  <style>
+    :root {
+      --navy: #00243d;
+      --accent: #006b80;
+      --accent-soft: #eaf6f8;
+      --rem-accent: #4355d4;
+      --ok-bg: #e5f5ea;
+      --ok: #1b6b38;
+      --err-bg: #fdeceb;
+      --err: #b83b32;
+
+      --canvas: #f2f5f9;
+      --card: #ffffff;
+      --subtle: #f7fafc;
+      --line: #e2e9f0;
+      --line-input: #cfdbe6;
+      --text: #0f2940;
+      --muted: #5d7386;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: #dce5ef;
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .dialog {
+      width: min(960px, 100%);
+      height: min(90vh, 840px);
+      background: var(--canvas);
+      border-radius: 16px;
+      box-shadow: 0 24px 64px rgba(0, 36, 61, 0.20), 0 2px 10px rgba(0, 36, 61, 0.06);
+      border: 1px solid rgba(0, 36, 61, 0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .dialog-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 22px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+    .dialog-head h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: -0.015em;
+    }
+    .dialog-head p {
+      margin: 2px 0 0;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .head-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--ok-bg);
+      color: var(--ok);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .live-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+    .icon-btn:hover { background: var(--canvas); color: var(--navy); }
+
+    /* Top Trail Navigation Tabs */
+    .trail-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 22px;
+      background: #f8fafd;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .trail-tab {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 13px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .trail-tab:hover { background: #edf3f8; color: var(--navy); }
+    .trail-tab.active {
+      background: #ffffff;
+      color: var(--navy);
+      border-color: var(--line-input);
+      box-shadow: 0 1px 4px rgba(0, 36, 61, 0.08);
+      font-weight: 700;
+    }
+    .tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .tab-arrow { color: #9db0c0; font-size: 12px; }
+
+    /* Main Body */
+    .dialog-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px 22px 30px;
+      display: block;
+    }
+
+    /* Clean Flat Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      display: grid;
+      gap: 16px;
+    }
+    .card.is-reminder { border-left: 3px solid var(--rem-accent); }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .card-title { display: grid; gap: 2px; }
+    .card-title h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--navy); }
+    .card.is-reminder .card-title h2 { color: #2c3aa3; }
+    .card-title span { font-size: 12px; color: var(--muted); }
+
+    /* Segmented Switch */
+    .seg-switch {
+      display: inline-flex;
+      background: #edf2f7;
+      padding: 3px;
+      border-radius: 8px;
+      gap: 3px;
+      width: fit-content;
+    }
+    .seg-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 5.5px 13px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .seg-btn:hover { color: var(--navy); }
+    .seg-btn.active {
+      background: #ffffff;
+      color: var(--navy);
+      box-shadow: 0 1px 3px rgba(0, 36, 61, 0.10);
+    }
+
+    /* Reminder Step Selector Pills */
+    .step-block {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      background: var(--subtle);
+      border-radius: 9px;
+    }
+    .step-strip {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    .step-pill {
+      border: 1px solid var(--line-input);
+      background: #ffffff;
+      color: var(--navy);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 6px 11px;
+      border-radius: 7px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .step-pill:hover { border-color: var(--accent); }
+    .step-pill.active { background: var(--navy); border-color: var(--navy); color: #ffffff; }
+    .step-pill .num { opacity: 0.75; font-size: 11.5px; }
+
+    /* Clean Grids & Vertical Stacked Fields (Label ALWAYS above, Hint ALWAYS below) */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-4 { display: grid; grid-template-columns: 1.5fr 0.7fr 0.7fr 1fr; gap: 10px; }
+    .field { display: grid; gap: 5px; align-content: start; }
+    .field-full { grid-column: 1 / -1; }
+    .field-label {
+      font-size: 12px;
+      font-weight: 650;
+      color: var(--navy);
+      display: block;
+    }
+    .field-hint {
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    select, input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      font: inherit;
+      font-size: 13px;
+      color: var(--navy);
+      background: #ffffff;
+      border: 1px solid var(--line-input);
+      border-radius: 7px;
+      padding: 8px 10px;
+      transition: border-color 0.14s, box-shadow 0.14s;
+    }
+    select:hover, input:hover, textarea:hover { border-color: #a9c1d4; }
+    select:focus, input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0, 107, 128, 0.10);
+    }
+    textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+
+    /* Chip Multi-Select */
+    .chip-box {
+      background: #ffffff;
+      border: 1px solid var(--line-input);
+      border-radius: 7px;
+      padding: 6px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--accent-soft);
+      color: #004e5e;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .chip button {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0 1px;
+      opacity: 0.65;
+    }
+    .chip button:hover { opacity: 1; }
+    .chip-select {
+      border: 0 !important;
+      padding: 3px 4px !important;
+      font-size: 12px !important;
+      width: auto !important;
+      min-width: 145px;
+      box-shadow: none !important;
+      color: var(--muted) !important;
+    }
+
+    /* Buttons */
+    .btn {
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 6.5px 12px;
+      border-radius: 7px;
+      border: 1px solid var(--line-input);
+      background: #ffffff;
+      color: var(--navy);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { background: #f2f7fa; border-color: #a9c1d4; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .btn-primary:hover:not(:disabled) { background: #00586a; border-color: #00586a; }
+    .btn-sm { padding: 4.5px 9px; font-size: 11.5px; border-radius: 6px; }
+    .btn-danger { color: var(--err); border-color: #f0d0cd; background: #fff; }
+    .btn-danger:hover:not(:disabled) { background: var(--err-bg); border-color: var(--err); }
+
+    .inline-group { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .bar-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .muted-note { font-size: 12px; color: var(--muted); }
+
+    .var-pill {
+      border: 1px solid var(--line);
+      background: #f6fafc;
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2.5px 7px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .var-pill:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+    .soft-box {
+      padding: 14px;
+      background: var(--subtle);
+      border-radius: 9px;
+      display: grid;
+      gap: 12px;
+    }
+    .rem-msg-list { display: grid; gap: 12px; }
+    .rem-msg-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .rem-msg-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .rem-msg-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .rem-msg-title strong { font-size: 13.5px; color: var(--navy); }
+    .rem-msg-sub { font-size: 12px; color: var(--muted); }
+    .btn-dashed {
+      width: 100%;
+      border: 1px dashed #a8cbd5;
+      background: #f8fcfd;
+      color: var(--accent);
+      padding: 9px 12px;
+    }
+    .btn-dashed:hover { background: var(--accent-soft); }
+
+    .info-note {
+      background: #eef8f1;
+      color: #1f5c35;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+
+    /* Footer */
+    .dialog-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 22px;
+      border-top: 1px solid var(--line);
+      background: #ffffff;
+      flex-shrink: 0;
+    }
+    .foot-meta { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+
+    /* Preview Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 27, 46, 0.50);
+      display: none;
+      place-items: center;
+      z-index: 80;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: grid; }
+    .preview-card {
+      width: min(490px, 100%);
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0, 36, 61, 0.28);
+      overflow: hidden;
+    }
+    .preview-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .preview-card-body { padding: 16px; background: #f2f5f9; }
+    .wa-bubble {
+      background: #dcf8c6;
+      color: #111b21;
+      padding: 11px 13px;
+      border-radius: 12px 12px 12px 2px;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .email-frame { background: #fff; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+    .email-head { background: var(--navy); color: #fff; padding: 10px 14px; font-weight: 700; font-size: 13.5px; }
+    .email-subj { padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+    .email-body { padding: 12px 14px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--navy);
+      color: #fff;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0, 36, 61, 0.25);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity 0.18s, transform 0.18s;
+      z-index: 90;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 720px) {
+      .dialog { height: auto; max-height: 92vh; }
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <header class="dialog-head">
+      <div>
+        <h1 id="dlg-title">Edit automated message</h1>
+        <p>Clean stacked labels — every field's title is directly above it and its helper text directly below (UI-only preview).</p>
+      </div>
+      <div class="head-right">
+        <span class="live-pill"><i></i> Live catalog</span>
+        <button type="button" class="icon-btn" title="Close" onclick="showToast('Close clicked (UI-only preview)')">✕</button>
+      </div>
+    </header>
+
+    <nav class="trail-tabs" id="trail-tabs" aria-label="Trail steps"></nav>
+
+    <main class="dialog-body" id="dialog-body"></main>
+
+    <footer class="dialog-foot">
+      <span class="foot-meta" id="foot-summary">7 templates · 1 reminder ready to save</span>
+      <div class="inline-group">
+        <button type="button" class="btn" onclick="showToast('Cancelled (UI-only preview)')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="showToast('Preview only — no live data changed ✓')">Save changes</button>
+      </div>
+    </footer>
+  </div>
+
+  <div class="modal-overlay" id="preview-modal" onclick="if(event.target===this) closePreview()">
+    <div class="preview-card">
+      <div class="preview-card-head">
+        <strong style="font-size:14px;">Message Preview</strong>
+        <button type="button" class="icon-btn" onclick="closePreview()">✕</button>
+      </div>
+      <div class="preview-card-body" id="preview-body"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const TRIGGERS = [
+      { key: "invoice.created", label: "Payment Due (Any Bill / Order / Installment / Renewal)", badges: ["T", "R"], when: "When any project, plan, package, installment, or monthly renewal creates a due bill." },
+      { key: "order.upi_pending", label: "Payment Submitted by Client (Approval Pending)", badges: ["T"], when: "When a client submits a UPI order or installment payment waiting for admin approval." },
+      { key: "payment.received", label: "Payment Approved / Recorded (Paid)", badges: ["T"], when: "When an invoice or order is approved, recorded paid, or paid via wallet/installment." },
+      { key: "plan.payment_rejected", label: "Payment Rejected (by Admin)", badges: ["L"], when: "When an admin rejects a submitted plan, order, or wallet payment." },
+      { key: "package.purchased", label: "Package purchased", badges: ["T"], when: "When a client buys a sales package." },
+      { key: "plan.expired", label: "Plan / Package Expired", badges: ["R"], when: "When a monthly plan or package expires." },
+    ];
+
+    const state = {
+      activeTab: "stage-1",
+      instantAud: { "stage-1": "client", "stage-2": "admin", "stage-3": "client" },
+      remAud: { "stage-1": "client" },
+      remStepIdx: { "stage-1-client": 0, "stage-1-admin": 0 },
+
+      triggers: ["invoice.created"],
+      scope: "all",
+      selectedPackages: ["Growth Website Plan"],
+
+      stages: [
+        {
+          id: "stage-1",
+          trigger: "invoice.created",
+          adminControl: "review",
+          userControl: "auto",
+          instantAudience: "both",
+          clientTemplates: [
+            {
+              id: "c1",
+              name: "Monthly Invoice — Standard",
+              isDefault: true,
+              channel: "whatsapp",
+              subject: "Payment Due for {{package_name}}",
+              text: "Hi {{client_name}},\n\nYour invoice of ₹{{amount}} for {{package_name}} is due on {{due_date}}. Please pay on time to keep your service active."
+            },
+            {
+              id: "c2",
+              name: "Installment Bill — Short",
+              isDefault: false,
+              channel: "both",
+              subject: "Installment Due — {{package_name}}",
+              text: "Hi {{client_name}}, your installment of ₹{{amount}} is ready. Due date: {{due_date}}."
+            }
+          ],
+          selectedClientTpl: "c1",
+          adminTemplates: [
+            {
+              id: "a1",
+              name: "New Project Started",
+              isDefault: true,
+              channel: "whatsapp",
+              subject: "New Due Bill Created",
+              text: "Hello Admin, a new due bill of ₹{{amount}} has been generated for {{client_name}} ({{package_name}})."
+            },
+            {
+              id: "a2",
+              name: "Renewal Invoice Alert",
+              isDefault: false,
+              channel: "email",
+              subject: "Renewal Bill Generated — {{client_name}}",
+              text: "Renewal invoice created for {{client_name}} (₹{{amount}}). Due: {{due_date}}."
+            }
+          ],
+          selectedAdminTpl: "a1",
+          hasReminder: true,
+          reminder: {
+            startTrigger: "__main__",
+            audience: "both",
+            clientMode: "separate",
+            adminMode: "separate",
+            countDaysFrom: "due_date",
+            condition: "unpaid",
+            repeatMode: "permanent",
+            repeatForDays: 7,
+            repeatEveryDays: 3,
+            repeatPerDay: 1,
+            stopOn: ["payment.received", "order.upi_pending"],
+            clientSteps: [
+              { amount: 3, unit: "days", pos: "before", channel: "whatsapp", subject: "Upcoming Due Reminder", text: "Hi {{client_name}}, gentle reminder that ₹{{amount}} is due in 3 days ({{due_date}})." },
+              { amount: 0, unit: "days", pos: "on", channel: "both", subject: "Payment Due Today — {{package_name}}", text: "Hi {{client_name}}, your payment of ₹{{amount}} is due today. Please complete it from your portal." },
+              { amount: 2, unit: "days", pos: "after", channel: "whatsapp", subject: "Overdue Payment Reminder", text: "Hi {{client_name}}, your invoice of ₹{{amount}} is 2 days overdue. Please clear it soon." }
+            ],
+            adminSteps: [
+              { amount: 1, unit: "days", pos: "after", channel: "whatsapp", subject: "Client Payment Overdue", text: "Admin Alert: {{client_name}} has not paid ₹{{amount}} (1 day past due date)." },
+              { amount: 5, unit: "days", pos: "after", channel: "email", subject: "5 Days Overdue Follow-up", text: "Follow up required with {{client_name}} for overdue ₹{{amount}} on {{package_name}}." }
+            ]
+          }
+        },
+        {
+          id: "stage-2",
+          trigger: "order.upi_pending",
+          instantAudience: "admin",
+          clientTemplates: [
+            { id: "s2c1", name: "Payment Received for Review", isDefault: true, channel: "whatsapp", subject: "Payment Submitted", text: "Hi {{client_name}}, we received your payment proof and are verifying it." }
+          ],
+          selectedClientTpl: "s2c1",
+          adminTemplates: [
+            { id: "s2a1", name: "Approve UPI Payment", isDefault: true, channel: "whatsapp", subject: "Approval Pending — {{client_name}}", text: "Admin: {{client_name}} submitted ₹{{amount}} payment proof. Please verify & approve in portal." }
+          ],
+          selectedAdminTpl: "s2a1",
+          hasReminder: false,
+          reminder: null
+        },
+        {
+          id: "stage-3",
+          trigger: "payment.received",
+          instantAudience: "both",
+          clientTemplates: [
+            { id: "s3c1", name: "Payment Confirmation Receipt", isDefault: true, channel: "both", subject: "Payment Confirmed — Thank you!", text: "Hi {{client_name}}, thank you! Your payment of ₹{{amount}} for {{package_name}} is confirmed." }
+          ],
+          selectedClientTpl: "s3c1",
+          adminTemplates: [
+            { id: "s3a1", name: "Payment Recorded", isDefault: true, channel: "whatsapp", subject: "Payment Approved", text: "Payment of ₹{{amount}} from {{client_name}} has been marked Paid." }
+          ],
+          selectedAdminTpl: "s3a1",
+          hasReminder: false,
+          reminder: null
+        }
+      ]
+    };
+
+    function triggerLabel(key) { return (TRIGGERS.find(t => t.key === key) || { label: key }).label; }
+    function shortTrigger(key) { return triggerLabel(key).split("(")[0].trim(); }
+    function stageById(id) { return state.stages.find(s => s.id === id); }
+    function escapeHtml(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    function escapeAttr(s) { return escapeHtml(s).replace(/"/g,"&quot;"); }
+    function escapeJs(s) { return String(s || "").replace(/\\/g,"\\\\").replace(/'/g,"\\'"); }
+    function timingShort(step) { return step.pos === "on" ? "On due date" : `${step.amount}${step.unit === "hours" ? "h" : "d"} ${step.pos}`; }
+
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+    }
+
+    function countTotals() {
+      let templates = 0;
+      let reminders = 0;
+      state.stages.forEach(st => {
+        if (st.instantAudience === "client" || st.instantAudience === "both") templates += st.clientTemplates.length;
+        if (st.instantAudience === "admin" || st.instantAudience === "both") templates += st.adminTemplates.length;
+        if (st.hasReminder && st.reminder) reminders += 1;
+      });
+      document.getElementById("foot-summary").textContent =
+        `${templates} template${templates === 1 ? "" : "s"} · ${reminders} reminder${reminders === 1 ? "" : "s"} ready to save`;
+    }
+
+    function renderTabs() {
+      const nav = document.getElementById("trail-tabs");
+      let html = `
+        <button type="button" class="trail-tab ${state.activeTab === "trigger" ? "active" : ""}" onclick="switchTab('trigger')">
+          <span class="tab-dot"></span> Trigger &amp; Scope
+        </button>
+      `;
+      state.stages.forEach(st => {
+        html += `<span class="tab-arrow">→</span>`;
+        html += `
+          <button type="button" class="trail-tab ${state.activeTab === st.id ? "active" : ""}" onclick="switchTab('${st.id}')">
+            ${shortTrigger(st.trigger)}
+          </button>
+        `;
+      });
+      html += `<button type="button" class="btn btn-sm" style="margin-left:auto;" onclick="addStage()">+ Add stage</button>`;
+      nav.innerHTML = html;
+      countTotals();
+    }
+
+    function switchTab(id) { state.activeTab = id; render(); }
+
+    function renderTriggerScreen() {
+      const available = TRIGGERS.filter(t => !state.triggers.includes(t.key));
+      const activeWork = TRIGGERS.find(t => t.key === state.triggers[0]);
+      return `
+        <section class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Trigger &amp; Package Scope</h2>
+              <span>Choose what starts this automated trail and which packages it applies to</span>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">Trigger point</label>
+              <div class="chip-box">
+                ${state.triggers.map(k => `
+                  <span class="chip">${triggerLabel(k)}${state.triggers.length > 1 ? `<button type="button" onclick="removeRootTrigger('${k}')">×</button>` : ""}</span>
+                `).join("")}
+                ${available.length ? `
+                  <select class="chip-select" onchange="addRootTrigger(this.value); this.value='';">
+                    <option value="">+ Add trigger…</option>
+                    ${available.map(t => `<option value="${t.key}">${t.label} [${t.badges.join(" ")}]</option>`).join("")}
+                  </select>
+                ` : ""}
+              </div>
+              <span class="field-hint">${state.triggers.length} selected · ${activeWork ? activeWork.when : ""}</span>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Package scope</label>
+              <select onchange="state.scope=this.value; render();">
+                <option value="all" ${state.scope === "all" ? "selected" : ""}>All packages &amp; plans</option>
+                <option value="monthly" ${state.scope === "monthly" ? "selected" : ""}>Monthly plans only</option>
+                <option value="onetime" ${state.scope === "onetime" ? "selected" : ""}>One-time packages only</option>
+                <option value="include" ${state.scope === "include" ? "selected" : ""}>Only selected packages (Include)</option>
+                <option value="exclude" ${state.scope === "exclude" ? "selected" : ""}>All except selected (Exclude)</option>
+              </select>
+              <span class="field-hint">Applies to selected triggers above</span>
+              ${(state.scope === "include" || state.scope === "exclude") ? `
+                <div class="chip-box">
+                  ${state.selectedPackages.map(p => `<span class="chip">${p} <button type="button" onclick="showToast('Package chip toggle (dummy)')">×</button></span>`).join("")}
+                </div>
+              ` : ""}
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderStageScreen(stage, idx) {
+      const showInstClient = stage.instantAudience === "client" || stage.instantAudience === "both";
+      const showInstAdmin = stage.instantAudience === "admin" || stage.instantAudience === "both";
+      let instAud = state.instantAud[stage.id] || "client";
+      if (instAud === "client" && !showInstClient) instAud = "admin";
+      if (instAud === "admin" && !showInstAdmin) instAud = "client";
+
+      const tplList = instAud === "client" ? stage.clientTemplates : stage.adminTemplates;
+      const selTplId = instAud === "client" ? stage.selectedClientTpl : stage.selectedAdminTpl;
+      const tpl = tplList.find(t => t.id === selTplId) || tplList[0];
+      const tplTaId = `tpl-ta-${stage.id}-${instAud}`;
+
+      let html = "";
+
+      if (idx > 0) {
+        html += `
+          <section class="card">
+            <div class="grid-2">
+              <div class="field">
+                <label class="field-label">When this stage runs</label>
+                <select onchange="stageById('${stage.id}').trigger=this.value; render();">
+                  ${TRIGGERS.map(t => `<option value="${t.key}" ${stage.trigger === t.key ? "selected" : ""}>${t.label}</option>`).join("")}
+                </select>
+              </div>
+              <div class="field" style="justify-items:end; align-content:end;">
+                <button type="button" class="btn btn-danger" onclick="removeStage('${stage.id}')">Remove stage</button>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      /* 1. Instant Message Card — every label directly ABOVE its control */
+      html += `
+        <section class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Instant message</h2>
+              <span>Sent immediately on ${shortTrigger(stage.trigger)}</span>
+            </div>
+          </div>
+
+          <div class="${idx === 0 && stage.instantAudience !== "off" ? "grid-3" : "grid-2"}">
+            <div class="field">
+              <label class="field-label">Send instant message to</label>
+              <select onchange="stageById('${stage.id}').instantAudience=this.value; render();">
+                <option value="off" ${stage.instantAudience === "off" ? "selected" : ""}>Off (Don't send)</option>
+                <option value="client" ${stage.instantAudience === "client" ? "selected" : ""}>Client only</option>
+                <option value="admin" ${stage.instantAudience === "admin" ? "selected" : ""}>Admin / Team only</option>
+                <option value="both" ${stage.instantAudience === "both" ? "selected" : ""}>Both (Client &amp; Admin)</option>
+              </select>
+            </div>
+
+            ${idx === 0 && stage.instantAudience !== "off" ? `
+              <div class="field">
+                <label class="field-label">When Admin does it</label>
+                <select onchange="stageById('${stage.id}').adminControl=this.value">
+                  <option value="auto" ${stage.adminControl === "auto" ? "selected" : ""}>Auto (send immediately)</option>
+                  <option value="review" ${stage.adminControl === "review" ? "selected" : ""}>Review popup</option>
+                  <option value="off" ${stage.adminControl === "off" ? "selected" : ""}>Off</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">When User / Client does it</label>
+                <select onchange="stageById('${stage.id}').userControl=this.value">
+                  <option value="auto" ${stage.userControl === "auto" ? "selected" : ""}>Auto (send immediately)</option>
+                  <option value="review" ${stage.userControl === "review" ? "selected" : ""}>Hold in Review &amp; delivery</option>
+                  <option value="off" ${stage.userControl === "off" ? "selected" : ""}>Off</option>
+                </select>
+              </div>
+            ` : ""}
+          </div>
+
+          ${stage.instantAudience === "off" ? `
+            <span class="muted-note">Instant message is turned off for this stage.</span>
+          ` : `
+            ${stage.instantAudience === "both" ? `
+              <div class="field">
+                <label class="field-label">Edit message for</label>
+                <div class="seg-switch">
+                  <button type="button" class="seg-btn ${instAud === "client" ? "active" : ""}" onclick="state.instantAud['${stage.id}']='client'; render();">
+                    Client (${stage.clientTemplates.length})
+                  </button>
+                  <button type="button" class="seg-btn ${instAud === "admin" ? "active" : ""}" onclick="state.instantAud['${stage.id}']='admin'; render();">
+                    Admin / Team (${stage.adminTemplates.length})
+                  </button>
+                </div>
+              </div>
+            ` : ""}
+
+            <div class="soft-box">
+              <div class="field">
+                <label class="field-label">Saved template</label>
+                <select onchange="selectTemplate('${stage.id}','${instAud}',this.value)">
+                  ${tplList.map(t => `<option value="${t.id}" ${t.id === tpl.id ? "selected" : ""}>${t.name}${t.isDefault ? " ★ Default" : ""}</option>`).join("")}
+                </select>
+                <span class="field-hint">Automatic sending always uses the ★ Default template</span>
+              </div>
+              <div class="inline-group">
+                <button type="button" class="btn btn-sm" onclick="showToast('Save as new (dummy)')">Save as new</button>
+                <button type="button" class="btn btn-sm" onclick="showToast('+ New template (dummy)')">+ New</button>
+                ${!tpl.isDefault ? `<button type="button" class="btn btn-sm" onclick="setDefaultTpl('${stage.id}','${instAud}','${tpl.id}')">Set Default</button>` : ""}
+                <button type="button" class="btn btn-sm" onclick="showToast('Rename (dummy)')">Rename</button>
+                ${tplList.length > 1 ? `<button type="button" class="btn btn-sm btn-danger" onclick="showToast('Delete (dummy)')">Delete</button>` : ""}
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label class="field-label">Channel</label>
+                <select onchange="patchTpl('${stage.id}','${instAud}','${tpl.id}','channel',this.value)">
+                  <option value="whatsapp" ${tpl.channel === "whatsapp" ? "selected" : ""}>WhatsApp only</option>
+                  <option value="email" ${tpl.channel === "email" ? "selected" : ""}>Email only</option>
+                  <option value="both" ${tpl.channel === "both" ? "selected" : ""}>Both (WhatsApp + Email)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Email subject</label>
+                <input type="text" value="${escapeAttr(tpl.subject)}" oninput="patchTpl('${stage.id}','${instAud}','${tpl.id}','subject',this.value,true)" placeholder="Enter email subject…" />
+                <span class="field-hint">${tpl.channel === "whatsapp" ? "Optional on WhatsApp only" : "Required for Email"}</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="bar-row">
+                <label class="field-label">Message text</label>
+                <button type="button" class="btn btn-sm" onclick="openPreview('${escapeJs(tpl.channel)}','${escapeJs(tpl.subject)}',document.getElementById('${tplTaId}').value)">Preview</button>
+              </div>
+              <textarea id="${tplTaId}" oninput="patchTpl('${stage.id}','${instAud}','${tpl.id}','text',this.value,true)">${escapeHtml(tpl.text)}</textarea>
+              <div class="inline-group">
+                <span class="field-hint">Insert variable (inserts at cursor / selection):</span>
+                <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${tplTaId}','{{client_name}}')">{{client_name}}</button>
+                <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${tplTaId}','{{amount}}')">{{amount}}</button>
+                <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${tplTaId}','{{due_date}}')">{{due_date}}</button>
+                <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${tplTaId}','{{package_name}}')">{{package_name}}</button>
+              </div>
+            </div>
+          `}
+        </section>
+      `;
+
+      /* 2. Follow-up Reminder Card */
+      if (!stage.hasReminder || !stage.reminder) {
+        html += `
+          <section class="card is-reminder">
+            <div class="bar-row">
+              <div class="card-title">
+                <h2>Follow-up reminder</h2>
+                <span>Optional — send scheduled follow-ups until a stop event happens</span>
+              </div>
+              <button type="button" class="btn" onclick="enableReminder('${stage.id}')">+ Add follow-up reminder</button>
+            </div>
+          </section>
+        `;
+        return html;
+      }
+
+      const rem = stage.reminder;
+      const showRemClient = rem.audience === "client" || rem.audience === "both";
+      const showRemAdmin = rem.audience === "admin" || rem.audience === "both";
+      let remAud = state.remAud[stage.id] || "client";
+      if (remAud === "client" && !showRemClient) remAud = "admin";
+      if (remAud === "admin" && !showRemAdmin) remAud = "client";
+
+      const steps = remAud === "client" ? rem.clientSteps : rem.adminSteps;
+      const mode = remAud === "client" ? rem.clientMode : rem.adminMode;
+      const stepKey = `${stage.id}-${remAud}`;
+      let activeStepIdx = state.remStepIdx[stepKey] ?? 0;
+      if (activeStepIdx >= steps.length) activeStepIdx = Math.max(0, steps.length - 1);
+      const curStep = steps[activeStepIdx];
+      const remTaId = `rem-ta-${stage.id}-${remAud}-${activeStepIdx}`;
+      const availableStops = TRIGGERS.filter(t => t.key !== stage.trigger && !rem.stopOn.includes(t.key));
+
+      html += `
+        <section class="card is-reminder">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>Follow-up reminder</h2>
+              <span>Scheduled follow-ups before, on, or after due date</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-danger" onclick="stageById('${stage.id}').hasReminder=false; renderPreserveScroll();">Remove reminder</button>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label">Start reminder when</label>
+              <select onchange="stageById('${stage.id}').reminder.startTrigger=this.value">
+                <option value="__main__" ${rem.startTrigger === "__main__" ? "selected" : ""}>Same as stage trigger (${shortTrigger(stage.trigger)})</option>
+                ${TRIGGERS.map(t => `<option value="${t.key}" ${rem.startTrigger === t.key ? "selected" : ""}>${t.label}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">Send reminder to</label>
+              <select onchange="stageById('${stage.id}').reminder.audience=this.value; renderPreserveScroll();">
+                <option value="client" ${rem.audience === "client" ? "selected" : ""}>Client only</option>
+                <option value="admin" ${rem.audience === "admin" ? "selected" : ""}>Admin / Team only</option>
+                <option value="both" ${rem.audience === "both" ? "selected" : ""}>Both (Client &amp; Admin)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            ${rem.audience === "both" ? `
+              <div class="field">
+                <label class="field-label">Edit reminder messages for</label>
+                <div class="seg-switch">
+                  <button type="button" class="seg-btn ${remAud === "client" ? "active" : ""}" onclick="state.remAud['${stage.id}']='client'; renderPreserveScroll();">
+                    Client (${rem.clientSteps.length})
+                  </button>
+                  <button type="button" class="seg-btn ${remAud === "admin" ? "active" : ""}" onclick="state.remAud['${stage.id}']='admin'; renderPreserveScroll();">
+                    Admin / Team (${rem.adminSteps.length})
+                  </button>
+                </div>
+              </div>
+            ` : `<div></div>`}
+
+            <div class="field">
+              <label class="field-label">Message style</label>
+              <select onchange="updateRemMode('${stage.id}','${remAud}',this.value)">
+                <option value="separate" ${mode === "separate" ? "selected" : ""}>Separate message per timing</option>
+                <option value="universal" ${mode === "universal" ? "selected" : ""}>1 universal message (all timings)</option>
+              </select>
+              ${remAud === "admin" && showRemClient ? `
+                <div><button type="button" class="btn btn-sm" onclick="copyClientDays('${stage.id}')">Copy client's days</button></div>
+              ` : ""}
+            </div>
+          </div>
+
+          <div class="rem-msg-list">
+            ${steps.map((curStep, sIdx) => {
+              const remTaId = `rem-ta-${stage.id}-${remAud}-${sIdx}`;
+              const timingLbl = curStep.pos === "on"
+                ? "On due date"
+                : `${curStep.amount} ${curStep.unit} ${curStep.pos} due date`;
+              return `
+                <div class="rem-msg-card">
+                  <div class="rem-msg-head">
+                    <div class="rem-msg-title">
+                      <strong>Message #${sIdx + 1}</strong>
+                      <span class="rem-msg-sub">· ${timingLbl}</span>
+                    </div>
+                    <div class="inline-group">
+                      <button type="button" class="btn btn-sm" ${sIdx === 0 ? "disabled" : ""} onclick="moveStep('${stage.id}','${remAud}',${sIdx},-1)">↑ Move up</button>
+                      <button type="button" class="btn btn-sm" ${sIdx >= steps.length - 1 ? "disabled" : ""} onclick="moveStep('${stage.id}','${remAud}',${sIdx},1)">↓ Move down</button>
+                      ${steps.length > 1 ? `<button type="button" class="btn btn-sm btn-danger" onclick="removeStep('${stage.id}','${remAud}',${sIdx})">Remove</button>` : ""}
+                    </div>
+                  </div>
+
+                  <div class="grid-2">
+                    <div class="field">
+                      <label class="field-label">When to send</label>
+                      <div class="grid-3">
+                        ${curStep.pos !== "on" ? `
+                          <input type="number" min="0" max="365" value="${curStep.amount}" onchange="patchStep('${stage.id}','${remAud}',${sIdx},'amount',Number(this.value))" />
+                          <select onchange="patchStep('${stage.id}','${remAud}',${sIdx},'unit',this.value)">
+                            <option value="days" ${curStep.unit === "days" ? "selected" : ""}>days</option>
+                            <option value="hours" ${curStep.unit === "hours" ? "selected" : ""}>hours</option>
+                          </select>
+                        ` : ""}
+                        <select style="${curStep.pos === "on" ? "grid-column: 1 / -1;" : ""}" onchange="patchStep('${stage.id}','${remAud}',${sIdx},'pos',this.value)">
+                          <option value="before" ${curStep.pos === "before" ? "selected" : ""}>before due date</option>
+                          <option value="on" ${curStep.pos === "on" ? "selected" : ""}>on due date</option>
+                          <option value="after" ${curStep.pos === "after" ? "selected" : ""}>after due date</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label class="field-label">Channel</label>
+                      <select onchange="patchStep('${stage.id}','${remAud}',${sIdx},'channel',this.value)">
+                        <option value="whatsapp" ${curStep.channel === "whatsapp" ? "selected" : ""}>WhatsApp only</option>
+                        <option value="email" ${curStep.channel === "email" ? "selected" : ""}>Email only</option>
+                        <option value="both" ${curStep.channel === "both" ? "selected" : ""}>Both (WhatsApp + Email)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label class="field-label">Email subject</label>
+                    <input type="text" value="${escapeAttr(curStep.subject)}" oninput="patchStep('${stage.id}','${remAud}',${sIdx},'subject',this.value,true)" placeholder="Enter email subject…" />
+                    <span class="field-hint">${curStep.channel === "whatsapp" ? "Optional on WhatsApp only" : "Required for Email"}</span>
+                  </div>
+
+                  <div class="field">
+                    <div class="bar-row">
+                      <label class="field-label">Message text</label>
+                      <button type="button" class="btn btn-sm" onclick="openPreview('${escapeJs(curStep.channel)}','${escapeJs(curStep.subject)}',document.getElementById('${remTaId}').value)">Preview</button>
+                    </div>
+                    <textarea id="${remTaId}" oninput="patchStep('${stage.id}','${remAud}',${sIdx},'text',this.value,true)">${escapeHtml(curStep.text)}</textarea>
+                    <div class="inline-group">
+                      <span class="field-hint">Insert variable (inserts at cursor / selection):</span>
+                      <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${remTaId}','{{client_name}}')">{{client_name}}</button>
+                      <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${remTaId}','{{amount}}')">{{amount}}</button>
+                      <button type="button" class="var-pill" onmousedown="event.preventDefault()" onclick="insertVar('${remTaId}','{{due_date}}')">{{due_date}}</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+
+          <button type="button" class="btn btn-dashed" onclick="addStep('${stage.id}','${remAud}')">+ Add follow-up message</button>
+
+          <div class="rules-box">
+            <div class="grid-2">
+              <div class="field">
+                <label class="field-label">Count days from</label>
+                <select onchange="stageById('${stage.id}').reminder.countDaysFrom=this.value">
+                  <option value="due_date" ${rem.countDaysFrom === "due_date" ? "selected" : ""}>Due date</option>
+                  <option value="trigger_date" ${rem.countDaysFrom === "trigger_date" ? "selected" : ""}>Trigger date</option>
+                  <option value="expiry_date" ${rem.countDaysFrom === "expiry_date" ? "selected" : ""}>Expiry date</option>
+                  <option value="deadline_date" ${rem.countDaysFrom === "deadline_date" ? "selected" : ""}>Deadline date</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Only when</label>
+                <select onchange="stageById('${stage.id}').reminder.condition=this.value">
+                  <option value="any" ${rem.condition === "any" ? "selected" : ""}>Anytime</option>
+                  <option value="unpaid" ${rem.condition === "unpaid" ? "selected" : ""}>Still unpaid</option>
+                  <option value="pending_approval" ${rem.condition === "pending_approval" ? "selected" : ""}>Approval pending</option>
+                  <option value="installment_due" ${rem.condition === "installment_due" ? "selected" : ""}>Installment due</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-4">
+              <div class="field">
+                <label class="field-label">Repeat mode</label>
+                <select onchange="stageById('${stage.id}').reminder.repeatMode=this.value; renderPreserveScroll();">
+                  <option value="off" ${rem.repeatMode === "off" ? "selected" : ""}>Off (scheduled only)</option>
+                  <option value="permanent" ${rem.repeatMode === "permanent" ? "selected" : ""}>Permanent (until stop)</option>
+                  <option value="limited" ${rem.repeatMode === "limited" ? "selected" : ""}>Fixed days limit</option>
+                </select>
+              </div>
+              ${rem.repeatMode === "limited" ? `
+                <div class="field">
+                  <label class="field-label">For (days)</label>
+                  <input type="number" min="1" max="180" value="${rem.repeatForDays}" onchange="stageById('${stage.id}').reminder.repeatForDays=Number(this.value)" />
+                </div>
+              ` : ""}
+              ${rem.repeatMode !== "off" ? `
+                <div class="field">
+                  <label class="field-label">Every (days)</label>
+                  <input type="number" min="1" max="90" value="${rem.repeatEveryDays}" onchange="stageById('${stage.id}').reminder.repeatEveryDays=Number(this.value)" />
+                </div>
+                <div class="field">
+                  <label class="field-label">Per day</label>
+                  <select onchange="stageById('${stage.id}').reminder.repeatPerDay=Number(this.value)">
+                    <option value="1" ${rem.repeatPerDay === 1 ? "selected" : ""}>1x / day</option>
+                    <option value="2" ${rem.repeatPerDay === 2 ? "selected" : ""}>2x / day (12h)</option>
+                    <option value="3" ${rem.repeatPerDay === 3 ? "selected" : ""}>3x / day (8h)</option>
+                    <option value="4" ${rem.repeatPerDay === 4 ? "selected" : ""}>4x / day (6h)</option>
+                  </select>
+                </div>
+              ` : ""}
+            </div>
+
+            <div class="field">
+              <label class="field-label">Stop when</label>
+              <div class="chip-box">
+                ${rem.stopOn.map(k => `<span class="chip">${triggerLabel(k)} <button type="button" onclick="removeStop('${stage.id}','${k}')">×</button></span>`).join("")}
+                ${availableStops.length ? `
+                  <select class="chip-select" onchange="addStop('${stage.id}',this.value); this.value='';">
+                    <option value="">+ Add stop trigger…</option>
+                    ${availableStops.map(t => `<option value="${t.key}">${t.label} [${t.badges.join(" ")}]</option>`).join("")}
+                  </select>
+                ` : ""}
+              </div>
+              <span class="field-hint">Reminders stop immediately when any selected event happens</span>
+              <div class="info-note">✓ “Payment Approved / Recorded (Paid)” is already handled later in this trail.</div>
+            </div>
+          </div>
+        </section>
+      `;
+
+      return html;
+    }
+
+    function addRootTrigger(k) { if (k && !state.triggers.includes(k)) { state.triggers.push(k); render(); } }
+    function removeRootTrigger(k) { state.triggers = state.triggers.filter(x => x !== k); render(); }
+    function selectTemplate(id, aud, tplId) {
+      const st = stageById(id);
+      if (aud === "client") st.selectedClientTpl = tplId; else st.selectedAdminTpl = tplId;
+      renderPreserveScroll();
+    }
+    function setDefaultTpl(id, aud, tplId) {
+      const list = aud === "client" ? stageById(id).clientTemplates : stageById(id).adminTemplates;
+      list.forEach(t => t.isDefault = (t.id === tplId));
+      renderPreserveScroll();
+      showToast("Updated ★ Default template");
+    }
+    function patchTpl(id, aud, tplId, field, val, silent) {
+      const list = aud === "client" ? stageById(id).clientTemplates : stageById(id).adminTemplates;
+      const tpl = list.find(t => t.id === tplId);
+      if (tpl) tpl[field] = val;
+      if (!silent) renderPreserveScroll();
+    }
+    function enableReminder(id) {
+      const st = stageById(id);
+      st.hasReminder = true;
+      if (!st.reminder) {
+        st.reminder = {
+          startTrigger: "__main__", audience: "client", clientMode: "separate", adminMode: "separate",
+          countDaysFrom: "due_date", condition: "any", repeatMode: "off", repeatForDays: 7, repeatEveryDays: 2, repeatPerDay: 1,
+          stopOn: ["payment.received"],
+          clientSteps: [{ amount: 2, unit: "days", pos: "after", channel: "whatsapp", subject: "", text: "" }],
+          adminSteps: []
+        };
+      }
+      state.remStepIdx[`${id}-client`] = 0;
+      renderPreserveScroll();
+    }
+    function updateRemMode(id, aud, val) {
+      const rem = stageById(id).reminder;
+      if (aud === "client") rem.clientMode = val; else rem.adminMode = val;
+      renderPreserveScroll();
+    }
+    function copyClientDays(id) {
+      const rem = stageById(id).reminder;
+      rem.adminSteps = rem.clientSteps.map(s => ({ ...s }));
+      state.remStepIdx[`${id}-admin`] = 0;
+      renderPreserveScroll();
+      showToast("Copied client's days to Admin messages ✓");
+    }
+    function selectRemStep(id, aud, idx) { state.remStepIdx[`${id}-${aud}`] = idx; renderPreserveScroll(); }
+    function moveStep(id, aud, idx, dir) {
+      const list = aud === "client" ? stageById(id).reminder.clientSteps : stageById(id).reminder.adminSteps;
+      const next = idx + dir;
+      if (next < 0 || next >= list.length) return;
+      const [moved] = list.splice(idx, 1);
+      list.splice(next, 0, moved);
+      state.remStepIdx[`${id}-${aud}`] = next;
+      renderPreserveScroll();
+      showToast(`Moved to #${next + 1}`);
+    }
+    function patchStep(id, aud, idx, field, val, silent) {
+      const list = aud === "client" ? stageById(id).reminder.clientSteps : stageById(id).reminder.adminSteps;
+      list[idx][field] = val;
+      if (!silent) renderPreserveScroll();
+    }
+    function addStep(id, aud) {
+      const list = aud === "client" ? stageById(id).reminder.clientSteps : stageById(id).reminder.adminSteps;
+      list.push({ amount: 3, unit: "days", pos: "after", channel: "whatsapp", subject: "", text: "" });
+      state.remStepIdx[`${id}-${aud}`] = list.length - 1;
+      renderPreserveScroll();
+    }
+    function removeStep(id, aud, idx) {
+      const list = aud === "client" ? stageById(id).reminder.clientSteps : stageById(id).reminder.adminSteps;
+      list.splice(idx, 1);
+      state.remStepIdx[`${id}-${aud}`] = Math.max(0, idx - 1);
+      renderPreserveScroll();
+    }
+    function addStop(id, k) { if (k && !stageById(id).reminder.stopOn.includes(k)) { stageById(id).reminder.stopOn.push(k); renderPreserveScroll(); } }
+    function removeStop(id, k) { stageById(id).reminder.stopOn = stageById(id).reminder.stopOn.filter(x => x !== k); renderPreserveScroll(); }
+    function removeStage(id) {
+      state.stages = state.stages.filter(s => s.id !== id);
+      state.activeTab = state.stages[0]?.id || "trigger";
+      render();
+      showToast("Stage removed (preview)");
+    }
+    function addStage() {
+      const nextNum = state.stages.length + 1;
+      const id = `stage-${nextNum}`;
+      state.stages.push({
+        id, trigger: "plan.payment_rejected",
+        instantAudience: "client",
+        clientTemplates: [{ id: `${id}-c1`, name: "Default Template", isDefault: true, channel: "whatsapp", subject: "", text: "" }],
+        selectedClientTpl: `${id}-c1`,
+        adminTemplates: [{ id: `${id}-a1`, name: "Admin Alert", isDefault: true, channel: "whatsapp", subject: "", text: "" }],
+        selectedAdminTpl: `${id}-a1`,
+        hasReminder: false,
+        reminder: null
+      });
+      state.instantAud[id] = "client";
+      state.remAud[id] = "client";
+      state.activeTab = id;
+      render();
+      showToast("Added new stage");
+    }
+    function insertVar(elId, token) {
+      const ta = document.getElementById(elId);
+      if (!ta) return;
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? ta.value.length;
+      ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+      const pos = start + token.length;
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+      ta.dispatchEvent(new Event("input"));
+    }
+    function openPreview(channel, subject, text) {
+      const sample = (str) => (str || "")
+        .replaceAll("{{client_name}}", "Rahul Sharma")
+        .replaceAll("{{amount}}", "4,999")
+        .replaceAll("{{due_date}}", "28 Nov 2026")
+        .replaceAll("{{package_name}}", "Growth Website Plan");
+      const body = document.getElementById("preview-body");
+      let html = "";
+      if (channel === "whatsapp" || channel === "both") {
+        html += `<div style="margin-bottom:12px;"><div style="font-size:12px;font-weight:700;color:#4c6475;margin-bottom:5px;">WhatsApp Preview</div><div class="wa-bubble">${escapeHtml(sample(text) || "(Empty message)")}</div></div>`;
+      }
+      if (channel === "email" || channel === "both") {
+        html += `<div class="email-frame"><div class="email-head">Mera Software</div><div class="email-subj"><strong>Subject:</strong> ${escapeHtml(sample(subject) || "(No subject)")}</div><div class="email-body">${escapeHtml(sample(text) || "(Empty message)")}</div></div>`;
+      }
+      body.innerHTML = html;
+      document.getElementById("preview-modal").classList.add("open");
+    }
+    function closePreview() { document.getElementById("preview-modal").classList.remove("open"); }
+
+    function render() {
+      renderTabs();
+      const body = document.getElementById("dialog-body");
+      if (state.activeTab === "trigger") {
+        body.innerHTML = renderTriggerScreen();
+      } else {
+        const idx = state.stages.findIndex(s => s.id === state.activeTab);
+        const st = state.stages[idx] || state.stages[0];
+        body.innerHTML = renderStageScreen(st, idx >= 0 ? idx : 0);
+      }
+    }
+
+    function renderPreserveScroll() {
+      const body = document.getElementById("dialog-body");
+      const prevTop = body.scrollTop;
+      render();
+      body.scrollTop = prevTop;
+    }
+
+    render();
+  </script>
+</body>
+</html>

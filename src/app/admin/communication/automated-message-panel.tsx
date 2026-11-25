@@ -53,7 +53,10 @@ type TrailStage = {
   triggers: string[];
   instant: InstantBlockState;
   reminder: Reminder | null;
+  migratedLegacy?: MigratedLegacyMeta;
 };
+
+type QuickSaveResult = { ok: boolean; message?: string };
 
 type TriggerBadgeInfo = { hasTemplate: boolean; hasReminder: boolean; hasLegacy: boolean };
 type MigratedLegacyMeta = { events: string[]; templateIds: string[]; ruleIds: string[] };
@@ -908,6 +911,32 @@ function checkInstantSubjects(
   return null;
 }
 
+function mergeLegacyTemplates(current: SingleMsg, pulled: TemplateItem[]): SingleMsg {
+  const existing = (current.templates || []).filter(t => t.text.trim().length > 0);
+  const normalizedPulled = normalizeMsg({ templates: pulled }).templates.filter(t => t.text.trim().length > 0);
+  if (existing.length === 0) return normalizeMsg({ templates: normalizedPulled });
+  const seenIds = new Set(existing.map(t => t.id.toLowerCase()));
+  const seenContent = new Set(existing.map(t => `${t.name.trim().toLowerCase()}::${t.text.trim()}`));
+  const extras: TemplateItem[] = [];
+  for (const item of normalizedPulled) {
+    const idKey = item.id.toLowerCase();
+    const contentKey = `${item.name.trim().toLowerCase()}::${item.text.trim()}`;
+    if (seenIds.has(idKey) || seenContent.has(contentKey)) continue;
+    seenIds.add(idKey);
+    seenContent.add(contentKey);
+    extras.push({ ...item, isDefault: false });
+  }
+  return syncSingleMsg([...existing, ...extras].slice(0, 25));
+}
+
+function mergeLegacyMeta(items: Array<MigratedLegacyMeta | undefined>): MigratedLegacyMeta | undefined {
+  const events = [...new Set(items.flatMap(m => m?.events || []).filter(Boolean))];
+  const templateIds = [...new Set(items.flatMap(m => m?.templateIds || []).filter(Boolean))];
+  const ruleIds = [...new Set(items.flatMap(m => m?.ruleIds || []).filter(Boolean))];
+  if (!events.length && !templateIds.length && !ruleIds.length) return undefined;
+  return { events, templateIds, ruleIds };
+}
+
 function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null; errorBoxId?: string } {
   if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
 
@@ -961,8 +990,19 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
     return { trail: form, error: "Write a Template (Auto Message) or add at least one Reminder before saving." };
   }
 
+  const mergedMigratedLegacy = mergeLegacyMeta([
+    form.migratedLegacy,
+    ...form.stages.map(st => st.migratedLegacy),
+  ]);
+
   return {
-    trail: { ...form, instant: cleanInstant, reminders: cleanReminders, stages: cleanStages },
+    trail: {
+      ...form,
+      instant: cleanInstant,
+      reminders: cleanReminders,
+      stages: cleanStages,
+      migratedLegacy: mergedMigratedLegacy,
+    },
     error: null,
   };
 }
@@ -1268,9 +1308,10 @@ function MessageEditor({
   showTiming,
   baseDate = "due_date",
   canRemove,
-  boxId,
-  accordion,
+  flat = false,
   onPreview,
+  onMoveUp,
+  onMoveDown,
   onChange,
   onRemove,
 }: {
@@ -1279,69 +1320,96 @@ function MessageEditor({
   showTiming: boolean;
   baseDate?: BaseDate;
   canRemove?: boolean;
+  flat?: boolean;
   boxId?: string;
   accordion?: AccordionCtrl;
   onPreview?: (req: PreviewRequest) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onChange: (patch: Partial<MessageStep>) => void;
   onRemove?: () => void;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const effectivePos = baseDate === "trigger_date" && step.pos === "before" ? "after" : step.pos;
-  const collapsible = Boolean(boxId && accordion);
-  const expanded = !collapsible || accordion!.isOpen(boxId!);
 
-  const timingBrief = showTiming
-    ? (effectivePos === "on"
-      ? timingPositionLabel("on", baseDate)
-      : `${step.amount}${step.unit === "hours" ? "h" : "d"} ${timingPositionLabel(effectivePos, baseDate)}`)
-    : "";
-  const chBrief = step.channel === "both" ? "Email + WhatsApp" : step.channel === "email" ? "Email" : "WhatsApp";
-  const textSnippet = step.text.trim() ? step.text.trim().replace(/\s+/g, " ") : "Not written yet";
+  function insertPlaceholder(token: string) {
+    const el = ref.current;
+    const start = el?.selectionStart ?? step.text.length;
+    const end = el?.selectionEnd ?? step.text.length;
+    const nextText = step.text.slice(0, start) + token + step.text.slice(end);
+    onChange({ text: nextText });
+    const caret = start + token.length;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(caret, caret);
+      });
+    }
+  }
 
-  const editorInner = <>
-    {showTiming && (
-      <div className={s.timingRow}>
-        <span className={s.miniLabel}>When</span>
-        {effectivePos !== "on" && <>
-          <NumberInput
-            className={s.numInput}
-            min={0}
-            max={step.unit === "hours" ? 720 : 365}
-            aria-label={`${title} amount`}
-            value={step.amount}
-            emptyOnBlur="zero"
-            onValueChange={n => onChange({ amount: Math.max(0, n) })}
-          />
-          <select
-            className={s.compactSelect}
-            aria-label={`${title} unit`}
-            value={step.unit}
-            onChange={e => onChange({ unit: e.target.value as Unit })}
-          >
-            <option value="days">days</option>
-            <option value="hours">hours</option>
-          </select>
-        </>}
-        <select
-          className={s.compactSelect}
-          aria-label={`${title} position`}
-          value={effectivePos}
-          onChange={e => onChange({ pos: e.target.value as TimingPos })}
-        >
-          {baseDate !== "trigger_date" && (
-            <option value="before">{timingPositionLabel("before", baseDate)}</option>
+  return <div className={flat ? s.docFlatGroup : s.msgCard}>
+    {(showTiming || canRemove || onMoveUp || onMoveDown) && (
+      <div className={s.msgTitleRow}>
+        <strong>{title}</strong>
+        <div className={s.inlineGroup}>
+          {onMoveUp && (
+            <button type="button" className={s.miniBtn} onClick={onMoveUp}>↑ Move up</button>
           )}
-          <option value="on">{timingPositionLabel("on", baseDate)}</option>
-          <option value="after">{timingPositionLabel("after", baseDate)}</option>
-        </select>
+          {onMoveDown && (
+            <button type="button" className={s.miniBtn} onClick={onMoveDown}>↓ Move down</button>
+          )}
+          {canRemove && onRemove && (
+            <button type="button" className={s.miniDangerBtn} onClick={onRemove}>Remove</button>
+          )}
+        </div>
       </div>
     )}
 
-    <div className={s.msgTop}>
-      <div className={s.inlineGroup}>
-        <span className={s.miniLabel}>Channel</span>
+    <div className={showTiming ? s.grid2 : s.stackField}>
+      {showTiming && (
+        <div className={s.stackField}>
+          <label className={s.stackLabel}>When to send</label>
+          <div className={effectivePos !== "on" ? s.grid3 : s.stackField}>
+            {effectivePos !== "on" && <>
+              <NumberInput
+                className={s.numInput}
+                min={0}
+                max={step.unit === "hours" ? 720 : 365}
+                aria-label={`${title} amount`}
+                value={step.amount}
+                emptyOnBlur="zero"
+                onValueChange={n => onChange({ amount: Math.max(0, n) })}
+              />
+              <select
+                className={s.select}
+                aria-label={`${title} unit`}
+                value={step.unit}
+                onChange={e => onChange({ unit: e.target.value as Unit })}
+              >
+                <option value="days">days</option>
+                <option value="hours">hours</option>
+              </select>
+            </>}
+            <select
+              className={s.select}
+              aria-label={`${title} position`}
+              value={effectivePos}
+              onChange={e => onChange({ pos: e.target.value as TimingPos })}
+            >
+              {baseDate !== "trigger_date" && (
+                <option value="before">{timingPositionLabel("before", baseDate)}</option>
+              )}
+              <option value="on">{timingPositionLabel("on", baseDate)}</option>
+              <option value="after">{timingPositionLabel("after", baseDate)}</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className={s.stackField}>
+        <label className={s.stackLabel}>Channel</label>
         <select
-          className={s.compactSelect}
+          className={s.select}
           aria-label={`${title} channel`}
           value={step.channel}
           onChange={e => onChange({ channel: e.target.value as Channel })}
@@ -1351,49 +1419,10 @@ function MessageEditor({
           <option value="both">Both (WhatsApp + Email)</option>
         </select>
       </div>
-
-      <div className={s.toolbarRow}>
-        <div className={s.formatBtns} role="toolbar" aria-label="Text formatting">
-          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "bold", text => onChange({ text }))}><strong>B</strong></button>
-          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "italic", text => onChange({ text }))}><em>I</em></button>
-          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "list", text => onChange({ text }))}>• List</button>
-        </div>
-        <select
-          className={s.varSelect}
-          aria-label="Insert variable"
-          value=""
-          onChange={e => {
-            const token = e.target.value;
-            if (!token) return;
-            const el = ref.current;
-            const start = el?.selectionStart ?? step.text.length;
-            const end = el?.selectionEnd ?? step.text.length;
-            onChange({ text: step.text.slice(0, start) + token + step.text.slice(end) });
-          }}
-        >
-          <option value="">Insert variable ▾</option>
-          {PLACEHOLDERS.map(ph => (
-            <option key={ph.token} value={ph.token}>{ph.label} ({ph.token})</option>
-          ))}
-        </select>
-        {(onPreview || accordion?.openPreview) && (
-          <button
-            type="button"
-            className={s.miniBtn}
-            onClick={() => (onPreview || accordion!.openPreview)({
-              title,
-              channel: step.channel,
-              subject: step.subject,
-              text: step.text,
-            })}
-          >
-            Preview
-          </button>
-        )}
-      </div>
     </div>
 
-    <div className={s.subjectFieldWrap}>
+    <div className={s.stackField}>
+      <label className={s.stackLabel}>Email subject</label>
       <input
         type="text"
         className={s.textInput}
@@ -1410,68 +1439,58 @@ function MessageEditor({
       )}
     </div>
 
-    <textarea
-      ref={ref}
-      rows={3}
-      className={s.textarea}
-      placeholder="Write your message here…"
-      maxLength={10000}
-      value={step.text}
-      onChange={e => onChange({ text: e.target.value })}
-    />
-  </>;
-
-  if (collapsible) {
-    return (
-      <div className={s.accordionBox} data-open={expanded}>
-        <div
-          className={s.accordionHead}
-          role="button"
-          tabIndex={0}
-          aria-expanded={expanded}
-          title="Click to switch · Ctrl+Click to keep multiple open"
-          onClick={e => accordion!.toggle(boxId!, e.ctrlKey || e.metaKey)}
-          onKeyDown={e => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              accordion!.toggle(boxId!, e.ctrlKey || e.metaKey);
-            }
-          }}
-        >
-          <div className={s.accordionMain}>
-            <span className={s.accordionChevron} aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-            <strong>{title}</strong>
-            {!expanded && (
-              <span className={s.accordionMeta}>
-                {[timingBrief, chBrief, textSnippet].filter(Boolean).join(" · ")}
-              </span>
-            )}
+    <div className={s.stackField}>
+      <div className={s.msgTop}>
+        <label className={s.stackLabel}>Message text</label>
+        <div className={s.toolbarRow}>
+          <div className={s.formatBtns} role="toolbar" aria-label="Text formatting">
+            <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "bold", text => onChange({ text }))}><strong>B</strong></button>
+            <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "italic", text => onChange({ text }))}><em>I</em></button>
+            <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "list", text => onChange({ text }))}>• List</button>
           </div>
-          {canRemove && onRemove && (
+          {onPreview && (
             <button
               type="button"
-              className={s.miniDangerBtn}
-              onClick={e => { e.stopPropagation(); onRemove(); }}
+              className={s.miniBtn}
+              onClick={() => onPreview({
+                title,
+                channel: step.channel,
+                subject: step.subject,
+                text: step.text,
+              })}
             >
-              Remove
+              Preview
             </button>
           )}
         </div>
-        {expanded && <div className={s.accordionBody}>{editorInner}</div>}
       </div>
-    );
-  }
 
-  return <div className={s.msgCard}>
-    {(showTiming || canRemove) && (
-      <div className={s.msgTitleRow}>
-        <strong>{title}</strong>
-        {canRemove && onRemove && (
-          <button type="button" className={s.miniDangerBtn} onClick={onRemove}>Remove</button>
-        )}
+      <textarea
+        ref={ref}
+        rows={3}
+        className={s.textarea}
+        placeholder="Write your message here…"
+        maxLength={10000}
+        value={step.text}
+        onChange={e => onChange({ text: e.target.value })}
+      />
+
+      <div className={s.varPillList}>
+        <span className={s.stackHint}>Insert variable:</span>
+        {PLACEHOLDERS.map(ph => (
+          <button
+            key={ph.token}
+            type="button"
+            className={s.varPill}
+            title={ph.label}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => insertPlaceholder(ph.token)}
+          >
+            {ph.token}
+          </button>
+        ))}
       </div>
-    )}
-    {editorInner}
+    </div>
   </div>;
 }
 
@@ -1481,6 +1500,9 @@ function TemplateEditorBlock({
   initialTemplateId,
   boxId,
   accordion,
+  saving,
+  hasUnsavedLegacy,
+  onQuickSave,
   onChange,
 }: {
   label: string;
@@ -1488,6 +1510,9 @@ function TemplateEditorBlock({
   initialTemplateId?: string;
   boxId?: string;
   accordion?: AccordionCtrl;
+  saving?: boolean;
+  hasUnsavedLegacy?: boolean;
+  onQuickSave?: (next: SingleMsg) => Promise<QuickSaveResult>;
   onChange: (next: SingleMsg) => void;
 }) {
   const list = msg.templates?.length ? msg.templates : syncSingleMsg([]).templates;
@@ -1499,22 +1524,66 @@ function TemplateEditorBlock({
   const [nameInput, setNameInput] = useState("");
   const [promptError, setPromptError] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
+  const [quickBusy, setQuickBusy] = useState(false);
   const [savedSnap, setSavedSnap] = useState<Record<string, { channel: Channel; subject: string; text: string }>>(() =>
     Object.fromEntries(list.map(t => [t.id, { channel: t.channel, subject: t.subject, text: t.text }])),
   );
 
   const activeTpl = list.find(t => t.id === selectedId) || defaultTpl;
   const snap = savedSnap[activeTpl.id] || { channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text };
+  const isDirty = activeTpl.channel !== snap.channel || activeTpl.subject !== snap.subject || activeTpl.text !== snap.text;
+  const canSave = isDirty || Boolean(hasUnsavedLegacy);
+  const busy = Boolean(saving) || quickBusy;
 
-  function flashSaved(labelText = "Updated ✓") {
+  function flashSaved(labelText = "Saved ✓") {
     setSavedNotice(labelText);
-    window.setTimeout(() => setSavedNotice(curr => (curr === labelText ? "" : curr)), 2000);
+    window.setTimeout(() => setSavedNotice(curr => (curr === labelText ? "" : curr)), 2400);
   }
 
   function patchActive(patch: Partial<Pick<TemplateItem, "channel" | "subject" | "text">>) {
     if (savedNotice) setSavedNotice("");
+    if (promptError) setPromptError("");
     const nextList = list.map(t => (t.id === activeTpl.id ? { ...t, ...patch } : t));
     onChange(syncSingleMsg(nextList));
+  }
+
+  async function runQuickSave(nextMsg: SingleMsg, okLabel: string, draftLabel?: string, snapUpdate?: { id: string; channel: Channel; subject: string; text: string }) {
+    if (!onQuickSave) {
+      if (snapUpdate) {
+        setSavedSnap(curr => ({ ...curr, [snapUpdate.id]: { channel: snapUpdate.channel, subject: snapUpdate.subject, text: snapUpdate.text } }));
+      }
+      flashSaved(draftLabel || okLabel);
+      return;
+    }
+    setQuickBusy(true);
+    try {
+      const res = await onQuickSave(nextMsg);
+      if (res.ok) {
+        if (snapUpdate) {
+          setSavedSnap(curr => ({ ...curr, [snapUpdate.id]: { channel: snapUpdate.channel, subject: snapUpdate.subject, text: snapUpdate.text } }));
+        }
+        setPromptError("");
+        flashSaved(okLabel);
+      } else if (draftLabel) {
+        flashSaved(draftLabel);
+      } else {
+        setPromptError(res.message || "Could not save yet — complete required fields first.");
+      }
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
+  async function saveActiveTemplate() {
+    if (!canSave || busy) return;
+    const nextMsg = syncSingleMsg(list);
+    onChange(nextMsg);
+    await runQuickSave(nextMsg, "Saved ✓", undefined, {
+      id: activeTpl.id,
+      channel: activeTpl.channel,
+      subject: activeTpl.subject,
+      text: activeTpl.text,
+    });
   }
 
   function openPrompt(mode: "new" | "save_as" | "rename") {
@@ -1525,9 +1594,9 @@ function TemplateEditorBlock({
     else setNameInput(`Template ${list.length + 1}`);
   }
 
-  function confirmPrompt() {
+  async function confirmPrompt() {
     const clean = nameInput.trim();
-    if (!clean) return;
+    if (!clean || busy) return;
     const duplicate = list.some(t =>
       (promptMode === "rename" ? t.id !== activeTpl.id : true)
       && t.name.trim().toLowerCase() === clean.toLowerCase(),
@@ -1536,10 +1605,15 @@ function TemplateEditorBlock({
       setPromptError("A template with this name already exists.");
       return;
     }
-    if (promptMode === "rename") {
-      onChange(syncSingleMsg(list.map(t => (t.id === activeTpl.id ? { ...t, name: clean } : t))));
-      flashSaved("Renamed ✓");
-    } else if (promptMode === "save_as") {
+    const mode = promptMode;
+    setPromptMode("");
+    setNameInput("");
+    setPromptError("");
+    if (mode === "rename") {
+      const nextMsg = syncSingleMsg(list.map(t => (t.id === activeTpl.id ? { ...t, name: clean } : t)));
+      onChange(nextMsg);
+      await runQuickSave(nextMsg, "Saved ✓", "Renamed in form");
+    } else if (mode === "save_as") {
       const created = blankTemplate(clean, false, {
         channel: activeTpl.channel,
         subject: activeTpl.subject,
@@ -1547,14 +1621,15 @@ function TemplateEditorBlock({
       });
       // Keep original template at its last saved snapshot so Save as new never overwrites it.
       const restored = list.map(t => (t.id === activeTpl.id ? { ...t, ...snap } : t));
-      onChange(syncSingleMsg([...restored, created]));
+      const nextMsg = syncSingleMsg([...restored, created]);
+      onChange(nextMsg);
       setSavedSnap(curr => ({
         ...curr,
         [created.id]: { channel: created.channel, subject: created.subject, text: created.text },
       }));
       setSelectedId(created.id);
-      flashSaved("Added to form ✓");
-    } else if (promptMode === "new") {
+      await runQuickSave(nextMsg, "Saved ✓", "Added in form · Click Save changes");
+    } else if (mode === "new") {
       const created = blankTemplate(clean, false, { channel: activeTpl.channel, subject: "", text: "" });
       onChange(syncSingleMsg([...list, created]));
       setSavedSnap(curr => ({
@@ -1563,21 +1638,22 @@ function TemplateEditorBlock({
       }));
       setSelectedId(created.id);
     }
-    setPromptMode("");
-    setNameInput("");
-    setPromptError("");
   }
 
   function setAsDefault() {
-    onChange(syncSingleMsg(list.map(t => ({ ...t, isDefault: t.id === activeTpl.id }))));
+    if (busy) return;
+    const nextMsg = syncSingleMsg(list.map(t => ({ ...t, isDefault: t.id === activeTpl.id })));
+    onChange(nextMsg);
+    void runQuickSave(nextMsg, "Saved ✓", "Default updated in form");
   }
 
   function deleteActive() {
-    if (list.length <= 1) return;
+    if (list.length <= 1 || busy) return;
     const remaining = list.filter(t => t.id !== activeTpl.id);
     const next = syncSingleMsg(remaining);
     onChange(next);
     setSelectedId(next.templates[0].id);
+    void runQuickSave(next, "Saved ✓", "Deleted in form");
   }
 
   const collapsible = Boolean(boxId && accordion);
@@ -1587,35 +1663,42 @@ function TemplateEditorBlock({
   const textSnippet = activeTpl.text.trim() ? activeTpl.text.trim().replace(/\s+/g, " ") : "Not written yet";
 
   const bodyContent = <>
-    <div className={s.tplBar}>
-      <div className={s.tplBarRow}>
-        <div className={s.tplSelectGroup}>
-          <span className={s.miniLabel}>Template</span>
-          <select
-            className={s.compactSelect}
-            aria-label={`${label} template`}
-            value={activeTpl.id}
-            onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
-          >
-            {list.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name}{t.isDefault ? " ★ Default" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={s.tplActions}>
-          <button type="button" className={s.miniBtn} onClick={() => openPrompt("save_as")}>Save as new</button>
-          <button type="button" className={s.miniBtn} onClick={() => openPrompt("new")}>+ New</button>
-          {!activeTpl.isDefault && (
-            <button type="button" className={s.miniBtn} onClick={setAsDefault}>Set Default</button>
-          )}
-          <button type="button" className={s.miniBtn} onClick={() => openPrompt("rename")}>Rename</button>
-          {list.length > 1 && (
-            <button type="button" className={s.miniDangerBtn} onClick={deleteActive}>Delete</button>
-          )}
-          {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
-        </div>
+    <div className={s.docFlatGroup}>
+      <div className={s.stackField}>
+        <label className={s.stackLabel}>Saved template</label>
+        <select
+          className={s.select}
+          aria-label={`${label} template`}
+          value={activeTpl.id}
+          onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
+        >
+          {list.map(t => (
+            <option key={t.id} value={t.id}>
+              {t.name}{t.isDefault ? " ★ Default" : ""}
+            </option>
+          ))}
+        </select>
+        <span className={s.stackHint}>Automatic sending always uses the ★ Default template</span>
+      </div>
+      <div className={s.tplActions}>
+        <button
+          type="button"
+          className={canSave ? s.miniPrimaryBtn : s.miniBtn}
+          disabled={!canSave || busy}
+          onClick={() => { void saveActiveTemplate(); }}
+        >
+          {quickBusy ? "Saving…" : "Save"}
+        </button>
+        <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("save_as")}>Save as new</button>
+        <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("new")}>+ New</button>
+        {!activeTpl.isDefault && (
+          <button type="button" className={s.miniBtn} disabled={busy} onClick={setAsDefault}>Set Default</button>
+        )}
+        <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("rename")}>Rename</button>
+        {list.length > 1 && (
+          <button type="button" className={s.miniDangerBtn} disabled={busy} onClick={deleteActive}>Delete</button>
+        )}
+        {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
       </div>
 
       {promptMode && (
@@ -1631,65 +1714,33 @@ function TemplateEditorBlock({
             value={nameInput}
             onChange={e => { setNameInput(e.target.value); if (promptError) setPromptError(""); }}
             onKeyDown={e => {
-              if (e.key === "Enter") { e.preventDefault(); confirmPrompt(); }
+              if (e.key === "Enter") { e.preventDefault(); void confirmPrompt(); }
               if (e.key === "Escape") { e.preventDefault(); setPromptMode(""); setPromptError(""); }
             }}
           />
-          <button type="button" className={s.miniBtn} disabled={!nameInput.trim()} onClick={confirmPrompt}>Save</button>
+          <button type="button" className={s.miniBtn} disabled={!nameInput.trim() || busy} onClick={() => { void confirmPrompt(); }}>Save</button>
           <button type="button" className={s.miniDangerBtn} onClick={() => { setPromptMode(""); setPromptError(""); }}>Cancel</button>
         </div>
       )}
       {promptError && <span className={s.tplErrText}>{promptError}</span>}
     </div>
 
+    <div className={s.docDivider} role="separator" />
+
     <MessageEditor
       title={`${label} — ${activeTpl.name}`}
       step={{ amount: 0, unit: "days", pos: "after", channel: activeTpl.channel, subject: activeTpl.subject, text: activeTpl.text }}
       showTiming={false}
+      flat={true}
       onPreview={accordion?.openPreview}
       onChange={patch => patchActive(patch)}
     />
   </>;
 
-  if (collapsible) {
-    return (
-      <div className={s.accordionBox} data-open={expanded}>
-        <div
-          className={s.accordionHead}
-          role="button"
-          tabIndex={0}
-          aria-expanded={expanded}
-          title="Click to switch · Ctrl+Click to keep multiple open"
-          onClick={e => accordion!.toggle(boxId!, e.ctrlKey || e.metaKey)}
-          onKeyDown={e => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              accordion!.toggle(boxId!, e.ctrlKey || e.metaKey);
-            }
-          }}
-        >
-          <div className={s.accordionMain}>
-            <span className={s.accordionChevron} aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-            <strong>{label}</strong>
-            {!expanded && (
-              <span className={s.accordionMeta}>
-                {[tplCountBrief, chBrief, textSnippet].filter(Boolean).join(" · ")}
-              </span>
-            )}
-          </div>
-          <span className={s.cardSub}>
-            {list.length > 1 ? `${list.length} templates` : "Instant"}
-          </span>
-        </div>
-        {expanded && <div className={s.accordionBody}>{bodyContent}</div>}
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: "grid", gap: "8px" }}>
+    <div className={s.docBox}>
       <div className={s.blockHead}>
-        <strong className={s.labelRow}>{label}</strong>
+        <span className={s.audienceBadge}>{label}</span>
         <span className={s.cardSub}>
           {list.length > 1
             ? `${list.length} templates · Auto sends ★ Default`
@@ -1709,6 +1760,9 @@ function InstantAutoMsgBlock({
   userActionControl,
   focusAudience,
   focusTemplateId,
+  saving,
+  hasUnsavedLegacy,
+  onQuickSaveAudience,
   onChangeAdminControl,
   onChangeUserControl,
   onChange,
@@ -1720,6 +1774,9 @@ function InstantAutoMsgBlock({
   userActionControl?: "auto" | "review" | "off";
   focusAudience?: "client" | "admin";
   focusTemplateId?: string;
+  saving?: boolean;
+  hasUnsavedLegacy?: boolean;
+  onQuickSaveAudience?: (who: "client" | "admin", next: SingleMsg) => Promise<QuickSaveResult>;
   onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
   onChangeUserControl?: (next: "auto" | "review" | "off") => void;
   onChange: (next: InstantBlockState) => void;
@@ -1728,11 +1785,10 @@ function InstantAutoMsgBlock({
   const showAdmin = state.audience === "admin" || state.audience === "both";
 
   return (
-    <div style={{ display: "grid", gap: "10px" }}>
+    <div style={{ display: "grid", gap: "10px" }} data-outline-section={`${stagePrefix}-instant`}>
       <div className={s.blockHead}>
         <div className={s.blockTitle}>
-          <span className={s.stageBadge}>Template</span>
-          <span>Instant auto message</span>
+          <span className={s.stageBadge}>Instant auto message</span>
         </div>
         <div className={s.inlineGroup}>
           <select
@@ -1795,27 +1851,37 @@ function InstantAutoMsgBlock({
       )}
 
       {showClient && (
-        <TemplateEditorBlock
-          label="Client instant message"
-          msg={state.client}
-          initialTemplateId={focusAudience === "client" ? focusTemplateId : undefined}
-          boxId={`${stagePrefix}-tpl-client`}
-          accordion={accordion}
-          onChange={client => onChange({ ...state, client })}
-        />
+        <div data-outline-section={`${stagePrefix}-tpl-client`}>
+          <TemplateEditorBlock
+            label="Client instant message"
+            msg={state.client}
+            initialTemplateId={focusAudience === "client" ? focusTemplateId : undefined}
+            boxId={`${stagePrefix}-tpl-client`}
+            accordion={accordion}
+            saving={saving}
+            hasUnsavedLegacy={hasUnsavedLegacy}
+            onQuickSave={onQuickSaveAudience ? next => onQuickSaveAudience("client", next) : undefined}
+            onChange={client => onChange({ ...state, client })}
+          />
+        </div>
       )}
 
       {showClient && showAdmin && <div className={s.subDivider} role="separator" />}
 
       {showAdmin && (
-        <TemplateEditorBlock
-          label="Admin / Team instant message"
-          msg={state.admin}
-          initialTemplateId={focusAudience === "admin" ? focusTemplateId : undefined}
-          boxId={`${stagePrefix}-tpl-admin`}
-          accordion={accordion}
-          onChange={admin => onChange({ ...state, admin })}
-        />
+        <div data-outline-section={`${stagePrefix}-tpl-admin`}>
+          <TemplateEditorBlock
+            label="Admin / Team instant message"
+            msg={state.admin}
+            initialTemplateId={focusAudience === "admin" ? focusTemplateId : undefined}
+            boxId={`${stagePrefix}-tpl-admin`}
+            accordion={accordion}
+            saving={saving}
+            hasUnsavedLegacy={hasUnsavedLegacy}
+            onQuickSave={onQuickSaveAudience ? next => onQuickSaveAudience("admin", next) : undefined}
+            onChange={admin => onChange({ ...state, admin })}
+          />
+        </div>
       )}
     </div>
   );
@@ -1853,9 +1919,9 @@ function AudienceBlock({
   const primaryStep = steps[0] || blankStep(baseDate === "trigger_date" ? "after" : "before", 3);
 
   return (
-    <div style={{ display: "grid", gap: "8px" }}>
+    <div className={s.docBox}>
       <div className={s.blockHead}>
-        {!hideHeaderTitle ? <strong className={s.labelRow}>{title}</strong> : <span />}
+        {!hideHeaderTitle ? <span className={s.audienceBadge}>{title}</span> : <span />}
         <div className={s.inlineGroup}>
           {who === "admin" && canCopyClient && mode === "separate" && onCopyClient && (
             <button type="button" className={s.miniBtn} onClick={onCopyClient}>Copy client&apos;s days</button>
@@ -1927,45 +1993,52 @@ function AudienceBlock({
       )}
 
       {universal ? (
-        <MessageEditor
-          title={`Universal ${who === "client" ? "Client" : "Admin"} message`}
-          step={primaryStep}
-          showTiming={false}
-          boxId={boxPrefix ? `${boxPrefix}-u` : undefined}
-          accordion={accordion}
-          onChange={patch => onUpdateSteps(steps.map(st => ({ ...st, channel: patch.channel ?? st.channel, subject: patch.subject ?? st.subject, text: patch.text ?? st.text })))}
-        />
+        <>
+          <div className={s.docDivider} role="separator" />
+          <MessageEditor
+            title={`Universal ${who === "client" ? "Client" : "Admin"} message`}
+            step={primaryStep}
+            showTiming={false}
+            flat={true}
+            onPreview={accordion?.openPreview}
+            onChange={patch => onUpdateSteps(steps.map(st => ({ ...st, channel: patch.channel ?? st.channel, subject: patch.subject ?? st.subject, text: patch.text ?? st.text })))}
+          />
+        </>
       ) : (
-        <div style={{ display: "grid", gap: "8px" }}>
+        <div className={s.docFlatGroup}>
+          <div className={s.docDivider} role="separator" />
           {steps.map((step, idx) => (
-            <MessageEditor
-              key={idx}
-              title={`Message ${idx + 1}`}
-              step={step}
-              showTiming={true}
-              baseDate={baseDate}
-              canRemove={steps.length > 1}
-              boxId={boxPrefix ? `${boxPrefix}-${idx}` : undefined}
-              accordion={accordion}
-              onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
-              onRemove={() => {
-                const next = steps.filter((_, i) => i !== idx);
-                onUpdateSteps(next);
-                if (accordion && boxPrefix && accordion.isOpen(`${boxPrefix}-${idx}`)) {
-                  accordion.openOnly(`${boxPrefix}-${Math.max(0, idx - 1)}`);
-                }
-              }}
-            />
+            <div key={idx} className={s.docMsgItem}>
+              <MessageEditor
+                title={`Message #${idx + 1}`}
+                step={step}
+                showTiming={true}
+                baseDate={baseDate}
+                canRemove={steps.length > 1}
+                flat={true}
+                onPreview={accordion?.openPreview}
+                onMoveUp={idx > 0 ? () => {
+                  const next = [...steps];
+                  const [moved] = next.splice(idx, 1);
+                  next.splice(idx - 1, 0, moved);
+                  onUpdateSteps(next);
+                } : undefined}
+                onMoveDown={idx < steps.length - 1 ? () => {
+                  const next = [...steps];
+                  const [moved] = next.splice(idx, 1);
+                  next.splice(idx + 1, 0, moved);
+                  onUpdateSteps(next);
+                } : undefined}
+                onChange={patch => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, ...patch } : st))}
+                onRemove={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}
+              />
+            </div>
           ))}
           {steps.length < 10 && (
             <button
               type="button"
               className={s.subtleAdd}
-              onClick={() => {
-                const newIdx = steps.length;
-                onUpdateSteps([...steps, blankStep("after", 2)]);
-                if (accordion && boxPrefix) accordion.openOnly(`${boxPrefix}-${newIdx}`);
-              }}
+              onClick={() => onUpdateSteps([...steps, blankStep("after", 2)])}
             >
               + Add follow-up message
             </button>
@@ -2127,43 +2200,47 @@ function ReminderCard({
 
       {/* 2. Client messages first, then Admin / Team messages */}
       {showClient && (
-        <AudienceBlock
-          who="client"
-          title="Client messages"
-          mode={reminder.clientMode}
-          steps={reminder.clientSteps}
-          baseDate={reminder.countDaysFrom}
-          boxPrefix={`${stagePrefix}-r${reminder.id}-client`}
-          accordion={accordion}
-          onModeChange={clientMode => {
-            set({ clientMode });
-            if (accordion) {
-              accordion.openOnly(`${stagePrefix}-r${reminder.id}-client-${clientMode === "universal" ? "u" : "0"}`);
-            }
-          }}
-          onUpdateSteps={clientSteps => set({ clientSteps })}
-        />
+        <div data-outline-section={`${stagePrefix}-rem-client`}>
+          <AudienceBlock
+            who="client"
+            title="Client messages"
+            mode={reminder.clientMode}
+            steps={reminder.clientSteps}
+            baseDate={reminder.countDaysFrom}
+            boxPrefix={`${stagePrefix}-r${reminder.id}-client`}
+            accordion={accordion}
+            onModeChange={clientMode => {
+              set({ clientMode });
+              if (accordion) {
+                accordion.openOnly(`${stagePrefix}-r${reminder.id}-client-${clientMode === "universal" ? "u" : "0"}`);
+              }
+            }}
+            onUpdateSteps={clientSteps => set({ clientSteps })}
+          />
+        </div>
       )}
       {showClient && showAdmin && <div className={s.subDivider} role="separator" />}
       {showAdmin && (
-        <AudienceBlock
-          who="admin"
-          title="Admin / Team messages"
-          mode={reminder.adminMode}
-          steps={reminder.adminSteps}
-          baseDate={reminder.countDaysFrom}
-          canCopyClient={showClient}
-          boxPrefix={`${stagePrefix}-r${reminder.id}-admin`}
-          accordion={accordion}
-          onModeChange={adminMode => {
-            set({ adminMode });
-            if (accordion) {
-              accordion.openOnly(`${stagePrefix}-r${reminder.id}-admin-${adminMode === "universal" ? "u" : "0"}`);
-            }
-          }}
-          onCopyClient={copyClientDays}
-          onUpdateSteps={adminSteps => set({ adminSteps })}
-        />
+        <div data-outline-section={`${stagePrefix}-rem-admin`}>
+          <AudienceBlock
+            who="admin"
+            title="Admin / Team messages"
+            mode={reminder.adminMode}
+            steps={reminder.adminSteps}
+            baseDate={reminder.countDaysFrom}
+            canCopyClient={showClient}
+            boxPrefix={`${stagePrefix}-r${reminder.id}-admin`}
+            accordion={accordion}
+            onModeChange={adminMode => {
+              set({ adminMode });
+              if (accordion) {
+                accordion.openOnly(`${stagePrefix}-r${reminder.id}-admin-${adminMode === "universal" ? "u" : "0"}`);
+              }
+            }}
+            onCopyClient={copyClientDays}
+            onUpdateSteps={adminSteps => set({ adminSteps })}
+          />
+        </div>
       )}
 
       {/* 3. Base Date & Only When (2-column) + Repeat (clean full row) + Stop triggers */}
@@ -2345,6 +2422,11 @@ function TrailStageBlock({
   userActionControl,
   focusAudience,
   focusTemplateId,
+  saving,
+  legacyRefreshSeq = 0,
+  stageLegacyPulled = false,
+  onApplyStageLegacy,
+  onQuickSaveAudience,
   onChangeAdminControl,
   onChangeUserControl,
   reminders,
@@ -2370,6 +2452,11 @@ function TrailStageBlock({
   userActionControl?: "auto" | "review" | "off";
   focusAudience?: "client" | "admin";
   focusTemplateId?: string;
+  saving?: boolean;
+  legacyRefreshSeq?: number;
+  stageLegacyPulled?: boolean;
+  onApplyStageLegacy?: (payload: LegacyPullPayload) => void;
+  onQuickSaveAudience?: (who: "client" | "admin", next: SingleMsg) => Promise<QuickSaveResult>;
   onChangeAdminControl?: (next: "auto" | "review" | "off") => void;
   onChangeUserControl?: (next: "auto" | "review" | "off") => void;
   reminders: Reminder[];
@@ -2384,6 +2471,36 @@ function TrailStageBlock({
   onChangeInstant: (next: InstantBlockState) => void;
   onChangeReminders: (next: Reminder[]) => void;
 }) {
+  const [stageLegacyData, setStageLegacyData] = useState<LegacyPullPayload | null>(null);
+  const stageTriggersCsv = useMemo(() => [...stageTriggers].sort().join(","), [stageTriggers]);
+  const canPullLegacy = Boolean(showTriggerSelect && onApplyStageLegacy);
+
+  useEffect(() => {
+    if (!canPullLegacy || !stageTriggersCsv) {
+      setStageLegacyData(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/auto-reply/action-rules/legacy-for-trigger?triggers=${encodeURIComponent(stageTriggersCsv)}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(res => (res.ok ? res.json().catch(() => null) : null))
+      .then(json => {
+        if (controller.signal.aborted) return;
+        const d = json?.data as LegacyPullPayload | null;
+        if (d && ((d.clientTemplates?.length || 0) > 0 || (d.adminTemplates?.length || 0) > 0 || (d.reminders?.length || 0) > 0)) {
+          setStageLegacyData(d);
+        } else {
+          setStageLegacyData(null);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setStageLegacyData(null);
+      });
+    return () => controller.abort();
+  }, [canPullLegacy, stageTriggersCsv, legacyRefreshSeq]);
+
   function addStageReminder() {
     const defaultStops = [...new Set(
       stageTriggers.flatMap(k => byKey.get(k)?.defaultStopOn || []),
@@ -2412,6 +2529,43 @@ function TrailStageBlock({
             showHint={true}
             onChange={onChangeTriggers}
           />
+          {stageLegacyData && onApplyStageLegacy && (
+            <div className={s.legacyBanner} data-pulled={stageLegacyPulled} role="status">
+              <div className={s.noticeText}>
+                <strong>
+                  {stageLegacyPulled
+                    ? `Legacy templates loaded into Stage ${depth + 1}`
+                    : (() => {
+                        const cCount = stageLegacyData.clientTemplates?.length || 0;
+                        const aCount = stageLegacyData.adminTemplates?.length || 0;
+                        const totalTpl = cCount + aCount;
+                        const remCount = stageLegacyData.reminders?.length || 0;
+                        const parts: string[] = [];
+                        if (totalTpl > 0) {
+                          const split = [cCount ? `${cCount} Client` : "", aCount ? `${aCount} Admin` : ""].filter(Boolean).join(", ");
+                          parts.push(`${totalTpl} legacy template${totalTpl === 1 ? "" : "s"} (${split})`);
+                        }
+                        if (remCount > 0) parts.push(`${remCount} reminder${remCount === 1 ? "" : "s"}`);
+                        return `${parts.join(" & ")} found for Stage ${depth + 1}`;
+                      })()}
+                </strong>
+                <span>
+                  {stageLegacyPulled
+                    ? "Review or edit below. Old system stays untouched until you click Save."
+                    : "Pull existing templates & reminders into this stage as-is. Old system stays safe until Save."}
+                </span>
+              </div>
+              {!stageLegacyPulled && (
+                <button
+                  type="button"
+                  className={s.primaryBtn}
+                  onClick={() => onApplyStageLegacy(stageLegacyData)}
+                >
+                  Get Legacy
+                </button>
+              )}
+            </div>
+          )}
           {duplicateWarningItems && duplicateWarningItems.length > 0 && (
             <div className={s.stopNotes}>
               {duplicateWarningItems.map(info => {
@@ -2439,6 +2593,9 @@ function TrailStageBlock({
         userActionControl={userActionControl}
         focusAudience={focusAudience}
         focusTemplateId={focusTemplateId}
+        saving={saving}
+        hasUnsavedLegacy={stageLegacyPulled}
+        onQuickSaveAudience={onQuickSaveAudience}
         onChangeAdminControl={onChangeAdminControl}
         onChangeUserControl={onChangeUserControl}
         onChange={onChangeInstant}
@@ -2449,11 +2606,10 @@ function TrailStageBlock({
       </div>
 
       {/* 2. Follow-up Reminder */}
-      <div style={{ display: "grid", gap: "8px" }}>
+      <div style={{ display: "grid", gap: "8px" }} data-outline-section={`${stagePrefix}-reminder`}>
         <div className={s.blockHead}>
           <div className={s.blockTitle}>
-            <span className={s.stageBadge} data-kind="reminder">Reminder</span>
-            <span>Follow-up reminder</span>
+            <span className={s.stageBadge}>Follow-up reminder</span>
           </div>
           <span className={s.cardSub}>
             {reminders.length > 0 ? "Set Stop when inside, then continue trail below" : "Optional — send scheduled follow-ups"}
@@ -2515,10 +2671,15 @@ function FormDialog({
   saving: boolean;
   error: string;
   onClose: () => void;
-  onSave: (form: TrailForm) => void;
+  onSave: (form: TrailForm, opts?: { keepOpen?: boolean }) => Promise<TrailForm | null> | void;
 }) {
   const [form, setForm] = useState<TrailForm>(initial);
+  const formRef = useRef<TrailForm>(form);
+  formRef.current = form;
   const [activeFocus, setActiveFocus] = useState<EditFocus>(initialFocus || { mode: "full" });
+  const [activeOutline, setActiveOutline] = useState<string>("trigger");
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const scrollLockUntilRef = useRef(0);
   const [openBoxIds, setOpenBoxIds] = useState<Set<string>>(() => {
     const first = defaultOpenBoxId(initial, initialFocus || { mode: "full" });
     return first ? new Set([first]) : new Set();
@@ -2528,6 +2689,8 @@ function FormDialog({
   const [legacyData, setLegacyData] = useState<LegacyPullPayload | null>(null);
   const [legacyPulled, setLegacyPulled] = useState(false);
   const [pullSeq, setPullSeq] = useState(0);
+  const [stagePullSeq, setStagePullSeq] = useState<Record<number, number>>({});
+  const [legacyRefreshSeq, setLegacyRefreshSeq] = useState(0);
   const [autoLoadedFromTrigger, setAutoLoadedFromTrigger] = useState(false);
   const [autoLoadedDirty, setAutoLoadedDirty] = useState(false);
   const [skipAutoLoad, setSkipAutoLoad] = useState(false);
@@ -2555,15 +2718,41 @@ function FormDialog({
     },
   }), [openBoxIds]);
 
-  const visibleBoxIds = useMemo(() => collectVisibleBoxIds(form, activeFocus), [form, activeFocus]);
-  const allBoxesOpen = visibleBoxIds.length > 1 && visibleBoxIds.every(id => openBoxIds.has(id));
-  function toggleExpandAll() {
-    if (allBoxesOpen) {
-      const keep = visibleBoxIds.find(id => openBoxIds.has(id)) || visibleBoxIds[0];
-      setOpenBoxIds(keep ? new Set([keep]) : new Set());
-    } else {
-      setOpenBoxIds(new Set(visibleBoxIds));
+  const [collapsedOutline, setCollapsedOutline] = useState<Record<string, boolean>>({});
+
+  function toggleOutlineFold(stagePrefix: string) {
+    setCollapsedOutline(curr => ({ ...curr, [stagePrefix]: !curr[stagePrefix] }));
+  }
+
+  function jumpToOutline(sectionId: string) {
+    const body = bodyRef.current;
+    if (!body) return;
+    const target = body.querySelector<HTMLElement>(`[data-outline-section="${sectionId}"]`);
+    if (!target) return;
+    setActiveOutline(sectionId);
+    scrollLockUntilRef.current = Date.now() + 550;
+    const top = target.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop;
+    body.scrollTo({ top: Math.max(0, top - 16), behavior: "smooth" });
+  }
+
+  function handleBodyScroll() {
+    if (Date.now() < scrollLockUntilRef.current) return;
+    const body = bodyRef.current;
+    if (!body) return;
+    const sections = Array.from(body.querySelectorAll<HTMLElement>("[data-outline-section]"));
+    if (!sections.length) return;
+    const bodyTop = body.getBoundingClientRect().top;
+    const threshold = 56;
+    let current = sections[0].getAttribute("data-outline-section") || "trigger";
+    for (const sec of sections) {
+      const relTop = sec.getBoundingClientRect().top - bodyTop;
+      if (relTop <= threshold) {
+        current = sec.getAttribute("data-outline-section") || current;
+      } else {
+        break;
+      }
     }
+    setActiveOutline(curr => (curr === current ? curr : current));
   }
   const set = (patch: Partial<TrailForm>) => {
     if (localError) setLocalError("");
@@ -2627,24 +2816,6 @@ function FormDialog({
     return () => controller.abort();
   }, [triggersCsv]);
 
-  function mergeLegacyTemplates(current: SingleMsg, pulled: TemplateItem[]): SingleMsg {
-    const existing = (current.templates || []).filter(t => t.text.trim().length > 0);
-    const normalizedPulled = normalizeMsg({ templates: pulled }).templates.filter(t => t.text.trim().length > 0);
-    if (existing.length === 0) return normalizeMsg({ templates: normalizedPulled });
-    const seenIds = new Set(existing.map(t => t.id.toLowerCase()));
-    const seenContent = new Set(existing.map(t => `${t.name.trim().toLowerCase()}::${t.text.trim()}`));
-    const extras: TemplateItem[] = [];
-    for (const item of normalizedPulled) {
-      const idKey = item.id.toLowerCase();
-      const contentKey = `${item.name.trim().toLowerCase()}::${item.text.trim()}`;
-      if (seenIds.has(idKey) || seenContent.has(contentKey)) continue;
-      seenIds.add(idKey);
-      seenContent.add(contentKey);
-      extras.push({ ...item, isDefault: false });
-    }
-    return syncSingleMsg([...existing, ...extras].slice(0, 25));
-  }
-
   function applyLegacyPull() {
     if (!legacyData) return;
     const hasClient = (legacyData.clientTemplates?.length || 0) > 0;
@@ -2705,7 +2876,6 @@ function FormDialog({
     allTrailTriggerKeys(next).some(k => byKey.get(k)?.supportsScope);
   const hasPackageScope = supportsScopeFor(form);
   const relatedTrails = useMemo(() => findRelatedTrails(form, existingTrails, byKey), [form, existingTrails, byKey]);
-  const flowTokens = useMemo(() => buildFlowTokens(form, byKey), [form, byKey]);
   const totalTemplates = useMemo(() => countTemplates(form.instant, form.stages), [form.instant, form.stages]);
   const totalReminders = useMemo(() => countReminders(form.reminders, form.stages), [form.reminders, form.stages]);
 
@@ -2836,7 +3006,107 @@ function FormDialog({
         stopOn: nextReminder.stopOn.filter(k => !nextTriggers.includes(k)),
       };
     }
-    updateStage(stage.id, { triggers: nextTriggers, reminder: nextReminder });
+    updateStage(stage.id, { triggers: nextTriggers, reminder: nextReminder, migratedLegacy: undefined });
+  }
+
+  function applyStageLegacyPull(stageId: number, payload: LegacyPullPayload) {
+    const stage = formRef.current.stages.find(st => st.id === stageId);
+    if (!stage) return;
+    const hasClient = (payload.clientTemplates?.length || 0) > 0;
+    const hasAdmin = (payload.adminTemplates?.length || 0) > 0;
+
+    const nextClient = hasClient
+      ? mergeLegacyTemplates(stage.instant.client, payload.clientTemplates)
+      : stage.instant.client;
+    const nextAdmin = hasAdmin
+      ? mergeLegacyTemplates(stage.instant.admin, payload.adminTemplates)
+      : stage.instant.admin;
+    let nextAudience: InstantAudience = stage.instant.audience;
+    if (hasClient && hasAdmin) nextAudience = "both";
+    else if (hasClient) nextAudience = (nextAudience === "admin" || nextAudience === "both") ? "both" : "client";
+    else if (hasAdmin) nextAudience = (nextAudience === "client" || nextAudience === "both") ? "both" : "admin";
+
+    let nextReminder = stage.reminder;
+    const pulledRems = Array.isArray(payload.reminders) && payload.reminders.length > 0
+      ? payload.reminders.map(r => normalizeReminder(r, 0))
+      : [];
+    if (!nextReminder && pulledRems.length > 0) {
+      let mergedRem = pulledRems[0];
+      if (pulledRems.length > 1) {
+        const other = pulledRems.find(r => r.audience !== mergedRem.audience);
+        if (other && mergedRem.audience !== "both" && other.audience !== "both") {
+          mergedRem = {
+            ...mergedRem,
+            audience: "both",
+            clientSteps: mergedRem.audience === "client" ? mergedRem.clientSteps : other.clientSteps,
+            adminSteps: mergedRem.audience === "admin" ? mergedRem.adminSteps : other.adminSteps,
+          };
+        }
+      }
+      nextReminder = mergedRem;
+    }
+
+    const nextMeta = mergeLegacyMeta([
+      stage.migratedLegacy,
+      {
+        events: payload.events || [],
+        templateIds: payload.templateIds || [],
+        ruleIds: payload.ruleIds || [],
+      },
+    ]);
+
+    updateStage(stageId, {
+      instant: { audience: nextAudience, client: nextClient, admin: nextAdmin },
+      reminder: nextReminder,
+      migratedLegacy: nextMeta,
+    });
+    setStagePullSeq(curr => ({ ...curr, [stageId]: (curr[stageId] || 0) + 1 }));
+    if (hasClient) accordion.openOnly(`st${stageId}-tpl-client`);
+    else if (hasAdmin) accordion.openOnly(`st${stageId}-tpl-admin`);
+    else if (nextReminder) accordion.openOnly(`st${stageId}-r${nextReminder.id}-client-0`);
+  }
+
+  async function quickSaveWithPatch(buildNext: (curr: TrailForm) => TrailForm): Promise<QuickSaveResult> {
+    const nextForm = buildNext(formRef.current);
+    const { trail, error: valError, errorBoxId } = prepareTrailForSave(nextForm, byKey);
+    if (valError) {
+      setLocalError(valError);
+      if (errorBoxId) accordion.openOnly(errorBoxId);
+      return { ok: false, message: valError };
+    }
+    setLocalError("");
+    const saved = await onSave(trail, { keepOpen: true });
+    if (!saved) {
+      return { ok: false, message: "Could not save changes." };
+    }
+    setForm(curr => ({
+      ...curr,
+      _id: saved._id,
+      migratedLegacy: undefined,
+      stages: curr.stages.map(st => ({ ...st, migratedLegacy: undefined })),
+    }));
+    if (trail.migratedLegacy) {
+      setLegacyData(null);
+      setLegacyPulled(false);
+      setLegacyRefreshSeq(v => v + 1);
+    }
+    return { ok: true };
+  }
+
+  function quickSaveRootAudience(who: "client" | "admin", nextMsg: SingleMsg) {
+    return quickSaveWithPatch(curr => ({
+      ...curr,
+      instant: { ...curr.instant, [who]: nextMsg },
+    }));
+  }
+
+  function quickSaveStageAudience(stageId: number, who: "client" | "admin", nextMsg: SingleMsg) {
+    return quickSaveWithPatch(curr => ({
+      ...curr,
+      stages: curr.stages.map(st => (
+        st.id === stageId ? { ...st, instant: { ...st.instant, [who]: nextMsg } } : st
+      )),
+    }));
   }
 
   function removeStage(stageId: number) {
@@ -2915,7 +3185,7 @@ function FormDialog({
         </div>
       </header>
 
-      {isFocused ? (
+      {isFocused && (
         <div className={s.focusStrip} aria-label="Parent trail context">
           <div className={s.focusStripInfo}>
             <span>Part of Trail:</span>
@@ -2924,16 +3194,6 @@ function FormDialog({
             {focusScopeLabel && <span className={s.badge}>{focusScopeLabel}</span>}
           </div>
           <div className={s.flowStripActions}>
-            {visibleBoxIds.length > 1 && (
-              <button
-                type="button"
-                className={s.miniBtn}
-                title="Expand all message boxes or return to one-at-a-time"
-                onClick={toggleExpandAll}
-              >
-                {allBoxesOpen ? "Collapse to 1" : "Expand all"}
-              </button>
-            )}
             <button
               type="button"
               className={s.miniBtn}
@@ -2943,37 +3203,160 @@ function FormDialog({
             </button>
           </div>
         </div>
-      ) : (
-        /* Fixed-height Live Flow Strip — zero blink/jump */
-        <div className={s.flowStrip} aria-label="Live trail summary">
-          <div className={s.flowStripTokens}>
-            {flowTokens.length === 0 ? (
-              <span className={s.flowEmpty}>Trail preview: choose a Trigger point below to see your live automation flow.</span>
-            ) : (
-              flowTokens.map((tok, i) => (
-                <span key={`${tok}-${i}`} className={s.flowItem}>
-                  {i > 0 && <span className={s.flowArrow}>→</span>}
-                  <span className={s.flowPill} data-kind={i === 0 ? "trigger" : "step"}>{tok}</span>
-                </span>
-              ))
-            )}
-          </div>
-          {visibleBoxIds.length > 1 && (
-            <div className={s.flowStripActions}>
-              <button
-                type="button"
-                className={s.miniBtn}
-                title="Expand all message boxes or return to one-at-a-time (Tip: Ctrl+Click any box to keep multiple open)"
-                onClick={toggleExpandAll}
-              >
-                {allBoxesOpen ? "Collapse to 1" : "Expand all"}
-              </button>
-            </div>
-          )}
-        </div>
       )}
 
-      <div className={s.dialogBody}>
+      <div className={!isFocused ? s.dialogSplit : undefined} style={isFocused ? { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 } : undefined}>
+        {!isFocused && (
+          <aside className={s.outlineRail} aria-label="Trail outline">
+            <div className={s.outlineHeading}>Trail outline</div>
+
+            <div className={s.outlineCard} data-active={activeOutline === "trigger"}>
+              <div className={s.outlineCardHead}>
+                <button
+                  type="button"
+                  className={s.outlineCardBtn}
+                  onClick={() => jumpToOutline("trigger")}
+                >
+                  <span className={s.outlineNum}>1</span>
+                  <span className={s.outlineText}>
+                    <span className={s.outlineTitle}>Trigger &amp; scope</span>
+                    <span className={s.outlineSub}>
+                      {rootTrigLabel ? rootTrigLabel.split("(")[0].trim() : "Select trigger"}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {[
+              {
+                prefix: "s0",
+                num: 2,
+                title: "Stage 1",
+                sub: rootTrigLabel ? rootTrigLabel.split("(")[0].trim() : "Primary stage",
+                instant: form.instant,
+                rem: form.reminders[0] || null,
+              },
+              ...form.stages.map((stage, idx) => {
+                const lbl = triggersLabel(stage.triggers, byKey);
+                return {
+                  prefix: `st${stage.id}`,
+                  num: idx + 3,
+                  title: `Stage ${idx + 2}`,
+                  sub: lbl ? lbl.split("(")[0].trim() : "Follow-up stage",
+                  instant: stage.instant,
+                  rem: stage.reminder,
+                };
+              }),
+            ].map(item => {
+              const stageActive = activeOutline === item.prefix || activeOutline.startsWith(`${item.prefix}-`);
+              const folded = Boolean(collapsedOutline[item.prefix]);
+              const showInstClient = item.instant.audience === "client" || item.instant.audience === "both";
+              const showInstAdmin = item.instant.audience === "admin" || item.instant.audience === "both";
+              const showRemClient = Boolean(item.rem && (item.rem.audience === "client" || item.rem.audience === "both"));
+              const showRemAdmin = Boolean(item.rem && (item.rem.audience === "admin" || item.rem.audience === "both"));
+
+              return (
+                <div key={item.prefix}>
+                  <div className={s.outlineConnector} aria-hidden="true" />
+                  <div className={s.outlineCard} data-active={stageActive}>
+                    <div className={s.outlineCardHead}>
+                      <button
+                        type="button"
+                        className={s.outlineCardBtn}
+                        onClick={() => jumpToOutline(item.prefix)}
+                      >
+                        <span className={s.outlineNum}>{item.num}</span>
+                        <span className={s.outlineText}>
+                          <span className={s.outlineTitle}>{item.title}</span>
+                          <span className={s.outlineSub}>{item.sub}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={s.outlineFoldBtn}
+                        aria-label={folded ? `Expand ${item.title} outline` : `Collapse ${item.title} outline`}
+                        onClick={() => toggleOutlineFold(item.prefix)}
+                      >
+                        {folded ? "▸" : "▾"}
+                      </button>
+                    </div>
+
+                    {!folded && (
+                      <div className={s.outlineSubList}>
+                        <button
+                          type="button"
+                          className={s.outlineSubLink}
+                          data-active={activeOutline === `${item.prefix}-instant`}
+                          onClick={() => jumpToOutline(`${item.prefix}-instant`)}
+                        >
+                          <span>Instant auto message</span>
+                          <span>{item.instant.audience === "off" ? "Off" : ""}</span>
+                        </button>
+                        {showInstClient && (
+                          <button
+                            type="button"
+                            className={`${s.outlineSubLink} ${s.outlineLeafLink}`}
+                            data-active={activeOutline === `${item.prefix}-tpl-client`}
+                            onClick={() => jumpToOutline(`${item.prefix}-tpl-client`)}
+                          >
+                            <span>Client</span>
+                            <span>{item.instant.client.templates?.length || 1}</span>
+                          </button>
+                        )}
+                        {showInstAdmin && (
+                          <button
+                            type="button"
+                            className={`${s.outlineSubLink} ${s.outlineLeafLink}`}
+                            data-active={activeOutline === `${item.prefix}-tpl-admin`}
+                            onClick={() => jumpToOutline(`${item.prefix}-tpl-admin`)}
+                          >
+                            <span>Admin / Team</span>
+                            <span>{item.instant.admin.templates?.length || 1}</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className={s.outlineSubLink}
+                          data-active={activeOutline === `${item.prefix}-reminder`}
+                          onClick={() => jumpToOutline(`${item.prefix}-reminder`)}
+                        >
+                          <span>Follow-up reminder</span>
+                          <span>{item.rem ? "" : "Off"}</span>
+                        </button>
+                        {showRemClient && item.rem && (
+                          <button
+                            type="button"
+                            className={`${s.outlineSubLink} ${s.outlineLeafLink}`}
+                            data-active={activeOutline === `${item.prefix}-rem-client`}
+                            onClick={() => jumpToOutline(`${item.prefix}-rem-client`)}
+                          >
+                            <span>Client</span>
+                            <span>{item.rem.clientSteps.length}</span>
+                          </button>
+                        )}
+                        {showRemAdmin && item.rem && (
+                          <button
+                            type="button"
+                            className={`${s.outlineSubLink} ${s.outlineLeafLink}`}
+                            data-active={activeOutline === `${item.prefix}-rem-admin`}
+                            onClick={() => jumpToOutline(`${item.prefix}-rem-admin`)}
+                          >
+                            <span>Admin / Team</span>
+                            <span>{item.rem.adminSteps.length}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </aside>
+        )}
+
+      <div className={s.dialogBody} ref={bodyRef} onScroll={handleBodyScroll}>
         {activeFocus.mode === "template" ? (
           <section className={s.card}>
             <div className={s.cardHead}>
@@ -2984,7 +3367,7 @@ function FormDialog({
               <span className={s.cardSub}>On: {focusStageLabel}</span>
             </div>
             <InstantAutoMsgBlock
-              key={`focus-tpl-${form._id || "new"}-s${focusStageIdx}-${activeFocus.audience || "all"}-${activeFocus.templateId || "def"}`}
+              key={`focus-tpl-s${focusStageIdx}-${activeFocus.audience || "all"}-${activeFocus.templateId || "def"}-${pullSeq}`}
               state={focusStageIdx === 0 ? form.instant : (focusStageObj?.instant || blankInstant("client"))}
               stagePrefix={focusStageIdx === 0 ? "s0" : `st${focusStageObj?.id ?? 0}`}
               accordion={accordion}
@@ -2992,6 +3375,12 @@ function FormDialog({
               userActionControl={focusStageIdx === 0 ? (form.userActionControl || (form.control === "review" ? "review" : "auto")) : undefined}
               focusAudience={activeFocus.audience}
               focusTemplateId={activeFocus.templateId}
+              saving={saving}
+              onQuickSaveAudience={(who, nextMsg) => (
+                focusStageIdx === 0
+                  ? quickSaveRootAudience(who, nextMsg)
+                  : (focusStageObj ? quickSaveStageAudience(focusStageObj.id, who, nextMsg) : Promise.resolve({ ok: false }))
+              )}
               onChangeAdminControl={focusStageIdx === 0 ? (adminActionControl => set({ adminActionControl })) : undefined}
               onChangeUserControl={focusStageIdx === 0 ? (userActionControl => set({ userActionControl })) : undefined}
               onChange={instant => {
@@ -3059,7 +3448,7 @@ function FormDialog({
         ) : (
         <>
         {/* CARD 1: Trigger & Package Scope */}
-        <section className={s.card}>
+        <section className={s.card} data-outline-section="trigger">
           <div className={s.cardHead}>
             <div className={s.cardTitle}>
               <span className={s.stepNum}>1</span>
@@ -3223,7 +3612,7 @@ function FormDialog({
         </section>
 
         {/* CARD 2: Stage 1 (Template + Reminder) */}
-        <section className={s.card}>
+        <section className={s.card} data-outline-section="s0">
           <div className={s.cardHead}>
             <div className={s.cardTitle}>
               <span className={s.stepNum}>2</span>
@@ -3233,7 +3622,7 @@ function FormDialog({
           </div>
 
           <TrailStageBlock
-            key={`${form._id || "new-root"}-${pullSeq}`}
+            key={`root-${pullSeq}`}
             stagePrefix="s0"
             accordion={accordion}
             stageTriggers={form.triggers}
@@ -3242,6 +3631,9 @@ function FormDialog({
             instant={form.instant}
             adminActionControl={form.adminActionControl || (form.control === "review" ? "review" : "auto")}
             userActionControl={form.userActionControl || (form.control === "review" ? "review" : "auto")}
+            saving={saving}
+            stageLegacyPulled={Boolean(form.migratedLegacy)}
+            onQuickSaveAudience={quickSaveRootAudience}
             onChangeAdminControl={adminActionControl => set({ adminActionControl })}
             onChangeUserControl={userActionControl => set({ userActionControl })}
             reminders={form.reminders}
@@ -3268,7 +3660,7 @@ function FormDialog({
             byKey,
           ).filter(c => c.activeCount > 0);
           return (
-            <div key={stage.id} style={{ display: "grid", gap: "14px" }}>
+            <div key={stage.id} data-outline-section={`st${stage.id}`} style={{ display: "grid", gap: "14px" }}>
               <div className={s.sectionDivider} role="separator" aria-label={`Start of Stage ${idx + 2}`}>
                 <span>Stage {idx + 2}{stageLabel ? ` — ${stageLabel}` : ""}</span>
               </div>
@@ -3282,7 +3674,7 @@ function FormDialog({
                 </div>
 
                 <TrailStageBlock
-                  key={`st-${stage.id}-${form._id || "new"}-${pullSeq}`}
+                  key={`st-${stage.id}-${pullSeq}-${stagePullSeq[stage.id] || 0}`}
                   stagePrefix={`st${stage.id}`}
                   accordion={accordion}
                   stageTriggers={stage.triggers}
@@ -3290,6 +3682,11 @@ function FormDialog({
                   depth={idx + 1}
                   showTriggerSelect={true}
                   instant={stage.instant}
+                  saving={saving}
+                  legacyRefreshSeq={legacyRefreshSeq}
+                  stageLegacyPulled={Boolean(stage.migratedLegacy)}
+                  onApplyStageLegacy={payload => applyStageLegacyPull(stage.id, payload)}
+                  onQuickSaveAudience={(who, nextMsg) => quickSaveStageAudience(stage.id, who, nextMsg)}
                   reminders={stage.reminder ? [stage.reminder] : []}
                   folders={folders}
                   byKey={byKey}
@@ -3330,6 +3727,7 @@ function FormDialog({
         )}
         </>
         )}
+      </div>
       </div>
 
       <footer className={s.dialogFoot}>
@@ -3728,7 +4126,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
     return [...map.values()].sort((a, b) => a.triggerLabel.localeCompare(b.triggerLabel));
   }, [filteredReminders]);
 
-  async function saveTrail(form: TrailForm) {
+  async function saveTrail(form: TrailForm, opts?: { keepOpen?: boolean }): Promise<TrailForm | null> {
     setSaving(true);
     setSaveError("");
     try {
@@ -3745,7 +4143,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       }
       const saved = normalizeTrail(result.data);
       setTrails(curr => isEdit ? curr.map(t => t._id === saved._id ? saved : t) : [saved, ...curr]);
-      setEditing(null);
+      if (!opts?.keepOpen) setEditing(null);
       setPanelError("");
       // Refresh legacy summary immediately so migrated triggers drop the L badge without a page reload.
       fetch("/api/auto-reply/action-rules/legacy-summary", { cache: "no-store" })
@@ -3756,8 +4154,10 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
           }
         })
         .catch(() => {});
+      return saved;
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Could not save automated message.");
+      return null;
     } finally {
       setSaving(false);
     }
@@ -4139,7 +4539,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
         saving={saving}
         error={saveError}
         onClose={() => { if (!saving) { setSaveError(""); setEditing(null); } }}
-        onSave={form => { void saveTrail(form); }}
+        onSave={(form, opts) => saveTrail(form, opts)}
       />
     )}
   </section>;
