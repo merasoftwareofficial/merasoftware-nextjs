@@ -1,4 +1,6 @@
 "use client";
+
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useCallback, useMemo, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
@@ -70,7 +72,7 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
     {compact ? <div className={s.workToolbar}><h3>Activity</h3><InfoTip label="Activity"><p>Scheduled and finished steps from the Automated message system. Queued means waiting for WhatsApp, not delivered.</p></InfoTip></div> : <h3>Reminder activity</h3>}
     {!compact && <p className={styles.muted}>Scheduled and finished steps from the Automated message system. Queued means waiting for WhatsApp, not delivered.</p>}
     <div className={c.toolbar}>
-      <label className={styles.filters}>Show <select value={view} onChange={event => { setPage(1); setView(event.target.value as View); }}><option value="all">All active &amp; sent</option><option value="upcoming">Upcoming scheduled</option><option value="today">Due today (India time)</option><option value="sent_today">Fully sent today (India time)</option><option value="sent">Sent</option><option value="attention">Needs attention</option><option value="cancelled">Cancelled</option></select></label>
+      <div className={styles.filters}><span>Show</span> <CapsuleSelect ariaLabel="Show" value={view} onChange={value => { setPage(1); setView(value as View); }} options={[{ value: "all", label: "All active & sent" }, { value: "upcoming", label: "Upcoming scheduled" }, { value: "today", label: "Due today (India time)" }, { value: "sent_today", label: "Fully sent today (India time)" }, { value: "sent", label: "Sent" }, { value: "attention", label: "Needs attention" }, { value: "cancelled", label: "Cancelled" }]} /></div>
       <input className={c.search} type="search" aria-label="Search reminder activity" placeholder="Search customer or rule…" value={query} onChange={event => setQuery(event.target.value)} />
     </div>
     {view === "sent_today" && <p className={styles.muted}>Shows deliveries with a recorded completion time for all selected channels. Older records without a completion time are not counted.</p>}

@@ -273,13 +273,24 @@ try {
   assert.equal(api.store.packages['draft-only'], undefined, 'nothing is live');
   await page.getByText('Draft saved. Its link /package/draft-only goes live when you publish.', { exact: true }).waitFor();
   const beforePublish = packageSaves;
-  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  const pickCapsule = async (trigger, value) => {
+    await trigger.click();
+    await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+  };
+  const capsuleOptions = async trigger => {
+    await trigger.click();
+    const texts = await trigger.locator('..').locator('[role="option"]').allInnerTexts();
+    await page.keyboard.press('Escape');
+    return texts;
+  };
+  const capsuleValue = async trigger => trigger.getAttribute('data-value');
+  await pickCapsule(form.getByLabel('Offer status', { exact: true }), 'published');
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
   for (const text of ['Choose a project category.', 'Enter a description.', "The main price must be above ₹0: set the category's base price or tick an add-on.", 'Enter the offer price.', 'Choose whether the client sends files in the portal.']) await page.getByText(text, { exact: true }).waitFor();
   assert.equal(packageSaves, beforePublish, 'nothing is sent while a field is wrong');
   await page.screenshot({ path: path.join(folder, 'admin-draft-refused-publish.png'), fullPage: true });
-  await form.getByLabel('Offer status', { exact: true }).selectOption('draft');
+  await pickCapsule(form.getByLabel('Offer status', { exact: true }), 'draft');
   await page.getByRole('button', { name: '← All packages' }).click();
   // The packages list has three tabs (Live / Drafts / Archived); a never-published draft is under Drafts.
   await page.getByRole('tab', { name: /^Drafts/ }).click();
@@ -301,13 +312,13 @@ try {
   // Category (owner decision 4, 9 Nov 2026): the real list from the portal, nothing preselected; the removed
   // "Related portal services" field is gone from the form while the save still sends linkedPlanIds.
   const categorySelect = form.getByLabel('Project category', { exact: true });
-  assert.equal(await categorySelect.inputValue(), '', 'no category preselected');
-  assert.deepEqual(await categorySelect.locator('option').allInnerTexts(), ['Choose a category', 'Standard Websites', 'SEO Services']);
+  assert.equal(await capsuleValue(categorySelect), '', 'no category preselected');
+  assert.deepEqual(await capsuleOptions(categorySelect), ['Choose a category', 'Standard Websites', 'SEO Services']);
   assert.equal(await form.getByLabel('Related portal services (optional references)').count(), 0, 'related services removed');
-  await categorySelect.selectOption('standard_websites');
+  await pickCapsule(categorySelect, 'standard_websites');
   await form.getByLabel('Package name', { exact: true }).fill('Business Starter');
   await form.getByText('/package/business-starter', { exact: true }).waitFor();
-  await form.getByLabel('Status', { exact: true }).selectOption('published');
+  await pickCapsule(form.getByLabel('Status', { exact: true }), 'published');
   await form.getByLabel('Description', { exact: true }).fill('A ready-to-launch business website.');
   await form.getByLabel('Included work (one item per line)', { exact: true }).fill('5-page business website\nMobile-friendly design');
   // The main price is made from the category base price and the ticked add-ons (owner decision 10 Nov 2026), never typed.
@@ -327,8 +338,8 @@ try {
   await form.getByText('₹5,001 discount (33.3% off).', { exact: false }).waitFor();
   assert.equal(await form.getByLabel('Main heading', { exact: true }).inputValue(), 'Business Starter', 'design pre-filled from the name');
   // How customers buy it (src/docs/package.md decision 7): one-time and full payment pre-chosen, uploads always chosen.
-  assert.equal(await form.getByLabel('Billing', { exact: true }).inputValue(), 'one_time');
-  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
+  assert.equal(await capsuleValue(form.getByLabel('Billing', { exact: true })), 'one_time');
+  await pickCapsule(form.getByLabel('Portal uploads', { exact: true }), 'yes');
   await form.getByLabel('2 installments (50% + 50%)').check();
   await page.getByRole('button', { name: '+ Add offer', exact: true }).waitFor();
   await page.screenshot({ path: path.join(folder, 'admin-new-package.png'), fullPage: true });
@@ -369,7 +380,18 @@ try {
 
   // 2. Add offer makes every offer field the system needs required; nothing is sent until they are right.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
-  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  const pickCapsule = async (trigger, value) => {
+    await trigger.click();
+    await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+  };
+  const capsuleOptions = async trigger => {
+    await trigger.click();
+    const texts = await trigger.locator('..').locator('[role="option"]').allInnerTexts();
+    await page.keyboard.press('Escape');
+    return texts;
+  };
+  const capsuleValue = async trigger => trigger.getAttribute('data-value');
+  await pickCapsule(form.getByLabel('Offer status', { exact: true }), 'published');
   const before = packageSaves;
   await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
   await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).waitFor();
@@ -381,14 +403,25 @@ try {
   assert.equal(packageSaves, before, 'nothing was sent');
   await form.getByLabel('Offer price (₹)', { exact: true }).fill('2999');
   await page.getByText('Shown as 80% OFF the main price.', { exact: true }).waitFor();
-  await form.getByLabel('Payment rule', { exact: true }).selectOption('advance');
-  await form.getByLabel('Minimum advance type', { exact: true }).selectOption('percentage');
+  await pickCapsule(form.getByLabel('Payment rule', { exact: true }), 'advance');
+  await pickCapsule(form.getByLabel('Minimum advance type', { exact: true }), 'percentage');
   await form.getByLabel('Minimum advance', { exact: true }).fill('20');
-  await form.getByLabel('Payment rule', { exact: true }).selectOption('limited_uploads');
+  await pickCapsule(form.getByLabel('Payment rule', { exact: true }), 'limited_uploads');
   await form.getByLabel('Pre-payment upload allowance', { exact: true }).fill('2');
   await form.getByLabel('Expires at (India time / IST)', { exact: true }).fill('2030-10-20T23:59');
   await form.getByLabel('Reserve opens (hours before the offer ends)', { exact: true }).fill('48');
-  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  const pickCapsule = async (trigger, value) => {
+    await trigger.click();
+    await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+  };
+  const capsuleOptions = async trigger => {
+    await trigger.click();
+    const texts = await trigger.locator('..').locator('[role="option"]').allInnerTexts();
+    await page.keyboard.press('Escape');
+    return texts;
+  };
+  const capsuleValue = async trigger => trigger.getAttribute('data-value');
+  await pickCapsule(form.getByLabel('Offer status', { exact: true }), 'published');
   await page.getByText('/offer/diwali-launch-offer', { exact: true }).waitFor();
   assert.equal(await page.getByText('Not published. Fix the marked fields first, or press Save draft to keep your work.', { exact: true }).count(), 0, 'fixed fields clear their marks before saving');
   await page.screenshot({ path: path.join(folder, 'admin-package-with-offer.png'), fullPage: true });
@@ -548,21 +581,21 @@ try {
   assert.equal(await dialog.getByLabel('Permanent key', { exact: true }).inputValue(), 'data_services');
   await dialog.getByRole('button', { name: 'Create category', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
-  assert.equal(await form.getByLabel('Project category', { exact: true }).inputValue(), 'data_services', 'the new category is selected');
-  assert.deepEqual(await form.getByLabel('Project category', { exact: true }).locator('option').allInnerTexts(), ['Standard Websites', 'SEO Services', 'Data Services']);
+  assert.equal(await capsuleValue(form.getByLabel('Project category', { exact: true })), 'data_services', 'the new category is selected');
+  assert.deepEqual(await capsuleOptions(form.getByLabel('Project category', { exact: true })), ['Standard Websites', 'SEO Services', 'Data Services']);
   assert.deepEqual([api.store.categorySaves.length, api.store.categorySaves[0].action, api.store.categorySaves[0].creating], [1, 'save_project_category', true]);
-  await form.getByLabel('Status', { exact: true }).selectOption('published');
+  await pickCapsule(form.getByLabel('Status', { exact: true }), 'published');
   await form.getByLabel('Description', { exact: true }).fill('Monthly data entry for your business.');
   await form.getByLabel('Included work (one item per line)', { exact: true }).fill('Monthly data entry');
-  await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
-  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
+  await pickCapsule(form.getByLabel('Billing', { exact: true }), 'monthly');
+  await pickCapsule(form.getByLabel('Portal uploads', { exact: true }), 'yes');
   // One fixed monthly price (owner decision 11 Nov 2026): no price per file anywhere.
   assert.equal(await form.getByLabel('Price per file (₹)', { exact: true }).count(), 0, 'no price per file');
   assert.equal(await form.getByRole('radiogroup', { name: 'Monthly pricing' }).count(), 0, 'no fixed / per file choice');
   // A monthly package has the same price methods as a one-time one; this one is typed by hand.
   const priceMethod = form.getByLabel('Price method', { exact: true });
-  assert.equal(await priceMethod.inputValue(), 'automatic');
-  await priceMethod.selectOption('manual');
+  assert.equal(await capsuleValue(priceMethod), 'automatic');
+  await pickCapsule(priceMethod, 'manual');
   await form.getByLabel('Main price (₹)', { exact: true }).fill('900');
   await form.getByLabel('Normal price (₹)', { exact: true }).fill('700');
   const top = async texts => form.evaluate((el, list) => list.map(text => { const node = [...el.querySelectorAll('legend, label span, h2, span')].find(n => n.textContent.trim().startsWith(text)); return node ? node.getBoundingClientRect().top + scrollY : NaN; }), texts);
@@ -571,8 +604,8 @@ try {
   assert.ok(fixedOrder.every((y, i) => i === 0 || y > fixedOrder[i - 1]), 'name, billing, purchase settings, updates, cycles, prices, included work, offer, website display, page design: ' + fixedOrder);
   // Updates a month: unlimited by default, or a number that opens again every month.
   const uploads = form.getByLabel('Updates a month', { exact: true });
-  assert.equal(await uploads.inputValue(), 'unlimited');
-  await uploads.selectOption('limited');
+  assert.equal(await capsuleValue(uploads), 'unlimited');
+  await pickCapsule(uploads, 'limited');
   await form.getByLabel('Number of updates a month', { exact: true }).fill('3');
   await form.getByRole('group', { name: 'Billing cycles' }).getByRole('checkbox').nth(1).check();
   await form.getByLabel('Quarterly discount %', { exact: true }).fill('10');
@@ -582,13 +615,24 @@ try {
   assert.equal('pricing' in monthlySaved.package.monthly, false, 'no fixed / per file field');
   assert.equal(monthlySaved.package.category, 'data_services', 'saved with the new category');
   // Without portal uploads there is no updates count: the team posts work updates instead.
-  await form.getByLabel('Portal uploads', { exact: true }).selectOption('no');
+  await pickCapsule(form.getByLabel('Portal uploads', { exact: true }), 'no');
   assert.equal(await form.getByLabel('Updates a month', { exact: true }).count(), 0);
-  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
+  await pickCapsule(form.getByLabel('Portal uploads', { exact: true }), 'yes');
   // An offer must be below the normal monthly price.
   await page.getByRole('button', { name: '+ Add offer', exact: true }).click();
   await form.getByLabel('Offer name', { exact: true }).fill('Monthly launch');
-  await form.getByLabel('Offer status', { exact: true }).selectOption('published');
+  const pickCapsule = async (trigger, value) => {
+    await trigger.click();
+    await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+  };
+  const capsuleOptions = async trigger => {
+    await trigger.click();
+    const texts = await trigger.locator('..').locator('[role="option"]').allInnerTexts();
+    await page.keyboard.press('Escape');
+    return texts;
+  };
+  const capsuleValue = async trigger => trigger.getAttribute('data-value');
+  await pickCapsule(form.getByLabel('Offer status', { exact: true }), 'published');
   await form.getByLabel('Offer price (₹)', { exact: true }).fill('700');
   await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
   await page.getByText('Must be below the normal price (₹700).', { exact: true }).waitFor();
@@ -637,10 +681,10 @@ try {
   await form.getByRole('button', { name: 'Keep the saved prices', exact: true }).click();
   assert.equal(await mainPrice(), '₹13,500');
   // A package priced from its category and add-ons may be monthly too (owner decision 11 Nov 2026): its parts make the monthly price.
-  await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
+  await pickCapsule(form.getByLabel('Billing', { exact: true }), 'monthly');
   await form.getByText('The prices below are for one month; every billing period is worked out from them, with its discount.', { exact: true }).waitFor();
   assert.equal(await mainPrice(), '₹13,500', 'the same parts, now the price of a month');
-  await form.getByLabel('Billing', { exact: true }).selectOption('one_time');
+  await pickCapsule(form.getByLabel('Billing', { exact: true }), 'one_time');
   // No sideways scroll with the price builder filled, at any width.
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -685,7 +729,7 @@ try {
   // A new package in another category: add-ons are made, changed and deleted from its popups.
   await page.goto(origin + '/admin/packages');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
-  await form.getByLabel('Project category', { exact: true }).selectOption('seo_services');
+  await pickCapsule(form.getByLabel('Project category', { exact: true }), 'seo_services');
   assert.equal(await mainPrice(), '₹5,000', 'the base price of the chosen category');
   assert.deepEqual(await form.getByRole('group', { name: 'Add-on services', exact: true }).getByRole('checkbox').evaluateAll(boxes => boxes.map(box => box.closest('label').innerText.replace(/\s+/g, ' ').trim())),
     ['SEO setup · ₹7,000', 'Extra page · ₹500 each', 'SEO audit · ₹800'], 'an add-on for one category is offered in that category');
@@ -728,9 +772,9 @@ try {
   // A price that changed while the form was open is refused on publish, with the portal's message.
   await form.getByRole('checkbox', { name: /^SEO audit/ }).check();
   await form.getByLabel('Package name', { exact: true }).fill('Stale Pack');
-  await form.getByLabel('Status', { exact: true }).selectOption('published');
+  await pickCapsule(form.getByLabel('Status', { exact: true }), 'published');
   await form.getByLabel('Description', { exact: true }).fill('Priced from its parts.');
-  await form.getByLabel('Portal uploads', { exact: true }).selectOption('yes');
+  await pickCapsule(form.getByLabel('Portal uploads', { exact: true }), 'yes');
   assert.equal(await mainPrice(), '₹5,900', 'base 5,000 + Bought service 100 (ticked when made) + SEO audit 800');
   api.store.addOns.find(row => row.name === 'SEO audit').unitPrice = 900;
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
@@ -754,27 +798,27 @@ try {
   // Duplicate a typed package: the copy is new, opens typed, and may be priced from its parts.
   await page.goto(origin + '/admin/packages');
   await page.locator('li').filter({ hasText: 'Typed Pack' }).getByRole('button', { name: 'Duplicate', exact: true }).click();
-  assert.equal(await method().inputValue(), 'manual', 'a copy of a typed package opens typed');
+  assert.equal(await capsuleValue(method()), 'manual', 'a copy of a typed package opens typed');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
-  await method().selectOption('automatic');
+  await pickCapsule(method(), 'automatic');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'P');
   assert.equal(await mainPrice(), '₹12,000', 'the category base price: this copy is priced from its parts');
   await form.getByRole('group', { name: 'Add-on services', exact: true }).waitFor();
   assert.equal(await remembered(), 'automatic');
   // The way chosen last is the way the next new package opens, also after switching to monthly and back.
-  await method().selectOption('manual');
+  await pickCapsule(method(), 'manual');
   assert.equal(await remembered(), 'manual');
   await page.goto(origin + '/admin/packages');
   await page.getByRole('button', { name: 'New package +', exact: true }).click();
-  assert.equal(await method().inputValue(), 'manual', 'the next new package opens the way the last one was priced');
+  assert.equal(await capsuleValue(method()), 'manual', 'the next new package opens the way the last one was priced');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
-  await form.getByLabel('Billing', { exact: true }).selectOption('monthly');
-  assert.equal(await method().inputValue(), 'manual', 'a monthly package chooses its price method too');
-  await form.getByLabel('Billing', { exact: true }).selectOption('one_time');
-  assert.equal(await method().inputValue(), 'manual', 'billing back to one-time keeps the chosen way');
+  await pickCapsule(form.getByLabel('Billing', { exact: true }), 'monthly');
+  assert.equal(await capsuleValue(method()), 'manual', 'a monthly package chooses its price method too');
+  await pickCapsule(form.getByLabel('Billing', { exact: true }), 'one_time');
+  assert.equal(await capsuleValue(method()), 'manual', 'billing back to one-time keeps the chosen way');
   assert.equal(await form.getByLabel('Main price (₹)', { exact: true }).evaluate(node => node.tagName), 'INPUT');
   // Back to automatic for the steps that follow (blocked storage is covered by tests/package-price-mode.test.ts).
-  await method().selectOption('automatic');
+  await pickCapsule(method(), 'automatic');
   assert.equal(await remembered(), 'automatic');
   // A category list that did not load says so instead of looking empty.
   const savedCategories = api.store.categories.splice(0);

@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 
 import { useRef, useState, type PointerEvent } from "react";
 import { SectionVisual } from "@/components/section-visual";
@@ -88,16 +89,16 @@ export function VisualFrameEditor({ config, asset: providedAsset, slotId, label,
         {device === "desktop" || frame.mobile ? <>
           <div className="form-columns"><DimensionInput label="Frame width (px)" value={size.width} onChange={value => changeDimension("width", value)} /><DimensionInput label="Frame height (px)" value={size.height} onChange={value => changeDimension("height", value)} /></div>
           <label className="visual-check"><input type="checkbox" checked={locked} onChange={event => setLocked(event.target.checked)} />Lock frame ratio</label>
-          <label className="admin-field"><span>Frame proportions</span><select aria-label="Frame proportions" value="custom" onChange={event => {
-            if (event.target.value === "custom") return;
-            const [width, height] = event.target.value.split(":").map(Number);
+          <div className="admin-field"><span>Frame proportions</span><CapsuleSelect ariaLabel="Frame proportions" value="custom" onChange={value => {
+            if (value === "custom") return;
+            const [width, height] = value.split(":").map(Number);
             changeFrame({ width: size.width, height: Math.max(40, Math.min(2400, Math.round(size.width * height / width))) });
-          }}><option value="custom">Custom ({size.width} × {size.height})</option><option value="1:1">Square · 1:1</option><option value="4:5">Portrait · 4:5</option><option value="4:3">Landscape · 4:3</option><option value="16:9">Wide · 16:9</option></select></label>
+          }} options={[{ value: "custom", label: `Custom (${size.width} × ${size.height})` }, { value: "1:1", label: "Square · 1:1" }, { value: "4:5", label: "Portrait · 4:5" }, { value: "4:3", label: "Landscape · 4:3" }, { value: "16:9", label: "Wide · 16:9" }]} /></div>
           {asset?.width && asset.height ? <button type="button" className="admin-action" onClick={() => changeFrame({ width: size.width, height: Math.max(40, Math.min(2400, Math.round(size.width * asset.height / asset.width))) })}>Match media ratio</button> : null}
         </> : <p className="field-hint">Mobile uses the desktop proportions and shrinks to the available space. Enable separate dimensions to change its shape or size.</p>}
         <label className="admin-field"><span>Frame corners: {frame.radius}px</span><input type="range" min={0} max={200} value={frame.radius} onChange={event => update({ frame: { ...frame, radius: Number(event.target.value) }, frameShape: "slot", crop })} /></label>
         {hasMedia ? <>
-          <label className="admin-field"><span>Media fit</span><select aria-label="Media fit" value={config.fit} onChange={event => changeCrop({ ...DEFAULT_CROP, free: crop.free }, event.target.value as "cover" | "contain")}><option value="cover">Fill / Crop</option><option value="contain">Fit whole media</option></select></label>
+          <div className="admin-field"><span>Media fit</span><CapsuleSelect ariaLabel="Media fit" value={config.fit} onChange={value => changeCrop({ ...DEFAULT_CROP, free: crop.free }, value as "cover" | "contain")} options={[{ value: "cover", label: "Fill / Crop" }, { value: "contain", label: "Fit whole media" }]} /></div>
           <label className="admin-field"><span>Zoom: {Math.round(crop.zoom * 100)}%</span><input aria-label="Zoom" type="range" min={!crop.free && config.fit === "cover" ? 100 : 10} max={500} step={1} value={crop.zoom * 100} onChange={event => changeCrop({ zoom: Number(event.target.value) / 100 })} /></label>
           <label className="visual-check"><input type="checkbox" checked={crop.free} onChange={event => changeCrop({ free: event.target.checked })} />Free positioning (allow empty space)</label>
           <label className="admin-field"><span>Horizontal position: {Math.round(geometry.x)}%</span><input aria-label="Horizontal position" type="range" min={crop.free ? -200 : -Math.min(200, geometry.limitX)} max={crop.free ? 200 : Math.min(200, geometry.limitX)} step={.1} value={geometry.x} disabled={!crop.free && geometry.limitX < .01} onChange={event => changeCrop({ x: Number(event.target.value) })} /></label>

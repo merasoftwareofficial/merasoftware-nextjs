@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { formatIndiaDateTime } from "@/lib/date-time";
@@ -303,12 +304,11 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         const system = templates.find(row => row.system);
         return <tr key={event.key}><td data-label="Action"><small>{customer ? "Automatic" : "After an admin action"}{event.audience === "team" ? " · to the team" : ""}</small><strong>{event.label}</strong></td>
           <td data-label="Sending rule">{customer
-            ? <select aria-label={`${event.label} mail`} disabled={busy || loading} value={current.mode === "auto" ? "auto" : "off"} onChange={e => void policy(event.key, e.target.value as EmailPolicyMode, current.defaultTemplate)}><option value="auto">On — send automatically</option><option value="off">Off</option></select>
-            : <select aria-label={`${event.label} sending rule`} disabled={busy || loading} value={current.mode} onChange={e => void policy(event.key, e.target.value as EmailPolicyMode, current.defaultTemplate)}><option value="review">Ask before sending</option><option value="off">Off</option></select>}</td>
-          {sendVia && <td data-label="Send via">{route && <select aria-label={`${event.label} route`} disabled={busy || loading || (event.channels?.length ?? 0) < 2} value={route} onChange={e => void policy(event.key, current.mode, current.defaultTemplate, e.target.value as EmailChannel)}>
-            {(event.channels ?? []).map(value => <option key={value} value={value}>{CHANNEL_LABEL[value]}</option>)}</select>}
+            ? <CapsuleSelect ariaLabel={`${event.label} mail`} disabled={busy || loading} value={current.mode === "auto" ? "auto" : "off"} onChange={value => void policy(event.key, value as EmailPolicyMode, current.defaultTemplate)} options={[{ value: "auto", label: "On — send automatically" }, { value: "off", label: "Off" }]} />
+            : <CapsuleSelect ariaLabel={`${event.label} sending rule`} disabled={busy || loading} value={current.mode} onChange={value => void policy(event.key, value as EmailPolicyMode, current.defaultTemplate)} options={[{ value: "review", label: "Ask before sending" }, { value: "off", label: "Off" }]} />}</td>
+          {sendVia && <td data-label="Send via">{route && <CapsuleSelect ariaLabel={`${event.label} route`} disabled={busy || loading || (event.channels?.length ?? 0) < 2} value={route} onChange={value => void policy(event.key, current.mode, current.defaultTemplate, value as EmailChannel)} options={(event.channels ?? []).map(value => ({ value, label: CHANNEL_LABEL[value] }))} />}
             {(event.channels?.length ?? 0) === 1 && <small>Needs the email link</small>}</td>}
-          <td data-label="Default template"><select aria-label={`${event.label} default template`} disabled={busy || loading} value={current.defaultTemplate || system?._id || ""} onChange={e => void policy(event.key, current.mode, e.target.value || null)}>{templateChoices(event.key).map(row => <option value={row.id} key={row.id || "built-in"}>{optionLabel(row)}</option>)}</select></td>
+          <td data-label="Default template"><CapsuleSelect ariaLabel={`${event.label} default template`} disabled={busy || loading} value={current.defaultTemplate || system?._id || ""} onChange={value => void policy(event.key, current.mode, value || null)} options={templateChoices(event.key).map(row => ({ value: row.id, label: optionLabel(row) }))} /></td>
           <td data-label="Templates"><div className={styles.actions}><button disabled={busy} onClick={() => newTemplate(event.key)}>Add template</button>{templates.map(row => <button disabled={busy} key={row._id} onClick={() => editTemplate(toEditor(row))}>Edit {optionLabel(row)}</button>)}</div></td>
         </tr>;
       })}
@@ -338,8 +338,8 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         <h2 id="email-dialog-title">{editor._id ? "Edit" : "New"} email template</h2><p>{data?.events.find(event => event.key === editor.event)?.label}{editor.system ? " · built-in template" : ""}</p>
         <p className={styles.muted}>{editor.system ? "Changes apply to every new email of this action. Reset to original restores the wording it shipped with." : "Every email uses the Mera Software layout. Required links, such as subscription confirmation, are always preserved."}</p>
         {setup && <>
-          <label htmlFor="setup-channel">Send via</label><select id="setup-channel" value={setup.channel} disabled={busy} onChange={event => setSetup({ ...setup, channel: event.target.value as EmailChannel })}>{(data?.events.find(event => event.key === editor.event)?.channels || ["email"]).map(value => <option key={value} value={value}>{CHANNEL_LABEL[value]}</option>)}</select>
-          <label htmlFor="setup-mode">Sending rule</label><select id="setup-mode" value={setup.mode} disabled={busy} onChange={event => setSetup({ ...setup, mode: event.target.value as EmailPolicyMode })}>{isAutomatic(data!.events.find(event => event.key === editor.event)!) ? <option value="auto">On — send automatically</option> : <option value="review">Ask before sending</option>}<option value="off">Off</option></select>
+          <label htmlFor="setup-channel">Send via</label><CapsuleSelect id="setup-channel" ariaLabel="Send via" value={setup.channel} disabled={busy} onChange={value => setSetup({ ...setup, channel: value as EmailChannel })} options={(data?.events.find(event => event.key === editor.event)?.channels || ["email"]).map(value => ({ value, label: CHANNEL_LABEL[value] }))} />
+          <label htmlFor="setup-mode">Sending rule</label><CapsuleSelect id="setup-mode" ariaLabel="Sending rule" value={setup.mode} disabled={busy} onChange={value => setSetup({ ...setup, mode: value as EmailPolicyMode })} options={[isAutomatic(data!.events.find(event => event.key === editor.event)!) ? { value: "auto", label: "On — send automatically" } : { value: "review", label: "Ask before sending" }, { value: "off", label: "Off" }]} />
           <label><input type="checkbox" checked={setup.apply} disabled={busy} onChange={event => setSetup({ ...setup, apply: event.target.checked })} style={{ width: "auto" }} /> Apply this template, channel and sending rule to the action</label>
           <p className={styles.muted}>The channel and rule apply to future messages of this action, not only this template. Without applying, this saves a template without changing the action.</p>
         </>}
@@ -359,16 +359,14 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         {!!draft.attachments?.length && ["whatsapp", "both"].includes(channel) && <small>Files are attached to email. WhatsApp sends the message and its links.</small>}
         {draft.status === "failed" && <p className={styles.banner}>A retry uses the originally reviewed content and the same delivery key to prevent duplicates.</p>}
         <div className={styles.reviewSelectors}>
-        {!!draft.channelOptions?.length && <div><label htmlFor="review-channel">Send via</label><select id="review-channel" value={channel} disabled={busy || draft.status !== "pending" || !!draft.delivery?.lockedAt} onChange={event => setChannel(event.target.value)}>
-          {draft.channelOptions.map(row => <option key={row.id} value={row.id} disabled={!row.enabled}>{row.label}{!row.enabled ? ` — ${row.reason}` : ""}</option>)}
-        </select></div>}
-        <div><label htmlFor="review-template">Template</label><div className={styles.templateSelect}><select id="review-template" value={templateId} disabled={busy || draft.status !== "pending"} onChange={e => void chooseTemplate(e.target.value)}><option value="current">Current draft</option>{(draft.templateOptions || []).map(row => <option key={row.id || "built-in"} value={row.id}>{optionLabel(row)}</option>)}</select><button type="button" aria-label="Manage template" aria-expanded={!!templateAction} disabled={busy || draft.status !== "pending"} onClick={() => setTemplateAction(templateAction ? "" : "menu")}>⋯</button></div></div>
+        {!!draft.channelOptions?.length && <div><label htmlFor="review-channel">Send via</label><CapsuleSelect id="review-channel" ariaLabel="Send via" value={channel} disabled={busy || draft.status !== "pending" || !!draft.delivery?.lockedAt} onChange={setChannel} options={draft.channelOptions.map(row => ({ value: row.id, disabled: !row.enabled, label: `${row.label}${!row.enabled ? ` — ${row.reason}` : ""}` }))} /></div>}
+        <div><label htmlFor="review-template">Template</label><div className={styles.templateSelect}><CapsuleSelect id="review-template" ariaLabel="Template" value={templateId} disabled={busy || draft.status !== "pending"} onChange={value => void chooseTemplate(value)} options={[{ value: "current", label: "Current draft" }, ...(draft.templateOptions || []).map(row => ({ value: row.id, label: optionLabel(row) }))]} /><button type="button" aria-label="Manage template" aria-expanded={!!templateAction} disabled={busy || draft.status !== "pending"} onClick={() => setTemplateAction(templateAction ? "" : "menu")}>⋯</button></div></div>
         </div>
         {draft.channelOptions?.find(row => row.id === channel)?.enabled === false && <p role="status" className={styles.error}>{draft.channelOptions.find(row => row.id === channel)?.reason.replace(/\.$/, "")}. Choose an available channel.</p>}
         {templateAction === "menu" && <div className={styles.templateTools} aria-label="Template actions">{([['update', 'Update this template'], ['new', 'Save as new template'], ['rename', 'Rename'], ['delete', 'Delete']] as const).map(([action, label]) => <button key={action} disabled={busy || (action !== "new" && !reviewTemplate) || ((action === "rename" || action === "delete") && !!draft.templateOptions?.find(row => row.id === templateId)?.system)} onClick={() => { setTemplateName(action === "rename" ? reviewTemplate?.name || "" : `${reviewTemplate?.name || "Message"} copy`); setReplacementId(""); setTemplateAction(action); }}>{label}</button>)}</div>}
         {templateAction && templateAction !== "menu" && <div className={styles.templateTools}>
           {(templateAction === "new" || templateAction === "rename") ? <><label htmlFor="review-template-name">{templateAction === "new" ? "New template name" : "Template name"}</label><input autoFocus id="review-template-name" maxLength={100} disabled={busy} value={templateName} onChange={event => setTemplateName(event.target.value)} /></> : <span>{templateAction === "delete" ? `Delete “${reviewTemplate?.name}”? Your current message and history are kept.` : `Update “${reviewTemplate?.name}” for future messages?`}</span>}
-          {templateAction === "delete" && <><label htmlFor="replacement-template">If default, replace with</label><select id="replacement-template" value={replacementId} onChange={event => setReplacementId(event.target.value)} disabled={busy}><option value="">Choose replacement</option>{draft.templateOptions?.filter(row => row.id && row.id !== templateId).map(row => <option key={row.id} value={row.id}>{optionLabel(row)}</option>)}</select></>}
+          {templateAction === "delete" && <><label htmlFor="replacement-template">If default, replace with</label><CapsuleSelect id="replacement-template" ariaLabel="If default, replace with" value={replacementId} onChange={setReplacementId} disabled={busy} options={[{ value: "", label: "Choose replacement" }, ...(draft.templateOptions?.filter(row => row.id && row.id !== templateId).map(row => ({ value: row.id, label: optionLabel(row) })) ?? [])]} /></>}
           <button disabled={busy} onClick={() => setTemplateAction("")}>Cancel</button><button disabled={busy || ((templateAction === "new" || templateAction === "rename") && !templateName.trim()) || ((templateAction === "new" || templateAction === "update") && !docHasContent(reviewDoc))} onClick={() => void saveReviewTemplate()}>{templateAction === "new" ? "Save template" : templateAction === "rename" ? "Save name" : templateAction === "delete" ? "Delete template" : "Update template"}</button>
         </div>}
         {pendingChoice !== null && <div className={styles.templateTools} role="alert"><span>{pendingChoice === "close" ? "Don't send this message and close the review?" : "Discard message edits and switch templates?"}</span><button disabled={busy} onClick={() => setPendingChoice(null)}>Keep editing</button><button disabled={busy} onClick={() => { if (pendingChoice === "close") { setPendingChoice(null); void decide("skip"); } else void applyTemplate(pendingChoice); }}>{pendingChoice === "close" ? "Don't send and close" : "Discard edits"}</button></div>}
@@ -421,10 +419,16 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
             <div className={styles.createField}><label htmlFor={`find-new-action-${application}`}>Find action</label>
               <input id={`find-new-action-${application}`} value={newActionSearch} onChange={event => { setNewActionSearch(event.target.value); setNewAction(""); }} placeholder="Search name or category" /></div>
             <div className={styles.createField}><label htmlFor={`new-action-${application}`}>Action</label>
-              <select id={`new-action-${application}`} value={newAction} onChange={event => setNewAction(event.target.value)}>
-                <option value="">Choose an action</option>
-                {allSections.map(section => ({ section, events: data.events.filter(event => event.section === section && matches(event, newActionSearch.trim().toLowerCase())) })).filter(group => group.events.length).map(group => <optgroup label={group.section} key={group.section}>{group.events.map(event => <option key={event.key} value={event.key}>{event.label}</option>)}</optgroup>)}
-              </select></div>
+              <CapsuleSelect
+                id={`new-action-${application}`}
+                ariaLabel="Action"
+                value={newAction}
+                onChange={setNewAction}
+                options={[
+                  { value: "", label: "Choose an action" },
+                  ...allSections.flatMap(section => data.events.filter(event => event.section === section && matches(event, newActionSearch.trim().toLowerCase())).map(event => ({ value: event.key, label: `${section} · ${event.label}` }))),
+                ]}
+              /></div>
             <button className={styles.createContinue} type="button" disabled={!newAction || busy} onClick={startActionTemplate}>Continue <span aria-hidden="true">→</span></button>
           </div>
           <p className={styles.createHint}>Next, write your message and decide whether to apply it. Existing settings change only when you choose to apply them.</p>
@@ -482,7 +486,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
       </>}
     </section>}
     {showOutbox && <EmailOutbox key={application} application={application} revision={revision} active={active} />}
-    {showHistory && <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><label>Status <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}>{["all", "pending", "sent", "skipped", "failed", "expired"].map(value => <option key={value}>{value}</option>)}</select></label></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
+    {showHistory && <section className={styles.section}><div className={styles.toolbar}><h2>Email history</h2><CapsuleSelect prefix="Status:" ariaLabel="Status" align="right" value={historyFilter} onChange={setHistoryFilter} options={["all", "pending", "sent", "skipped", "failed", "expired"].map(value => ({ value, label: value }))} /></div><p className={styles.muted}>Decision records remain available after draft content expires. Showing the latest 100 records.</p>
       {!data ? !error && <Loader label="Loading history…" /> : <>
         {!history.length && <p>No matching email records.</p>}
         {history.map(row => <article className={styles.card} key={row._id}><div><strong>{row.subject}</strong><p>{row.to.join(", ")}</p><small>{status(row)} · {row.status === "sent" ? `Sent: ${row.sentAt ? formatIndiaDateTime(row.sentAt) : "Time unavailable"}` : `Updated: ${formatIndiaDateTime(row.updatedAt)}`}</small>{row.status === "skipped" && row.failure && <p className={styles.muted}>{row.failure}</p>}</div></article>)}

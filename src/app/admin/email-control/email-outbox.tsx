@@ -1,6 +1,7 @@
 "use client";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import { emailControlApi } from "@/lib/email-control-client";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import type { Application, EmailOutboxData } from "@/lib/email-control-types";
@@ -31,7 +32,7 @@ export function EmailOutbox({ application, revision, active = true }: { applicat
     <p className={styles.muted}>Totals cover this application&apos;s full recorded history. Filters below apply to the list.</p>
     <form className={styles.filters} onSubmit={event => { event.preventDefault(); setQuery({ ...filters, page: 1 }); }}>
       <label>Search recipient or subject<input type="search" maxLength={200} value={filters.q} onChange={e => setFilters({ ...filters, q: e.target.value })} /></label>
-      <label>Outbox status<select value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })}>{["all", "sent", "failed", "sending"].map(value => <option key={value}>{value}</option>)}</select></label>
+      <label>Outbox status<CapsuleSelect ariaLabel="Outbox status" value={filters.status} onChange={status => setFilters({ ...filters, status })} options={["all", "sent", "failed", "sending"].map(value => ({ value, label: value }))} /></label>
       <label>From date (IST)<input type="date" value={filters.from} onChange={e => setFilters({ ...filters, from: e.target.value })} /></label>
       <label>To date (IST)<input type="date" min={filters.from || undefined} value={filters.to} onChange={e => setFilters({ ...filters, to: e.target.value })} /></label>
       <button className="admin-action" type="submit">Apply filters</button>

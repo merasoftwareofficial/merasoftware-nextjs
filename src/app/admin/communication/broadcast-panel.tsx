@@ -1,4 +1,6 @@
 "use client";
+
+import { CapsuleSelect } from "@/components/capsule-select";
 /* eslint @next/next/no-img-element: off -- previews use the existing media library URLs. */
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
@@ -158,26 +160,28 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     {channel !== "email" && catalog?.stopped && <p className={s.note}>WhatsApp: {catalog.stopped.replaceAll("-", " ")}. WhatsApp deliveries wait until sending is available.</p>}
 
     <div className={s.stage}><h3>1. Choose your audience</h3><p>Add one or more lead or client groups and choose how the broadcast will be sent.</p>
-      <label className={s.field}>Audience
-        <select aria-label="Audience" value={audienceKind} disabled={busy} onChange={event => setAudienceKind(event.target.value as "leads" | "clients")}>
-          <option value="leads">Leads only</option><option value="clients">Clients only</option>
-        </select>
-      </label>
-      <label className={s.field}>Send via
-        <select aria-label="Send via" value={channel} disabled={busy} onChange={event => { channelChosen.current = true; setChannel(event.target.value); setPreview(null); }}>
-          <option value="whatsapp">WhatsApp only</option><option value="email">Email only</option><option value="both">Both</option>
-        </select>
-      </label>
-      <label className={s.field}>{audienceKind === "clients" ? "Client behaviour" : "Lead group"}
-        <select aria-label={audienceKind === "clients" ? "Client behaviour" : "Lead group"} value="" disabled={busy || !catalog} onChange={event => addGroup(event.target.value)}>
-          <option value="">{!catalog ? "Loading groups…" : groups.length ? "Add another group…" : "Choose a group"}</option>
-          {catalog?.groups.filter(row => row.kind === audienceKind).map(row => (
-            <option key={row.id} value={row.id} disabled={row.blocked || groups.includes(row.id)}>
-              {row.label} ({row.total} people){row.blocked ? " · marketing blocked" : groups.includes(row.id) ? " · added" : ""}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className={s.field}><span>Audience</span>
+        <CapsuleSelect ariaLabel="Audience" value={audienceKind} disabled={busy} onChange={value => setAudienceKind(value as "leads" | "clients")} options={[{ value: "leads", label: "Leads only" }, { value: "clients", label: "Clients only" }]} />
+      </div>
+      <div className={s.field}><span>Send via</span>
+        <CapsuleSelect ariaLabel="Send via" value={channel} disabled={busy} onChange={value => { channelChosen.current = true; setChannel(value); setPreview(null); }} options={[{ value: "whatsapp", label: "WhatsApp only" }, { value: "email", label: "Email only" }, { value: "both", label: "Both" }]} />
+      </div>
+      <div className={s.field}><span>{audienceKind === "clients" ? "Client behaviour" : "Lead group"}</span>
+        <CapsuleSelect
+          ariaLabel={audienceKind === "clients" ? "Client behaviour" : "Lead group"}
+          value=""
+          disabled={busy || !catalog}
+          onChange={addGroup}
+          options={[
+            { value: "", label: !catalog ? "Loading groups…" : groups.length ? "Add another group…" : "Choose a group" },
+            ...(catalog?.groups.filter(row => row.kind === audienceKind).map(row => ({
+              value: row.id,
+              disabled: row.blocked || groups.includes(row.id),
+              label: `${row.label} (${row.total} people)${row.blocked ? " · marketing blocked" : groups.includes(row.id) ? " · added" : ""}`,
+            })) ?? []),
+          ]}
+        />
+      </div>
       {groups.length > 0 && <div className={s.chips} aria-label="Selected groups">
         {groups.map(id => {
           const item = catalog?.groups.find(row => row.id === id);
@@ -194,12 +198,15 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     </div>
 
     <div className={s.stage}><h3>2. Create your message</h3><p>Pick a saved message from the list below or write a new one.</p>
-      <label className={s.field}>Recent / saved messages
-        <select aria-label="Recent / saved messages" value={templateId} disabled={busy || !catalog} onChange={event => choose(event.target.value)}>
-          <option value="">New message</option>
-          {templates.map(row => <option key={row._id} value={row._id}>{row.name}</option>)}
-        </select>
-      </label>
+      <div className={s.field}><span>Recent / saved messages</span>
+        <CapsuleSelect
+          ariaLabel="Recent / saved messages"
+          value={templateId}
+          disabled={busy || !catalog}
+          onChange={choose}
+          options={[{ value: "", label: "New message" }, ...templates.map(row => ({ value: row._id, label: row.name }))]}
+        />
+      </div>
 
       {templates.length > 0 && <div className={s.savedBox}>
         {templates.length > 3 && <input className={s.savedSearch} type="search" aria-label="Search saved messages" placeholder="Search saved messages…" value={templateQuery} onChange={event => setTemplateQuery(event.target.value)} />}
@@ -238,7 +245,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
       <p className={s.note}>Broadcast media: JPG/PNG up to 5 MB or MP4 up to 16 MB. Caption is optional; leave separate text empty to send media alone.</p>
       {media && <div className={s.preview}>{media.kind === "video" ? <video src={media.url} controls preload="metadata" style={{ maxWidth: "100%", maxHeight: 240 }} /> : <img src={media.url} alt="Selected broadcast media" style={{ maxWidth: "100%", maxHeight: 240 }} />}
         <EmailEditor id="broadcast-caption" label="Caption (optional)" channel="whatsapp" value={caption} disabled={busy} variables={catalog?.fields || []} onChange={value => { setCaption(value); setPreview(null); }} />
-        <label className={s.field}>Separate text position<select aria-label="Separate text position" value={position} disabled={busy} onChange={event => { setPosition(event.target.value as "before" | "after"); setPreview(null); }}><option value="before">Text before media</option><option value="after">Text after media</option></select></label>
+        <div className={s.field}><span>Separate text position</span><CapsuleSelect ariaLabel="Separate text position" value={position} disabled={busy} onChange={value => { setPosition(value as "before" | "after"); setPreview(null); }} options={[{ value: "before", label: "Text before media" }, { value: "after", label: "Text after media" }]} /></div>
       </div>}
       {mediaOpen && <ImageChooser allowVideo sources={{ upload: true, library: true, url: false }} onClose={() => setMediaOpen(false)} onChoose={choice => {
         if (choice.kind !== "library") return;

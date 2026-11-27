@@ -1,5 +1,7 @@
 "use client";
 
+import { CapsuleSelect } from "@/components/capsule-select";
+
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { Loader } from "@/app/admin/email-control/loader";
@@ -342,16 +344,20 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
                                   {paidPreview.limited && <p>Only the latest 100 projects were checked.</p>}
                                   {!paidPreview.candidates.length ? <p>No eligible paid project found. Open the client for a full review.</p> : (
                                     <>
-                                      <label className={b.field}>Paid project
-                                        <select value={paidOrder} onChange={event => { setPaidOrder(event.target.value); setAckMismatch(false); }}>
-                                          <option value="">Choose a project</option>
-                                          {paidPreview.candidates.map(candidate => (
-                                            <option key={candidate.id} value={candidate.id}>
-                                              {candidate.itemNames.join(", ") || candidate.id} · ₹{candidate.totalAmount.toLocaleString("en-IN")} · {when(candidate.createdAt)}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </label>
+                                      <div className={b.field}><span>Paid project</span>
+                                        <CapsuleSelect
+                                          ariaLabel="Paid project"
+                                          value={paidOrder}
+                                          onChange={value => { setPaidOrder(value); setAckMismatch(false); }}
+                                          options={[
+                                            { value: "", label: "Choose a project" },
+                                            ...paidPreview.candidates.map(candidate => ({
+                                              value: candidate.id,
+                                              label: `${candidate.itemNames.join(", ") || candidate.id} · ₹${candidate.totalAmount.toLocaleString("en-IN")} · ${when(candidate.createdAt)}`,
+                                            })),
+                                          ]}
+                                        />
+                                      </div>
                                       {paidPreview.candidates.filter(candidate => candidate.id === paidOrder).map(candidate => (
                                         <div key={candidate.id}>
                                           <p>Project ID: {candidate.id} · Paid {when(candidate.paidAt)} (IST) · Amount ₹{candidate.totalAmount.toLocaleString("en-IN")}.</p>

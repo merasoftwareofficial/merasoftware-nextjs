@@ -104,7 +104,11 @@ try {
   console.log('Draft creation and unsaved preview passed');
   assert.equal(draft.endsAt, '2030-10-20T23:59:59+05:30');
   assert.equal((await page.goto(`${origin}/offer/diwali-launch`)).status(), 404);
-  await editor.getByLabel('Status', { exact: true }).selectOption('published');
+  async function pickCapsule(trigger, value) {
+    await trigger.click();
+    await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+  }
+  await pickCapsule(editor.getByLabel('Status', { exact: true }), 'published');
   const published = await save('Save & publish');
   console.log('Publishing saved successfully');
   await page.goto(`${origin}/offer`, { waitUntil: 'networkidle' });
@@ -132,7 +136,7 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: path.join(root, `test-results/offers-${width}.png`), fullPage: true });
   }
-  await editor.getByLabel('Status', { exact: true }).selectOption('archived');
+  await pickCapsule(editor.getByLabel('Status', { exact: true }), 'archived');
   await save('Save offer');
   assert.equal((await page.goto(`${origin}/offer/diwali-launch`)).status(), 404);
   await page.goto(`${origin}/offer`, { waitUntil: 'networkidle' });

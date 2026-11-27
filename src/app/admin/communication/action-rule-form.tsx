@@ -1,4 +1,6 @@
 "use client";
+
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useRef, useState } from "react";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import s from "./communication.module.css";
@@ -727,10 +729,7 @@ export function ActionRuleForm({
           <dt>2. Work Group</dt>
           <dd style={{ display: "grid", gap: 8, width: "100%" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <select aria-label="Filter work folder" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-                <option value="all">All folders ({actionCategories.length})</option>
-                {actionCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
+              <CapsuleSelect ariaLabel="Filter work folder" value={categoryFilter} onChange={setCategoryFilter} options={[{ value: "all", label: `All folders (${actionCategories.length})` }, ...actionCategories.map(cat => ({ value: cat, label: cat }))]} />
               <input type="search" aria-label="Search work group" placeholder="Search by work, meaning, or action (e.g. payment, installment, login, banner)…"
                 value={actionSearch} onChange={e => setActionSearch(e.target.value)} style={{ flex: "1 1 220px", minWidth: 180 }} />
               {!allAreGroups && (
@@ -740,21 +739,18 @@ export function ActionRuleForm({
               )}
             </div>
 
-            <select value={selectedActionId} onChange={e => selectAction(e.target.value)}>
-              <option value="">Choose a work group ({filteredActions.length} matching)…</option>
-              {groupedActions.map(group => (
-                <optgroup key={group.category} label={group.category}>
-                  {group.items.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.isTriggerGroup ? item.title : `${item.id} — ${item.title}`}
-                      {item.origins?.length ? ` (${item.origins.length} action${item.origins.length > 1 ? "s" : ""})` : ""}
-                      {item.rules?.length ? ` · ${item.rules.length} rule${item.rules.length > 1 ? "s" : ""}` : ""}
-                      {!item.triggerKey ? " [no signal]" : ""}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            <CapsuleSelect
+              ariaLabel="Work group"
+              value={selectedActionId}
+              onChange={selectAction}
+              options={[
+                { value: "", label: `Choose a work group (${filteredActions.length} matching)…` },
+                ...groupedActions.flatMap(group => group.items.map(item => ({
+                  value: item.id,
+                  label: `${group.category} · ${item.isTriggerGroup ? item.title : `${item.id} — ${item.title}`}${item.origins?.length ? ` (${item.origins.length} action${item.origins.length > 1 ? "s" : ""})` : ""}${item.rules?.length ? ` · ${item.rules.length} rule${item.rules.length > 1 ? "s" : ""}` : ""}${!item.triggerKey ? " [no signal]" : ""}`,
+                }))),
+              ]}
+            />
 
             {currentRow && (
               <div style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontSize: "var(--fs-meta)", display: "grid", gap: 4 }}>
@@ -802,11 +798,7 @@ export function ActionRuleForm({
         <div className={s.factRow}>
           <dt>4. Condition <InfoTip label="Only if"><p>Self-serve checks: payment state, installment due, minimum progress %, or remaining upload limit.</p></InfoTip></dt>
           <dd style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-            <select value={condition} onChange={e => setCondition(e.target.value as RuleCondition)}>
-              {availableConditions.map(opt => (
-                <option key={opt.key} value={opt.key}>{opt.label}</option>
-              ))}
-            </select>
+            <CapsuleSelect ariaLabel="Condition" value={condition} onChange={value => setCondition(value as RuleCondition)} options={availableConditions.map(opt => ({ value: opt.key, label: opt.label }))} />
             {currentRow?.supportsProgress && (
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-meta)" }}>
                 <span>Progress &gt;=</span>
@@ -843,21 +835,24 @@ export function ActionRuleForm({
           <div className={s.factRow}>
             <dt>Applies to <InfoTip label="Scope"><p>Apply to all packages/plans, only monthly plans, only one-time packages, or one specific package.</p></InfoTip></dt>
             <dd style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <select value={scopeKind} onChange={e => setScopeKind(e.target.value as RuleScopeKind)}>
-                <option value="all">All packages &amp; plans</option>
-                <option value="monthly">Monthly plans only</option>
-                <option value="one_time">One-time packages only</option>
-                <option value="offer_payment">Offer payment orders (uses saved offsets)</option>
-                <option value="package">Specific package…</option>
-              </select>
+              <CapsuleSelect
+                ariaLabel="Applies to"
+                value={scopeKind}
+                onChange={value => setScopeKind(value as RuleScopeKind)}
+                options={[
+                  { value: "all", label: "All packages & plans" },
+                  { value: "monthly", label: "Monthly plans only" },
+                  { value: "one_time", label: "One-time packages only" },
+                  { value: "offer_payment", label: "Offer payment orders (uses saved offsets)" },
+                  { value: "package", label: "Specific package…" },
+                ]}
+              />
               {scopeKind === "offer_payment" && (
                 <small style={{ color: "var(--muted)" }}>Timing follows each order&apos;s saved offer offsets; message, channel &amp; control apply from this rule.</small>
               )}
               {scopeKind === "package" && (
                 packages.length > 0 ? (
-                  <select value={packageSlug} onChange={e => setPackageSlug(e.target.value)}>
-                    {packages.map(pkg => <option key={pkg.slug} value={pkg.slug}>{pkg.name} ({pkg.slug})</option>)}
-                  </select>
+                  <CapsuleSelect ariaLabel="Specific package" value={packageSlug} onChange={setPackageSlug} options={packages.map(pkg => ({ value: pkg.slug, label: `${pkg.name} (${pkg.slug})` }))} />
                 ) : (
                   <input value={packageSlug} onChange={e => setPackageSlug(e.target.value)} placeholder="e.g. digital-growth-package" />
                 )
@@ -956,10 +951,11 @@ export function ActionRuleForm({
                                   }));
                                 }}
                               />
-                              <select
+                              <CapsuleSelect
+                                ariaLabel="Step time unit"
                                 value={step.unit === "hours" ? "hours" : "days"}
-                                onChange={e => {
-                                  const nextUnit = e.target.value as "days" | "hours";
+                                onChange={value => {
+                                  const nextUnit = value as "days" | "hours";
                                   updateTarget(who, p => ({
                                     ...p,
                                     steps: p.steps.map((st, i) => i === idx ? {
@@ -969,29 +965,31 @@ export function ActionRuleForm({
                                     } : st),
                                   }));
                                 }}
-                              >
-                                <option value="days">days</option>
-                                <option value="hours">hours</option>
-                              </select>
+                                options={[{ value: "days", label: "days" }, { value: "hours", label: "hours" }]}
+                              />
                             </>
                           )}
-                          <select value={step.timingRef}
-                            onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, timingRef: e.target.value as TimingRef } : st) }))}>
-                            <option value="before_due">before due / deadline</option>
-                            <option value="on_due">on due date</option>
-                            <option value="after_due">after due date</option>
-                            <option value="after_action">after action</option>
-                          </select>
+                          <CapsuleSelect
+                            ariaLabel="Timing reference"
+                            value={step.timingRef}
+                            onChange={value => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, timingRef: value as TimingRef } : st) }))}
+                            options={[
+                              { value: "before_due", label: "before due / deadline" },
+                              { value: "on_due", label: "on due date" },
+                              { value: "after_due", label: "after due date" },
+                              { value: "after_action", label: "after action" },
+                            ]}
+                          />
                         </>
                       )}
 
                       <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>Via:</span>
-                      <select value={step.channel}
-                        onChange={e => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, channel: e.target.value as RuleStep["channel"] } : st) }))}>
-                        <option value="whatsapp">WhatsApp only</option>
-                        <option value="email">Email only</option>
-                        <option value="both">Both</option>
-                      </select>
+                      <CapsuleSelect
+                        ariaLabel="Step channel"
+                        value={step.channel}
+                        onChange={value => updateTarget(who, p => ({ ...p, steps: p.steps.map((st, i) => i === idx ? { ...st, channel: value as RuleStep["channel"] } : st) }))}
+                        options={[{ value: "whatsapp", label: "WhatsApp only" }, { value: "email", label: "Email only" }, { value: "both", label: "Both" }]}
+                      />
                     </div>
 
                     {step.channel !== "whatsapp" && (
@@ -1084,15 +1082,20 @@ export function ActionRuleForm({
                     <span>days <span style={{ fontSize: "var(--fs-tag)", color: "var(--pn-muted, var(--muted))" }}>(1 = daily)</span></span>
                   </span>
                 </label>
-                <label style={{ display: "grid", gap: 4 }}>
+                <div style={{ display: "grid", gap: 4 }}>
                   <span style={{ fontSize: "var(--fs-meta)", fontWeight: 600 }}>Per day</span>
-                  <select value={repeatPerDay} onChange={e => setRepeatPerDay(Number(e.target.value || 1))}>
-                    <option value={1}>1x / day</option>
-                    <option value={2}>2x / day (12h)</option>
-                    <option value={3}>3x / day (8h)</option>
-                    <option value={4}>4x / day (6h)</option>
-                  </select>
-                </label>
+                  <CapsuleSelect
+                    ariaLabel="Per day"
+                    value={String(repeatPerDay)}
+                    onChange={value => setRepeatPerDay(Number(value || 1))}
+                    options={[
+                      { value: "1", label: "1x / day" },
+                      { value: "2", label: "2x / day (12h)" },
+                      { value: "3", label: "3x / day (8h)" },
+                      { value: "4", label: "4x / day (6h)" },
+                    ]}
+                  />
+                </div>
               </div>
               {repeatForDays > 0 && repeatTimes > 0 && (
                 <span style={{ fontSize: "var(--fs-meta)", color: "var(--pn-muted, var(--muted))" }}>
@@ -1113,18 +1116,26 @@ export function ActionRuleForm({
           <dd style={{ display: "grid", gap: 8 }}>
             {doAlso.map((step, idx) => (
               <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                <select value={step.type} onChange={e => {
-                  const next = e.target.value as DoAlsoType;
-                  setDoAlso(prev => prev.map((it, i) => i === idx ? { type: next, ...(next === "change_lead_stage" ? { stage: "Positive" } : next === "add_lead_note" ? { note: "" } : {}) } : it));
-                }}>
-                  <option value="change_lead_stage">Change lead stage</option>
-                  <option value="add_lead_note">Add follow-up note</option>
-                  <option value="stop_reminders">Stop other scheduled reminders</option>
-                </select>
+                <CapsuleSelect
+                  ariaLabel="Do also action"
+                  value={step.type}
+                  onChange={value => {
+                    const next = value as DoAlsoType;
+                    setDoAlso(prev => prev.map((it, i) => i === idx ? { type: next, ...(next === "change_lead_stage" ? { stage: "Positive" } : next === "add_lead_note" ? { note: "" } : {}) } : it));
+                  }}
+                  options={[
+                    { value: "change_lead_stage", label: "Change lead stage" },
+                    { value: "add_lead_note", label: "Add follow-up note" },
+                    { value: "stop_reminders", label: "Stop other scheduled reminders" },
+                  ]}
+                />
                 {step.type === "change_lead_stage" && (
-                  <select value={step.stage || "Positive"} onChange={e => setDoAlso(prev => prev.map((it, i) => i === idx ? { ...it, stage: e.target.value } : it))}>
-                    {LEAD_STAGES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
-                  </select>
+                  <CapsuleSelect
+                    ariaLabel="Lead stage"
+                    value={step.stage || "Positive"}
+                    onChange={value => setDoAlso(prev => prev.map((it, i) => i === idx ? { ...it, stage: value } : it))}
+                    options={LEAD_STAGES.map(st => ({ value: st.value, label: st.label }))}
+                  />
                 )}
                 {step.type === "add_lead_note" && (
                   <input type="text" placeholder="Note (e.g. Auto-replied to {{name}})" value={step.note || ""} maxLength={500} style={{ minWidth: 240 }}

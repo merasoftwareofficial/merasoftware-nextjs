@@ -7,6 +7,7 @@
 
 import { useNavigate, useTask } from "@/components/loading/navigation";
 import { useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import type { Role } from "@/lib/repo/types";
 
 const ROLES: Role[] = ["member", "moderator", "editor", "admin"];
@@ -35,18 +36,13 @@ export function UserActions({ id, role, banned }: { id: string; role: Role; bann
 
   return (
     <span className="admin-row-actions">
-      <select
-        aria-label="Blog role"
+      <CapsuleSelect
+        ariaLabel="Blog role"
         value={role}
         disabled={busy}
-        onChange={event => patch({ role: event.target.value as Role })}
-      >
-        {ROLES.map(option => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+        onChange={next => patch({ role: next as Role })}
+        options={ROLES.map(option => ({ value: option, label: option }))}
+      />
 
       <button
         className={banned ? "admin-action" : "admin-action is-danger"}

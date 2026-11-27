@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import {
   BILLING_CYCLES, DEPENDENCIES, LIMIT_SCOPES, TIMINGS, blankPlanForm, formFromPlan, planBody, planState, rangeText, rupees,
   type PlanCatalogue, type PlanForm, type StoredPlan,
@@ -104,13 +105,13 @@ function CategoriesPanel({ catalogue, onChange }: { catalogue: PlanCatalogue; on
   return <section className={s.stack}>
     <p>Main project categories are used for plans. Create a new category from the plan form or manage it in Project Categories.</p>
     {legacy.length > 0 && <><h3>Older categories awaiting mapping</h3><p>Choose the main category for each older group. Existing plans and purchased agreements are preserved.</p>
-      {legacy.map(row => <label key={row.key} className="admin-field"><span>{row.label}</span><select aria-label={`Map ${row.label}`} value="" disabled={busy} onChange={async event => {
-        const key = event.target.value; if (!key) return;
+      {legacy.map(row => <div key={row.key} className="admin-field"><span>{row.label}</span><CapsuleSelect ariaLabel={`Map ${row.label}`} value="" disabled={busy} onChange={async key => {
+        if (!key) return;
         setBusy(true); setError("");
         try { await send({ target: "category", key: row.key, expectedUpdatedAt: row.updatedAt ?? null, linkedProjectCategory: key }); onChange(await reloadCatalogue()); }
         catch (cause) { setError(cause instanceof Error ? cause.message : "Could not map the category."); }
         finally { setBusy(false); }
-      }}><option value="">Choose main category</option>{catalogue.projectCategories.filter(row => row.status !== "archived").map(row => <option key={row.category} value={row.category}>{row.label}</option>)}</select></label>)}
+      }} options={[{ value: "", label: "Choose main category" }, ...catalogue.projectCategories.filter(row => row.status !== "archived").map(row => ({ value: row.category, label: row.label }))]} /></div>)}
     </>}
     {error && <p role="alert">{error}</p>}
   </section>;
@@ -196,8 +197,8 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
       </fieldset>
 
       <div className="form-columns">
-        <label className="admin-field"><span>Who can buy it</span><select value={form.dependency} onChange={e => update("dependency", e.target.value)}>{DEPENDENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        {form.dependency !== "standalone_only" && <label className="admin-field"><span>When it can be added to a project</span><select value={form.timing} onChange={e => update("timing", e.target.value)}>{TIMINGS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+        <div className="admin-field"><span>Who can buy it</span><CapsuleSelect ariaLabel="Who can buy it" value={form.dependency} onChange={value => update("dependency", value)} options={DEPENDENCIES.map(([value, label]) => ({ value, label }))} /></div>
+        {form.dependency !== "standalone_only" && <div className="admin-field"><span>When it can be added to a project</span><CapsuleSelect ariaLabel="When it can be added to a project" value={form.timing} onChange={value => update("timing", value)} options={TIMINGS.map(([value, label]) => ({ value, label }))} /></div>}
       </div>
 
       <fieldset className={s.box}><legend>Price</legend>
@@ -214,7 +215,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
             ? <label className="admin-field"><span>Price (₹)</span><NumberInput required min={1} max={10000000} value={form.oneTimePrice} onValueChange={num("oneTimePrice")} /></label>
             : <label className="admin-field"><span>Price per month (₹)</span><NumberInput required min={0} max={10000000} value={form.monthlyReferencePrice} onValueChange={num("monthlyReferencePrice")} /><small>Longer periods cost months × this price, less their discount.</small></label>}
           {isUpload && <div className="form-columns">
-            <label className="admin-field"><span>Updates allowed</span><select value={form.limitScope} onChange={e => update("limitScope", e.target.value)}>{LIMIT_SCOPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <div className="admin-field"><span>Updates allowed</span><CapsuleSelect ariaLabel="Updates allowed" value={form.limitScope} onChange={value => update("limitScope", value)} options={LIMIT_SCOPES.map(([value, label]) => ({ value, label }))} /></div>
             {form.limitScope !== "unlimited" && <label className="admin-field"><span>Number of updates</span><NumberInput required min={1} max={1000} value={form.portalAccessCount} onValueChange={num("portalAccessCount")} /></label>}
             <label className="admin-field"><span>Files per update</span><NumberInput required min={1} max={100} value={form.filesLimit} onValueChange={num("filesLimit")} /></label>
           </div>}
@@ -269,7 +270,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
       {purchases.length > 0 && <div className={`${s.box} ${s.preview}`} aria-live="polite">
         <span className={s.label}>Price check (worked out by the portal)</span>
         <div className={s.inline}>
-          <label>Bought <select aria-label="Preview purchase" value={active?.key} onChange={e => setChoice({ ...choice, purchase: e.target.value })}>{purchases.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}</select></label>
+          <CapsuleSelect prefix="Bought:" ariaLabel="Preview purchase" value={active?.key ?? ""} onChange={purchase => setChoice({ ...choice, purchase })} options={purchases.map(p => ({ value: p.key, label: p.label }))} />
           {months > 0 && <label>for <NumberInput aria-label="Preview length in months" min={months} max={form.maxTenureMonths} step={months} value={tenure} emptyOnBlur="revert" onValueChange={n => setChoice({ ...choice, tenureMonths: n })} /> months</label>}
           {flexible && <label>Files <NumberInput aria-label="Preview files per update" min={form.filesMin} max={form.filesMax} step={form.filesStep} value={choice.files} emptyOnBlur="revert" onValueChange={n => setChoice({ ...choice, files: n })} /></label>}
           {flexible && <label>{active?.key === "one_time" ? "Updates" : "Updates / month"} <NumberInput aria-label="Preview updates" min={form.updatesMin} max={form.updatesMax} value={choice.updates} emptyOnBlur="revert" onValueChange={n => setChoice({ ...choice, updates: n })} /></label>}

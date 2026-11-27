@@ -376,7 +376,7 @@
 .whenHint { min-height: 20px; margin: 0; font-size: var(--fs-meta); color: var(--pn-muted); line-height: 1.45; }
 
 /* Inputs */
-.select, .compactSelect, .varSelect, .numInput, .textInput {
+.varSelect, .numInput, .textInput {
   padding: 8px 10px;
   border: 1.5px solid var(--pn-control-line, var(--pn-line));
   border-radius: 7px;
@@ -389,14 +389,15 @@
   transition: border-color .12s, box-shadow .12s;
 }
 .select { width: 100%; }
+.select :global(.capsule-trigger) { width: 100%; justify-content: space-between; }
 .compactSelect { max-width: 100%; }
 .varSelect { padding: 5px 9px; font-size: var(--fs-meta); font-weight: 600; color: var(--pn-accent); }
 .numInput { width: 70px; text-align: center; }
 .textInput { width: 100%; }
-.select:hover:not(:disabled), .compactSelect:hover:not(:disabled), .varSelect:hover:not(:disabled), .numInput:hover:not(:disabled), .textInput:hover:not(:disabled), .textarea:hover:not(:disabled), .comboBox:hover {
+.varSelect:hover:not(:disabled), .numInput:hover:not(:disabled), .textInput:hover:not(:disabled), .textarea:hover:not(:disabled), .comboBox:hover {
   border-color: var(--pn-accent);
 }
-.select:focus, .compactSelect:focus, .varSelect:focus, .numInput:focus, .textInput:focus, .textarea:focus {
+.varSelect:focus, .numInput:focus, .textInput:focus, .textarea:focus {
   outline: none;
   border-color: var(--pn-accent);
   box-shadow: 0 0 0 3px var(--pn-control-ring, rgb(0 107 128 / .16));
@@ -759,13 +760,6 @@
   background: var(--pn-raised);
 }
 .filterSelect {
-  padding: 6px 10px;
-  border: 1px solid var(--pn-line);
-  border-radius: 7px;
-  background: var(--pn-card);
-  color: var(--pn-text);
-  font: inherit;
-  font-size: var(--fs-meta);
   max-width: 240px;
 }
 
@@ -1253,6 +1247,7 @@
   display: grid;
   gap: 6px;
   align-content: start;
+  min-width: 0;
 }
 .stackLabel {
   font-size: var(--fs-label);
@@ -1269,6 +1264,19 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
+.timingChannelRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+}
+.timingFields {
+  display: grid;
+  grid-template-columns: 64px auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.timingFields .numInput { width: 100%; }
 .gridTemplateChannel {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
@@ -1303,7 +1311,7 @@
   background: var(--pn-card);
 }
 @media (max-width: 680px) {
-  .grid3, .gridTemplateChannel, .gridRepeat { grid-template-columns: 1fr; }
+  .grid3, .timingChannelRow, .gridTemplateChannel, .gridRepeat { grid-template-columns: 1fr; }
 }
 
 /* Google Docs Style Boxed Outline Rail (Navigation & Visual Hierarchy) */
@@ -1559,6 +1567,19 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
+.timingChannelRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+}
+.timingFields {
+  display: grid;
+  grid-template-columns: 64px auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.timingFields .numInput { width: 100%; }
 @media (max-width: 720px) {
   .grid3 { grid-template-columns: 1fr; }
 }

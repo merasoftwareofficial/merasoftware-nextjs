@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useNavigate, useTask } from "@/components/loading/navigation";
 
 type Target = { id: string; name: string };
@@ -47,14 +48,13 @@ function MoveControl({ from, count, targets, removes, onDone }: { from: string; 
 
   return (
     <span className="category-inline">
-      <select aria-label={`Move the posts of ${from} to`} value={into} disabled={busy} onChange={event => setInto(event.target.value)}>
-        <option value="">Move posts to…</option>
-        {targets.map(target => (
-          <option key={target.id} value={target.id}>
-            {target.name}
-          </option>
-        ))}
-      </select>
+      <CapsuleSelect
+        ariaLabel={`Move the posts of ${from} to`}
+        value={into}
+        disabled={busy}
+        onChange={setInto}
+        options={[{ value: "", label: "Move posts to…" }, ...targets.map(target => ({ value: target.id, label: target.name }))]}
+      />
       <button className="admin-action" type="button" disabled={busy || !into} onClick={move}>
         {busy ? "Moving…" : "Move"}
       </button>

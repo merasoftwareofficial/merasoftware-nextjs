@@ -1,6 +1,7 @@
 "use client";
 import { formatIndiaDate, formatIndiaDateTime } from "@/lib/date-time";
 import { useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import Link from "@/components/link";
 import type { PortfolioEntry } from "@/lib/portfolio/types";
 import { groupPortfolioByClient } from "@/lib/portfolio/client-groups";
@@ -13,7 +14,7 @@ export function PortfolioList({ entries, portalUrl }: { entries: PortfolioEntry[
   const rows = entries.filter(row => (!status || row.status === status) && (!type || row.source.type === type) && (!term || `${row.title} ${row.source.name} ${row.source.customerName} ${sourceStatusText(row.source)} ${row.category} ${row.source.url}`.toLowerCase().includes(term)));
   const titles = new Map(entries.map(row => [row._id, row.title]));
   const groups = groupPortfolioByClient(rows);
-  return <><div className="portfolio-admin-filters"><label className="admin-field">Search<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Project, client, website or progress" /></label><label className="admin-field">Public status<select value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{["draft", "published", "hidden"].map(value => <option key={value}>{value}</option>)}</select></label><label className="admin-field">Type<select value={type} onChange={e => setType(e.target.value)}><option value="">All types</option><option value="project">Projects</option><option value="service">Services</option></select></label></div>
+  return <><div className="portfolio-admin-filters"><label className="admin-field">Search<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Project, client, website or progress" /></label><div className="admin-field"><span>Public status</span><CapsuleSelect ariaLabel="Public status" options={[{ value: "", label: "All statuses" }, { value: "draft", label: "draft" }, { value: "published", label: "published" }, { value: "hidden", label: "hidden" }]} value={status} onChange={setStatus} /></div><div className="admin-field"><span>Type</span><CapsuleSelect ariaLabel="Type" options={[{ value: "", label: "All types" }, { value: "project", label: "Projects" }, { value: "service", label: "Services" }]} value={type} onChange={setType} /></div></div>
     {!entries.length ? <p>No projects imported yet. Configure and start the portfolio worker on the portal backend to import existing projects and services automatically.</p> : null}
     <div className="portfolio-admin-table"><table><thead><tr>{["Project", "Progress", "Public status", "Screenshots", "Last sync", "Action"].map(label => <th key={label}>{label}</th>)}</tr></thead>
       {groups.map(group => <tbody key={group.customerId}>

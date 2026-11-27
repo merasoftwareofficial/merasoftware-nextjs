@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import s from "./offer-targets.module.css";
 
 // An offer stage as stored by the backend (helpers/leadStatuses.js OFFER_STAGES), e.g. "Contacted", "Reservation" or "Won".
@@ -123,12 +124,9 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
     </section>
 
     <div className={s.bar}>
-      <label className={s.field}>Stage
-        <select value={stageFilter} onChange={event => setStageFilter(event.target.value)}>
-          <option value="all">All</option>
-          {allStages.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
-        </select>
-      </label>
+      <div className={s.field}><span>Stage</span>
+        <CapsuleSelect ariaLabel="Stage" value={stageFilter} onChange={setStageFilter} options={[{ value: "all", label: "All" }, ...allStages]} />
+      </div>
       {running && <button type="button" className={s.primary} onClick={() => adding ? setAdding(false) : void openAdd()}>{adding ? "Close" : "Add people"}</button>}
     </div>
 
@@ -161,12 +159,12 @@ export function OfferTargetsPanel({ slug, running, ended, portalUrl = "" }: { sl
     {shown.length > 0 && <ul className={s.list}>{shown.map(row => <li key={row.id}>
       <div className={s.who}><b>{row.name || row.phone || "Unnamed"}</b><small>{row.type === "client" ? "Existing client" : "Lead"}{row.phone ? ` · ${row.phone}` : ""}</small>{row.blockLabel && <span className={s.reason}>{row.blockLabel}</span>}</div>
       <div className={s.cell}>{row.type === "client"
-        ? <div><label className={s.field}>Current status<select value={row.category} disabled={busy} onChange={event => void changeStatus(row, event.target.value)}>{behaviours.some(option => option.value === row.category) ? null : <option value={row.category} disabled>{label(row.category)}</option>}{behaviours.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
+        ? <div><div className={s.field}><span>Current status</span><CapsuleSelect ariaLabel="Current status" value={row.category} disabled={busy} onChange={value => void changeStatus(row, value)} options={[...(behaviours.some(option => option.value === row.category) ? [] : [{ value: row.category, label: label(row.category), disabled: true }]), ...behaviours]} /></div>{row.category === "Negative" && <a href={`${portalUrl}/admin-panel/leads/${row.leadId}`}>Review final message</a>}</div>
         : <div className={s.field}>Lead stage<span className={s.tag}>{label(row.category)}</span></div>}
       </div>
       <div className={s.cell}>{row.stage === "Won"
         ? <div className={s.field}>Offer stage<span className={s.tag}>Matured</span></div>
-        : <label className={s.field}>Offer stage<select value={row.stage} disabled={busy} onChange={event => void act(() => api(`people/${row.id}/stage`, "PATCH", { stage: event.target.value }))}>{stages.some(stage => stage.value === row.stage) ? null : <option value={row.stage} disabled>{label(row.stage)}</option>}{stages.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></label>}
+        : <div className={s.field}><span>Offer stage</span><CapsuleSelect ariaLabel="Offer stage" value={row.stage} disabled={busy} onChange={value => void act(() => api(`people/${row.id}/stage`, "PATCH", { stage: value }))} options={[...(stages.some(stage => stage.value === row.stage) ? [] : [{ value: row.stage, label: label(row.stage), disabled: true }]), ...stages]} /></div>}
       </div>
       <div className={s.cell}>{row.stage !== "Won" && <button type="button" disabled={busy} onClick={() => void act(() => api(`people/${row.id}/bought`, "POST", {}))}>Bought this offer</button>}</div>
     </li>)}</ul>}

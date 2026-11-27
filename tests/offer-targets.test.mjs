@@ -106,18 +106,23 @@ test('browser: choose a client by behaviour and leads one by one; stage, behavio
     assert.match(await counts.innerText(), /1\s*Existing clients/);
     assert.match(await counts.innerText(), /2\s*Leads/);
 
+    async function pickCapsule(trigger, value) {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    }
     const client = page.getByRole('listitem').filter({ hasText: 'Rajan Client' });
     // The client statuses come from the backend's one list (owner, 8 Nov 2026): Positive and Active are gone.
-    const statusChoices = await client.getByLabel('Current status').locator('option').allTextContents();
+    await client.getByLabel('Current status').click();
+    const statusChoices = await client.getByLabel('Current status').locator('..').locator('[role="option"]').allTextContents();
     assert.deepEqual(statusChoices, ['Neutral', 'Not Now', 'Negative', 'Unhappy', 'Dead']);
-    await client.getByLabel('Current status').selectOption('Unhappy');
-    await page.waitForFunction(() => document.querySelector('select:not([disabled])'));
+    await client.getByLabel('Current status').locator('..').locator('[role="option"][data-value="Unhappy"]').click();
+    await page.waitForFunction(() => document.querySelector('[role="combobox"]:not([disabled])'));
     const won = await Lead.findOne({ convertedToUserId: rajan._id }).lean();
     for (let i = 0; i < 40 && (await Lead.findById(won._id).lean()).clientBehaviour !== 'Unhappy'; i++) await new Promise(resolve => setTimeout(resolve, 100));
     assert.equal((await Lead.findById(won._id).lean()).clientBehaviour, 'Unhappy');
 
     const lazy = page.getByRole('listitem').filter({ hasText: 'Lazy Lead' });
-    await lazy.getByLabel('Offer stage').selectOption('Positive');
+    await pickCapsule(lazy.getByLabel('Offer stage'), 'Positive');
     await counts.getByText('Positive').locator('..').filter({ hasText: '1' }).waitFor();
     assert.equal((await Lead.findOne({ name: 'Lazy Lead' }).lean()).status, 'Lazy', "the lead's own stage stays");
     await lazy.getByRole('button', { name: 'Bought this offer' }).click();
@@ -127,11 +132,11 @@ test('browser: choose a client by behaviour and leads one by one; stage, behavio
     assert.equal((await Lead.findById(won._id).lean()).status, 'Won');
     await client.getByRole('button', { name: 'Bought this offer' }).waitFor({ state: 'detached' });
 
-    await page.getByRole('combobox', { name: 'Stage' }).first().selectOption('Won');
+    await pickCapsule(page.getByRole('combobox', { name: 'Stage' }).first(), 'Won');
     assert.equal(await page.getByRole('listitem').count(), 1);
-    await page.getByRole('combobox', { name: 'Stage' }).first().selectOption('all');
+    await pickCapsule(page.getByRole('combobox', { name: 'Stage' }).first(), 'all');
 
-    await client.getByLabel('Current status').selectOption('Negative');
+    await pickCapsule(client.getByLabel('Current status'), 'Negative');
     const recovery = client.getByRole('link', { name: 'Review final message' });
     await recovery.waitFor();
     assert.equal(await recovery.getAttribute('href'), `/admin-panel/leads/${won._id}`);

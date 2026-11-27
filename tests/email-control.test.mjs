@@ -218,14 +218,18 @@ test('browser: tabs, sample preview, default selection, editable review, Send an
     await page.getByRole('region', { name: 'Sample email' }).getByText('Browser approval', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Save template', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
     const template = await EmailTemplate.findOne({ name: 'Browser template' }).lean();
-    await row.getByLabel('Subscription confirmation default template').selectOption(String(template._id));
+    await pickCapsule(row.getByLabel('Subscription confirmation default template'), String(template._id));
     await page.getByText('Email rule saved.', { exact: true }).waitFor();
     const draft = await pending('browser@example.test');
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     const card = page.locator('article').filter({ hasText: 'browser@example.test' }).filter({ has: page.getByRole('button', { name: 'Review email', exact: true }) });
     await card.getByRole('button', { name: 'Review email', exact: true }).click();
-    await page.getByLabel('Template', { exact: true }).selectOption(String(template._id));
+    await pickCapsule(page.getByLabel('Template', { exact: true }), String(template._id));
     await page.waitForFunction(() => document.getElementById('review-message')?.getAttribute('contenteditable') === 'true');
     await page.getByLabel('Message', { exact: true }).fill('Browser one-off edit');
     await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
@@ -271,9 +275,19 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     page.on('dialog', dialog => dialog.accept());
     await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    const capsuleOptions = async trigger => {
+      await trigger.click();
+      const texts = await trigger.locator('..').locator('[role="option"]').allTextContents();
+      await page.keyboard.press('Escape');
+      return texts;
+    };
     const row = page.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) });
     const system = await EmailTemplate.findOne({ event: 'sendProjectCreatedEmail', system: true }).lean();
-    assert.equal(await row.getByLabel('Project created default template').inputValue(), String(system._id));
+    assert.equal(await row.getByLabel('Project created default template').getAttribute('data-value'), String(system._id));
     await row.getByRole('button', { name: 'Edit Standard (built-in)', exact: true }).click();
     const message = page.getByLabel('Message', { exact: true });
     await message.waitFor();
@@ -282,7 +296,7 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     assert.doesNotMatch(await message.innerText(), /\{\{|\*\*|## /);
     assert.equal(await message.locator('strong').first().innerText(), 'Project:');
     await message.fill('Hello ');
-    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Customer name' });
+    await pickCapsule(page.getByLabel('Insert detail into Message'), 'emailVariable:name');
     assert.match(await message.innerText(), /^Hello Customer name\s*$/);
     await page.getByRole('button', { name: 'Preview sample' }).click();
     await page.getByRole('region', { name: 'Sample email' }).getByText('Your Project Has Started', { exact: true }).waitFor();
@@ -306,25 +320,25 @@ test('browser: built-in template edit, variable insert, preview, reset and secti
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.locator('article').filter({ hasText: 'client@example.test' }).getByRole('button', { name: 'Review email', exact: true }).click();
     await page.getByRole('heading', { name: 'Review & send' }).waitFor();
-    const options = await page.getByLabel('Template', { exact: true }).locator('option').allTextContents();
+    const options = await capsuleOptions(page.getByLabel('Template', { exact: true }));
     assert.deepEqual(options, ['Current draft', 'Standard (built-in)']);
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /prepared/);
     assert.equal(await message.locator('[data-email-section="refundTable"]').count(), 1);
     // Rewrite the greeting with detail chips; the refund section chip stays.
     await message.locator('p').first().click();
     await page.keyboard.press('Home'); await page.keyboard.press('Shift+End'); await page.keyboard.type('Dear ');
-    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Customer name' });
+    await pickCapsule(page.getByLabel('Insert detail into Message'), 'emailVariable:name');
     await page.keyboard.type(', sorry for ');
-    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Project name' });
+    await pickCapsule(page.getByLabel('Insert detail into Message'), 'emailVariable:project');
     await page.keyboard.type('.');
     await page.getByRole('button', { name: 'Update preview', exact: true }).click();
     await page.waitForFunction(() => /Dear Ravi, sorry for Shop\./.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
     assert.match(await page.locator('iframe[title="Email preview"]').getAttribute('srcdoc'), /Refund Details/);
     // A customer action opens on its Send via (WhatsApp only); WhatsApp is off in this suite, so the reviewer picks Email for this one message.
     const via = page.getByLabel('Send via', { exact: true });
-    assert.equal(await via.inputValue(), 'whatsapp');
+    assert.equal(await via.getAttribute('data-value'), 'whatsapp');
     await page.getByText('WhatsApp is off on the server. Choose an available channel.', { exact: true }).waitFor();
-    await via.selectOption('email');
+    await pickCapsule(via, 'email');
     await page.getByRole('button', { name: 'Send Mail', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     const sent = providerCalls.at(-1).body;
@@ -401,8 +415,11 @@ test('browser: panel still renders when the backend predates the template catalo
     await page.goto(websiteBase); await page.getByRole('heading', { name: 'Website email rules' }).waitFor(); await openJobs(page);
     await page.getByRole('tab', { name: 'Portal', exact: true }).click(); await page.getByRole('heading', { name: 'Portal email rules' }).waitFor(); await openJobs(page);
     const row = page.getByRole('row').filter({ has: page.getByLabel('Project created default template', { exact: true }) });
-    await row.getByLabel('Project created default template').locator('option').first().waitFor({ state: 'attached' });
-    assert.deepEqual(await row.getByLabel('Project created default template').locator('option').allTextContents(), ['Built-in action template']);
+    const tplTrigger = row.getByLabel('Project created default template');
+    await tplTrigger.click();
+    await tplTrigger.locator('..').locator('[role="option"]').first().waitFor({ state: 'attached' });
+    assert.deepEqual(await tplTrigger.locator('..').locator('[role="option"]').allTextContents(), ['Built-in action template']);
+    await page.keyboard.press('Escape');
     await row.getByRole('button', { name: 'Add template', exact: true }).click();
     await page.getByRole('heading', { name: 'New email template' }).waitFor();
     assert.deepEqual(errors, []);
@@ -456,23 +473,33 @@ test('browser: one box per job holds its customer and admin mails; customer mail
     assert.deepEqual(await job.locator('tbody strong').allTextContents(), ['New update request (admin)', 'Update request received']);
     const row = job.getByRole('row').filter({ hasText: 'Update request received' });
     await row.getByText('Automatic', { exact: true }).waitFor();
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    const capsuleOptions = async trigger => {
+      await trigger.click();
+      const texts = await trigger.locator('..').locator('[role="option"]').allTextContents();
+      await page.keyboard.press('Escape');
+      return texts;
+    };
     const mail = row.getByLabel('Update request received mail');
-    assert.equal(await mail.inputValue(), 'off');
-    assert.deepEqual(await mail.locator('option').allTextContents(), ['On — send automatically', 'Off']);
+    assert.equal(await mail.getAttribute('data-value'), 'off');
+    assert.deepEqual(await capsuleOptions(mail), ['On — send automatically', 'Off']);
     await openJobs(page);
-    assert.deepEqual(await page.getByLabel('Project created sending rule').locator('option').allTextContents(), ['Ask before sending', 'Off']);
-    await mail.selectOption('auto');
+    assert.deepEqual(await capsuleOptions(page.getByLabel('Project created sending rule')), ['Ask before sending', 'Off']);
+    await pickCapsule(mail, 'auto');
     await page.getByText('Email rule saved.', { exact: true }).waitFor();
     assert.equal((await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean()).mode, 'auto');
-    assert.equal(await mail.inputValue(), 'auto');
+    assert.equal(await mail.getAttribute('data-value'), 'auto');
     // The box shows the route of the mails that send: the customer's copy is WhatsApp only by default.
     assert.match(await summary.innerText(), /2 mails · Mixed rules/); assert.match(await summary.innerText(), /WhatsApp only/);
     // Send via: customer mail starts WhatsApp only, team mail Email + WhatsApp; a change is saved on the action.
     const route = row.getByLabel('Update request received route');
-    assert.equal(await route.inputValue(), 'whatsapp');
-    assert.deepEqual(await route.locator('option').allTextContents(), ['WhatsApp only', 'Email only', 'Email + WhatsApp']);
-    assert.equal(await job.getByLabel('New update request (admin) route').inputValue(), 'both');
-    await route.selectOption('both');
+    assert.equal(await route.getAttribute('data-value'), 'whatsapp');
+    assert.deepEqual(await capsuleOptions(route), ['WhatsApp only', 'Email only', 'Email + WhatsApp']);
+    assert.equal(await job.getByLabel('New update request (admin) route').getAttribute('data-value'), 'both');
+    await pickCapsule(route, 'both');
     await page.getByText('Send via saved. New messages of this action go this way.', { exact: true }).waitFor();
     const saved = await EmailPolicy.findOne({ event: 'sendUserConfirmation' }).lean();
     assert.equal(saved.channel, 'both'); assert.equal(saved.mode, 'auto', 'changing the route keeps the rule');
@@ -599,21 +626,25 @@ test('browser: compact review creates a new template, keeps name chips and sends
     await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
     await page.locator('article').filter({ hasText: recipient.email }).getByRole('button', { name: 'Review email', exact: true }).click();
     await page.getByRole('heading', { name: 'Review & send', exact: true }).waitFor();
-    assert.equal(await page.getByLabel('Template', { exact: true }).inputValue(), String(template._id));
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    assert.equal(await page.getByLabel('Template', { exact: true }).getAttribute('data-value'), String(template._id));
     // The review opens on the action's Send via: a customer action is WhatsApp only by default.
-    assert.equal(await page.getByLabel('Send via', { exact: true }).inputValue(), 'whatsapp');
+    assert.equal(await page.getByLabel('Send via', { exact: true }).getAttribute('data-value'), 'whatsapp');
     await page.screenshot({ path: path.join(qaDir, 'compact-review-desktop.png') });
     const editor = page.getByLabel('Message', { exact: true });
     assert.equal(await editor.locator('[data-email-variable="name"]').innerText(), 'Lead name');
     assert.doesNotMatch(await editor.innerText(), /Compact Customer|\{\{/);
     await editor.fill('Please check, ');
-    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Lead name' });
+    await pickCapsule(page.getByLabel('Insert detail into Message'), 'emailVariable:name');
     const existingCount = await EmailTemplate.countDocuments();
     await page.getByRole('button', { name: 'Manage template', exact: true }).click();
     await page.getByRole('button', { name: 'Update this template', exact: true }).click();
     await page.getByRole('button', { name: 'Update template', exact: true }).click();
     await page.getByText('Template updated.', { exact: true }).waitFor();
-    assert.equal(await page.getByLabel('Template', { exact: true }).inputValue(), String(template._id));
+    assert.equal(await page.getByLabel('Template', { exact: true }).getAttribute('data-value'), String(template._id));
     assert.equal(await EmailTemplate.countDocuments(), existingCount);
     assert.match((await EmailTemplate.findById(template._id)).text, /Please check, \{\{name\}\}/);
     // Rename must not save unsaved message edits.
@@ -628,11 +659,11 @@ test('browser: compact review creates a new template, keeps name chips and sends
     assert.match((await EmailTemplate.findById(template._id)).text, /Please check/);
     assert.equal(await editor.innerText(), 'Unsaved message only');
     await page.waitForFunction(() => document.getElementById('review-message')?.getAttribute('contenteditable') === 'true');
-    await page.getByLabel('Template', { exact: true }).selectOption('current');
+    await pickCapsule(page.getByLabel('Template', { exact: true }), 'current');
     await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
-    assert.equal(await page.getByLabel('Template', { exact: true }).inputValue(), String(template._id));
+    assert.equal(await page.getByLabel('Template', { exact: true }).getAttribute('data-value'), String(template._id));
     await editor.fill('Please check, ');
-    await page.getByLabel('Insert detail into Message').selectOption({ label: 'Lead name' });
+    await pickCapsule(page.getByLabel('Insert detail into Message'), 'emailVariable:name');
     const beforeCount = await EmailTemplate.countDocuments();
     await page.getByRole('button', { name: 'Manage template', exact: true }).click();
     await page.getByRole('button', { name: 'Save as new template', exact: true }).click();
@@ -640,13 +671,13 @@ test('browser: compact review creates a new template, keeps name chips and sends
     await page.getByText('New template saved. Original unchanged.', { exact: true }).waitFor();
     assert.equal(await EmailTemplate.countDocuments(), beforeCount + 1);
     assert.match((await EmailTemplate.findById(template._id)).text, /Please check/);
-    const savedId = await page.getByLabel('Template', { exact: true }).inputValue();
+    const savedId = await page.getByLabel('Template', { exact: true }).getAttribute('data-value');
     assert.notEqual(savedId, String(template._id));
     assert.match((await EmailTemplate.findById(savedId)).text, /Please check, \{\{name\}\}/);
     assert.ok(await page.getByRole('dialog').isVisible(), 'saving does not dismiss or repeat the business action');
     await page.getByRole('button', { name: 'Update preview', exact: true }).click();
     await page.waitForFunction(() => /Please check, Compact Customer/.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
-    await page.getByLabel('Send via').selectOption('whatsapp');
+    await pickCapsule(page.getByLabel('Send via'), 'whatsapp');
     const emailsBefore = providerCalls.length;
     await page.getByRole('button', { name: 'Send WhatsApp', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
@@ -660,8 +691,8 @@ test('browser: compact review creates a new template, keeps name chips and sends
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.locator('article').filter({ hasText: recipient.email }).getByRole('button', { name: 'Review email', exact: true }).click();
     await page.getByRole('heading', { name: 'Review & send', exact: true }).waitFor();
-    assert.equal(await page.getByLabel('Template', { exact: true }).inputValue(), savedId);
-    assert.equal(await page.getByLabel('Send via').inputValue(), 'whatsapp');
+    assert.equal(await page.getByLabel('Template', { exact: true }).getAttribute('data-value'), savedId);
+    assert.equal(await page.getByLabel('Send via').getAttribute('data-value'), 'whatsapp');
     assert.doesNotMatch(await editor.innerText(), /Compact Customer|Another Customer/);
     await page.getByRole('button', { name: 'Update preview', exact: true }).click();
     await page.waitForFunction(() => /Another Customer/.test(document.querySelector('iframe[title="Email preview"]')?.getAttribute('srcdoc') || ''));
@@ -728,13 +759,19 @@ test('browser: create template starts with action and applies channel and rule o
     await page.getByRole('tab', { name: 'Portal', exact: true }).click();
     await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
     await page.getByText('Create template for an action', { exact: true }).click();
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
     await page.getByLabel('Find action').fill('Project created');
-    assert.ok(await page.getByLabel('Action', { exact: true }).getByRole('option', { name: 'Project created', exact: true }).count());
-    await page.getByLabel('Action', { exact: true }).selectOption(event);
+    const actionTrigger = page.getByLabel('Action', { exact: true });
+    await actionTrigger.click();
+    assert.ok(await actionTrigger.locator('..').locator(`[role="option"][data-value="${event}"]`).count());
+    await actionTrigger.locator('..').locator(`[role="option"][data-value="${event}"]`).click();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.getByLabel('Template name').fill('Action-first example');
-    await page.getByLabel('Send via', { exact: true }).selectOption('both');
-    await page.getByLabel('Sending rule', { exact: true }).selectOption('review');
+    await pickCapsule(page.getByLabel('Send via', { exact: true }), 'both');
+    await pickCapsule(page.getByLabel('Sending rule', { exact: true }), 'review');
     await page.getByLabel('Apply this template, channel and sending rule to the action').check();
     await page.getByRole('button', { name: 'Save template', exact: true }).click();
     await page.getByText('Template saved and applied to this action. Its sending rule and channel are updated.').waitFor();
@@ -743,10 +780,10 @@ test('browser: create template starts with action and applies channel and rule o
     assert.equal(String(policy.defaultTemplate), String(saved._id));
     assert.equal(policy.channel, 'both');
     assert.equal(policy.mode, 'review');
-    await page.getByLabel('Action', { exact: true }).selectOption(event);
+    await pickCapsule(page.getByLabel('Action', { exact: true }), event);
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.getByLabel('Template name').fill('Saved without applying');
-    await page.getByLabel('Send via', { exact: true }).selectOption('email');
+    await pickCapsule(page.getByLabel('Send via', { exact: true }), 'email');
     await page.getByRole('button', { name: 'Save template', exact: true }).click();
     await page.getByText('Template saved. Choose it as the default for its action when ready.').waitFor();
     const unchanged = await EmailPolicy.findOne({ event }).lean();
@@ -771,7 +808,9 @@ test('browser: a saved template remains available if applying its settings fails
     await page.getByRole('tab', { name: 'Portal', exact: true }).click();
     await page.getByRole('heading', { name: 'Portal email rules' }).waitFor();
     await page.getByText('Create template for an action', { exact: true }).click();
-    await page.getByLabel('Action', { exact: true }).selectOption(event);
+    const actionTrigger2 = page.getByLabel('Action', { exact: true });
+    await actionTrigger2.click();
+    await actionTrigger2.locator('..').locator(`[role="option"][data-value="${event}"]`).click();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.getByLabel('Template name').fill('Unapplied after failure');
     await page.getByLabel('Apply this template, channel and sending rule to the action').check();

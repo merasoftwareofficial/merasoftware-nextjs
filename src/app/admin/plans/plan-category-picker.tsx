@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import type { PlanCatalogue, ProjectCategory } from "@/lib/service-plans";
 import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 type Props = { catalogue: PlanCatalogue; categoryKey: string; busy: boolean; onSelect: (key: string) => void;
@@ -14,9 +15,7 @@ export function PlanCategoryPicker({ catalogue, categoryKey, busy, onSelect, onC
     onCatalogue({ ...catalogue, categories: [...catalogue.categories, entry], projectCategories: [...catalogue.projectCategories, category] });
     try { onCatalogue(await reload()); } catch { setError("Category created and selected. Refresh categories to update the list."); }
   }
-  return <div><label className="admin-field"><span>Project category</span><select aria-label="Plan category" required value={categoryKey} disabled={busy} onChange={event => onSelect(event.target.value)}>
-    <option value="">Choose a category</option>{categories.map(row => <option key={row.key} value={row.key}>{row.label}{row.legacy ? " (needs category mapping)" : row.status === "archived" ? " (archived)" : ""}</option>)}
-  </select></label><button type="button" className="admin-action" disabled={busy} onClick={() => { setError(""); setCreating(true); }}>+ New category</button>
+  return <div><div className="admin-field"><span>Project category</span><CapsuleSelect ariaLabel="Plan category" value={categoryKey} disabled={busy} onChange={onSelect} options={[{ value: "", label: "Choose a category", disabled: true }, ...categories.map(row => ({ value: row.key, label: `${row.label}${row.legacy ? " (needs category mapping)" : row.status === "archived" ? " (archived)" : ""}` }))]} /></div><button type="button" className="admin-action" disabled={busy} onClick={() => { setError(""); setCreating(true); }}>+ New category</button>
   {error && <p role="alert">{error}</p>}
   {creating && <ProjectCategoryDialog nextSortOrder={Math.min(9999, Math.max(0, ...catalogue.projectCategories.map(row => row.sortOrder || 0)) + 1)} onCancel={() => setCreating(false)} onSaved={saved} send={send} />}
   </div>;

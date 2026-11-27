@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 
 import { useState } from "react";
 import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
@@ -83,13 +84,13 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
       {config.previewLink ? <div className="form-columns">{links ? <LinkPicker label="Preview destination" groups={links} value={config.previewLink.href} onChange={href => update({ previewLink: { ...config.previewLink!, href } })} /> : <label className="admin-field"><span>Preview destination</span><input value={config.previewLink.href} onChange={event => update({ previewLink: { ...config.previewLink!, href: event.target.value } })} /></label>}<label className="admin-field"><span>Preview caption</span><input value={config.previewLink.caption} onChange={event => update({ previewLink: { ...config.previewLink!, caption: event.target.value } })} /></label></div> : null}
       <VisualFrameEditor key={selected} config={config} asset={asset} slotId={selected} label={slot.label} update={update} />
       {config.mode !== "media" ? <div className="form-columns">
-        <label className="admin-field"><span>Pattern design (20 choices)</span><select value={config.pattern} onChange={event => update({ pattern: event.target.value as SectionVisualConfig["pattern"] })}>{VISUAL_PATTERN_IDS.map(pattern => <option key={pattern} value={pattern === "flow" && config.pattern === "default" ? "default" : pattern}>{VISUAL_PATTERN_DETAILS[pattern].label}</option>)}</select><small className="field-hint">{config.pattern === "default" ? "Ideas and actions working together." : VISUAL_PATTERN_DETAILS[config.pattern].description}</small></label>
+        <div className="admin-field"><span>Pattern design (20 choices)</span><CapsuleSelect ariaLabel="Pattern design" value={config.pattern} onChange={value => update({ pattern: value as SectionVisualConfig["pattern"] })} options={VISUAL_PATTERN_IDS.map(pattern => ({ value: pattern === "flow" && config.pattern === "default" ? "default" : pattern, label: VISUAL_PATTERN_DETAILS[pattern].label }))} /><small className="field-hint">{config.pattern === "default" ? "Ideas and actions working together." : VISUAL_PATTERN_DETAILS[config.pattern].description}</small></div>
         <label className="admin-field"><span>Pattern intensity: {config.intensity}%</span><input type="range" min="0" max="100" value={config.intensity} onChange={event => update({ intensity: Number(event.target.value) })} /></label>
       </div> : null}
       <fieldset className="admin-field visual-card-editor"><legend>Optional information card</legend>
         <label><input type="checkbox" checked={card.enabled} onChange={event => update({ card: { ...card, enabled: event.target.checked } })} /> Show a card with this section</label>
         {card.enabled ? <>
-          <label className="admin-field"><span>Placement</span><select value={card.placement} onChange={event => update({ card: { ...card, placement: event.target.value as "overlay" | "below" } })}><option value="overlay">Over the frame</option><option value="below">Below the frame (good for longer text)</option></select></label>
+          <div className="admin-field"><span>Placement</span><CapsuleSelect ariaLabel="Placement" value={card.placement} onChange={value => update({ card: { ...card, placement: value as "overlay" | "below" } })} options={[{ value: "overlay", label: "Over the frame" }, { value: "below", label: "Below the frame (good for longer text)" }]} /></div>
           <div className="form-columns">
             <label className="admin-field"><span>Small heading</span><input maxLength={100} value={card.eyebrow} onChange={event => update({ card: { ...card, eyebrow: event.target.value } })} /></label>
             <label className="admin-field"><span>Main heading</span><input maxLength={180} value={card.title} onChange={event => update({ card: { ...card, title: event.target.value } })} /></label>

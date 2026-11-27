@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import styles from "../email-control/email-control.module.css";
@@ -382,11 +383,12 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
       <div className={c.toolbar}>
         <input className={c.search} type="search" aria-label="Find an action" placeholder={displayMode === "triggers" ? "Find by work, trigger or origin (e.g. B41, A29, plan)" : "Find by name, description or endpoint"} value={query} onChange={event => setQuery(event.target.value)} />
         {displayMode === "catalog" && (
-          <select aria-label="Filter by category" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}
-            style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--pn-line, var(--line))", background: "var(--pn-field, var(--paper))", color: "inherit", font: "inherit", fontSize: "var(--fs-ui)" }}>
-            <option value="all">All categories</option>
-            {(data?.categories ?? []).map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
-          </select>
+          <CapsuleSelect
+            ariaLabel="Filter by category"
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            options={[{ value: "all", label: "All categories" }, ...(data?.categories ?? []).map(cat => ({ value: cat.name, label: cat.name }))]}
+          />
         )}
         <span className={c.count}>
           {displayMode === "triggers"

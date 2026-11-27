@@ -123,7 +123,9 @@ test('paid-project review is admin-only and shows mismatches before any linking'
     await page.getByRole('button', { name: 'Reservations', exact: true }).click();
     await page.getByRole('button', { name: 'Review matching paid projects' }).click();
     const review = page.getByRole('region', { name: 'Review paid project link' });
-    await review.getByLabel('Paid project').selectOption(String(orderId));
+    const paidTrigger = review.getByLabel('Paid project');
+    await paidTrigger.click();
+    await paidTrigger.locator('..').locator(`[role="option"][data-value="${String(orderId)}"]`).click();
     await review.getByText(/No offer agreement was recorded/).waitFor();
     await review.getByText(/I reviewed the category mismatch/).waitFor();
     assert.ok(await review.getByRole('button', { name: 'Link paid project' }).isDisabled());
@@ -380,9 +382,12 @@ test('browser: Communication → Reservation → running reservations with time 
     await reminders.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
     await reminders.getByText(/Email: sent · WhatsApp: queued/).waitFor();
     const history = reminders.getByRole('region', { name: 'New reminder activity' });
-    await history.getByRole('combobox').selectOption('sent_today');
+    const historyTrigger = history.getByRole('combobox');
+    await historyTrigger.click();
+    await historyTrigger.locator('..').locator('[role="option"][data-value="sent_today"]').click();
     await history.getByText('No reminder steps yet.').waitFor();
-    await history.getByRole('combobox').selectOption('all');
+    await historyTrigger.click();
+    await historyTrigger.locator('..').locator('[role="option"][data-value="all"]').click();
     await history.getByText('Reserving Customer · Test monthly reminder', { exact: true }).waitFor();
     assert.equal((await request('/api/auto-reply/reminder-runs', 'GET', member)).status, 403);
     await reminders.getByRole('button', { name: 'Existing offer & reservation reminders' }).click();

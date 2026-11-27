@@ -97,11 +97,15 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     await page.goto(websiteBase);
     await openPanel(page, '?panel=broadcast');
     await page.getByRole('region', { name: 'Broadcast' }).getByRole('heading', { name: 'Broadcast', exact: true }).waitFor();
-    await page.getByRole('combobox', { name: 'Lead group' }).selectOption('leads:Contacted');
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    await pickCapsule(page.getByRole('combobox', { name: 'Lead group' }), 'leads:Contacted');
     const editor = page.getByRole('textbox', { name: 'Message', exact: true });
     await editor.click();
     await editor.pressSequentially('Dear ');
-    await page.getByRole('combobox', { name: 'Insert detail into Message' }).selectOption('emailVariable:name');
+    await pickCapsule(page.getByRole('combobox', { name: 'Insert detail into Message' }), 'emailVariable:name');
     await page.getByRole('button', { name: 'Preview', exact: true }).click();
     await page.waitForTimeout(300);
     assert.deepEqual(await page.getByRole('alert').allTextContents(), [], 'preview error');
@@ -112,7 +116,7 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     assert.equal(await Broadcast.countDocuments(), 1);
     assert.equal(await Template.countDocuments({ purpose: 'broadcast' }), 1);
     const saved = await Template.findOne({ purpose: 'broadcast' });
-    await page.getByRole('combobox', { name: 'Recent / saved messages' }).selectOption(String(saved._id));
+    await pickCapsule(page.getByRole('combobox', { name: 'Recent / saved messages' }), String(saved._id));
     assert.ok(await editor.getByText('Recipient name').isVisible());
     await editor.fill('This send only');
     await page.getByRole('button', { name: 'Send', exact: true }).click();
@@ -120,7 +124,7 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     assert.equal(await Broadcast.countDocuments(), 2);
     assert.equal(await Template.countDocuments({ purpose: 'broadcast' }), 1);
     assert.equal((await Template.findById(saved._id)).message, saved.message);
-    await page.getByRole('combobox', { name: 'Recent / saved messages' }).selectOption(String(saved._id));
+    await pickCapsule(page.getByRole('combobox', { name: 'Recent / saved messages' }), String(saved._id));
     await editor.fill('Updated reusable message');
     await page.getByRole('textbox', { name: 'Message label' }).fill('My offer');
     await page.getByRole('button', { name: 'Update saved message' }).click();
@@ -131,7 +135,7 @@ test('browser: Communication → Broadcast → new message auto-save → reuse, 
     await page.getByRole('status').filter({ hasText: 'Saved message deleted' }).waitFor();
     assert.equal(await Template.countDocuments({ purpose: 'broadcast' }), 0);
     assert.equal(await Broadcast.countDocuments(), 2);
-    await page.getByRole('combobox', { name: 'Lead group' }).selectOption('leads:Positive');
+    await pickCapsule(page.getByRole('combobox', { name: 'Lead group' }), 'leads:Positive');
     await editor.fill('New draft');
     assert.ok(await page.getByRole('button', { name: 'Send', exact: true }).isDisabled());
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
@@ -156,12 +160,16 @@ test('browser: client behaviour, Both with caption and separate text, signed med
     await page.route('https://res.cloudinary.com/**', route => route.fulfill({ status: 200, body: '' }));
     await page.goto(websiteBase);
     await openPanel(page, '?panel=broadcast');
-    assert.equal(await page.getByLabel('Send via', { exact: true }).inputValue(), 'whatsapp');
-    await page.getByLabel('Audience', { exact: true }).selectOption('clients');
-    await page.getByLabel('Client behaviour', { exact: true }).selectOption('clients:Dead');
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    assert.equal(await page.getByLabel('Send via', { exact: true }).getAttribute('data-value'), 'whatsapp');
+    await pickCapsule(page.getByLabel('Audience', { exact: true }), 'clients');
+    await pickCapsule(page.getByLabel('Client behaviour', { exact: true }), 'clients:Dead');
     assert.ok(await page.getByRole('button', { name: 'Send', exact: true }).isDisabled());
-    await page.getByLabel('Client behaviour', { exact: true }).selectOption('clients:Contacted');
-    await page.getByLabel('Send via', { exact: true }).selectOption('both');
+    await pickCapsule(page.getByLabel('Client behaviour', { exact: true }), 'clients:Contacted');
+    await pickCapsule(page.getByLabel('Send via', { exact: true }), 'both');
     await page.getByLabel('Email subject', { exact: true }).fill('Client news');
     await page.getByRole('button', { name: 'Add media', exact: true }).click();
     await page.keyboard.press('Escape');
@@ -170,7 +178,7 @@ test('browser: client behaviour, Both with caption and separate text, signed med
     await page.getByRole('button', { name: /^Demo video/ }).click();
     await page.getByRole('textbox', { name: 'Caption (optional)', exact: true }).fill('Video caption');
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Introduction');
-    await page.getByLabel('Separate text position', { exact: true }).selectOption('before');
+    await pickCapsule(page.getByLabel('Separate text position', { exact: true }), 'before');
     await page.getByRole('button', { name: 'Preview', exact: true }).click();
     await page.getByLabel('WhatsApp preview', { exact: true }).waitFor();
     assert.match(await page.getByLabel('Email preview', { exact: true }).textContent(), /Client news/);
@@ -183,8 +191,8 @@ test('browser: client behaviour, Both with caption and separate text, signed med
     assert.equal(JSON.parse(sent.message).media.assetId, libraryAsset.assetId);
     await page.reload();
     await openPanel(page, '?panel=broadcast');
-    await page.waitForFunction(() => document.querySelector('[aria-label="Send via"]')?.value === 'both');
-    await page.getByLabel('Send via', { exact: true }).selectOption('whatsapp');
+    await page.waitForFunction(() => document.querySelector('[aria-label="Send via"]')?.getAttribute('data-value') === 'both');
+    await pickCapsule(page.getByLabel('Send via', { exact: true }), 'whatsapp');
     await page.getByRole('button', { name: 'Add media', exact: true }).click();
     await page.getByRole('button', { name: /^Demo video/ }).click();
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
@@ -206,18 +214,28 @@ test('browser: committed lead and client changes update counts over the real SSE
     await openPanel(page, '?panel=broadcast');
     await live;
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep my unsaved message');
-    await page.getByLabel('Lead group', { exact: true }).selectOption('leads:Positive');
-    const positive = page.locator('option[value="leads:Positive"]');
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    await pickCapsule(page.getByLabel('Lead group', { exact: true }), 'leads:Positive');
+    const leadTrigger = page.getByLabel('Lead group', { exact: true });
+    await leadTrigger.click();
+    const positive = leadTrigger.locator('..').locator('[role="option"][data-value="leads:Positive"]');
     const before = Number((await positive.textContent()).match(/\((\d+) people/)[1]);
     await Lead.updateOne({ _id: lead._id }, { status: 'Positive' });
-    await page.waitForFunction(expected => document.querySelector('option[value="leads:Positive"]')?.textContent.includes(`(${expected} people)`), before + 1, { timeout: 3000 });
+    await page.waitForFunction(expected => document.querySelector('[role="option"][data-value="leads:Positive"]')?.textContent.includes(`(${expected} people)`), before + 1, { timeout: 3000 });
+    await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('textbox', { name: 'Message', exact: true }).textContent(), 'Keep my unsaved message');
-    await page.getByLabel('Audience', { exact: true }).selectOption('clients');
-    await page.getByLabel('Client behaviour', { exact: true }).selectOption('clients:Contacted');
-    const neutral = page.locator('option[value="clients:Contacted"]');
+    await pickCapsule(page.getByLabel('Audience', { exact: true }), 'clients');
+    await pickCapsule(page.getByLabel('Client behaviour', { exact: true }), 'clients:Contacted');
+    const clientTrigger = page.getByLabel('Client behaviour', { exact: true });
+    await clientTrigger.click();
+    const neutral = clientTrigger.locator('..').locator('[role="option"][data-value="clients:Contacted"]');
     const clientBefore = Number((await neutral.textContent()).match(/\((\d+) people/)[1]);
     await Lead.updateOne({ _id: client._id }, { clientBehaviour: 'NotNow' });
-    await page.waitForFunction(expected => document.querySelector('option[value="clients:Contacted"]')?.textContent.includes(`(${expected} people)`), clientBefore - 1, { timeout: 3000 });
+    await page.waitForFunction(expected => document.querySelector('[role="option"][data-value="clients:Contacted"]')?.textContent.includes(`(${expected} people)`), clientBefore - 1, { timeout: 3000 });
+    await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('textbox', { name: 'Message', exact: true }).textContent(), 'Keep my unsaved message');
     assert.deepEqual(await page.getByRole('alert').allTextContents(), []);
   } finally { await browser.close(); }

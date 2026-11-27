@@ -1,4 +1,6 @@
 "use client";
+
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { NumberInput } from "@/components/number-input";
@@ -1167,6 +1169,7 @@ function SearchableMultiSelect({
   addPlaceholder,
   options,
   values,
+  single = false,
   onChange,
 }: {
   ariaLabel: string;
@@ -1174,6 +1177,7 @@ function SearchableMultiSelect({
   addPlaceholder: string;
   options: ComboOption[];
   values: string[];
+  single?: boolean;
   onChange: (next: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -1197,13 +1201,14 @@ function SearchableMultiSelect({
     const spaceAbove = rect.top - 12;
     const openDown = spaceBelow >= 260 || spaceBelow >= spaceAbove;
     const maxHeight = Math.min(540, Math.max(220, openDown ? spaceBelow : spaceAbove));
+    const width = single ? Math.min(window.innerWidth - rect.left - 12, Math.max(rect.width, 300)) : rect.width;
     setMenuStyle({
       left: rect.left,
-      width: rect.width,
+      width,
       maxHeight,
       ...(openDown ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 }),
     });
-  }, []);
+  }, [single]);
 
   useEffect(() => {
     if (!open) return;
@@ -1237,6 +1242,12 @@ function SearchableMultiSelect({
   }, [options, query]);
 
   function toggleKey(key: string) {
+    if (single) {
+      onChange([key]);
+      setQuery("");
+      setOpen(false);
+      return;
+    }
     if (values.includes(key)) onChange(values.filter(k => k !== key));
     else onChange([...values, key]);
     inputRef.current?.focus();
@@ -1265,11 +1276,13 @@ function SearchableMultiSelect({
           return (
             <span key={k} className={s.comboChip}>
               <span>{name}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${name}`}
-                onClick={e => { e.stopPropagation(); onChange(values.filter(x => x !== k)); }}
-              >✕</button>
+              {!single && (
+                <button
+                  type="button"
+                  aria-label={`Remove ${name}`}
+                  onClick={e => { e.stopPropagation(); onChange(values.filter(x => x !== k)); }}
+                >✕</button>
+              )}
             </span>
           );
         })}
@@ -1291,7 +1304,7 @@ function SearchableMultiSelect({
           className={s.comboMenu}
           style={menuStyle}
           role="listbox"
-          aria-multiselectable="true"
+          aria-multiselectable={!single}
         >
           {grouped.length === 0 ? (
             <div className={s.comboEmpty}>No matching items</div>
@@ -1350,6 +1363,8 @@ function MultiTriggerSelect({
   byKey,
   triggerBadges,
   showHint = false,
+  single = false,
+  defaultOption,
   onChange,
 }: {
   ariaLabel: string;
@@ -1361,10 +1376,12 @@ function MultiTriggerSelect({
   byKey: Map<string, WorkItem>;
   triggerBadges?: Map<string, TriggerBadgeInfo>;
   showHint?: boolean;
+  single?: boolean;
+  defaultOption?: { key: string; label: string };
   onChange: (next: string[]) => void;
 }) {
   const options = useMemo<ComboOption[]>(() => {
-    const out: ComboOption[] = [];
+    const out: ComboOption[] = defaultOption ? [{ key: defaultOption.key, label: defaultOption.label, group: "Default" }] : [];
     for (const group of folders) {
       for (const item of group.items) {
         if (!exclude.includes(item.key)) {
@@ -1378,7 +1395,7 @@ function MultiTriggerSelect({
       }
     }
     return out;
-  }, [folders, exclude, triggerBadges]);
+  }, [folders, exclude, triggerBadges, defaultOption]);
 
   const primaryWork = values.length === 1 ? byKey.get(values[0]) : undefined;
   const hintText = values.length === 0
@@ -1394,25 +1411,10 @@ function MultiTriggerSelect({
       addPlaceholder={addPlaceholder}
       options={options}
       values={values}
+      single={single}
       onChange={onChange}
     />
     {showHint && <p className={s.whenHint}>{hintText}</p>}
-  </>;
-}
-
-function WorkOptions({ folders, exclude = [] }: { folders: WorkFolder[]; exclude?: string[] }) {
-  return <>
-    {folders.map(group => {
-      const items = group.items.filter(item => !exclude.includes(item.key));
-      if (!items.length) return null;
-      return (
-        <optgroup key={group.folder} label={group.folder}>
-          {items.map(item => (
-            <option key={item.key} value={item.key}>{item.label}</option>
-          ))}
-        </optgroup>
-      );
-    })}
   </>;
 }
 
@@ -1499,11 +1501,11 @@ function MessageEditor({
     )}
 
     {(showTiming || !hideChannel) && (
-      <div className={showTiming && !hideChannel ? s.grid2 : s.stackField}>
+      <div className={showTiming && !hideChannel ? s.timingChannelRow : s.stackField}>
         {showTiming && (
           <div className={s.stackField}>
             <label className={s.stackLabel}>When to send</label>
-            <div className={effectivePos !== "on" ? s.grid3 : s.stackField}>
+            <div className={effectivePos !== "on" ? s.timingFields : s.stackField}>
               {effectivePos !== "on" && <>
                 <NumberInput
                   className={s.numInput}
@@ -1514,28 +1516,25 @@ function MessageEditor({
                   emptyOnBlur="zero"
                   onValueChange={n => onChange({ amount: Math.max(0, n) })}
                 />
-                <select
-                  className={s.select}
-                  aria-label={`${title} unit`}
+                <CapsuleSelect
+                  className={s.compactSelect}
+                  ariaLabel={`${title} unit`}
                   value={step.unit}
-                  onChange={e => onChange({ unit: e.target.value as Unit })}
-                >
-                  <option value="days">days</option>
-                  <option value="hours">hours</option>
-                </select>
+                  onChange={value => onChange({ unit: value as Unit })}
+                  options={[{ value: "days", label: "days" }, { value: "hours", label: "hours" }]}
+                />
               </>}
-              <select
+              <CapsuleSelect
                 className={s.select}
-                aria-label={`${title} position`}
+                ariaLabel={`${title} position`}
                 value={effectivePos}
-                onChange={e => onChange({ pos: e.target.value as TimingPos })}
-              >
-                {baseDate !== "trigger_date" && (
-                  <option value="before">{timingPositionLabel("before", baseDate)}</option>
-                )}
-                <option value="on">{timingPositionLabel("on", baseDate)}</option>
-                <option value="after">{timingPositionLabel("after", baseDate)}</option>
-              </select>
+                onChange={value => onChange({ pos: value as TimingPos })}
+                options={[
+                  ...(baseDate !== "trigger_date" ? [{ value: "before", label: timingPositionLabel("before", baseDate) }] : []),
+                  { value: "on", label: timingPositionLabel("on", baseDate) },
+                  { value: "after", label: timingPositionLabel("after", baseDate) },
+                ]}
+              />
             </div>
           </div>
         )}
@@ -1543,16 +1542,17 @@ function MessageEditor({
         {!hideChannel && (
           <div className={s.stackField}>
             <label className={s.stackLabel}>Channel</label>
-            <select
+            <CapsuleSelect
               className={s.select}
-              aria-label={`${title} channel`}
+              ariaLabel={`${title} channel`}
               value={step.channel}
-              onChange={e => onChange({ channel: e.target.value as Channel })}
-            >
-              <option value="whatsapp">WhatsApp only</option>
-              <option value="email">Email only</option>
-              <option value="both">Both (WhatsApp + Email)</option>
-            </select>
+              onChange={value => onChange({ channel: value as Channel })}
+              options={[
+                { value: "whatsapp", label: "WhatsApp only" },
+                { value: "email", label: "Email only" },
+                { value: "both", label: "Both (WhatsApp + Email)" },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -1814,33 +1814,29 @@ function TemplateEditorBlock({
         <div className={s.gridTemplateChannel}>
           <div className={s.stackField}>
             <label className={s.stackLabel}>Saved template</label>
-            <select
+            <CapsuleSelect
               className={s.select}
-              aria-label={`${label} template`}
+              ariaLabel={`${label} template`}
               value={activeTpl.id}
-              onChange={e => { setSelectedId(e.target.value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
-            >
-              {list.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.isDefault ? " ★ Default" : ""}
-                </option>
-              ))}
-            </select>
+              onChange={value => { setSelectedId(value); setPromptMode(""); setPromptError(""); setSavedNotice(""); }}
+              options={list.map(t => ({ value: t.id, label: `${t.name}${t.isDefault ? " ★ Default" : ""}` }))}
+            />
             <span className={s.stackHint}>Automatic sending always uses the ★ Default template</span>
           </div>
 
           <div className={s.stackField}>
             <label className={s.stackLabel}>Channel</label>
-            <select
+            <CapsuleSelect
               className={s.select}
-              aria-label={`${label} channel`}
+              ariaLabel={`${label} channel`}
               value={activeTpl.channel}
-              onChange={e => patchActive({ channel: e.target.value as Channel })}
-            >
-              <option value="whatsapp">WhatsApp only</option>
-              <option value="email">Email only</option>
-              <option value="both">Both (WhatsApp + Email)</option>
-            </select>
+              onChange={value => patchActive({ channel: value as Channel })}
+              options={[
+                { value: "whatsapp", label: "WhatsApp only" },
+                { value: "email", label: "Email only" },
+                { value: "both", label: "Both (WhatsApp + Email)" },
+              ]}
+            />
           </div>
         </div>
         <div className={s.tplActions}>
@@ -1956,12 +1952,12 @@ function InstantAutoMsgBlock({
           <span className={s.stageBadge}>Instant auto message</span>
         </div>
         <div className={s.inlineGroup}>
-          <select
+          <CapsuleSelect
             className={s.compactSelect}
-            aria-label="Instant message audience"
+            ariaLabel="Instant message audience"
             value={state.audience}
-            onChange={e => {
-              const nextAud = e.target.value as InstantAudience;
+            onChange={value => {
+              const nextAud = value as InstantAudience;
               onChange({ ...state, audience: nextAud });
               if (accordion) {
                 if (nextAud === "admin") accordion.openOnly(`${stagePrefix}-tpl-admin`);
@@ -1969,12 +1965,13 @@ function InstantAutoMsgBlock({
                 else if (nextAud === "both" && state.audience === "off") accordion.openOnly(`${stagePrefix}-tpl-client`);
               }
             }}
-          >
-            <option value="off">Off (Don&apos;t send instant message)</option>
-            <option value="client">Client only</option>
-            <option value="admin">Admin / Team only</option>
-            <option value="both">Both (Client &amp; Admin)</option>
-          </select>
+            options={[
+              { value: "off", label: "Off (Don't send instant message)" },
+              { value: "client", label: "Client only" },
+              { value: "admin", label: "Admin / Team only" },
+              { value: "both", label: "Both (Client & Admin)" },
+            ]}
+          />
         </div>
       </div>
 
@@ -1982,29 +1979,31 @@ function InstantAutoMsgBlock({
         <div className={s.grid2}>
           <div className={s.stackField}>
             <label className={s.stackLabel}>When Admin does it</label>
-            <select
+            <CapsuleSelect
               className={s.select}
-              aria-label="When Admin performs this trigger"
+              ariaLabel="When Admin performs this trigger"
               value={adminActionControl || "auto"}
-              onChange={e => onChangeAdminControl(e.target.value as "auto" | "review" | "off")}
-            >
-              <option value="auto">Auto (send immediately)</option>
-              <option value="review">Review popup</option>
-              <option value="off">Off</option>
-            </select>
+              onChange={value => onChangeAdminControl(value as "auto" | "review" | "off")}
+              options={[
+                { value: "auto", label: "Auto (send immediately)" },
+                { value: "review", label: "Review popup" },
+                { value: "off", label: "Off" },
+              ]}
+            />
           </div>
           <div className={s.stackField}>
             <label className={s.stackLabel}>When User / Client does it</label>
-            <select
+            <CapsuleSelect
               className={s.select}
-              aria-label="When User or Client performs this trigger"
+              ariaLabel="When User or Client performs this trigger"
               value={userActionControl || "auto"}
-              onChange={e => onChangeUserControl(e.target.value as "auto" | "review" | "off")}
-            >
-              <option value="auto">Auto (send immediately)</option>
-              <option value="review">Hold in Review &amp; delivery</option>
-              <option value="off">Off</option>
-            </select>
+              onChange={value => onChangeUserControl(value as "auto" | "review" | "off")}
+              options={[
+                { value: "auto", label: "Auto (send immediately)" },
+                { value: "review", label: "Hold in Review & delivery" },
+                { value: "off", label: "Off" },
+              ]}
+            />
           </div>
         </div>
       )}
@@ -2169,17 +2168,16 @@ function AudienceBlock({
             {canCopyClient && mode === "separate" && onCopyClient && (
               <button type="button" className={s.miniBtn} onClick={onCopyClient}>Copy client&apos;s days</button>
             )}
-            <select
+            <CapsuleSelect
               className={s.compactSelect}
-              aria-label={`${title} message style`}
+              ariaLabel={`${title} message style`}
               value={mode}
-              onChange={e => onModeChange(e.target.value as MessageMode)}
-            >
-              <option value="separate">Separate message per timing</option>
-              <option value="universal">
-                {canCopyClient ? "1 universal message (same days as Client)" : "1 universal message (all timings)"}
-              </option>
-            </select>
+              onChange={value => onModeChange(value as MessageMode)}
+              options={[
+                { value: "separate", label: "Separate message per timing" },
+                { value: "universal", label: canCopyClient ? "1 universal message (same days as Client)" : "1 universal message (all timings)" },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -2199,26 +2197,25 @@ function AudienceBlock({
                   emptyOnBlur="zero"
                   onValueChange={n => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, amount: Math.max(0, n) } : st))}
                 />
-                <select
+                <CapsuleSelect
                   className={s.compactSelect}
+                  ariaLabel="Timing unit"
                   value={slot.unit}
-                  onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, unit: e.target.value as Unit } : st))}
-                >
-                  <option value="days">days</option>
-                  <option value="hours">hours</option>
-                </select>
+                  onChange={value => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, unit: value as Unit } : st))}
+                  options={[{ value: "days", label: "days" }, { value: "hours", label: "hours" }]}
+                />
               </>}
-              <select
+              <CapsuleSelect
                 className={s.compactSelect}
+                ariaLabel="Timing position"
                 value={baseDate === "trigger_date" && slot.pos === "before" ? "after" : slot.pos}
-                onChange={e => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, pos: e.target.value as TimingPos } : st))}
-              >
-                {baseDate !== "trigger_date" && (
-                  <option value="before">{timingPositionLabel("before", baseDate)}</option>
-                )}
-                <option value="on">{timingPositionLabel("on", baseDate)}</option>
-                <option value="after">{timingPositionLabel("after", baseDate)}</option>
-              </select>
+                onChange={value => onUpdateSteps(steps.map((st, i) => i === idx ? { ...st, pos: value as TimingPos } : st))}
+                options={[
+                  ...(baseDate !== "trigger_date" ? [{ value: "before", label: timingPositionLabel("before", baseDate) }] : []),
+                  { value: "on", label: timingPositionLabel("on", baseDate) },
+                  { value: "after", label: timingPositionLabel("after", baseDate) },
+                ]}
+              />
               {steps.length > 1 && (
                 <button type="button" className={s.miniDangerBtn} aria-label="Remove timing" onClick={() => onUpdateSteps(steps.filter((_, i) => i !== idx))}>Remove</button>
               )}
@@ -2315,11 +2312,7 @@ function ActionControlField({
     return (
       <div className={s.stackField}>
         <label className={s.stackLabel}>{ctrl.label}</label>
-        <select className={s.select} value={val} onChange={e => onChange(e.target.value)}>
-          {(ctrl.options || []).map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        <CapsuleSelect className={s.select} ariaLabel={ctrl.label} value={val} onChange={onChange} options={(ctrl.options || []).map(opt => ({ value: opt.value, label: opt.label }))} />
       </div>
     );
   }
@@ -2426,19 +2419,16 @@ function SystemActionsEditor({
         );
       })}
       {pickable.length > 0 && actions.length < 5 && (
-        <select
+        <CapsuleSelect
           className={s.select}
-          aria-label="Add system action"
+          ariaLabel="Add system action"
           value=""
-          onChange={e => addAction(e.target.value)}
-        >
-          <option value="">{emptyLabel}</option>
-          {groupedPickable.map(([group, items]) => (
-            <optgroup key={group} label={group}>
-              {items.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
-            </optgroup>
-          ))}
-        </select>
+          onChange={addAction}
+          options={[
+            { value: "", label: emptyLabel },
+            ...groupedPickable.flatMap(([group, items]) => items.map(a => ({ value: a.key, label: `${group} · ${a.label}` }))),
+          ]}
+        />
       )}
     </div>
   );
@@ -2604,25 +2594,27 @@ function ReminderCard({
       <div className={s.grid3}>
         <div className={s.field}>
           <label className={s.labelRow}><span>Start when</span></label>
-          <select
-            className={s.select}
-            aria-label="Start reminder trigger"
-            value={reminder.startTrigger}
-            onChange={e => handleStartTriggerChange(e.target.value)}
-          >
-            <option value="__main__">Same as stage trigger ({stageTriggersLabel || "selected trigger"})</option>
-            <WorkOptions folders={folders} />
-          </select>
+          <MultiTriggerSelect
+            single
+            ariaLabel="Start reminder trigger"
+            emptyPlaceholder="Search & select trigger…"
+            addPlaceholder="Change trigger…"
+            values={[reminder.startTrigger || "__main__"]}
+            folders={folders}
+            byKey={byKey}
+            defaultOption={{ key: "__main__", label: `Same as stage trigger (${stageTriggersLabel || "selected trigger"})` }}
+            onChange={next => handleStartTriggerChange(next[0] || "__main__")}
+          />
         </div>
 
         <div className={s.field}>
           <label className={s.labelRow}><span>Send to</span></label>
-          <select
+          <CapsuleSelect
             className={s.select}
-            aria-label="Reminder audience"
+            ariaLabel="Reminder audience"
             value={reminder.audience}
-            onChange={e => {
-              const nextAud = e.target.value as ReminderAudience;
+            onChange={value => {
+              const nextAud = value as ReminderAudience;
               set({ audience: nextAud });
               if (accordion) {
                 if (nextAud === "admin") {
@@ -2636,24 +2628,24 @@ function ReminderCard({
                 }
               }
             }}
-          >
-            <option value="client">Client only</option>
-            <option value="admin">Admin / Team only</option>
-            <option value="both">Both (Client &amp; Admin)</option>
-          </select>
+            options={[
+              { value: "client", label: "Client only" },
+              { value: "admin", label: "Admin / Team only" },
+              { value: "both", label: "Both (Client & Admin)" },
+            ]}
+          />
         </div>
 
         <div className={s.field}>
           <label className={s.labelRow}><span>Count days from</span></label>
-          <select
+          <CapsuleSelect
             className={s.select}
-            aria-label="Count days from"
+            ariaLabel="Count days from"
             disabled={visibleBaseDates.length <= 1}
             value={safeBaseDate}
-            onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
-          >
-            {visibleBaseDates.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
+            onChange={value => handleBaseDateChange(value as BaseDate)}
+            options={visibleBaseDates.map(item => ({ value: item.id, label: item.label }))}
+          />
         </div>
       </div>
 
@@ -2708,22 +2700,19 @@ function ReminderCard({
         <div className={`${s.field} ${s.fieldFull}`}>
           <label className={s.labelRow}><span>Send only if</span></label>
           <div className={s.inlineRow}>
-            <select
+            <CapsuleSelect
               className={s.select}
-              style={{ flex: 1 }}
-              aria-label="Send only if condition"
+              ariaLabel="Send only if condition"
               value={safeCondition}
-              onChange={e => {
-                const nextIdVal = e.target.value;
+              onChange={nextIdVal => {
                 const found = visibleConditions.find(c => c.id === nextIdVal);
                 set({
                   condition: nextIdVal,
                   conditionValue: found?.valueConfig ? found.valueConfig.defaultVal : reminder.conditionValue,
                 });
               }}
-            >
-              {visibleConditions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+              options={visibleConditions.map(item => ({ value: item.id, label: item.label }))}
+            />
             {conditionDef?.valueConfig && (
               <NumberInput
                 className={s.numInput}
@@ -2743,23 +2732,24 @@ function ReminderCard({
           <div className={s.gridRepeat}>
             <div className={s.stackField}>
               <label className={s.stackLabel}>Repeat mode</label>
-              <select
+              <CapsuleSelect
                 className={s.select}
-                aria-label="Repeat mode"
+                ariaLabel="Repeat mode"
                 value={reminder.repeatMode}
-                onChange={e => {
-                  const nextMode = e.target.value as RepeatMode;
+                onChange={value => {
+                  const nextMode = value as RepeatMode;
                   set({
                     repeatMode: nextMode,
                     ...(nextMode === "permanent" && timeoutCfg.enabled ? { onTimeout: { ...timeoutCfg, enabled: false } } : {}),
                   });
                 }}
-              >
-                <option value="off">Off (No repeat — scheduled only)</option>
-                {isDueAnchored && <option value="until_due">Until {dueTargetLabel}</option>}
-                <option value="permanent">Permanent (until stop trigger)</option>
-                <option value="limited">Fixed days limit</option>
-              </select>
+                options={[
+                  { value: "off", label: "Off (No repeat — scheduled only)" },
+                  ...(isDueAnchored ? [{ value: "until_due", label: `Until ${dueTargetLabel}` }] : []),
+                  { value: "permanent", label: "Permanent (until stop trigger)" },
+                  { value: "limited", label: "Fixed days limit" },
+                ]}
+              />
             </div>
             {reminder.repeatMode === "limited" && (
               <div className={s.stackField}>
@@ -2791,17 +2781,18 @@ function ReminderCard({
                 </div>
                 <div className={s.stackField}>
                   <label className={s.stackLabel}>Per day</label>
-                  <select
+                  <CapsuleSelect
                     className={s.select}
-                    aria-label="Per day frequency"
-                    value={reminder.repeatPerDay}
-                    onChange={e => set({ repeatPerDay: Number(e.target.value || 1) })}
-                  >
-                    <option value={1}>1x / day</option>
-                    <option value={2}>2x / day (every 12h)</option>
-                    <option value={3}>3x / day (every 8h)</option>
-                    <option value={4}>4x / day (every 6h)</option>
-                  </select>
+                    ariaLabel="Per day frequency"
+                    value={String(reminder.repeatPerDay)}
+                    onChange={value => set({ repeatPerDay: Number(value || 1) })}
+                    options={[
+                      { value: "1", label: "1x / day" },
+                      { value: "2", label: "2x / day (every 12h)" },
+                      { value: "3", label: "3x / day (every 8h)" },
+                      { value: "4", label: "4x / day (every 6h)" },
+                    ]}
+                  />
                 </div>
               </>
             )}
@@ -2918,23 +2909,19 @@ function ReminderCard({
                 {hasStageContinueAction && (
                   <div className={s.stageLinkRow}>
                     <span>Target stage:</span>
-                    <select
+                    <CapsuleSelect
                       className={s.select}
-                      style={{ flex: 1, minWidth: 160 }}
-                      aria-label="Target timeout stage"
-                      value={timeoutCfg.nextStageId ?? ""}
-                      onChange={e => setTimeoutCfg({ nextStageId: e.target.value ? Number(e.target.value) : null })}
-                    >
-                      <option value="">Select linked stage…</option>
-                      {timeoutStages.map(st => {
-                        const idxPos = (currentStages || []).findIndex(item => item.id === st.id);
-                        return (
-                          <option key={st.id} value={st.id}>
-                            Stage {idxPos >= 0 ? idxPos + 2 : st.id} (After timeout)
-                          </option>
-                        );
-                      })}
-                    </select>
+                      ariaLabel="Target timeout stage"
+                      value={timeoutCfg.nextStageId !== null && timeoutCfg.nextStageId !== undefined ? String(timeoutCfg.nextStageId) : ""}
+                      onChange={value => setTimeoutCfg({ nextStageId: value ? Number(value) : null })}
+                      options={[
+                        { value: "", label: "Select linked stage…" },
+                        ...timeoutStages.map(st => {
+                          const idxPos = (currentStages || []).findIndex(item => item.id === st.id);
+                          return { value: String(st.id), label: `Stage ${idxPos >= 0 ? idxPos + 2 : st.id} (After timeout)` };
+                        }),
+                      ]}
+                    />
                     {onCreateTimeoutStage && (currentStages?.length || 0) < MAX_CHAIN_DEPTH && (
                       <button
                         type="button"
@@ -4219,15 +4206,14 @@ function FormDialog({
                   {hasPackageScope ? "Applies to selected triggers" : "Available for package/order triggers"}
                 </span>
               </label>
-              <select
+              <CapsuleSelect
                 className={s.select}
-                aria-label="Package scope"
+                ariaLabel="Package scope"
                 disabled={!hasPackageScope}
                 value={form.scope}
-                onChange={e => set({ scope: e.target.value as PackageScopeMode, selectedPackages: [] })}
-              >
-                {PACKAGE_SCOPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
+                onChange={value => set({ scope: value as PackageScopeMode, selectedPackages: [] })}
+                options={PACKAGE_SCOPES.map(item => ({ value: item.id, label: item.label }))}
+              />
 
               {hasPackageScope && (form.scope === "include" || form.scope === "exclude") && (
                 <SearchableMultiSelect
@@ -5055,30 +5041,11 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
 
     {trails.length > 0 && (
       <div className={s.filterBar} aria-label="Filter automated messages">
-        <select className={s.filterSelect} aria-label="Filter by trigger point" value={filterTrigger} onChange={e => setFilterTrigger(e.target.value)}>
-          <option value="">All trigger points</option>
-          {filterTriggerOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
-        </select>
-        <select className={s.filterSelect} aria-label="Filter by package scope" value={filterScope} onChange={e => setFilterScope(e.target.value as "" | PackageScopeMode)}>
-          <option value="">All package scopes</option>
-          {PACKAGE_SCOPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </select>
-        <select className={s.filterSelect} aria-label="Filter by audience" value={filterAudience} onChange={e => setFilterAudience(e.target.value as "" | "client" | "admin")}>
-          <option value="">All audiences</option>
-          <option value="client">Client</option>
-          <option value="admin">Admin / Team</option>
-        </select>
-        <select className={s.filterSelect} aria-label="Filter by channel" value={filterChannel} onChange={e => setFilterChannel(e.target.value as "" | Channel)}>
-          <option value="">All channels</option>
-          <option value="whatsapp">WhatsApp</option>
-          <option value="email">Email</option>
-          <option value="both">Email + WhatsApp</option>
-        </select>
-        <select className={s.filterSelect} aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value as "" | "active" | "paused")}>
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-        </select>
+        <CapsuleSelect className={s.filterSelect} ariaLabel="Filter by trigger point" value={filterTrigger} onChange={setFilterTrigger} options={[{ value: "", label: "All trigger points" }, ...filterTriggerOptions.map(opt => ({ value: opt.key, label: opt.label }))]} />
+        <CapsuleSelect className={s.filterSelect} ariaLabel="Filter by package scope" value={filterScope} onChange={value => setFilterScope(value as "" | PackageScopeMode)} options={[{ value: "", label: "All package scopes" }, ...PACKAGE_SCOPES.map(item => ({ value: item.id, label: item.label }))]} />
+        <CapsuleSelect className={s.filterSelect} ariaLabel="Filter by audience" value={filterAudience} onChange={value => setFilterAudience(value as "" | "client" | "admin")} options={[{ value: "", label: "All audiences" }, { value: "client", label: "Client" }, { value: "admin", label: "Admin / Team" }]} />
+        <CapsuleSelect className={s.filterSelect} ariaLabel="Filter by channel" value={filterChannel} onChange={value => setFilterChannel(value as "" | Channel)} options={[{ value: "", label: "All channels" }, { value: "whatsapp", label: "WhatsApp" }, { value: "email", label: "Email" }, { value: "both", label: "Email + WhatsApp" }]} />
+        <CapsuleSelect className={s.filterSelect} ariaLabel="Filter by status" value={filterStatus} onChange={value => setFilterStatus(value as "" | "active" | "paused")} options={[{ value: "", label: "All statuses" }, { value: "active", label: "Active" }, { value: "paused", label: "Paused" }]} />
         {hasActiveFilter && (
           <button type="button" className={s.miniBtn} onClick={clearFilters}>Clear filters</button>
         )}

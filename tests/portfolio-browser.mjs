@@ -97,7 +97,9 @@ async function main() {
     await page.getByRole('button', { name: 'Choose image', exact: true }).click();
     await page.getByRole('tab', { name: 'Media Library', exact: true }).click();
     await page.getByRole('button', { name: /Portfolio browser fixture/ }).click();
-    await page.getByLabel(/^Visibility/).selectOption('published');
+    const visTrigger = page.getByLabel(/^Visibility/);
+    await visTrigger.click();
+    await visTrigger.locator('..').locator('[role="option"][data-value="published"]').click();
     await page.getByLabel('Featured on homepage', { exact: true }).check();
     await page.getByLabel('Live website URL (synced with portal)', { exact: true }).fill('https://client-live.example');
     const saving = page.waitForResponse(response => response.url() === `${origin}/api/portfolio/${projectId}` && response.request().method() === 'PATCH');
@@ -143,7 +145,9 @@ async function main() {
     await integration([{ ...source, revision: 200, name: 'Changed source title' }]);
     await mobile.reload(); await mobile.getByRole('heading', { name: 'Clearer business websites', exact: true }).waitFor();
     await page.goto(`${origin}/admin/portfolio/${projectId}`);
-    await page.getByLabel(/^Visibility/).selectOption('hidden');
+    const visTrigger2 = page.getByLabel(/^Visibility/);
+    await visTrigger2.click();
+    await visTrigger2.locator('..').locator('[role="option"][data-value="hidden"]').click();
     const hiding = page.waitForResponse(response => response.url() === `${origin}/api/portfolio/${projectId}` && response.request().method() === 'PATCH');
     await page.getByRole('button', { name: 'Save changes', exact: true }).first().click();
     const hiddenResponse = await hiding;

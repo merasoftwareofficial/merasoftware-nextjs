@@ -14,12 +14,13 @@ import { offerDiscountPercent, resolvedTerms, type Offer } from "@/lib/offers";
 import { offerRunning } from "@/lib/offer-packages";
 import { defaultPackageDesign, inheritedDesign, offerView, packageDesignSchema, packageView, type PackageDesign } from "@/lib/package-design";
 import { indiaInputToUtc, toIndiaInput, formatIndiaDateTime, formatIndiaDate } from "@/lib/date-time";
-import { adminEntry, arrangePackages, categoryFilterChoices, draftEntry, pageFilterChoices, typeFilterChoices, usableOptions, type Entry, type PackageListOptions, type PackageSort } from "@/lib/package-list";
+import { adminEntry, arrangePackages, draftEntry, pageFilterChoices, usableOptions, type Entry, type PackageSort } from "@/lib/package-list";
 import { ADMIN_DEFAULT_SORT, readAdminSort, rememberAdminSort } from "@/lib/package-sort-memory";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
 import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
+import { CapsuleSelect } from "@/components/capsule-select";
 import s from "./packages-manager.module.css";
 
 // The one package form (src/docs/project.md, owner decisions 9 Nov 2026): 1. the project it sells (name, category,
@@ -232,12 +233,17 @@ function PriorityControl({ name, order, disabled, title, onCommit }: { name: str
   </label>;
 }
 
-/** One filter as a compact dropdown: "All …" first, then what the open tab has, each with its count. */
-function FilterSelect({ label, allLabel, choices, selected, onPick }: { label: string; allLabel: string; choices: { value: string; label: string; count: number }[]; selected: string; onPick: (value: string) => void }) {
-  return <select aria-label={`Filter by ${label}`} value={selected} onChange={event => onPick(event.target.value)}>
-    <option value="all">{allLabel}</option>
-    {choices.map(choice => <option key={choice.value} value={choice.value}>{choice.label} ({choice.count})</option>)}
-  </select>;
+/** One filter as compact pill buttons: "All …" first, then what the open tab has, each with its count. */
+function FilterPills({ label, allLabel, allCount, choices, selected, onPick }: { label: string; allLabel: string; allCount: number; choices: { value: string; label: string; count: number }[]; selected: string; onPick: (value: string) => void }) {
+  const options = [{ value: "all", label: allLabel, count: allCount }, ...choices];
+  return <div className={s.filterPills} role="group" aria-label={`Filter by ${label}`}>
+    {options.map(choice => {
+      const active = selected === choice.value;
+      return <button key={choice.value} type="button" className={active ? s.filterPillOn : s.filterPill} aria-pressed={active} onClick={() => onPick(choice.value)}>
+        {choice.label} <span className={s.filterCount}>{choice.count}</span>
+      </button>;
+    })}
+  </div>;
 }
 
 export function PackagesManager({ initial, initialPages, initialOffers, universalTerms, openPackageId }: { initial: SalesCatalogue; initialPages: PackagePage[]; initialOffers: Offer[]; universalTerms: string[]; openPackageId?: string }) {
@@ -245,7 +251,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [offers, setOffers] = useState(initialOffers);
   const [pages, setPages] = useState(initialPages);
   const [listTab, setListTab] = useState<"live" | "drafts" | "archived">("live");
-  const [listFilter, setListFilter] = useState<Pick<PackageListOptions, "type" | "category" | "page">>({ type: "all", category: "all", page: "all" });
+  const [listPage, setListPage] = useState<string>("all");
   // The sort the admin picked this visit wins; before a pick, the one remembered in this browser (server and first paint use the default).
   const rememberedSort = useSyncExternalStore(noSubscription, () => readAdminSort(), () => ADMIN_DEFAULT_SORT);
   const [pickedSort, setPickedSort] = useState<PackageSort | null>(null);
@@ -673,11 +679,9 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     : [...newDrafts.map(draft => draftEntry<ListLine>({ draft }, draft, pages.map(page => page.slug))),
       ...changeDrafts.map(draft => packageLineEntry(catalogue.packages.find(row => row.id === draft.packageId)!, true)),
       ...hiddenRows.map(row => packageLineEntry(row))];
-  const listOptions = usableOptions({ ...listFilter, sort: listSort, offersOnly: false }, tabLines);
+  const listOptions = usableOptions({ type: "all", category: "all", page: listPage, sort: listSort, offersOnly: false }, tabLines);
   const shownLines = arrangePackages(tabLines, listOptions);
-  const typeChoicesNow = typeFilterChoices(tabLines);
   const pageChoicesNow = pageFilterChoices(tabLines, pages);
-  const categoryChoicesNow = categoryFilterChoices(tabLines, catalogue.categories ?? []);
 
   if (!item) return <div>
     <div className={s.listTop}><p>Each package has its own page with 2 prices; an offer adds a third price and a countdown. A package has only one draft, and editing it always opens that draft.</p>
@@ -687,17 +691,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     <div className={s.tabs} role="tablist" aria-label="Packages">{tabs.map(([key, label, count]) => <button key={key} type="button" role="tab" aria-selected={listTab === key} className={listTab === key ? s.tabOn : s.tab} onClick={() => setListTab(key)}>{label} <span className={s.count}>{count}</span></button>)}</div>
     {tabLines.length > 0 && <div className={s.toolbar}>
       <div className={s.filterGroup}>
-        {typeChoicesNow.length > 1 && <FilterSelect label="type" allLabel="All types" choices={typeChoicesNow} selected={listOptions.type} onPick={value => setListFilter(current => ({ ...current, type: value as PackageListOptions["type"] }))} />}
-        {pageChoicesNow.length > 1 && <FilterSelect label="page" allLabel="All pages" choices={pageChoicesNow} selected={listOptions.page} onPick={value => setListFilter(current => ({ ...current, page: value }))} />}
-        {categoryChoicesNow.length > 1 && <FilterSelect label="category" allLabel="All categories" choices={categoryChoicesNow} selected={listOptions.category} onPick={value => setListFilter(current => ({ ...current, category: value }))} />}
-        {(listOptions.type !== "all" || listOptions.page !== "all" || listOptions.category !== "all") && <button type="button" className={s.clearLink} onClick={() => setListFilter({ type: "all", category: "all", page: "all" })}>Clear filters</button>}
+        {pageChoicesNow.length > 1 && <FilterPills label="page" allLabel="All" allCount={tabLines.length} choices={pageChoicesNow} selected={listOptions.page} onPick={setListPage} />}
       </div>
-      <select className={s.sortSelect} aria-label="Sort packages" value={listSort} onChange={event => pickSort(event.target.value as PackageSort)}>{ADMIN_SORTS.map(sort => <option key={sort.value} value={sort.value}>Sort: {sort.label}</option>)}</select>
+      <CapsuleSelect className={s.sortSelect} ariaLabel="Sort packages" prefix="Sort:" align="right" options={ADMIN_SORTS} value={listSort} onChange={pickSort} />
     </div>}
     <ul className={s.lines} role="tabpanel" aria-label={tabs.find(([key]) => key === listTab)?.[1]}>
       {shownLines.map(({ item: line }) => "draft" in line ? newDraftLine(line.draft) : packageLine(line.row, line.copyLine))}
       {!tabLines.length && <li className={s.empty}>{listTab === "live" ? "No package is live." : listTab === "drafts" ? "No drafts." : "No archived packages."}</li>}
-      {tabLines.length > 0 && !shownLines.length && <li className={s.empty}>No packages match this filter. <button type="button" className="admin-action" onClick={() => setListFilter({ type: "all", category: "all", page: "all" })}>Show all</button></li>}
+      {tabLines.length > 0 && !shownLines.length && <li className={s.empty}>No packages match this filter. <button type="button" className="admin-action" onClick={() => setListPage("all")}>Show all</button></li>}
     </ul>
   </div>;
 
@@ -737,8 +738,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <div className={s.packageIntro}>
             <div className={s.introFields}>
               <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name * <small>(needed to save a draft)</small></span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
-              <label className={`admin-field ${bad("billing") ?? ""}`}><span>Billing *</span><select aria-label="Billing" value={item.billing ?? ""} onChange={e => chooseBilling((e.target.value || undefined) as SalesPackage["billing"])}>{!item.billing && <option value="">Not chosen yet</option>}<option value="one_time">One-time</option><option value="monthly">Monthly</option></select>{err("billing")}</label>
-              <label className={`admin-field ${bad("portalUploads") ?? ""}`}><span>Portal uploads *</span><select aria-label="Portal uploads" value={item.portalUploads === undefined ? "" : item.portalUploads ? "yes" : "no"} onChange={e => update("portalUploads", e.target.value === "" ? undefined : e.target.value === "yes")}><option value="" disabled>Choose portal access</option><option value="yes">Yes: the client sends files in the portal</option><option value="no">No: progress updates only</option></select>{err("portalUploads")}</label>
+              <div className={`admin-field ${bad("billing") ?? ""}`}><span>Billing *</span><CapsuleSelect ariaLabel="Billing" value={item.billing ?? ""} onChange={value => chooseBilling((value || undefined) as SalesPackage["billing"])} options={[...(!item.billing ? [{ value: "", label: "Not chosen yet" }] : []), { value: "one_time", label: "One-time" }, { value: "monthly", label: "Monthly" }]} />{err("billing")}</div>
+              <div className={`admin-field ${bad("portalUploads") ?? ""}`}><span>Portal uploads *</span><CapsuleSelect ariaLabel="Portal uploads" value={item.portalUploads === undefined ? "" : item.portalUploads ? "yes" : "no"} onChange={value => update("portalUploads", value === "" ? undefined : value === "yes")} options={[{ value: "", label: "Choose portal access", disabled: true }, { value: "yes", label: "Yes: the client sends files in the portal" }, { value: "no", label: "No: progress updates only" }]} />{err("portalUploads")}</div>
             </div>
             <label className={`admin-field ${s.introDescription} ${bad("description") ?? ""}`}><span>Description *</span><textarea aria-label="Description" maxLength={500} value={item.description} onChange={e => update("description", e.target.value)} /><small>Shown on the package card and under the page heading.</small>{err("description")}</label>
           </div>
@@ -749,7 +750,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               {err("paymentOptions")}</div> : monthly && <>
               <p className={s.note}>A monthly package runs as a plan in the client portal: a bill every billing period, at the price bought for the whole length. The client can stop it any time; it ends after the period paid for.</p>
               {item.portalUploads && <div className={s.twoFields}>
-                <label className={`admin-field ${bad("monthlyUploads") ?? ""}`}><span>Updates a month *</span><select aria-label="Updates a month" value={monthly.uploadsPerMonth !== null && monthly.uploadsPerMonth !== undefined ? "limited" : "unlimited"} onChange={e => setMonthly({ uploadsPerMonth: e.target.value === "limited" ? (Number.isInteger(monthly.uploadsPerMonth) && monthly.uploadsPerMonth! > 0 ? monthly.uploadsPerMonth : 4) : null })}><option value="unlimited">Unlimited</option><option value="limited">Limited</option></select>{err("monthlyUploads")}</label>
+                <div className={`admin-field ${bad("monthlyUploads") ?? ""}`}><span>Updates a month *</span><CapsuleSelect ariaLabel="Updates a month" value={monthly.uploadsPerMonth !== null && monthly.uploadsPerMonth !== undefined ? "limited" : "unlimited"} onChange={value => setMonthly({ uploadsPerMonth: value === "limited" ? (Number.isInteger(monthly.uploadsPerMonth) && monthly.uploadsPerMonth! > 0 ? monthly.uploadsPerMonth : 4) : null })} options={[{ value: "unlimited", label: "Unlimited" }, { value: "limited", label: "Limited" }]} />{err("monthlyUploads")}</div>
                 {monthly.uploadsPerMonth !== null && monthly.uploadsPerMonth !== undefined && <label className="admin-field"><span>Number of updates a month</span><NumberInput aria-label="Number of updates a month" min={1} max={31} value={monthly.uploadsPerMonth} onValueChange={n => setMonthly({ uploadsPerMonth: n })} onEmpty={() => setMonthly({ uploadsPerMonth: Number.NaN })} /><small>Opens again every month.</small></label>}
               </div>}
               <div className={`${s.choices} ${bad("monthlyCycles") ?? ""}`} role="group" aria-label="Billing cycles"><span>Billing cycles and discount *</span>
@@ -762,20 +763,20 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             </>}
             <label className={`admin-field ${bad("paymentDueDays") ?? ""}`}><span>Unpaid grace days</span><NumberInput aria-label="Unpaid grace days" min={0} max={365} value={item.paymentDueDays ?? 0} onValueChange={n => update("paymentDueDays", n)} onEmpty={() => update("paymentDueDays", 0)} /><small>{item.billing === "monthly" ? "Due date = billing cycle date. Plan stays active for this many grace days, then auto-pauses (0 = pause immediately)." : "Days after due date before unpaid grace ends (0 = no auto-cancel). Reminders run from Automated Message System."}</small>{err("paymentDueDays")}</label>
             {item.billing !== "monthly" && (item.paymentDueDays ?? 0) > 0 && (
-              <label className="admin-field"><span>After grace ends</span><select aria-label="After grace ends" value={item.graceEndAction ?? "keep_open"} onChange={e => update("graceEndAction", e.target.value as "keep_open" | "auto_cancel")}><option value="keep_open">Keep open (reminders only)</option><option value="auto_cancel">Auto-cancel / expire (₹0 paid only)</option></select><small>Advance or partial-paid orders are never auto-cancelled.</small></label>
+              <div className="admin-field"><span>After grace ends</span><CapsuleSelect ariaLabel="After grace ends" value={item.graceEndAction ?? "keep_open"} onChange={value => update("graceEndAction", value as "keep_open" | "auto_cancel")} options={[{ value: "keep_open", label: "Keep open (reminders only)" }, { value: "auto_cancel", label: "Auto-cancel / expire (₹0 paid only)" }]} /><small>Advance or partial-paid orders are never auto-cancelled.</small></div>
             )}
           <div className={s.pricingHeader}>
           <h3 className={s.pricingTitle}>Price &amp; project scope</h3>
           {item.billing && (creating
-            ? <label className="admin-field"><span>Price method *</span><select aria-label="Price method" value={autoPriced ? "automatic" : "manual"} onChange={e => choosePriceMode(e.target.value as PriceMode)}><option value="automatic">Automatic: category and add-ons</option><option value="manual">Manual: typed prices</option></select><small>Automatic uses the category and add-ons; manual uses typed prices.</small></label>
+            ? <div className="admin-field"><span>Price method *</span><CapsuleSelect ariaLabel="Price method" value={autoPriced ? "automatic" : "manual"} onChange={value => choosePriceMode(value as PriceMode)} options={[{ value: "automatic", label: "Automatic: category and add-ons" }, { value: "manual", label: "Manual: typed prices" }]} /><small>Automatic uses the category and add-ons; manual uses typed prices.</small></div>
             : <div className="admin-field"><span>Price method</span><p className={s.methodValue}>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</p><small>A saved package keeps its pricing method; duplicate it to use the other method.</small></div>)}
           {/* Only an automatic package takes its base price and add-ons from its category, so only it shows the category. A typed
               package (manual) has no category field or buttons on screen; it still saves the default category. */}
           {autoPriced && <>
-            <div><label className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><select aria-label="Project category" disabled={running} value={item.category} onChange={e => changeCategory(e.target.value)}>{!item.category && <option value="">Choose a category</option>}{categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => <option key={key} value={key}>{label}{status === "archived" ? " (archived)" : ""}</option>)}</select>
+            <div><div className={`admin-field ${bad("category") ?? ""}`}><span>Project category *</span><CapsuleSelect ariaLabel="Project category" disabled={running} value={item.category} onChange={changeCategory} options={[...(!item.category ? [{ value: "", label: "Choose a category" }] : []), ...categoryChoices(catalogue.categories, item.category ? [item.category] : []).map(({ category: key, label, status }) => ({ value: key, label: `${label}${status === "archived" ? " (archived)" : ""}` }))]} />
               {running && <small>Fixed while its offer runs.</small>}
               {!catalogue.categories?.length && <span className={s.msg} role="alert">The category list did not load from the portal. Reload the page; until then only a new category can be chosen.</span>}
-              {categoryNote && <small role="status">{categoryNote}</small>}{err("category")}</label>
+              {categoryNote && <small role="status">{categoryNote}</small>}{err("category")}</div>
             <div>{!running && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setNewCategory(true); }}>+ New category</button>}{" "}
               {categoryEntry && <button type="button" className="admin-action" onClick={() => { setCategoryNote(""); setEditCategory(true); }}>Edit category</button>}</div></div>
             {editCategory && categoryEntry && <ProjectCategoryDialog edit={categoryEntry} nextSortOrder={categoryEntry.sortOrder ?? 0} onCancel={() => setEditCategory(false)} onSaved={categorySaved} send={sendCategory} />}
@@ -811,7 +812,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             {running && <p className={s.idline}><span className={s.tagRun}>Running</span> Ends in <b>{Math.floor(leftMs / 86400000)}d {Math.floor(leftMs / 3600000) % 24}h</b>. Edit and save to update the live page. <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(savedOffer!.slug)}`}>Target people →</Link></p>}
             <div className="form-columns">
               <label className={`admin-field ${bad("offerTitle") ?? ""}`}><span>Offer name *</span><input aria-label="Offer name" maxLength={120} placeholder="e.g. Diwali Launch Offer" value={offerForm.title} onChange={e => offerField("title", e.target.value)} /><small>Shown on the card, sticky bar, emails and My offers.</small>{err("offerTitle")}</label>
-              <label className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><select aria-label="Offer status" value={offerForm.status} onChange={e => offerField("status", e.target.value as OfferForm["status"])}><option value="draft">{savedOffer ? "Draft (not on the website)" : "Draft (kept in the package draft)"}</option><option value="published">Published</option></select>{!savedOffer && offerForm.status === "draft" && <small>Publish keeps this offer in the draft. Choose Published to make it live with the package.</small>}{err("offerStatus")}</label>
+              <div className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><CapsuleSelect ariaLabel="Offer status" value={offerForm.status} onChange={value => offerField("status", value as OfferForm["status"])} options={[{ value: "draft", label: savedOffer ? "Draft (not on the website)" : "Draft (kept in the package draft)" }, { value: "published", label: "Published" }]} />{!savedOffer && offerForm.status === "draft" && <small>Publish keeps this offer in the draft. Choose Published to make it live with the package.</small>}{err("offerStatus")}</div>
             </div>
             <p className={s.idline}>Offer link: <code>/offer/{offerLink}</code> <span className={s.lock}>auto</span> <span>Opens this package page. Made from the offer name; never reused.</span></p>
             <p className={s.inherit}>From the package (not typed again): {shown.regularPrice > shown.discountedPrice ? <>main price <b>{rupee(shown.regularPrice)}</b> · normal price <b>{rupee(shown.discountedPrice)}</b></> : <>price <b>{rupee(shown.discountedPrice)}</b></>} · category, included work, terms and page design.</p>
@@ -819,10 +820,10 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               <label className={`admin-field ${bad("offerPrice") ?? ""}`}><span>Offer price (₹{item.billing === "monthly" ? ` ${priceUnit(item)}` : ""}) *</span><input aria-label="Offer price (₹)" type="number" min={0} max={10000000} step="0.01" value={offerForm.offerPrice} onChange={e => offerField("offerPrice", e.target.value)} /><small>{percent ? `Shown as ${percent}% OFF the main price.` : "Must be below the normal price."}</small>{err("offerPrice")}</label>
               <label className={`admin-field ${bad("endsAt") ?? ""}`}><span>Expires at (India time / IST) *</span><input aria-label="Expires at (India time / IST)" type="datetime-local" value={offerForm.endsAt} onChange={e => offerField("endsAt", e.target.value)} /><small>One fixed deadline. Starts the countdown.</small>{err("endsAt")}</label>
             </div>
-            <label className={`admin-field ${bad("payMode") ?? ""}`}><span>Payment rule *</span><select aria-label="Payment rule" value={payMode} onChange={e => offerField("payMode", e.target.value as PayMode)}><option value="" disabled>Choose a payment rule</option><option value="current">Keep current system rules</option><option value="advance">Advance payment</option><option value="limited_uploads">Limited uploads before payment</option><option value="pay_later">Pay later (uploads stay available)</option></select><small>Frozen onto each project started with this offer.</small>{err("payMode")}</label>
+            <div className={`admin-field ${bad("payMode") ?? ""}`}><span>Payment rule *</span><CapsuleSelect ariaLabel="Payment rule" value={payMode} onChange={value => offerField("payMode", value as PayMode)} options={[{ value: "", label: "Choose a payment rule", disabled: true }, { value: "current", label: "Keep current system rules" }, { value: "advance", label: "Advance payment" }, { value: "limited_uploads", label: "Limited uploads before payment" }, { value: "pay_later", label: "Pay later (uploads stay available)" }]} /><small>Frozen onto each project started with this offer.</small>{err("payMode")}</div>
             {payMode && payMode !== "current" && <div className={s.dep}>
               <div className="form-columns">
-                {payMode === "advance" && <><label className="admin-field"><span>Minimum advance type *</span><select aria-label="Minimum advance type" value={offerForm.advanceType} onChange={e => offerField("advanceType", e.target.value as OfferForm["advanceType"])}><option value="fixed">Fixed amount (₹)</option><option value="percentage">Percentage</option></select></label><label className={`admin-field ${bad("advanceValue") ?? ""}`}><span>Minimum advance *</span><input aria-label="Minimum advance" type="number" min={0.01} max={offerForm.advanceType === "percentage" ? 100 : 10000000} step="0.01" value={offerForm.advanceValue} onChange={e => offerField("advanceValue", e.target.value)} /><small>The customer may pay this amount or more to start the project.</small>{err("advanceValue")}</label></>}
+                {payMode === "advance" && <><div className="admin-field"><span>Minimum advance type *</span><CapsuleSelect ariaLabel="Minimum advance type" value={offerForm.advanceType} onChange={value => offerField("advanceType", value as OfferForm["advanceType"])} options={[{ value: "fixed", label: "Fixed amount (₹)" }, { value: "percentage", label: "Percentage" }]} /></div><label className={`admin-field ${bad("advanceValue") ?? ""}`}><span>Minimum advance *</span><input aria-label="Minimum advance" type="number" min={0.01} max={offerForm.advanceType === "percentage" ? 100 : 10000000} step="0.01" value={offerForm.advanceValue} onChange={e => offerField("advanceValue", e.target.value)} /><small>The customer may pay this amount or more to start the project.</small>{err("advanceValue")}</label></>}
                 {payMode === "limited_uploads" && <label className={`admin-field ${bad("uploadAllowance") ?? ""}`}><span>Uploads allowed before payment *</span><input aria-label="Pre-payment upload allowance" type="number" min={1} max={10000} value={offerForm.uploadAllowance} onChange={e => offerField("uploadAllowance", e.target.value)} />{err("uploadAllowance")}</label>}
                 <label className={`admin-field ${bad("dueDays") ?? ""}`}><span>Payment due after (days) *</span><input aria-label="Payment due days" type="number" min={0} max={365} value={offerForm.dueDays} onChange={e => offerField("dueDays", e.target.value)} /><small>From project creation.</small>{err("dueDays")}</label>
               </div>
@@ -849,7 +850,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <p className={s.note}>Where this package appears on the website. None of this changes a client project.</p>
           <p className={s.idline}>Link: <code>/package/{id}</code> {creating ? item.id ? <><span className={s.lock}>reserved</span> <span>Kept for this package; it goes live when you publish.</span></> : <span>Made from the name when you first save. If it is taken, -2 is added.</span> : <><span className={s.lock}>fixed</span> <span>Renaming the package does not change the link.</span></>}</p>
           <div className="form-columns">
-            <label className="admin-field"><span>When published *</span><select aria-label="Status" value={item.status} onChange={e => update("status", e.target.value as SalesPackage["status"])}><option value="published">Show on the website</option>{!running && <option value="archived">Archived (hidden)</option>}</select><small>Archived hides the package; it can be shown again later.</small></label>
+            <div className="admin-field"><span>When published *</span><CapsuleSelect ariaLabel="Status" value={item.status} onChange={value => update("status", value as SalesPackage["status"])} options={[{ value: "published", label: "Show on the website" }, ...(!running ? [{ value: "archived", label: "Archived (hidden)" }] : [])]} /><small>Archived hides the package; it can be shown again later.</small></div>
             <label className={`admin-field ${bad("order") ?? ""}`}><span>Card priority (Display order)</span><NumberInput aria-label="Display order" min={0} max={9999} step={1} value={item.order} onValueChange={n => update("order", n)} onEmpty={() => update("order", Number.NaN)} /><small>Lower number appears first (0 = top).</small>{err("order")}</label>
           </div>
           <fieldset className={s.pages} disabled={pageBusy}><legend>Show on pages</legend>
@@ -883,7 +884,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
 
       {/* Live customer preview: no request is made. */}
       <aside className={s.aside} aria-label="Customer preview">
-        <div className={s.pvHead}><h3>Customer sees</h3><select aria-label="Preview state" disabled={!showOffer} value={showOffer ? previewState : "normal"} onChange={e => setPreviewState(e.target.value as ReservationPreview)}><option value="normal">Normal</option><option value="open">Reserve open</option><option value="reserved">Reserved</option></select></div>
+        <div className={s.pvHead}><h3>Customer sees</h3><CapsuleSelect ariaLabel="Preview state" align="right" disabled={!showOffer} value={showOffer ? previewState : "normal"} onChange={value => setPreviewState(value as ReservationPreview)} options={[{ value: "normal", label: "Normal" }, { value: "open", label: "Reserve open" }, { value: "reserved", label: "Reserved" }]} /></div>
         <p className={s.url}>merasoftware.com/package/{id}</p>
         <div className={s.pcard}>
           <p className={s.eb}>{item.design.eyebrow}</p>

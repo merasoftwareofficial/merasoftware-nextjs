@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 import { useEffect, useState } from "react";
 import type { WhatsappNumberSetting, WhatsappSettings, WhatsappSettingsReply } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
@@ -94,19 +95,17 @@ export function WhatsappSettingsSection({ onSaved }: { onSaved: () => void }) {
             {group.fields.map(field => {
               const [min, max] = reply.limits[field.key];
               const recommended = reply.recommended[field.key];
-              return <label key={field.key} className={own.field}>
+              return <div key={field.key} className={own.field}>
                 <span>{field.label}</span>
                 {group.hours
-                  ? <select value={form[field.key]} disabled={off} onChange={event => setForm({ ...form, [field.key]: event.target.value })}>
-                      {HOURS.map(hour => <option key={hour} value={hour}>{hourLabel(hour)}</option>)}
-                    </select>
+                  ? <CapsuleSelect ariaLabel={field.label} value={String(form[field.key])} disabled={off} onChange={value => setForm({ ...form, [field.key]: value })} options={HOURS.map(hour => ({ value: String(hour), label: hourLabel(hour) }))} />
                   : <span className={own.inputRow}>
                       <input type="number" inputMode="numeric" min={min} max={max} step={1} required value={form[field.key]} disabled={off}
                         onChange={event => setForm({ ...form, [field.key]: event.target.value })} />
                       {field.unit}
                     </span>}
                 <small>{field.hint} Recommended: {group.hours ? hourLabel(recommended) : `${recommended} ${field.unit}`}{group.hours ? "" : ` (allowed ${min}–${max})`}.</small>
-              </label>;
+              </div>;
             })}
           </div>
         </fieldset>;

@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 import React, { useEffect, useState } from 'react';
 type SettingsData = { name: string; loginEmail: string; contactEmail: string; whatsappNumbers: string[]; countries: { code: string; label: string; digits: number }[] };
 
@@ -49,9 +50,7 @@ export default function AdminContactSettings() {
             {data.whatsappNumbers.map((value, index) => {
               const country = data.countries.find(row => value.startsWith(row.code))?.code || '+91';
               return <div key={index} className="flex flex-wrap gap-2">
-                <select aria-label={`Country code ${index + 1}`} value={country} onChange={e => setData({ ...data, whatsappNumbers: data.whatsappNumbers.map((n, i) => i === index ? e.target.value + n.slice(country.length) : n) })} className="max-w-full rounded-lg border p-2">
-                  {data.countries.map(row => <option key={row.code} value={row.code}>{row.label} ({row.code})</option>)}
-                </select>
+                <CapsuleSelect ariaLabel={`Country code ${index + 1}`} value={country} onChange={value => setData({ ...data, whatsappNumbers: data.whatsappNumbers.map((n, i) => i === index ? value + n.slice(country.length) : n) })} options={data.countries.map(row => ({ value: row.code, label: `${row.label} (${row.code})` }))} />
                 <input aria-label={`WhatsApp number ${index + 1}`} type="tel" required value={value.slice(country.length)} onChange={e => setData({ ...data, whatsappNumbers: data.whatsappNumbers.map((n, i) => i === index ? country + e.target.value.replace(/\D/g, '') : n) })} className="min-w-0 flex-1 rounded-lg border p-2" />
                 <button type="button" onClick={() => setData({ ...data, whatsappNumbers: data.whatsappNumbers.filter((_, i) => i !== index) })} className="px-2 text-red-700">Remove</button>
               </div>;

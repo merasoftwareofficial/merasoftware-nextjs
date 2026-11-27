@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 
 import { mergeAttributes, Node, type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -115,12 +116,22 @@ export function EmailEditor({ id, label, value, onChange, disabled, singleLine, 
           <button type="button" disabled={disabled || !editor} className={editor?.isActive("bulletList") ? "on" : ""} onClick={() => editor?.chain().focus().toggleBulletList().run()}>• List</button>
           {!!choices.length && <span className="tiptap-divider" />}
         </>}
-        {!!choices.length && <select aria-label={`Insert detail into ${label}`} disabled={disabled || !editor} value="" className={styles.insertDetail}
-          onChange={event => { const choice = choices.find(row => `${row.kind}:${row.key}` === event.target.value); if (choice) insert({ type: choice.kind, attrs: { key: choice.key } }); }}>
-          <option value="">Insert detail…</option>
-          {variables.length > 0 && <optgroup label="Details">{variables.map(row => <option key={row.key} value={`emailVariable:${row.key}`} title={row.hint}>{row.label}</option>)}</optgroup>}
-          {blocks.length > 0 && <optgroup label="Sections">{blocks.map(row => <option key={row.key} value={`emailSection:${row.key}`} title={row.hint}>{row.label}</option>)}</optgroup>}
-        </select>}
+        {!!choices.length && <CapsuleSelect
+          ariaLabel={`Insert detail into ${label}`}
+          disabled={disabled || !editor}
+          value=""
+          align="right"
+          className={styles.insertDetail}
+          onChange={value => {
+            const choice = choices.find(row => `${row.kind}:${row.key}` === value);
+            if (choice) insert({ type: choice.kind, attrs: { key: choice.key } });
+          }}
+          options={[
+            { value: "", label: "Insert detail…", disabled: true },
+            ...variables.map(row => ({ value: `emailVariable:${row.key}`, label: `Detail · ${row.label}` })),
+            ...blocks.map(row => ({ value: `emailSection:${row.key}`, label: `Section · ${row.label}` })),
+          ]}
+        />}
       </div>
       <EditorContent editor={editor} />
     </div>

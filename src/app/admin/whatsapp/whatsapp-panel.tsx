@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { CapsuleSelect } from "@/components/capsule-select";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import type { WhatsappMessage, WhatsappQueuePage, WhatsappQueueStatus, WhatsappStatus } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
@@ -157,9 +158,7 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
               {label}{count === null || count === undefined ? "" : ` (${count.toLocaleString("en-IN")})`}
             </button>)}
         </div>
-        {group === "not-sent" && <label className={styles.muted}>Show <select value={notSent} onChange={event => { setNotSent(event.target.value as NotSentFilter); setPage(1); }}>
-          {NOT_SENT_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select></label>}
+        {group === "not-sent" && <span className={styles.muted}><CapsuleSelect prefix="Show:" ariaLabel="Show not-sent messages" align="right" value={notSent} onChange={next => { setNotSent(next as NotSentFilter); setPage(1); }} options={NOT_SENT_FILTERS.map(([value, label]) => ({ value, label }))} /></span>}
       </div>
       <p className={styles.muted}>Newest first. All times are IST. Finished messages are kept for 30 days. Messages still waiting are in the Queue tab.</p>
       {!queue && !queueError && <Loader label="Loading messages…" />}

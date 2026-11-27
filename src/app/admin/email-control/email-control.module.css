@@ -73,7 +73,7 @@
 .chip { display:inline-block; padding:1px 8px; margin:0 1px; border:1px solid var(--brand-teal, #007f99); border-radius:999px; background:rgb(0 127 153 / .14); color:inherit; font-size:.9em; line-height:1.5; white-space:nowrap; }
 .sectionChip { margin:0 0 12px; padding:12px 14px; border:1px dashed var(--brand-teal, #007f99); border-radius:8px; background:rgb(0 127 153 / .1); color:inherit; font-weight:600; }
 .chip:global(.ProseMirror-selectednode),.sectionChip:global(.ProseMirror-selectednode) { outline:2px solid var(--brand-link, #006b80); outline-offset:1px; }
-.dialog .insertDetail,.insertDetail { width:auto; margin-left:4px; padding:6px 8px; border:1px solid var(--line, #cbd0d4); border-radius:6px; background:var(--surface, #fff); color:inherit; font:inherit; font-size: var(--fs-ui); }
+.dialog .insertDetail,.insertDetail { width:auto; margin-left:4px; }
 .details { margin-top:10px; padding:12px 14px; border:1px solid var(--line, #cbd0d4); border-radius:8px; }
 .details h3 { margin:0 0 4px; font-size: var(--fs-ui); }
 .details ul { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:6px; }

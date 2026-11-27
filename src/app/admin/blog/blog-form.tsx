@@ -1,4 +1,5 @@
 "use client";
+import { CapsuleSelect } from "@/components/capsule-select";
 
 import { formatIndiaDateTime, indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import { useNavigate, useTask } from "@/components/loading/navigation";
@@ -400,10 +401,13 @@ export function BlogForm({
               placeholder="Enter a useful, clear title"
             />
             {/* Size only: the title stays the page's <h1> either way. */}
-            <select aria-label="Title size" value={draft.titleSize} onChange={event => set("titleSize", event.target.value as TitleSize)}>
-              <option value="large">Large title (H1)</option>
-              <option value="medium">Medium title (H2)</option>
-            </select>
+            <CapsuleSelect
+              ariaLabel="Title size"
+              align="right"
+              value={draft.titleSize}
+              onChange={value => set("titleSize", value as TitleSize)}
+              options={[{ value: "large", label: "Large title (H1)" }, { value: "medium", label: "Medium title (H2)" }]}
+            />
           </div>
         </div>
         <label className="admin-field">
@@ -430,15 +434,13 @@ export function BlogForm({
           <label htmlFor="blog-category">
             <span>Category</span>
           </label>
-          <select id="blog-category" value={draft.category} onChange={event => set("category", event.target.value)}>
-            {/* A saved category cannot be cleared (an empty value leaves it as it is), so "none" is offered only before one is set. */}
-            {blog?.category ? null : <option value="">No category</option>}
-            {categories.map(name => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+          <CapsuleSelect
+            id="blog-category"
+            ariaLabel="Category"
+            value={draft.category}
+            onChange={value => set("category", value)}
+            options={[...(blog?.category ? [] : [{ value: "", label: "No category" }]), ...categories.map(name => ({ value: name, label: name }))]}
+          />
           {canAddCategory ? (
             newCategory === null ? (
               <button className="admin-action category-new" type="button" disabled={busy} onClick={() => { setNewCategory(""); setCategoryError(""); }}>
@@ -481,17 +483,22 @@ export function BlogForm({
           <p className="form-error" role="status">Possible publishing instructions in the article: {briefWarnings.join(", ")}. Review this text before publishing; it will be visible to readers.</p>
         ) : null}
         <SeoHint checks={seoChecks} field="blog-content" />
-        <label className="admin-field">
+        <div className="admin-field">
           <span>Contents list</span>
-          <select value={draft.contents} onChange={event => set("contents", event.target.value as ContentsMode)}>
-            <option value="auto">Auto — only for a long article ({CONTENTS_MIN_SECTIONS}+ sections, {CONTENTS_MIN_WORDS.toLocaleString("en-IN")}+ words)</option>
-            <option value="show">Show — always list the sections</option>
-            <option value="hide">Hide — no contents list</option>
-          </select>
+          <CapsuleSelect
+            ariaLabel="Contents list"
+            value={draft.contents}
+            onChange={value => set("contents", value as ContentsMode)}
+            options={[
+              { value: "auto", label: `Auto — only for a long article (${CONTENTS_MIN_SECTIONS}+ sections, ${CONTENTS_MIN_WORDS.toLocaleString("en-IN")}+ words)` },
+              { value: "show", label: "Show — always list the sections" },
+              { value: "hide", label: "Hide — no contents list" },
+            ]}
+          />
           <small className="field-hint">
             {contentsSummary} The list uses your largest headings (H2, or H3 when there is no H2), so keep those for section titles, not lead-in lines like &ldquo;Here are the reasons:&rdquo;.
           </small>
-        </label>
+        </div>
       </div>
 
       <section className="admin-seo" id="blog-featured-image">
@@ -573,15 +580,20 @@ export function BlogForm({
             <input id="seo-title" value={draft.seoTitle} onChange={event => set("seoTitle", event.target.value)} placeholder="Page title for Google" />
             <SeoHint checks={seoChecks} field="seo-title" />
           </label>
-          <label className="admin-field">
+          <div className="admin-field">
             <span>Visibility</span>
-            <select value={draft.visibility} onChange={event => set("visibility", event.target.value as Visibility)}>
-              <option value="public">Public — anyone can read</option>
-              <option value="members">Members only — login required</option>
-              <option value="unlisted">Unlisted — direct link only</option>
-              <option value="private">Private — author and admin</option>
-            </select>
-          </label>
+            <CapsuleSelect
+              ariaLabel="Visibility"
+              value={draft.visibility}
+              onChange={value => set("visibility", value as Visibility)}
+              options={[
+                { value: "public", label: "Public — anyone can read" },
+                { value: "members", label: "Members only — login required" },
+                { value: "unlisted", label: "Unlisted — direct link only" },
+                { value: "private", label: "Private — author and admin" },
+              ]}
+            />
+          </div>
         </div>
         <label className="admin-field">
           <span>Meta description</span>
@@ -609,37 +621,52 @@ export function BlogForm({
         </details>
 
         {canPublish ? (
-          <label className="admin-field">
+          <div className="admin-field">
             <span>Comments on this post</span>
-            <select value={draft.comments} onChange={event => set("comments", event.target.value as CommentMode)}>
-              <option value="default">Site default — follow the setting in Site settings</option>
-              <option value="open">Open — comments appear straight away</option>
-              <option value="moderated">Moderated — hold each one for review</option>
-              <option value="closed">Closed — no new comments</option>
-            </select>
-          </label>
+            <CapsuleSelect
+              ariaLabel="Comments on this post"
+              value={draft.comments}
+              onChange={value => set("comments", value as CommentMode)}
+              options={[
+                { value: "default", label: "Site default — follow the setting in Site settings" },
+                { value: "open", label: "Open — comments appear straight away" },
+                { value: "moderated", label: "Moderated — hold each one for review" },
+                { value: "closed", label: "Closed — no new comments" },
+              ]}
+            />
+          </div>
         ) : null}
 
         {canPublish ? (
-          <label className="admin-field">
+          <div className="admin-field">
             <span>View count on this post</span>
-            <select value={draft.showViews} onChange={event => set("showViews", event.target.value as ViewMode)}>
-              <option value="default">Site default — follow the setting in Site settings</option>
-              <option value="show">Show — readers see how many views it has</option>
-              <option value="hide">Hide — only the panel shows its views</option>
-            </select>
-          </label>
+            <CapsuleSelect
+              ariaLabel="View count on this post"
+              value={draft.showViews}
+              onChange={value => set("showViews", value as ViewMode)}
+              options={[
+                { value: "default", label: "Site default — follow the setting in Site settings" },
+                { value: "show", label: "Show — readers see how many views it has" },
+                { value: "hide", label: "Hide — only the panel shows its views" },
+              ]}
+            />
+          </div>
         ) : null}
 
         {canPublish ? (
-          <label className="admin-field">
+          <div className="admin-field">
             <span>Share buttons on this post</span>
-            <select value={draft.sharing} onChange={event => set("sharing", event.target.value as ShareMode)}>
-              <option value="default">Site default — follow the setting in Site settings</option>
-              <option value="show">Show — readers can share this post</option>
-              <option value="hide">Hide — no share buttons on this post</option>
-            </select>
-          </label>
+            <CapsuleSelect
+              ariaLabel="Share buttons on this post"
+              value={draft.sharing}
+              onChange={value => set("sharing", value as ShareMode)}
+              options={[
+                { value: "default", label: "Site default — follow the setting in Site settings" },
+                { value: "show", label: "Show — readers can share this post" },
+                { value: "hide", label: "Hide — no share buttons on this post" },
+              ]}
+            />
+          </div>
         ) : null}
       </section>
 

@@ -130,7 +130,9 @@ test('browser: QR to scan, totals, pause and resume, Sent / Not sent history, an
     await page.getByText('No phone number is saved for this email address.').waitFor();
     assert.ok(await page.getByText('neha@example.test').isVisible(), 'failed and skipped together');
     assert.equal(await page.getByText('ravi@example.test').count(), 0);
-    await page.getByRole('combobox', { name: /^Show/ }).selectOption('failed');
+    const showTrigger = page.getByRole('combobox', { name: /^Show/ });
+    await showTrigger.click();
+    await showTrigger.locator('..').locator('[role="option"][data-value="failed"]').click();
     await page.getByText('subscriber@example.test').waitFor({ state: 'detached' });
     assert.ok(await page.getByText('neha@example.test').isVisible());
 
@@ -287,8 +289,12 @@ test('browser: change the sending rules, see a warning, refuse a bad value, rese
 
     await jitter.fill('20');
     await page.getByLabel('Gap between messages').fill('60');
-    await page.getByLabel('Stop at').selectOption('20');
-    await page.getByLabel('Start again at').selectOption('12');
+    const pickCapsule = async (trigger, value) => {
+      await trigger.click();
+      await trigger.locator('..').locator(`[role="option"][data-value="${value}"]`).click();
+    };
+    await pickCapsule(page.getByLabel('Stop at'), '20');
+    await pickCapsule(page.getByLabel('Start again at'), '12');
     await page.getByLabel('Drop a message after').fill('12');
     await page.getByRole('button', { name: 'Save rules' }).click();
     await page.getByText('Sending rules saved.').waitFor();

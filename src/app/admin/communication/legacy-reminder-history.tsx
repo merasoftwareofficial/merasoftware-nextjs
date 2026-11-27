@@ -1,5 +1,7 @@
 "use client";
 
+import { CapsuleSelect } from "@/components/capsule-select";
+
 import { useCallback, useMemo, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
@@ -48,7 +50,7 @@ export function LegacyReminderHistory({ source = "all", entityId, active, title 
     {opened && <section className={styles.section} aria-label={title}>
       {compact ? <InfoTip label={title}><p>Saved message records, including completed ones. Missing old records are not recreated. WhatsApp results show while queue records remain.</p></InfoTip> : <p className={styles.muted}>Saved message records, including completed records. Missing old records are not recreated. WhatsApp results are shown while queue records remain available.</p>}
       <div className={c.toolbar}>
-        {source === "all" && <label className={styles.filters}>History source<select value={filter} onChange={event => { setFilter(event.target.value as Source); setPage(1); }}><option value="all">All existing workflows</option><option value="reservation">Reservations</option><option value="package_request">Package requests</option><option value="offer_payment">Offer payments</option></select></label>}
+        {source === "all" && <div className={styles.filters}><span>History source</span> <CapsuleSelect ariaLabel="History source" value={filter} onChange={value => { setFilter(value as Source); setPage(1); }} options={[{ value: "all", label: "All existing workflows" }, { value: "reservation", label: "Reservations" }, { value: "package_request", label: "Package requests" }, { value: "offer_payment", label: "Offer payments" }]} /></div>}
         <input className={c.search} type="search" aria-label="Search message history" placeholder="Search customer or message…" value={query} onChange={event => setQuery(event.target.value)} />
       </div>
       {error && <p className={styles.error} role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button></p>}

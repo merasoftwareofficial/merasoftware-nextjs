@@ -4,7 +4,7 @@ import { BRAND_LOGO } from "@/lib/brand";
 import { atLeast, type Role } from "@/lib/auth";
 import { StaffAlerts } from "@/components/staff-alerts";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AdminNavLinks, type AdminNavGroup, type AdminNavItem } from "@/components/admin-nav-links";
+import { AdminNavLinks, AdminNavResizeControls, type AdminNavGroup, type AdminNavItem } from "@/components/admin-nav-links";
 import { COMMUNICATION_SECTIONS } from "@/app/admin/communication/communication-sections";
 
 /**
@@ -55,7 +55,7 @@ export function AdminLayout({ children, role = "visitor", pushKey = null, salesA
   const visible: AdminNavGroup[] = navigation
     .map(({ title, items }) => ({ title, items: items.filter(({ href, minimum }) => atLeast(role, minimum) && (!SALES_PAGES.includes(href) || salesAdmin)).map(({ label, href, also, sub, soft }) => ({ label, href, also, sub, soft })) }))
     .filter(group => group.items.length);
-  return <div className="admin-shell"><aside className="admin-nav"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /><img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /></Link><AdminNavLinks groups={visible} /><ThemeToggle /><Link href="/">View website ↗</Link></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
+  return <div className="admin-shell"><aside className="admin-nav"><div className="admin-nav-top"><Link className="brand brand-logo admin-brand" href="/"><img className="logo-on-light" src={BRAND_LOGO.light} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /><img className="logo-on-dark" src={BRAND_LOGO.dark} alt={BRAND_LOGO.alt} width={BRAND_LOGO.width} height={BRAND_LOGO.height} /></Link><AdminNavResizeControls /></div><AdminNavLinks groups={visible} /><div className="admin-nav-foot"><ThemeToggle /><Link className="admin-nav-site" title="View website" href="/"><span className="admin-nav-label">View website</span><span aria-hidden="true">↗</span></Link></div></aside>{children}{pushKey ? <StaffAlerts publicKey={pushKey} /> : null}</div>;
 }
 
 export function AdminHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
