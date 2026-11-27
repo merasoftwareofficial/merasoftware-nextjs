@@ -14,7 +14,7 @@ import type {
 export type Unit = "days" | "hours";
 export type Channel = "whatsapp" | "email" | "both";
 export type TimingPos = "before" | "on" | "after";
-export type BaseDate = "trigger_date" | "due_date" | "expiry_date" | "deadline_date";
+export type BaseDate = "trigger_date" | "due_date" | "grace_end_date" | "expiry_date" | "deadline_date";
 export type InstantAudience = "off" | "client" | "admin" | "both";
 export type ReminderAudience = "client" | "admin" | "both";
 export type MessageMode = "separate" | "universal";
@@ -34,174 +34,14 @@ export type WorkItem = {
   supportsLimit: boolean;
   defaultStopOn: string[];
   conditions: string[];
+  baseDates?: BaseDate[];
+  systemActions?: string[] | null;
 };
 
 export type WorkFolder = {
   folder: string;
   items: WorkItem[];
 };
-
-const PAYMENT_COND_KEYS = ["anytime", "unpaid", "pending_approval", "paid", "installment_due"];
-const PACKAGE_COND_KEYS = [...PAYMENT_COND_KEYS, "upload_pending"];
-
-const FALLBACK_WORKS: WorkItem[] = [
-  {
-    key: "package.purchased",
-    label: "Package purchased",
-    folder: "Plans & Packages",
-    when: "When a client buys a sales package.",
-    entityType: "order",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: true,
-    defaultStopOn: ["upload.completed", "payment.received"],
-    conditions: PACKAGE_COND_KEYS,
-  },
-  {
-    key: "plan.expired",
-    label: "Plan / Package Expired",
-    folder: "Plans & Packages",
-    when: "When a monthly plan or package expires (can filter by remaining portal upload limit).",
-    entityType: "order",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: true,
-    defaultStopOn: ["payment.received"],
-    conditions: PACKAGE_COND_KEYS,
-  },
-  {
-    key: "invoice.created",
-    label: "Payment Due (Any Bill / Order / Installment / Renewal)",
-    folder: "Payments & Invoices",
-    when: "When any project, plan, package, installment, or monthly renewal creates a due bill.",
-    entityType: "invoice",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: true,
-    defaultStopOn: ["payment.received", "order.upi_pending"],
-    conditions: PACKAGE_COND_KEYS,
-  },
-  {
-    key: "order.upi_pending",
-    label: "Payment Submitted by Client (Approval Pending)",
-    folder: "Payments & Invoices",
-    when: "When a client submits a UPI order or installment payment waiting for admin approval.",
-    entityType: "order",
-    supportsScope: true,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: ["payment.received", "plan.payment_rejected"],
-    conditions: PAYMENT_COND_KEYS,
-  },
-  {
-    key: "payment.received",
-    label: "Payment Approved / Recorded (Paid)",
-    folder: "Payments & Invoices",
-    when: "When an invoice or order is approved, recorded paid, or paid via wallet/installment.",
-    entityType: "invoice",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-    conditions: ["anytime"],
-  },
-  {
-    key: "plan.payment_rejected",
-    label: "Payment Rejected (by Admin)",
-    folder: "Payments & Invoices",
-    when: "When an admin rejects a submitted plan, order, or wallet payment.",
-    entityType: "order",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-    conditions: ["anytime"],
-  },
-  {
-    key: "project.created",
-    label: "Project created",
-    folder: "Projects & Previews",
-    when: "When a new project is created by an admin, requested by a client, or started from a package.",
-    entityType: "order",
-    supportsScope: true,
-    supportsProgress: true,
-    supportsLimit: false,
-    defaultStopOn: ["payment.received"],
-    conditions: PACKAGE_COND_KEYS,
-  },
-  {
-    key: "project.step_updated",
-    label: "Project step update",
-    folder: "Projects & Previews",
-    when: "When project steps or progress % change (use Progress >= X% or Installment due for milestone reminders).",
-    entityType: "order",
-    supportsScope: true,
-    supportsProgress: true,
-    supportsLimit: false,
-    defaultStopOn: ["payment.received", "project.completed"],
-    conditions: PACKAGE_COND_KEYS,
-  },
-  {
-    key: "upload.completed",
-    label: "Update request / upload completed",
-    folder: "Data Uploads & Documents",
-    when: "When a client uploads files (portal or external link) or submits an update request.",
-    entityType: "none",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-    conditions: ["anytime"],
-  },
-  {
-    key: "ticket.updated",
-    label: "Support ticket opened or replied",
-    folder: "Login, Profile, Accounts & Support",
-    when: "When a client opens a support ticket or a client/admin replies to a ticket.",
-    entityType: "none",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-    conditions: ["anytime"],
-  },
-  {
-    key: "user.signed_up",
-    label: "User sign up, OTP or profile updated",
-    folder: "Login, Profile, Accounts & Support",
-    when: "When someone signs up, verifies/resends OTP, sets password, or updates their profile.",
-    entityType: "none",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-    conditions: ["anytime"],
-  },
-  {
-    key: "comment.posted",
-    label: "Website Comment / Review Posted",
-    folder: "Website Content, Products, Broadcast & Settings",
-    when: "When a visitor or client posts a new comment or review on the website.",
-    entityType: "none",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: ["comment.approved"],
-    conditions: ["anytime"],
-  },
-  {
-    key: "comment.approved",
-    label: "Comment Approved / Moderated",
-    folder: "Website Content, Products, Broadcast & Settings",
-    when: "When an admin approves or moderates a website comment.",
-    entityType: "none",
-    supportsScope: false,
-    supportsProgress: false,
-    supportsLimit: false,
-    defaultStopOn: [],
-    conditions: ["anytime"],
-  },
-];
 
 function triggerToWork(t: TriggerGroup): WorkItem {
   return {
@@ -217,6 +57,10 @@ function triggerToWork(t: TriggerGroup): WorkItem {
     conditions: Array.isArray(t.conditions) && t.conditions.length
       ? t.conditions.map(c => c.key)
       : ["anytime"],
+    baseDates: Array.isArray(t.baseDates) && t.baseDates.length
+      ? (t.baseDates.filter((d): d is BaseDate => ["trigger_date", "due_date", "grace_end_date", "expiry_date", "deadline_date"].includes(d)))
+      : ["trigger_date"],
+    systemActions: Array.isArray(t.systemActions) ? t.systemActions : null,
   };
 }
 
@@ -229,7 +73,7 @@ export function buildWorkCatalog(data: ActionsData | null): {
   isLive: boolean;
 } {
   const isLive = Boolean(data?.triggers && data.triggers.length > 0);
-  const raw: WorkItem[] = isLive ? data!.triggers!.map(triggerToWork) : [...FALLBACK_WORKS];
+  const raw: WorkItem[] = isLive ? data!.triggers!.map(triggerToWork) : [];
   const byKey = new Map<string, WorkItem>();
   for (const item of raw) byKey.set(item.key, item);
 
@@ -273,6 +117,20 @@ export function buildWorkCatalog(data: ActionsData | null): {
   };
 }
 
+export function getApplicableBaseDates(
+  workOrList: WorkItem | (WorkItem | undefined)[] | null | undefined,
+): { id: BaseDate; label: string }[] {
+  const list = Array.isArray(workOrList)
+    ? workOrList.filter((w): w is WorkItem => Boolean(w))
+    : (workOrList ? [workOrList] : []);
+  if (!list.length) return BASE_DATES;
+  const allowed = new Set<BaseDate>(["trigger_date"]);
+  for (const w of list) {
+    for (const d of w.baseDates || ["trigger_date"]) allowed.add(d);
+  }
+  return BASE_DATES.filter(item => allowed.has(item.id));
+}
+
 export function getApplicableConditions(
   workOrList: WorkItem | (WorkItem | undefined)[] | null | undefined,
   catalogConditions: ConditionCatalogItem[],
@@ -284,11 +142,20 @@ export function getApplicableConditions(
   const entityTypes = new Set(list.map(w => w.entityType || "none"));
   const hasProgress = list.some(w => w.supportsProgress);
   const hasLimit = list.some(w => w.supportsLimit);
+  const triggerCondKeys = new Set<string>(["anytime", "any"]);
+  for (const w of list) {
+    for (const c of w.conditions || []) triggerCondKeys.add(c);
+  }
 
   return catalogConditions.filter(item => {
     if (!item.usableIn.includes(mode)) return false;
-    if (item.requiresFeature === "progress" && !hasProgress) return false;
-    if (item.requiresFeature === "limit" && !hasLimit) return false;
+    if (item.key === "not_stopped") return mode === "escalation";
+    if (item.requiresFeature === "progress") return hasProgress;
+    if (item.requiresFeature === "limit") return hasLimit;
+    if (item.key === "any" || item.ruleKey === "anytime") return true;
+    if (list.length > 0 && !triggerCondKeys.has(item.ruleKey || item.key) && !triggerCondKeys.has(item.key)) {
+      return false;
+    }
     if (item.entityTypes.includes("*")) return true;
     return item.entityTypes.some(et => entityTypes.has(et));
   });
@@ -306,11 +173,19 @@ export function getApplicableSystemActions(
     : (workOrList ? [workOrList] : []);
   const entityTypes = new Set(list.map(w => w.entityType || "none"));
   const isPaymentOnlyTrigger = list.length > 0 && list.every(w => PAYMENT_AUTO_PAUSE_TRIGGERS.has(w.key));
+  const hasExplicitActionList = list.length > 0 && list.every(w => Array.isArray(w.systemActions) && w.systemActions.length > 0);
+  const allowedActionKeys = new Set<string>();
+  if (hasExplicitActionList) {
+    for (const w of list) {
+      for (const a of w.systemActions || []) allowedActionKeys.add(a);
+    }
+  }
 
   return catalogActions.filter(item => {
     if (!item.usableIn.includes(mode)) return false;
-    // Unpaid plans auto-pause on due date via core billing; hide redundant plan.pause on payment triggers.
+    // Unpaid plans auto-pause via core billing; hide redundant plan.pause on payment triggers.
     if (isPaymentOnlyTrigger && item.key === "plan.pause") return false;
+    if (hasExplicitActionList) return allowedActionKeys.has(item.key);
     if (item.entityTypes.includes("*")) return true;
     return item.entityTypes.some(et => entityTypes.has(et));
   });
@@ -327,6 +202,7 @@ export const PACKAGE_SCOPES: { id: PackageScopeMode; label: string }[] = [
 export const BASE_DATES: { id: BaseDate; label: string }[] = [
   { id: "trigger_date", label: "Start trigger date" },
   { id: "due_date", label: "Invoice / Payment due date" },
+  { id: "grace_end_date", label: "Grace end date (Pause / Expiry)" },
   { id: "expiry_date", label: "Package / Plan expiry date" },
   { id: "deadline_date", label: "Project deadline" },
 ];
@@ -348,6 +224,8 @@ export const PLACEHOLDERS: { token: string; label: string }[] = [
   { token: "{{project}}", label: "Project name" },
   { token: "{{amount}}", label: "Amount" },
   { token: "{{dueDate}}", label: "Due date" },
+  { token: "{{graceEndDate}}", label: "Grace end date" },
+  { token: "{{graceDays}}", label: "Grace days" },
   { token: "{{progress}}", label: "Progress %" },
   { token: "{{remainingLimit}}", label: "Upload limit left" },
   { token: "{{deactivationDays}}", label: "Deactivation days left" },
@@ -383,32 +261,18 @@ export function defaultReminderTiming(triggerKey?: string): {
   return { countDaysFrom: "trigger_date", pos: "after", amount: 1, unit: "days" };
 }
 
-export function allowedConditionIds(workOrList?: WorkItem | (WorkItem | undefined)[] | null): string[] {
-  const list = Array.isArray(workOrList) ? workOrList.filter((w): w is WorkItem => Boolean(w)) : (workOrList ? [workOrList] : []);
-  const allowed = new Set<string>(["any"]);
-  for (const work of list) {
-    for (const c of work.conditions || []) {
-      if (CONDITIONS.some(item => item.id === c)) allowed.add(c);
-    }
-    if (work.supportsProgress) allowed.add("progress_min");
-    if (work.supportsLimit) {
-      allowed.add("limit_min");
-      allowed.add("limit_max");
-    }
-  }
-  return CONDITIONS.filter(item => allowed.has(item.id)).map(item => item.id);
-}
-
 export function timingPositionLabel(pos: TimingPos, baseDate: BaseDate): string {
   if (baseDate === "trigger_date") {
     if (pos === "on") return "immediately (on trigger)";
     return pos === "after" ? "after trigger" : "before trigger";
   }
-  const target = baseDate === "expiry_date"
-    ? "expiry date"
-    : baseDate === "deadline_date"
-      ? "project deadline"
-      : "due date";
+  const target = baseDate === "grace_end_date"
+    ? "grace end date"
+    : baseDate === "expiry_date"
+      ? "expiry date"
+      : baseDate === "deadline_date"
+        ? "project deadline"
+        : "due date";
   if (pos === "before") return `before ${target}`;
   if (pos === "on") return `on ${target}`;
   return `after ${target}`;

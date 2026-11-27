@@ -21,8 +21,10 @@ export type SalesPackage = {
   billing?: PackageBilling; portalUploads?: boolean; paymentOptions?: PackagePaymentOption[];
   /** A monthly package's settings (src/docs/monthlypackage.md); its prices are then per month. It runs as a plan. */
   monthly?: PackageMonthly;
-  /** Days after invoice date before payment is due (0..365, default 0). Missing on older packages (= 0). */
+  /** Unpaid grace days after due date before auto-pause / optional auto-cancel (0..365, default 0). */
   paymentDueDays?: number;
+  /** One-time packages only: what happens after unpaid grace days end when paidAmount === 0. */
+  graceEndAction?: "keep_open" | "auto_cancel";
   /** Packages priced from their category and add-ons (backend helpers/salesPackages.js, 10 + 11 Nov 2026; monthly: the price of a month): the add-ons chosen
    * (what the form sends) and the prices frozen when it was saved (read only; the backend ignores a copy sent back).
    * Missing on packages priced by hand. */

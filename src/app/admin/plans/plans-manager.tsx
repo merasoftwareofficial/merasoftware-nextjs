@@ -252,7 +252,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
         <div className="form-columns">
           {recurringPossible && <label className="admin-field"><span>Longest length a client can buy (months)</span><NumberInput required min={1} max={12} value={form.maxTenureMonths} onValueChange={num("maxTenureMonths")} /></label>}
           {oneTimePossible && <label className="admin-field"><span>A one-time purchase lasts (days)</span><NumberInput required min={1} max={3650} value={form.oneTimeValidityDays} onValueChange={num("oneTimeValidityDays")} /></label>}
-          <label className="admin-field"><span>Payment due days</span><NumberInput required min={0} max={365} value={form.paymentDueDays} onValueChange={num("paymentDueDays")} /><small>0 = due immediately (default). Days after bill date before an unpaid plan pauses.</small></label>
+          <label className="admin-field"><span>Unpaid grace days</span><NumberInput required min={0} max={365} value={form.paymentDueDays} onValueChange={num("paymentDueDays")} /><small>Due date = billing cycle date. Plan stays active for this many grace days, then auto-pauses (0 = pause immediately).</small></label>
         </div>
         {isUpload && recurringPossible && <>
           <div className={s.row}>

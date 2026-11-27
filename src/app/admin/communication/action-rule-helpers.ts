@@ -22,6 +22,8 @@ export type TriggerGroup = {
   canStop?: boolean;
   defaultStopOn?: string[];
   conditions?: { key: string; label: string }[];
+  baseDates?: string[];
+  systemActions?: string[] | null;
   origins: TriggerOrigin[];
   builtIn?: BuiltInInfo;
   rules?: ActionRuleRecord[];

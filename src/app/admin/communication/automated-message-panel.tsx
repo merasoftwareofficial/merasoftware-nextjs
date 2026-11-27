@@ -11,8 +11,8 @@ import type {
 } from "./action-rule-helpers";
 import s from "./automated-message.module.css";
 import {
-  allowedConditionIds, BASE_DATES, buildWorkCatalog, CONDITIONS,
-  defaultReminderTiming, getApplicableConditions, getApplicableSystemActions,
+  buildWorkCatalog, CONDITIONS, defaultReminderTiming,
+  getApplicableBaseDates, getApplicableConditions, getApplicableSystemActions,
   MAX_CHAIN_DEPTH, PACKAGE_SCOPES, PLACEHOLDERS,
   timingPositionLabel,
   type BaseDate, type Channel, type InstantAudience, type MessageMode,
@@ -328,7 +328,7 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
     };
   }
   const safeForDays = typeof r.repeatForDays === "number" && Number.isFinite(r.repeatForDays) ? Math.max(1, r.repeatForDays) : 7;
-  const countDaysFrom: BaseDate = r.countDaysFrom === "trigger_date" || r.countDaysFrom === "expiry_date" || r.countDaysFrom === "deadline_date" ? r.countDaysFrom : "due_date";
+  const countDaysFrom: BaseDate = r.countDaysFrom === "trigger_date" || r.countDaysFrom === "grace_end_date" || r.countDaysFrom === "expiry_date" || r.countDaysFrom === "deadline_date" ? r.countDaysFrom : "due_date";
   const repeatMode: RepeatMode = r.repeatMode === "permanent" || r.repeatMode === "limited"
     ? r.repeatMode
     : (r.repeatMode === "until_due" && countDaysFrom !== "trigger_date" ? "until_due" : "off");
@@ -917,7 +917,7 @@ function cleanSingleReminder(
 ): { reminder?: Reminder; error?: string; errorBoxId?: string } {
   const effWorks = effTriggers.map(k => byKey.get(k));
   const liveConds = getApplicableConditions(effWorks, catalogConditions, "reminder");
-  const allowedConds = liveConds.length > 0 ? liveConds.map(c => c.key) : allowedConditionIds(effWorks);
+  const allowedConds = liveConds.map(c => c.key);
   const condition = allowedConds.includes(rem.condition) ? rem.condition : "any";
   const repeatMode: RepeatMode = rem.countDaysFrom === "trigger_date" && rem.repeatMode === "until_due" ? "off" : rem.repeatMode;
   const onTimeout = repeatMode === "permanent" && rem.onTimeout?.enabled
@@ -2493,36 +2493,32 @@ function ReminderCard({
     () => getApplicableConditions(effectiveWorks, catalogConditions, "reminder"),
     [effectiveWorks, catalogConditions],
   );
-  const liveEscalationConds = useMemo(
-    () => getApplicableConditions(effectiveWorks, catalogConditions, "escalation"),
-    [effectiveWorks, catalogConditions],
-  );
   const liveEscalationActions = useMemo(
     () => getApplicableSystemActions(effectiveWorks, catalogActions, "escalation"),
     [effectiveWorks, catalogActions],
   );
-  const allowedConds = liveReminderConds.length > 0
-    ? liveReminderConds.map(c => c.key)
-    : allowedConditionIds(effectiveWorks);
-  const visibleConditions = liveReminderConds.length > 0
-    ? liveReminderConds.map(c => ({ id: c.key, label: c.label, valueConfig: c.valueConfig }))
-    : CONDITIONS.filter(c => allowedConds.includes(c.id)).map(c => ({
-        id: c.id,
-        label: c.label,
-        valueConfig: "value" in c && c.value ? { min: 0, max: c.max, defaultVal: c.defaultVal } : undefined,
-      }));
+  const allowedConds = liveReminderConds.map(c => c.key);
+  const visibleConditions = liveReminderConds.map(c => ({ id: c.key, label: c.label, valueConfig: c.valueConfig }));
   const safeCondition = allowedConds.includes(reminder.condition) ? reminder.condition : "any";
   const conditionDef = visibleConditions.find(item => item.id === safeCondition);
 
-  const isDueAnchored = reminder.countDaysFrom !== "trigger_date";
-  const dueTargetLabel = reminder.countDaysFrom === "expiry_date"
-    ? "expiry date"
-    : reminder.countDaysFrom === "deadline_date"
-      ? "project deadline"
-      : "due date";
+  const visibleBaseDates = useMemo(
+    () => getApplicableBaseDates(effectiveWorks),
+    [effectiveWorks],
+  );
+  const safeBaseDate: BaseDate = visibleBaseDates.some(d => d.id === reminder.countDaysFrom)
+    ? reminder.countDaysFrom
+    : (visibleBaseDates[0]?.id || "trigger_date");
+  const isDueAnchored = safeBaseDate !== "trigger_date";
+  const dueTargetLabel = safeBaseDate === "grace_end_date"
+    ? "grace end date"
+    : safeBaseDate === "expiry_date"
+      ? "expiry date"
+      : safeBaseDate === "deadline_date"
+        ? "project deadline"
+        : "due date";
   const timeoutCfg: TimeoutConfig = reminder.onTimeout || defaultTimeoutConfig(isDueAnchored ? 0 : (reminder.repeatForDays || 5));
   const setTimeoutCfg = (patch: Partial<TimeoutConfig>) => set({ onTimeout: { ...timeoutCfg, ...patch } });
-  const timeoutCondDef = liveEscalationConds.find(c => c.key === timeoutCfg.condition);
   const hasStageContinueAction = timeoutCfg.actions.some(a => a.key === "stage.continue");
   const timeoutStages = (currentStages || []).filter(st => st.source === "previous_timeout" && st.id !== stageId);
 
@@ -2552,9 +2548,18 @@ function ReminderCard({
     const targetKeys = nextStart === "__main__" ? stageTriggers : [nextStart];
     const targetWorks = targetKeys.map(k => byKey.get(k));
     const liveNext = getApplicableConditions(targetWorks, catalogConditions, "reminder");
-    const nextAllowed = liveNext.length > 0 ? liveNext.map(c => c.key) : allowedConditionIds(targetWorks);
+    const nextAllowed = liveNext.map(c => c.key);
+    const nextBaseDates = getApplicableBaseDates(targetWorks);
+    const nextBase: BaseDate = nextBaseDates.some(d => d.id === reminder.countDaysFrom)
+      ? reminder.countDaysFrom
+      : (nextBaseDates[0]?.id || "trigger_date");
+    const fixPos = (st: MessageStep): MessageStep => (nextBase === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st);
     set({
       startTrigger: nextStart,
+      countDaysFrom: nextBase,
+      repeatMode: nextBase === "trigger_date" && reminder.repeatMode === "until_due" ? "off" : reminder.repeatMode,
+      clientSteps: reminder.clientSteps.map(fixPos),
+      adminSteps: reminder.adminSteps.map(fixPos),
       condition: nextAllowed.includes(reminder.condition) ? reminder.condition : "any",
       stopOn: reminder.stopOn.filter(k => !targetKeys.includes(k)),
     });
@@ -2643,10 +2648,11 @@ function ReminderCard({
           <select
             className={s.select}
             aria-label="Count days from"
-            value={reminder.countDaysFrom}
+            disabled={visibleBaseDates.length <= 1}
+            value={safeBaseDate}
             onChange={e => handleBaseDateChange(e.target.value as BaseDate)}
           >
-            {BASE_DATES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            {visibleBaseDates.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
         </div>
       </div>
@@ -2659,7 +2665,7 @@ function ReminderCard({
             title="Client messages"
             mode={reminder.clientMode}
             steps={reminder.clientSteps}
-            baseDate={reminder.countDaysFrom}
+            baseDate={safeBaseDate}
             boxPrefix={`${stagePrefix}-r${reminder.id}-client`}
             accordion={accordion}
             onModeChange={clientMode => {
@@ -2680,7 +2686,7 @@ function ReminderCard({
             title="Admin / Team messages"
             mode={reminder.adminMode}
             steps={reminder.adminSteps}
-            baseDate={reminder.countDaysFrom}
+            baseDate={safeBaseDate}
             canCopyClient={showClient}
             boxPrefix={`${stagePrefix}-r${reminder.id}-admin`}
             accordion={accordion}
@@ -2696,16 +2702,16 @@ function ReminderCard({
         </div>
       )}
 
-      {/* 3. Only When (live SSOT condition) + Repeat + Stop triggers + Escalation */}
+      {/* 3. Send only if (live SSOT trigger-specific condition — auto-hidden when only Always) + Repeat + Stop + Escalation */}
       <div className={s.grid2}>
-        <div className={`${s.field} ${s.fieldFull}`} data-disabled={visibleConditions.length <= 1}>
-          <label className={s.labelRow}><span>Only when (reminder condition)</span></label>
+        {visibleConditions.length > 1 && (
+        <div className={`${s.field} ${s.fieldFull}`}>
+          <label className={s.labelRow}><span>Send only if</span></label>
           <div className={s.inlineRow}>
             <select
               className={s.select}
               style={{ flex: 1 }}
-              aria-label="Only when condition"
-              disabled={visibleConditions.length <= 1}
+              aria-label="Send only if condition"
               value={safeCondition}
               onChange={e => {
                 const nextIdVal = e.target.value;
@@ -2731,6 +2737,7 @@ function ReminderCard({
             )}
           </div>
         </div>
+        )}
 
         <div className={`${s.stackField} ${s.fieldFull}`}>
           <div className={s.gridRepeat}>
@@ -2873,7 +2880,7 @@ function ReminderCard({
                   });
                 }}
               />
-              <span>{isDueAnchored ? `On ${dueTargetLabel} — run Condition → System Action` : "If not stopped after wait period — run Condition → System Action"}</span>
+              <span>{isDueAnchored ? `On ${dueTargetLabel} — run System Action` : "If not stopped after wait period — run System Action"}</span>
             </label>
             {timeoutCfg.enabled && (
               <div className={s.timeoutWaitRow}>
@@ -2893,47 +2900,10 @@ function ReminderCard({
           </div>
 
           {timeoutCfg.enabled && (
-            <div className={s.grid2}>
-              {/* Left: Condition (SSOT from backend) */}
+            <div className={s.stackField}>
+              {/* System Action (SSOT from backend, trigger-filtered) */}
               <div className={s.stackField}>
-                <label className={s.stackLabel}>Condition (when to run)</label>
-                <div className={s.inlineRow}>
-                  <select
-                    className={s.select}
-                    style={{ flex: 1 }}
-                    aria-label="Escalation condition"
-                    value={timeoutCfg.condition}
-                    onChange={e => {
-                      const nextKey = e.target.value;
-                      const found = liveEscalationConds.find(c => c.key === nextKey);
-                      setTimeoutCfg({
-                        condition: nextKey,
-                        ...(found?.valueConfig ? { conditionValue: found.valueConfig.defaultVal } : {}),
-                      });
-                    }}
-                  >
-                    {(liveEscalationConds.length > 0 ? liveEscalationConds : [{ key: "not_stopped", label: "Still not stopped by any Stop trigger" }]).map(c => (
-                      <option key={c.key} value={c.key}>{c.label}</option>
-                    ))}
-                  </select>
-                  {timeoutCondDef?.valueConfig && (
-                    <NumberInput
-                      className={s.numInput}
-                      min={timeoutCondDef.valueConfig.min}
-                      max={timeoutCondDef.valueConfig.max}
-                      aria-label="Escalation condition value"
-                      value={timeoutCfg.conditionValue}
-                      emptyOnBlur="zero"
-                      onValueChange={n => setTimeoutCfg({ conditionValue: Math.max(0, n) })}
-                    />
-                  )}
-                </div>
-                {timeoutCondDef?.description && <span className={s.stackHint}>{timeoutCondDef.description}</span>}
-              </div>
-
-              {/* Right: System Action (SSOT from backend) */}
-              <div className={s.stackField}>
-                <label className={s.stackLabel}>System Action (what system does)</label>
+                <label className={s.stackLabel}>System Action (what system does if still not stopped)</label>
                 <SystemActionsEditor
                   actions={timeoutCfg.actions}
                   availableActions={liveEscalationActions}
@@ -3552,16 +3522,24 @@ function FormDialog({
 
     const nextWorks = nextTriggers.map(k => byKey.get(k));
     const liveNext = getApplicableConditions(nextWorks, catalogConditions, "reminder");
-    const nextAllowed = liveNext.length > 0 ? liveNext.map(c => c.key) : allowedConditionIds(nextWorks);
-    const nextReminders = form.reminders.map(rem => (
-      rem.startTrigger === "__main__"
-        ? {
-            ...rem,
-            condition: nextAllowed.includes(rem.condition) ? rem.condition : "any",
-            stopOn: rem.stopOn.filter(k => !nextTriggers.includes(k)),
-          }
-        : rem
-    ));
+    const nextAllowed = liveNext.map(c => c.key);
+    const nextBaseDates = getApplicableBaseDates(nextWorks);
+    const nextReminders = form.reminders.map(rem => {
+      if (rem.startTrigger !== "__main__") return rem;
+      const nextBase: BaseDate = nextBaseDates.some(d => d.id === rem.countDaysFrom)
+        ? rem.countDaysFrom
+        : (nextBaseDates[0]?.id || "trigger_date");
+      const fixPos = (st: MessageStep): MessageStep => (nextBase === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st);
+      return {
+        ...rem,
+        countDaysFrom: nextBase,
+        repeatMode: nextBase === "trigger_date" && rem.repeatMode === "until_due" ? "off" : rem.repeatMode,
+        clientSteps: rem.clientSteps.map(fixPos),
+        adminSteps: rem.adminSteps.map(fixPos),
+        condition: nextAllowed.includes(rem.condition) ? rem.condition : "any",
+        stopOn: rem.stopOn.filter(k => !nextTriggers.includes(k)),
+      };
+    });
     const stillSupportsScope = supportsScopeFor({ ...form, triggers: nextTriggers, reminders: nextReminders });
     set({
       triggers: nextTriggers,
@@ -3612,13 +3590,23 @@ function FormDialog({
   function changeStageTriggers(stage: TrailStage, nextTriggers: string[]) {
     let nextReminder = stage.reminder;
     if (nextReminder && nextReminder.startTrigger === "__main__") {
+      const rem = nextReminder;
       const nextWorks = nextTriggers.map(k => byKey.get(k));
-    const liveNext = getApplicableConditions(nextWorks, catalogConditions, "reminder");
-    const nextAllowed = liveNext.length > 0 ? liveNext.map(c => c.key) : allowedConditionIds(nextWorks);
+      const liveNext = getApplicableConditions(nextWorks, catalogConditions, "reminder");
+      const nextAllowed = liveNext.map(c => c.key);
+      const nextBaseDates = getApplicableBaseDates(nextWorks);
+      const nextBase: BaseDate = nextBaseDates.some(d => d.id === rem.countDaysFrom)
+        ? rem.countDaysFrom
+        : (nextBaseDates[0]?.id || "trigger_date");
+      const fixPos = (st: MessageStep): MessageStep => (nextBase === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st);
       nextReminder = {
-        ...nextReminder,
-        condition: nextAllowed.includes(nextReminder.condition) ? nextReminder.condition : "any",
-        stopOn: nextReminder.stopOn.filter(k => !nextTriggers.includes(k)),
+        ...rem,
+        countDaysFrom: nextBase,
+        repeatMode: nextBase === "trigger_date" && rem.repeatMode === "until_due" ? "off" : rem.repeatMode,
+        clientSteps: rem.clientSteps.map(fixPos),
+        adminSteps: rem.adminSteps.map(fixPos),
+        condition: nextAllowed.includes(rem.condition) ? rem.condition : "any",
+        stopOn: rem.stopOn.filter(k => !nextTriggers.includes(k)),
       };
     }
     updateStage(stage.id, { triggers: nextTriggers, reminder: nextReminder, migratedLegacy: undefined });
