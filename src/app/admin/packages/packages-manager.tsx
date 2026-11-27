@@ -35,7 +35,7 @@ type Item = SalesPackage & { design: PackageDesign; repriceFromCurrent?: boolean
 type PayMode = "" | "current" | "advance" | "limited_uploads" | "pay_later";
 type OfferForm = {
   base?: Offer; title: string; status: "draft" | "published"; offerPrice: string; endsAt: string; payMode: PayMode;
-  advanceType: "fixed" | "percentage"; advanceValue: string; uploadAllowance: string; dueDays: string; reminders: string; reserveWindowHours: string; reservationHoldHours: string;
+  advanceType: "fixed" | "percentage"; advanceValue: string; uploadAllowance: string; dueDays: string; reserveWindowHours: string; reservationHoldHours: string;
 };
 type Errors = Record<string, string>;
 // A new project category is saved by the portal backend through the plan catalogue route, as the plan form does.
@@ -48,7 +48,7 @@ async function sendCategory<T>(body: Record<string, unknown>): Promise<T> {
 
 // A new package starts one-time and fully paid; whether it has portal uploads and its category are always chosen.
 const blank: SalesPackage = { id: "", name: "", description: "", status: "draft", category: "", regularPrice: 0, discountedPrice: 0, offerExtraPrice: 0, offerSlug: "", inclusions: [], terms: [], linkedPlanIds: [], order: 0, pages: [],
-  billing: "one_time", portalUploads: undefined, paymentOptions: ["full"], monthly: undefined,
+  billing: "one_time", portalUploads: undefined, paymentOptions: ["full"], monthly: undefined, paymentDueDays: 0,
   // A new one-time package is priced from its category and add-ons (services: []); an older package has none and keeps its typed price.
   services: [], pricing: undefined };
 // A package switched to monthly starts billed every month, for up to a year, at one fixed monthly price, with
@@ -70,6 +70,7 @@ const offerSlugFromName = (name: string) => name.toLowerCase().normalize("NFKD")
 function toItem(row: SalesPackage, offers: Offer[] = []): Item {
   const config = Object.fromEntries(KEYS.map(key => [key, row[key]])) as SalesPackage;
   if (config.discountedPrice === undefined) config.discountedPrice = config.regularPrice;
+  if (config.paymentDueDays === undefined) config.paymentDueDays = 0;
   if (!config.pages) config.pages = [];
   // What the form edits of the frozen pricing is only which add-ons and how many. A hand-priced package has none (its row has no
   // services either); a new package starts with an empty list, so it is priced from its category and add-ons.
@@ -93,6 +94,7 @@ function fromDraft(draft: PackageDraft, offers: Offer[]): { item: Item; form: Of
     linkedPlanIds: Array.isArray(raw.linkedPlanIds) ? raw.linkedPlanIds : [], pages: Array.isArray(raw.pages) ? raw.pages : [],
     // Only what the copy holds: an older package's copy gets no purchase settings it never had.
     billing: raw.billing, portalUploads: raw.portalUploads, paymentOptions: raw.paymentOptions, monthly: raw.monthly ? cleanMonthly(raw.monthly as PackageMonthly & Record<string, unknown>) : undefined,
+    paymentDueDays: typeof raw.paymentDueDays === "number" && Number.isFinite(raw.paymentDueDays) ? raw.paymentDueDays : 0,
     // A copy made before add-on pricing has no services and keeps its typed price; nothing is filled in for it.
     services: Array.isArray(raw.services) ? raw.services : undefined, pricing: raw.pricing, repriceFromCurrent: raw.repriceFromCurrent === true ? true : undefined,
     design: { ...defaultPackageDesign({ name: String(raw.name ?? draft.name) }), ...(raw.design ?? {}) } };
@@ -106,16 +108,15 @@ function fromDraft(draft: PackageDraft, offers: Offer[]): { item: Item; form: Of
 function blankOffer(): OfferForm {
   const end = new Date(Date.now() + 7 * 86400000);
   const day = toIndiaInput(end).slice(0, 10);
-  return { title: "", status: "draft", offerPrice: "", endsAt: `${day}T23:59`, payMode: "", advanceType: "fixed", advanceValue: "", uploadAllowance: "1", dueDays: "7", reminders: "-1, 0, 3", reserveWindowHours: "", reservationHoldHours: "" };
+  return { title: "", status: "draft", offerPrice: "", endsAt: `${day}T23:59`, payMode: "", advanceType: "fixed", advanceValue: "", uploadAllowance: "1", dueDays: "7", reserveWindowHours: "", reservationHoldHours: "" };
 }
 function formFromOffer(offer: Offer): OfferForm {
   const policy = offer.paymentPolicy;
   return { base: offer, title: offer.title, status: offer.status === "published" ? "published" : "draft", offerPrice: String(offer.offerPrice), endsAt: toIndiaInput(offer.endsAt),
     payMode: policy?.mode ?? "current", advanceType: policy?.minimumAdvance?.type ?? "fixed", advanceValue: policy?.minimumAdvance ? String(policy.minimumAdvance.value) : "", uploadAllowance: String(policy?.uploadAllowance || 1), dueDays: String(policy?.dueDays ?? 7),
-    reminders: (policy?.reminderOffsets ?? [-1, 0, 3]).join(", "), reserveWindowHours: offer.reserveWindowHours ? String(offer.reserveWindowHours) : "",
+    reserveWindowHours: offer.reserveWindowHours ? String(offer.reserveWindowHours) : "",
     reservationHoldHours: offer.reservationHoldHours ? String(offer.reservationHoldHours) : "" };
 }
-const reminderList = (value: string) => value.trim() ? value.split(",").map(part => Number(part.trim())) : [];
 const hours = (value: string) => value.trim() === "" ? undefined : Number(value);
 
 /** The offer part of a save: what the admin typed; the server adds the package values and checks it all. */
@@ -125,7 +126,7 @@ function offerPayload(form: OfferForm, item: Item): Partial<Offer> {
     ...(form.base ?? {}), title: form.title.trim(), status: form.status, offerPrice: Number(form.offerPrice),
     endsAt: indiaInputToUtc(form.endsAt, true), order: item.order,
     paymentPolicy: { mode, ...(mode === "advance" && form.advanceValue ? { minimumAdvance: { type: form.advanceType, value: Number(form.advanceValue) } } : {}), uploadAllowance: mode === "limited_uploads" ? Number(form.uploadAllowance) : 0, dueDays: Number(form.dueDays || 0),
-      cycleScope: form.base?.paymentPolicy?.cycleScope ?? "first_purchase", reminderOffsets: reminderList(form.reminders) },
+      cycleScope: form.base?.paymentPolicy?.cycleScope ?? "first_purchase", reminderOffsets: [] },
   };
   const window = hours(form.reserveWindowHours), hold = hours(form.reservationHoldHours);
   if (window === undefined) delete payload.reserveWindowHours; else payload.reserveWindowHours = window;
@@ -142,6 +143,7 @@ function check(item: Item, offer: OfferForm | null, now: number, extra: Errors =
   if (!(item.regularPrice > 0)) errors.regularPrice = item.services !== undefined ? "The main price must be above ₹0: set the category's base price or tick an add-on." : "Enter a main price above ₹0.";
   if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
   if (!Number.isInteger(item.order) || item.order < 0 || item.order > 9999) errors.order = "Enter a whole number from 0 to 9999.";
+  if (item.paymentDueDays !== undefined && (!Number.isInteger(item.paymentDueDays) || item.paymentDueDays < 0 || item.paymentDueDays > 365)) errors.paymentDueDays = "Enter whole days between 0 and 365.";
   // How customers buy it: all three together (package.md decision 7). An older package without them may stay as it is.
   if (item.billing || item.portalUploads !== undefined || item.paymentOptions?.length) {
     if (!item.billing) errors.billing = "Choose how this package is billed.";
@@ -176,8 +178,6 @@ function check(item: Item, offer: OfferForm | null, now: number, extra: Errors =
     if (offer.payMode && offer.payMode !== "current") {
       const due = Number(offer.dueDays);
       if (offer.dueDays === "" || !Number.isInteger(due) || due < 0 || due > 365) errors.dueDays = "Between 0 and 365 days.";
-      const list = reminderList(offer.reminders);
-      if (list.length > 10 || list.some(n => !Number.isInteger(n) || n < -365 || n > 365)) errors.reminders = "Whole days between -365 and 365, separated by commas.";
     }
     for (const key of ["reserveWindowHours", "reservationHoldHours"] as const) {
       const value = hours(offer[key]);
@@ -760,6 +760,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
                 {err("monthlyCycles")}</div>
               <label className={`admin-field ${bad("monthlyLength") ?? ""}`}><span>Longest length (months) *</span><NumberInput aria-label="Longest length in months" min={1} max={12} value={monthly.maxTenureMonths} onValueChange={n => setMonthly({ maxTenureMonths: n })} onEmpty={() => setMonthly({ maxTenureMonths: Number.NaN })} /><small>The client buys 1 to 12 months; to continue after that, they buy it again.</small>{err("monthlyLength")}</label>
             </>}
+            <label className={`admin-field ${bad("paymentDueDays") ?? ""}`}><span>Payment due days</span><NumberInput aria-label="Payment due days" min={0} max={365} value={item.paymentDueDays ?? 0} onValueChange={n => update("paymentDueDays", n)} onEmpty={() => update("paymentDueDays", 0)} /><small>0 = due immediately (default). Days after invoice date before an unpaid plan pauses; reminders run from Automated Message System.</small>{err("paymentDueDays")}</label>
           <div className={s.pricingHeader}>
           <h3 className={s.pricingTitle}>Price &amp; project scope</h3>
           {item.billing && (creating
@@ -822,7 +823,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
                 {payMode === "limited_uploads" && <label className={`admin-field ${bad("uploadAllowance") ?? ""}`}><span>Uploads allowed before payment *</span><input aria-label="Pre-payment upload allowance" type="number" min={1} max={10000} value={offerForm.uploadAllowance} onChange={e => offerField("uploadAllowance", e.target.value)} />{err("uploadAllowance")}</label>}
                 <label className={`admin-field ${bad("dueDays") ?? ""}`}><span>Payment due after (days) *</span><input aria-label="Payment due days" type="number" min={0} max={365} value={offerForm.dueDays} onChange={e => offerField("dueDays", e.target.value)} /><small>From project creation.</small>{err("dueDays")}</label>
               </div>
-              <label className={`admin-field ${bad("reminders") ?? ""}`}><span>Reminder days around the due date</span><input aria-label="Reminder offsets" value={offerForm.reminders} onChange={e => offerField("reminders", e.target.value)} /><small>-1, 0, 3 = one day before, on the day, three days after. Empty = no reminders.</small>{err("reminders")}</label>
+              <p className={s.note}>Payment reminders run automatically from the Automated Message System based on this due date.</p>
             </div>}
             <fieldset className={s.pages}><legend>Reservation (optional)</legend>
             <p className={s.note}>When customers may hold the offer price before it ends. Leave empty for the usual times.</p>

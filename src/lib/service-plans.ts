@@ -37,7 +37,7 @@ export type StoredPlan = {
     limitScope?: string; portalAccessCount?: number; filesLimit?: number;
     files?: { min: number; max: number; step?: number }; ratePerFile?: number; slabs?: { fromFile: number; ratePerFile: number }[];
     updatesPerMonth?: { min: number; max: number }; allowOneTime?: boolean; oneTimeValidityDays?: number;
-    maxTenureMonths?: number; releaseMode?: string; customerCanChooseRelease?: boolean;
+    maxTenureMonths?: number; paymentDueDays?: number; releaseMode?: string; customerCanChooseRelease?: boolean;
   };
 };
 export type PlanCatalogue = { plans: StoredPlan[]; categories: PlanCategory[]; projectCategories: ProjectCategory[]; legacyCategories?: PlanCategory[] };
@@ -51,7 +51,7 @@ export type PlanForm = {
   limitScope: string; portalAccessCount: number; filesLimit: number;
   filesMin: number; filesMax: number; filesStep: number; ratePerFile: number; slabs: { fromFile: number; ratePerFile: number }[];
   updatesMin: number; updatesMax: number; allowOneTime: boolean;
-  oneTimeValidityDays: number; maxTenureMonths: number; releaseMode: "all_at_once" | "monthly"; customerCanChooseRelease: boolean;
+  oneTimeValidityDays: number; maxTenureMonths: number; paymentDueDays: number; releaseMode: "all_at_once" | "monthly"; customerCanChooseRelease: boolean;
   isHidden: boolean;
 };
 
@@ -63,7 +63,7 @@ export const blankPlanForm = (categoryKey = ""): PlanForm => ({
   billing: { ...emptyBilling(), monthly: { on: true, discountPercent: 0 } },
   limitScope: "per_month", portalAccessCount: 1, filesLimit: 20,
   filesMin: 5, filesMax: 50, filesStep: 5, ratePerFile: 0, slabs: [], updatesMin: 1, updatesMax: 4, allowOneTime: false,
-  oneTimeValidityDays: 90, maxTenureMonths: 12, releaseMode: "all_at_once", customerCanChooseRelease: false, isHidden: true,
+  oneTimeValidityDays: 90, maxTenureMonths: 12, paymentDueDays: 0, releaseMode: "all_at_once", customerCanChooseRelease: false, isHidden: true,
 });
 
 export function formFromPlan(plan: StoredPlan): PlanForm {
@@ -82,7 +82,7 @@ export function formFromPlan(plan: StoredPlan): PlanForm {
     filesMin: sp.files?.min ?? base.filesMin, filesMax: sp.files?.max ?? base.filesMax, filesStep: sp.files?.step ?? 1,
     ratePerFile: Number(sp.ratePerFile || 0), slabs: (sp.slabs || []).map(({ fromFile, ratePerFile }) => ({ fromFile, ratePerFile })),
     updatesMin: sp.updatesPerMonth?.min ?? base.updatesMin, updatesMax: sp.updatesPerMonth?.max ?? base.updatesMax, allowOneTime: Boolean(sp.allowOneTime),
-    oneTimeValidityDays: Number(sp.oneTimeValidityDays || 90), maxTenureMonths: Number(sp.maxTenureMonths || 12),
+    oneTimeValidityDays: Number(sp.oneTimeValidityDays || 90), maxTenureMonths: Number(sp.maxTenureMonths || 12), paymentDueDays: Number(sp.paymentDueDays || 0),
     releaseMode: sp.releaseMode === "monthly" ? "monthly" : "all_at_once", customerCanChooseRelease: Boolean(sp.customerCanChooseRelease),
   };
 }
@@ -98,6 +98,7 @@ export function planBody(form: PlanForm) {
     capability: form.capability, dependency: form.dependency, timing: form.dependency === "standalone_only" ? undefined : form.timing,
     pricingMode: flexible ? "flexible" : "fixed", isHidden: form.isHidden,
     maxTenureMonths: form.maxTenureMonths, oneTimeValidityDays: oneTimePossible ? form.oneTimeValidityDays : undefined,
+    paymentDueDays: form.paymentDueDays,
     releaseMode: form.releaseMode, customerCanChooseRelease: form.customerCanChooseRelease,
   };
   if (flexible) {

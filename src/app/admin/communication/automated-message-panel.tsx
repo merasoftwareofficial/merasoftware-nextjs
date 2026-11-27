@@ -165,6 +165,8 @@ const blankInstant = (audience: InstantAudience = "off"): InstantBlockState => (
 let nextId = 1;
 const newReminder = (defaultStops: string[] = [], triggerKey?: string): Reminder => {
   const timing = defaultReminderTiming(triggerKey);
+  const isPaymentDue = triggerKey === "invoice.created";
+  const isDueAnchored = timing.countDaysFrom !== "trigger_date";
   return {
     id: nextId++,
     startTrigger: "__main__",
@@ -178,9 +180,17 @@ const newReminder = (defaultStops: string[] = [], triggerKey?: string): Reminder
     repeatEveryDays: 2,
     repeatPerDay: 1,
     countDaysFrom: timing.countDaysFrom,
-    condition: "any",
+    condition: isPaymentDue ? "unpaid" : "any",
     conditionValue: 50,
     stopOn: [...defaultStops],
+    onTimeout: {
+      enabled: false,
+      afterDays: isDueAnchored ? 0 : 5,
+      condition: isPaymentDue ? "unpaid" : "not_stopped",
+      conditionValue: 50,
+      actions: [],
+      nextStageId: null,
+    },
     stopChains: {},
   };
 };
@@ -318,6 +328,11 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
     };
   }
   const safeForDays = typeof r.repeatForDays === "number" && Number.isFinite(r.repeatForDays) ? Math.max(1, r.repeatForDays) : 7;
+  const countDaysFrom: BaseDate = r.countDaysFrom === "trigger_date" || r.countDaysFrom === "expiry_date" || r.countDaysFrom === "deadline_date" ? r.countDaysFrom : "due_date";
+  const repeatMode: RepeatMode = r.repeatMode === "permanent" || r.repeatMode === "limited"
+    ? r.repeatMode
+    : (r.repeatMode === "until_due" && countDaysFrom !== "trigger_date" ? "until_due" : "off");
+  const timeoutFallback = countDaysFrom === "trigger_date" ? safeForDays : 0;
   return {
     id,
     startTrigger: typeof r.startTrigger === "string" && r.startTrigger ? r.startTrigger : "__main__",
@@ -326,15 +341,15 @@ function normalizeReminder(raw: unknown, depth = 0): Reminder {
     adminMode: r.adminMode === "universal" ? "universal" : "separate",
     clientSteps: normalizeSteps(r.clientSteps),
     adminSteps: normalizeSteps(r.adminSteps),
-    repeatMode: r.repeatMode === "permanent" || r.repeatMode === "limited" ? r.repeatMode : "off",
+    repeatMode,
     repeatForDays: safeForDays,
     repeatEveryDays: typeof r.repeatEveryDays === "number" && Number.isFinite(r.repeatEveryDays) ? Math.max(1, r.repeatEveryDays) : 2,
     repeatPerDay: typeof r.repeatPerDay === "number" && Number.isFinite(r.repeatPerDay) ? Math.min(4, Math.max(1, r.repeatPerDay)) : 1,
-    countDaysFrom: r.countDaysFrom === "trigger_date" || r.countDaysFrom === "expiry_date" || r.countDaysFrom === "deadline_date" ? r.countDaysFrom : "due_date",
+    countDaysFrom,
     condition: typeof r.condition === "string" && r.condition ? r.condition : "any",
     conditionValue: typeof r.conditionValue === "number" && Number.isFinite(r.conditionValue) ? Math.max(0, r.conditionValue) : 50,
     stopOn: Array.isArray(r.stopOn) ? r.stopOn.filter((k): k is string => typeof k === "string" && Boolean(k)) : [],
-    onTimeout: normalizeTimeoutConfig(r.onTimeout, safeForDays),
+    onTimeout: normalizeTimeoutConfig(r.onTimeout, timeoutFallback),
     stopChains,
   };
 }
@@ -898,9 +913,16 @@ function cleanSingleReminder(
   stageLabel: string,
   stagePrefix: string,
   byKey: Map<string, WorkItem>,
+  catalogConditions: ConditionCatalogItem[] = [],
 ): { reminder?: Reminder; error?: string; errorBoxId?: string } {
-  const allowedConds = allowedConditionIds(effTriggers.map(k => byKey.get(k)));
+  const effWorks = effTriggers.map(k => byKey.get(k));
+  const liveConds = getApplicableConditions(effWorks, catalogConditions, "reminder");
+  const allowedConds = liveConds.length > 0 ? liveConds.map(c => c.key) : allowedConditionIds(effWorks);
   const condition = allowedConds.includes(rem.condition) ? rem.condition : "any";
+  const repeatMode: RepeatMode = rem.countDaysFrom === "trigger_date" && rem.repeatMode === "until_due" ? "off" : rem.repeatMode;
+  const onTimeout = repeatMode === "permanent" && rem.onTimeout?.enabled
+    ? { ...rem.onTimeout, enabled: false }
+    : rem.onTimeout;
   const fixStep = (st: MessageStep): MessageStep => (
     rem.countDaysFrom === "trigger_date" && st.pos === "before" ? { ...st, pos: "after" } : st
   );
@@ -952,13 +974,15 @@ function cleanSingleReminder(
 
   const maxSteps = Math.max(showClient ? clientSteps.length : 0, showAdmin ? adminSteps.length : 0);
   const cleanStopOn = rem.stopOn.filter(k => !effTriggers.includes(k));
-  if ((rem.repeatMode === "permanent" || rem.repeatMode === "limited" || maxSteps > 1) && cleanStopOn.length === 0) {
+  if ((repeatMode === "permanent" || repeatMode === "limited" || repeatMode === "until_due" || maxSteps > 1) && cleanStopOn.length === 0) {
     return { error: `Add at least one Stop Trigger for ${stageLabel} Reminder (${label}).` };
   }
 
   return {
     reminder: {
       ...rem,
+      repeatMode,
+      onTimeout,
       condition,
       stopOn: cleanStopOn,
       clientSteps,
@@ -1038,7 +1062,7 @@ function formSnapshotKey(f: TrailForm): string {
   });
 }
 
-function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { trail: TrailForm; error: string | null; errorBoxId?: string } {
+function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>, catalogConditions: ConditionCatalogItem[] = []): { trail: TrailForm; error: string | null; errorBoxId?: string } {
   if (!form.triggers.length) return { trail: form, error: "Choose at least one trigger point." };
 
   const hasScope = allTrailTriggerKeys(form).some(k => byKey.get(k)?.supportsScope);
@@ -1056,7 +1080,7 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
   for (let i = 0; i < form.reminders.length; i++) {
     const rem = form.reminders[i];
     const effTriggers = rem.startTrigger !== "__main__" ? [rem.startTrigger] : form.triggers;
-    const res = cleanSingleReminder(rem, effTriggers, `Stage 1`, "s0", byKey);
+    const res = cleanSingleReminder(rem, effTriggers, `Stage 1`, "s0", byKey, catalogConditions);
     if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder.", errorBoxId: res.errorBoxId };
     cleanReminders.push(res.reminder);
   }
@@ -1074,7 +1098,7 @@ function prepareTrailForSave(form: TrailForm, byKey: Map<string, WorkItem>): { t
     let stReminder: Reminder | null = null;
     if (st.reminder) {
       const effTriggers = st.reminder.startTrigger !== "__main__" ? [st.reminder.startTrigger] : effStageTriggers;
-      const res = cleanSingleReminder(st.reminder, effTriggers, `Stage ${stageNum}`, `st${st.id}`, byKey);
+      const res = cleanSingleReminder(st.reminder, effTriggers, `Stage ${stageNum}`, `st${st.id}`, byKey, catalogConditions);
       if (res.error || !res.reminder) return { trail: form, error: res.error || "Invalid reminder.", errorBoxId: res.errorBoxId };
       stReminder = res.reminder;
     }
@@ -1770,6 +1794,7 @@ function TemplateEditorBlock({
 
   function deleteActive() {
     if (list.length <= 1 || busy) return;
+    if (typeof window !== "undefined" && !window.confirm(`Delete template "${activeTpl.name}"? This cannot be undone.`)) return;
     const remaining = list.filter(t => t.id !== activeTpl.id);
     const next = syncSingleMsg(remaining);
     onChange(next);
@@ -2489,7 +2514,13 @@ function ReminderCard({
   const safeCondition = allowedConds.includes(reminder.condition) ? reminder.condition : "any";
   const conditionDef = visibleConditions.find(item => item.id === safeCondition);
 
-  const timeoutCfg: TimeoutConfig = reminder.onTimeout || defaultTimeoutConfig(reminder.repeatForDays || 5);
+  const isDueAnchored = reminder.countDaysFrom !== "trigger_date";
+  const dueTargetLabel = reminder.countDaysFrom === "expiry_date"
+    ? "expiry date"
+    : reminder.countDaysFrom === "deadline_date"
+      ? "project deadline"
+      : "due date";
+  const timeoutCfg: TimeoutConfig = reminder.onTimeout || defaultTimeoutConfig(isDueAnchored ? 0 : (reminder.repeatForDays || 5));
   const setTimeoutCfg = (patch: Partial<TimeoutConfig>) => set({ onTimeout: { ...timeoutCfg, ...patch } });
   const timeoutCondDef = liveEscalationConds.find(c => c.key === timeoutCfg.condition);
   const hasStageContinueAction = timeoutCfg.actions.some(a => a.key === "stage.continue");
@@ -2501,9 +2532,11 @@ function ReminderCard({
   const msgCount = (showClient ? reminder.clientSteps.length : 0) + (showAdmin ? reminder.adminSteps.length : 0);
   const repeatSummary = reminder.repeatMode === "permanent"
     ? "Repeat: Permanent"
-    : reminder.repeatMode === "limited"
-      ? `Repeat: ${reminder.repeatForDays}d`
-      : "No repeat";
+    : reminder.repeatMode === "until_due"
+      ? `Repeat: Until ${dueTargetLabel}`
+      : reminder.repeatMode === "limited"
+        ? `Repeat: ${reminder.repeatForDays}d`
+        : "No repeat";
   const stopSummary = reminder.stopOn.length > 0
     ? `Stops on: ${triggersLabel(reminder.stopOn, byKey)}`
     : "No stop trigger";
@@ -2517,7 +2550,9 @@ function ReminderCard({
 
   function handleStartTriggerChange(nextStart: string) {
     const targetKeys = nextStart === "__main__" ? stageTriggers : [nextStart];
-    const nextAllowed = allowedConditionIds(targetKeys.map(k => byKey.get(k)));
+    const targetWorks = targetKeys.map(k => byKey.get(k));
+    const liveNext = getApplicableConditions(targetWorks, catalogConditions, "reminder");
+    const nextAllowed = liveNext.length > 0 ? liveNext.map(c => c.key) : allowedConditionIds(targetWorks);
     set({
       startTrigger: nextStart,
       condition: nextAllowed.includes(reminder.condition) ? reminder.condition : "any",
@@ -2530,6 +2565,7 @@ function ReminderCard({
       const fixPos = (st: MessageStep): MessageStep => (st.pos === "before" ? { ...st, pos: "after" } : st);
       set({
         countDaysFrom: nextBase,
+        repeatMode: reminder.repeatMode === "until_due" ? "off" : reminder.repeatMode,
         clientSteps: reminder.clientSteps.map(fixPos),
         adminSteps: reminder.adminSteps.map(fixPos),
       });
@@ -2704,9 +2740,16 @@ function ReminderCard({
                 className={s.select}
                 aria-label="Repeat mode"
                 value={reminder.repeatMode}
-                onChange={e => set({ repeatMode: e.target.value as RepeatMode })}
+                onChange={e => {
+                  const nextMode = e.target.value as RepeatMode;
+                  set({
+                    repeatMode: nextMode,
+                    ...(nextMode === "permanent" && timeoutCfg.enabled ? { onTimeout: { ...timeoutCfg, enabled: false } } : {}),
+                  });
+                }}
               >
                 <option value="off">Off (No repeat — scheduled only)</option>
+                {isDueAnchored && <option value="until_due">Until {dueTargetLabel}</option>}
                 <option value="permanent">Permanent (until stop trigger)</option>
                 <option value="limited">Fixed days limit</option>
               </select>
@@ -2814,7 +2857,8 @@ function ReminderCard({
           })()}
         </div>
 
-        {/* 5. After Wait / Timeout: Condition (Left) -> System Action (Right) */}
+        {/* 5. After Wait / Timeout: Condition (Left) -> System Action (Right) — hidden on Permanent repeat */}
+        {reminder.repeatMode !== "permanent" && (
         <div className={`${s.timeoutBox} ${s.fieldFull}`} data-enabled={timeoutCfg.enabled}>
           <div className={s.timeoutHead}>
             <label className={s.timeoutToggle}>
@@ -2825,15 +2869,15 @@ function ReminderCard({
                   const enabled = e.target.checked;
                   setTimeoutCfg({
                     enabled,
-                    ...(enabled && !timeoutCfg.afterDays && reminder.repeatMode === "limited" ? { afterDays: reminder.repeatForDays } : {}),
+                    ...(enabled && !isDueAnchored && !timeoutCfg.afterDays && reminder.repeatMode === "limited" ? { afterDays: reminder.repeatForDays } : {}),
                   });
                 }}
               />
-              <span>If not stopped after wait period — run Condition → System Action</span>
+              <span>{isDueAnchored ? `On ${dueTargetLabel} — run Condition → System Action` : "If not stopped after wait period — run Condition → System Action"}</span>
             </label>
             {timeoutCfg.enabled && (
               <div className={s.timeoutWaitRow}>
-                <span>After</span>
+                <span>{isDueAnchored ? `On ${dueTargetLabel} +` : "After"}</span>
                 <NumberInput
                   className={s.numInput}
                   min={0}
@@ -2843,7 +2887,7 @@ function ReminderCard({
                   emptyOnBlur="zero"
                   onValueChange={n => setTimeoutCfg({ afterDays: Math.max(0, Math.min(365, n)) })}
                 />
-                <span>days</span>
+                <span>{isDueAnchored ? "extra days" : "days"}</span>
               </div>
             )}
           </div>
@@ -2939,6 +2983,7 @@ function ReminderCard({
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   </div>;
@@ -3505,7 +3550,9 @@ function FormDialog({
       }
     }
 
-    const nextAllowed = allowedConditionIds(nextTriggers.map(k => byKey.get(k)));
+    const nextWorks = nextTriggers.map(k => byKey.get(k));
+    const liveNext = getApplicableConditions(nextWorks, catalogConditions, "reminder");
+    const nextAllowed = liveNext.length > 0 ? liveNext.map(c => c.key) : allowedConditionIds(nextWorks);
     const nextReminders = form.reminders.map(rem => (
       rem.startTrigger === "__main__"
         ? {
@@ -3565,7 +3612,9 @@ function FormDialog({
   function changeStageTriggers(stage: TrailStage, nextTriggers: string[]) {
     let nextReminder = stage.reminder;
     if (nextReminder && nextReminder.startTrigger === "__main__") {
-      const nextAllowed = allowedConditionIds(nextTriggers.map(k => byKey.get(k)));
+      const nextWorks = nextTriggers.map(k => byKey.get(k));
+    const liveNext = getApplicableConditions(nextWorks, catalogConditions, "reminder");
+    const nextAllowed = liveNext.length > 0 ? liveNext.map(c => c.key) : allowedConditionIds(nextWorks);
       nextReminder = {
         ...nextReminder,
         condition: nextAllowed.includes(nextReminder.condition) ? nextReminder.condition : "any",
@@ -3639,7 +3688,7 @@ function FormDialog({
 
   async function quickSaveWithPatch(buildNext: (curr: TrailForm) => TrailForm, opts?: { syncTemplates?: boolean }): Promise<QuickSaveResult> {
     const nextForm = buildNext(formRef.current);
-    const { trail, error: valError, errorBoxId } = prepareTrailForSave(nextForm, byKey);
+    const { trail, error: valError, errorBoxId } = prepareTrailForSave(nextForm, byKey, catalogConditions);
     if (valError) {
       setLocalError(valError);
       if (errorBoxId) accordion.openOnly(errorBoxId);
@@ -3788,7 +3837,7 @@ function FormDialog({
   }
 
   function handleSaveClick() {
-    const { trail, error: valError, errorBoxId } = prepareTrailForSave(form, byKey);
+    const { trail, error: valError, errorBoxId } = prepareTrailForSave(form, byKey, catalogConditions);
     if (valError) {
       setLocalError(valError);
       if (errorBoxId) accordion.openOnly(errorBoxId);
@@ -4558,6 +4607,7 @@ function summarizeReminderTiming(rem: Reminder): string {
 
 function summarizeRepeat(rem: Reminder): string {
   if (rem.repeatMode === "permanent") return `Every ${rem.repeatEveryDays}d (${rem.repeatPerDay}x/day) until stop`;
+  if (rem.repeatMode === "until_due") return `Every ${rem.repeatEveryDays}d (${rem.repeatPerDay}x/day) until due date`;
   if (rem.repeatMode === "limited") return `Every ${rem.repeatEveryDays}d for ${rem.repeatForDays}d (${rem.repeatPerDay}x/day)`;
   return "No repeat";
 }
@@ -4573,6 +4623,7 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingDeleteTrail, setPendingDeleteTrail] = useState<{ trail: TrailForm; title: string } | null>(null);
   const [panelError, setPanelError] = useState("");
   const [reloadSeq, setReloadSeq] = useState(0);
 
@@ -5089,7 +5140,23 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
                   <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing({ trail, focus: { mode: "full" } }); }}>
                     Edit
                   </button>
-                  <button type="button" className={s.iconBtn} disabled={busy} aria-label={`Delete ${title}`} onClick={() => void removeTrail(trail)}>✕</button>
+                  <button
+                    type="button"
+                    className={`${s.iconBtn} ${s.miniDangerBtn}`}
+                    style={{ color: "#ffffff", borderColor: "#dc2626", background: "#dc2626", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                    disabled={busy}
+                    title={`Delete ${title}`}
+                    aria-label={`Delete ${title}`}
+                    onClick={() => setPendingDeleteTrail({ trail, title })}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
                 </div>
               </article>
             );
@@ -5294,6 +5361,55 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
           })}
         </div>
       )
+    )}
+
+    {pendingDeleteTrail && (
+      <div
+        className={s.previewOverlay}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Confirm delete trail"
+      >
+        <div
+          className={s.previewBackdrop}
+          onClick={() => { if (!busyId) setPendingDeleteTrail(null); }}
+        />
+        <div
+          className={s.previewDialog}
+          style={{ width: "min(460px, 100%)", maxHeight: "none" }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <strong style={{ fontSize: 16 }}>Delete trail?</strong>
+            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, opacity: 0.9 }}>
+              Are you sure you want to permanently delete <strong>“{pendingDeleteTrail.title}”</strong>? All its templates, reminders, stages, and scheduled runs will be removed and cannot be undone.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 6 }}>
+              <button
+                type="button"
+                className={s.ghostBtn}
+                disabled={Boolean(busyId)}
+                onClick={() => setPendingDeleteTrail(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={s.miniDangerBtn}
+                style={{ color: "#ffffff", background: "#dc2626", borderColor: "#dc2626" }}
+                disabled={Boolean(busyId)}
+                onClick={async () => {
+                  const target = pendingDeleteTrail.trail;
+                  await removeTrail(target);
+                  setPendingDeleteTrail(null);
+                }}
+              >
+                {busyId === pendingDeleteTrail.trail._id ? "Deleting…" : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     )}
 
     {editing && (

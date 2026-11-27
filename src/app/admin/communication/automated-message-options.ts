@@ -18,7 +18,7 @@ export type BaseDate = "trigger_date" | "due_date" | "expiry_date" | "deadline_d
 export type InstantAudience = "off" | "client" | "admin" | "both";
 export type ReminderAudience = "client" | "admin" | "both";
 export type MessageMode = "separate" | "universal";
-export type RepeatMode = "off" | "permanent" | "limited";
+export type RepeatMode = "off" | "permanent" | "limited" | "until_due";
 export type PackageScopeMode = "all" | "monthly" | "onetime" | "include" | "exclude";
 
 export const MAX_CHAIN_DEPTH = 6;
@@ -294,6 +294,8 @@ export function getApplicableConditions(
   });
 }
 
+const PAYMENT_AUTO_PAUSE_TRIGGERS = new Set(["invoice.created", "order.upi_pending", "plan.payment_rejected"]);
+
 export function getApplicableSystemActions(
   workOrList: WorkItem | (WorkItem | undefined)[] | null | undefined,
   catalogActions: SystemActionCatalogItem[],
@@ -303,9 +305,12 @@ export function getApplicableSystemActions(
     ? workOrList.filter((w): w is WorkItem => Boolean(w))
     : (workOrList ? [workOrList] : []);
   const entityTypes = new Set(list.map(w => w.entityType || "none"));
+  const isPaymentOnlyTrigger = list.length > 0 && list.every(w => PAYMENT_AUTO_PAUSE_TRIGGERS.has(w.key));
 
   return catalogActions.filter(item => {
     if (!item.usableIn.includes(mode)) return false;
+    // Unpaid plans auto-pause on due date via core billing; hide redundant plan.pause on payment triggers.
+    if (isPaymentOnlyTrigger && item.key === "plan.pause") return false;
     if (item.entityTypes.includes("*")) return true;
     return item.entityTypes.some(et => entityTypes.has(et));
   });
@@ -313,10 +318,10 @@ export function getApplicableSystemActions(
 
 export const PACKAGE_SCOPES: { id: PackageScopeMode; label: string }[] = [
   { id: "all", label: "All packages & plans" },
-  { id: "monthly", label: "Monthly packages only" },
-  { id: "onetime", label: "One-time packages only" },
-  { id: "include", label: "Include specific packages…" },
-  { id: "exclude", label: "Exclude specific packages…" },
+  { id: "monthly", label: "Monthly packages & recurring plans" },
+  { id: "onetime", label: "One-time packages & plans" },
+  { id: "include", label: "Include specific packages / plans…" },
+  { id: "exclude", label: "Exclude specific packages / plans…" },
 ];
 
 export const BASE_DATES: { id: BaseDate; label: string }[] = [
