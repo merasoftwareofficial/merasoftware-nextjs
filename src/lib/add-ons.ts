@@ -41,6 +41,57 @@ export function portalAddOnBody(input: AddOnInput): Record<string, unknown> {
 export const blankAddOn = (): AddOnInput => ({ name: "", unitPrice: 0, description: "", isHidden: false, isQuantityBased: false, compatibleWith: [], terms: [] });
 export const addOnInput = (row: AddOn): AddOnInput => ({ id: row.id, name: row.name, unitPrice: row.unitPrice, description: row.description, isHidden: row.isHidden, isQuantityBased: row.isQuantityBased, compatibleWith: [...row.compatibleWith], terms: [...(row.terms ?? [])] });
 
+/** SSOT Add-on sort & search helpers shared by Add-ons Manager and Package Price Builder. */
+export type AddOnSort = "modified" | "added" | "name_asc" | "name_desc" | "price_asc" | "price_desc";
+export const ADD_ON_SORT_KEY = "add-on-list-sort";
+export const DEFAULT_ADD_ON_SORT: AddOnSort = "modified";
+export const ADD_ON_SORTS: { value: AddOnSort; label: string }[] = [
+  { value: "modified", label: "Recently modified" },
+  { value: "added", label: "Recently added" },
+  { value: "name_asc", label: "Name: A to Z" },
+  { value: "name_desc", label: "Name: Z to A" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+];
+
+export function readAddOnSort(): AddOnSort {
+  try {
+    const saved = window.localStorage.getItem(ADD_ON_SORT_KEY);
+    return ADD_ON_SORTS.find(s => s.value === saved)?.value ?? DEFAULT_ADD_ON_SORT;
+  } catch { return DEFAULT_ADD_ON_SORT; }
+}
+
+export function rememberAddOnSort(sort: AddOnSort) {
+  try { window.localStorage.setItem(ADD_ON_SORT_KEY, sort); }
+  catch { /* Ignore blocked storage */ }
+}
+
+function addOnTimeOf(iso?: string): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function sortAddOns(list: AddOn[], sort: AddOnSort): AddOn[] {
+  const byName = (a: AddOn, b: AddOn) => a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+  return [...list].sort((a, b) => {
+    if (sort === "name_asc") return byName(a, b);
+    if (sort === "name_desc") return byName(b, a);
+    if (sort === "price_asc") return (a.unitPrice - b.unitPrice) || byName(a, b);
+    if (sort === "price_desc") return (b.unitPrice - a.unitPrice) || byName(a, b);
+    const first = addOnTimeOf(sort === "added" ? a.createdAt : a.updatedAt);
+    const second = addOnTimeOf(sort === "added" ? b.createdAt : b.updatedAt);
+    if (first === null || second === null) return first === second ? byName(a, b) : first === null ? 1 : -1;
+    return (second - first) || byName(a, b);
+  });
+}
+
+export function matchesAddOnSearch(row: Pick<AddOn, "name" | "description">, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return row.name.toLowerCase().includes(q) || (row.description || "").toLowerCase().includes(q);
+}
+
 // The checks of the add-on routes (app/api/add-ons), apart from the network so they can be tested: what the portal is
 // asked is only ever the fixed shape above, only for a service that really is in the add-on list, and with known categories.
 export type AddOnDeps = {

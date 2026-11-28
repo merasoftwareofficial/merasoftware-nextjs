@@ -328,6 +328,9 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   };
   // Opening a package from a link (?package=) loads its offer once the clock is known; a working copy has its own.
   const loadedFor = useRef<string | null>(openedDraft ? openedDraft.packageId : null);
+  type ModeSnapshot = Pick<Item, "category" | "services" | "pricing" | "repriceFromCurrent" | "regularPrice" | "discountedPrice" | "inclusions" | "terms">;
+  // Temporary in-session cache for Manual <-> Automatic switching before Save/Publish/Discard.
+  const modeCacheRef = useRef<{ manual?: ModeSnapshot; automatic?: ModeSnapshot }>({});
   useEffect(() => {
     if (!item || creating || now === null || loadedFor.current === item.id) return;
     loadedFor.current = item.id;
@@ -347,6 +350,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
 
   function show(config: Item | null, form: OfferForm | null, isNew: boolean, version: number, note = "") {
     loadedFor.current = config && config.id ? config.id : null;
+    modeCacheRef.current = {};
     setItem(config); setCreating(isNew); setOfferForm(form); setDraftVersion(version); setBaseline(snapshot(config, form));
     setError(note); setTried(false); setMessage(""); setConfirmEnd(false);
   }
@@ -396,11 +400,47 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999))[0]?.category ?? "";
   const withTypedCategory = <T extends { category: string }>(row: T): T => row.category ? row : { ...row, category: defaultCategory() };
   // Any package (new or saved) can choose or switch how it is priced.
+  // Before saving, switching modes caches the current mode's scope/prices/inclusions/terms and starts the target mode clean
+  // (or restores it if already edited in this session). Save draft / Publish / Discard clears this cache permanently.
   function choosePriceMode(mode: PriceMode) {
     rememberPriceMode(mode);
     setItem(current => {
       if (!current) return current;
-      const next: Item = { ...current, repriceFromCurrent: undefined, services: mode === "automatic" ? [] : undefined, ...(mode === "automatic" ? { discountedPrice: current.regularPrice } : { pricing: undefined }) };
+      const currentMode: PriceMode = current.services !== undefined ? "automatic" : "manual";
+      if (mode === currentMode) return current;
+      modeCacheRef.current[currentMode] = {
+        category: current.category,
+        services: current.services ? current.services.map(row => ({ ...row })) : undefined,
+        pricing: current.pricing,
+        repriceFromCurrent: current.repriceFromCurrent,
+        regularPrice: current.regularPrice,
+        discountedPrice: current.discountedPrice,
+        inclusions: [...current.inclusions],
+        terms: [...current.terms],
+      };
+      const cached = modeCacheRef.current[mode];
+      const next: Item = cached
+        ? {
+            ...current,
+            category: cached.category,
+            services: cached.services ? cached.services.map(row => ({ ...row })) : undefined,
+            pricing: cached.pricing,
+            repriceFromCurrent: cached.repriceFromCurrent,
+            regularPrice: cached.regularPrice,
+            discountedPrice: cached.discountedPrice,
+            inclusions: [...cached.inclusions],
+            terms: [...cached.terms],
+          }
+        : {
+            ...current,
+            repriceFromCurrent: undefined,
+            services: mode === "automatic" ? [] : undefined,
+            pricing: undefined,
+            regularPrice: 0,
+            discountedPrice: 0,
+            inclusions: [],
+            terms: [],
+          };
       return mode === "manual" ? withTypedCategory(next) : next;
     });
   }
@@ -568,6 +608,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       const next = { ...item, id: draft.packageId };
       setDrafts(current => [draft, ...current.filter(row => row.packageId !== draft.packageId)]);
       loadedFor.current = draft.packageId;
+      modeCacheRef.current = {};
       setItem(next); setDraftVersion(draft.version); setBaseline(snapshot(next, offerForm));
       setMessage(creating ? `Draft saved. Its link /package/${draft.packageId} goes live when you publish.` : "Draft saved. The live page stays as it is until you publish the changes.");
       return true;
@@ -603,6 +644,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         if (keptDraft) savedForm = draft.keepOffer ?? null;
       }
       loadedFor.current = saved.id;
+      modeCacheRef.current = {};
       setTried(false); setItem(saved); setCreating(false); setOfferForm(savedForm); setBaseline(snapshot(saved, result.offerError ? form : savedForm)); setConfirmEnd(false);
       setMessage(done.replace("{link}", `/package/${saved.id}`));
       if (result.offerError) { setOfferForm(form); setError(`Package published, offer not published: ${result.offerError} The draft is kept.`); }
@@ -923,7 +965,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       </fieldset>
       <div className={s.savebar}>
         <div className={s.result}>{Object.keys(errors).length > 0 && <p className="form-error" role="alert">Not published. Fix the marked fields first, or press Save draft to keep your work.</p>}{error && <p className="form-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}</div>
-        <div className={s.row}><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { const saved = JSON.parse(baseline); setItem(saved.next); setOfferForm(saved.form); setTried(false); setError(""); }}>Discard changes</button>{draftVersion > 0 && <DangerButton disabled={busy} onClick={() => void discardDraft()}>{creating ? "Delete draft" : "Discard draft"}</DangerButton>}<button type="button" className="admin-action" disabled={busy || (!dirty && (draftVersion > 0 || !creating))} onClick={saveDraft}>Save draft</button><button className="admin-button" disabled={busy || (!dirty && !creating && !draftVersion)}>{busy ? "Working…" : creating ? "Publish" : "Publish changes"}</button></div>
+        <div className={s.row}><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { const saved = JSON.parse(baseline); modeCacheRef.current = {}; setItem(saved.next); setOfferForm(saved.form); setTried(false); setError(""); }}>Discard changes</button>{draftVersion > 0 && <DangerButton disabled={busy} onClick={() => void discardDraft()}>{creating ? "Delete draft" : "Discard draft"}</DangerButton>}<button type="button" className="admin-action" disabled={busy || (!dirty && (draftVersion > 0 || !creating))} onClick={saveDraft}>Save draft</button><button className="admin-button" disabled={busy || (!dirty && !creating && !draftVersion)}>{busy ? "Working…" : creating ? "Publish" : "Publish changes"}</button></div>
       </div>
       </form>
 

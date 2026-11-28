@@ -92,6 +92,9 @@
 .methodValue{margin:0;padding:10px 12px;border:1px solid var(--pn-line,var(--line));border-radius:6px;font-weight:600}
 .cols3{grid-template-columns:repeat(2,minmax(0,1fr))}
 .addOnList{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.addOnControls{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 8px}
+.addOnSearch{flex:1 1 220px;min-width:0;padding:8px 12px;border:1.5px solid color-mix(in srgb,var(--pn-text,#15283a) 30%,var(--pn-line,#ccc));border-radius:var(--r-pill,999px);background:var(--pn-field,#fff);color:var(--pn-text,#15283a);font:inherit;font-size:var(--fs-ui,14px)}
+.addOnSearch:focus{outline:none;border-color:var(--pn-accent,#166381);box-shadow:0 0 0 3px rgb(0 127 153 / .15)}
 .addOnRow{grid-template-columns:minmax(0,1fr) auto auto;border-radius:6px}
 .addOnRow label{overflow-wrap:anywhere}
 .addOnRow{background:var(--pn-field,#fff)}

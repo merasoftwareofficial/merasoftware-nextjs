@@ -5,41 +5,19 @@ import Link from "@/components/link";
 import { AddOnDeleteDialog, AddOnDialog, type AddOnChangeResult } from "@/components/add-on-dialog";
 import { ConfirmDialog, DeleteIconButton } from "@/components/admin-confirm-dialog";
 import { CapsuleSelect } from "@/components/capsule-select";
-import { addOnInput } from "@/lib/add-ons";
+import {
+  ADD_ON_SORTS,
+  addOnInput,
+  DEFAULT_ADD_ON_SORT,
+  readAddOnSort,
+  rememberAddOnSort,
+  sortAddOns,
+  type AddOnSort,
+} from "@/lib/add-ons";
 import { categoryLabel, type AddOn, type SalesCatalogue } from "@/lib/sales-packages";
 
 type VisibilityFilter = "all" | "visible" | "hidden";
-type AddOnSort = "modified" | "added" | "name_asc" | "name_desc" | "price_asc" | "price_desc";
-
-const SORT_KEY = "add-on-list-sort";
-const DEFAULT_SORT: AddOnSort = "modified";
-const SORTS: { value: AddOnSort; label: string }[] = [
-  { value: "modified", label: "Recently modified" },
-  { value: "added", label: "Recently added" },
-  { value: "name_asc", label: "Name: A to Z" },
-  { value: "name_desc", label: "Name: Z to A" },
-  { value: "price_asc", label: "Price: low to high" },
-  { value: "price_desc", label: "Price: high to low" },
-];
 const noSubscription = () => () => {};
-
-function readAddOnSort(): AddOnSort {
-  try {
-    const saved = window.localStorage.getItem(SORT_KEY);
-    return SORTS.find(s => s.value === saved)?.value ?? DEFAULT_SORT;
-  } catch { return DEFAULT_SORT; }
-}
-
-function rememberAddOnSort(sort: AddOnSort) {
-  try { window.localStorage.setItem(SORT_KEY, sort); }
-  catch { /* Ignore blocked storage */ }
-}
-
-function timeOf(iso?: string): number | null {
-  if (!iso) return null;
-  const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? ms : null;
-}
 
 const rupee = (value: number) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
@@ -51,7 +29,7 @@ export function AddOnsManager({ initial }: { initial: SalesCatalogue }) {
   const [catalogue, setCatalogue] = useState(initial);
   const [visibility, setVisibility] = useState<VisibilityFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const rememberedSort = useSyncExternalStore(noSubscription, readAddOnSort, () => DEFAULT_SORT);
+  const rememberedSort = useSyncExternalStore(noSubscription, readAddOnSort, () => DEFAULT_ADD_ON_SORT);
   const [pickedSort, setPickedSort] = useState<AddOnSort | null>(null);
   const sort = pickedSort ?? rememberedSort;
   const pickSort = (next: AddOnSort) => { setPickedSort(next); rememberAddOnSort(next); };
@@ -113,17 +91,7 @@ export function AddOnsManager({ initial }: { initial: SalesCatalogue }) {
       }
       return true;
     });
-    const byName = (a: AddOn, b: AddOn) => a.name.localeCompare(b.name, "en", { sensitivity: "base" });
-    return [...list].sort((a, b) => {
-      if (sort === "name_asc") return byName(a, b);
-      if (sort === "name_desc") return byName(b, a);
-      if (sort === "price_asc") return (a.unitPrice - b.unitPrice) || byName(a, b);
-      if (sort === "price_desc") return (b.unitPrice - a.unitPrice) || byName(a, b);
-      const first = timeOf(sort === "added" ? a.createdAt : a.updatedAt);
-      const second = timeOf(sort === "added" ? b.createdAt : b.updatedAt);
-      if (first === null || second === null) return first === second ? byName(a, b) : first === null ? 1 : -1;
-      return (second - first) || byName(a, b);
-    });
+    return sortAddOns(list, sort);
   }, [addOns, visibility, categoryFilter, sort]);
 
   async function reload() {
@@ -229,7 +197,7 @@ export function AddOnsManager({ initial }: { initial: SalesCatalogue }) {
             ariaLabel="Sort add-ons"
             value={sort}
             onChange={value => pickSort(value as AddOnSort)}
-            options={SORTS}
+            options={ADD_ON_SORTS}
           />
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
