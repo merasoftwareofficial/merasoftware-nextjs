@@ -14,6 +14,7 @@ import { offerState, type OfferState } from "@/lib/admin-offers";
 import { useServerTime } from "@/components/use-server-time";
 import { NumberInput } from "@/components/number-input";
 import { offerView } from "@/lib/package-design";
+import { useUnsavedGuard } from "@/components/unsaved-guard";
 
 function Lines({ label, value, change }: { label: string; value: string[]; change: (value: string[]) => void }) {
   return <label className="admin-field"><span>{label}</span><textarea aria-label={label} rows={6} value={value.join("\n")} onChange={event => change(event.target.value.split("\n"))} /><small>One item per line.</small></label>;
@@ -55,19 +56,29 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const dirty = section === "terms" ? JSON.stringify(terms) !== JSON.stringify(savedTerms)
     : section === "listing" ? JSON.stringify(listing) !== JSON.stringify(savedListing)
     : selected !== null && JSON.stringify(selected) !== baseline;
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
-    const guard = (event: MouseEvent) => {
-      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
-      if (!link || link.getAttribute("target") === "_blank") return;
-      if (!window.confirm("Discard unsaved offer changes?")) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener("beforeunload", warn);
-    document.addEventListener("click", guard, true);
-    return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guard, true); };
-  }, [dirty]);
-  async function save(payload: object, done: (data: unknown) => void | Promise<void>) {
+  function saveCurrentSection(): Promise<boolean> {
+    if (section === "terms") return save({ kind: "terms", terms: cleanLines(terms) }, data => { setTerms(data as string[]); setSavedTerms(data as string[]); });
+    if (section === "listing") return save({ kind: "listing", listing }, data => { setListing(data as OfferListing); setSavedListing(data as OfferListing); });
+    if (!selected) return Promise.resolve(false);
+    const next = { ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) };
+    return save({ kind: "offer", offer: next, creating: false }, data => { const result = data as Offer; setSelected(result); setBaseline(JSON.stringify(result)); setOffers(current => [...current.filter(item => item.slug !== result.slug), result].sort((a,b) => a.order-b.order)); });
+  }
+  function discardCurrentSection() {
+    if (section === "terms") setTerms(savedTerms);
+    else if (section === "listing") setListing(savedListing);
+    else if (selected) setSelected(JSON.parse(baseline));
+    setError("");
+  }
+  const offerSaveLabel = section === "terms" ? "Save universal T&C" : section === "listing" ? "Save listing" : selected?.status === "published" ? "Save & publish" : "Save offer";
+  const { dialog: unsavedDialog } = useUnsavedGuard({
+    dirty,
+    busy,
+    saveLabel: offerSaveLabel,
+    discardLabel: "Discard changes",
+    onSave: saveCurrentSection,
+    onDiscard: discardCurrentSection,
+  });
+  async function save(payload: object, done: (data: unknown) => void | Promise<void>): Promise<boolean> {
     setBusy(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/offers", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -76,7 +87,8 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       const linkError = response.headers.get("X-Package-Link-Error");
       await done(result); setMessage("Saved.");
       if (linkError) setError(decodeURIComponent(linkError));
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save."); }
+      return true;
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save."); return false; }
     finally { setBusy(false); }
   }
   const notices = <>{error && <p role="alert" className="form-error">{error}</p>}{message && <p role="status">{message}</p>}</>;
@@ -90,17 +102,17 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     if (now !== null && offerRunning(offer, now) && source.offerSlug !== offer.slug) return "Not linked to its package yet. Open and save the offer to link it.";
     return "";
   }
-  if (section === "terms") return <form className="admin-form" onSubmit={event => { event.preventDefault(); void save({ kind: "terms", terms: cleanLines(terms) }, data => { setTerms(data as string[]); setSavedTerms(data as string[]); }); }}>
+  if (section === "terms") return <><form className="admin-form" onSubmit={event => { event.preventDefault(); void save({ kind: "terms", terms: cleanLines(terms) }, data => { setTerms(data as string[]); setSavedTerms(data as string[]); }); }}>
     <p>Used by offers set to Universal or Combined. Changes apply to those offers immediately.</p>
     <Lines label="Universal terms" value={terms} change={setTerms} />{notices}
     <button className="admin-button" disabled={busy || !dirty}>{busy ? "Saving…" : "Save universal T&C"}</button>
-  </form>;
+  </form>{unsavedDialog}</>;
   if (section === "listing") return <><form className="admin-form" onSubmit={event => { event.preventDefault(); void save({ kind: "listing", listing }, data => { setListing(data as OfferListing); setSavedListing(data as OfferListing); }); }}>
     <label className="admin-field"><span>Page heading</span><input required maxLength={120} value={listing.title} onChange={e => setListing({ ...listing, title: e.target.value })} /></label>
     <label className="admin-field"><span>Message when no offers are published</span><input required maxLength={300} value={listing.emptyMessage} onChange={e => setListing({ ...listing, emptyMessage: e.target.value })} /></label>
     <p>Offer cards and previews update automatically from published offers.</p>{notices}
     <button className="admin-button" disabled={busy || !dirty}>{busy ? "Saving…" : "Save listing"}</button>
-  </form><div className={s.cards}>{offers.map(offer => <article key={offer.slug}><h3>{offer.title}</h3><OfferPreview offer={offerView(offer, packages.find(item => item.id === offer.packageId))} /><Link className="admin-action" href={editHref(offer)}>Edit content & settings →</Link></article>)}</div></>;
+  </form><div className={s.cards}>{offers.map(offer => <article key={offer.slug}><h3>{offer.title}</h3><OfferPreview offer={offerView(offer, packages.find(item => item.id === offer.packageId))} /><Link className="admin-action" href={editHref(offer)}>Edit content & settings →</Link></article>)}</div>{unsavedDialog}</>;
   if (!selected) return <div>
     {section === "settings" && <p>Select an offer below to open its settings.</p>}
     {/* Offers are made on a package, in the package form (src/docs/package-offers.md, owner decision 7 Nov 2026). */}
@@ -183,5 +195,6 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     </form>
     <h3>Card preview</h3><OfferPreview offer={previewOffer} />
     <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><CapsuleSelect prefix="Show:" ariaLabel="Preview state" value={previewState} onChange={value => setPreviewState(value as ReservationPreview)} options={[{ value: "normal", label: "Normal" }, { value: "open", label: "Reserve open" }, { value: "reserved", label: "Reserved" }]} /><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview previewReservation={previewState} /></dialog>
+    {unsavedDialog}
   </>;
 }

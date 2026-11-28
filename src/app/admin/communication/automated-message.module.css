@@ -646,7 +646,7 @@
 }
 
 /* Reminder Box */
-.remCard { border: 1px solid var(--pn-line); border-radius: 9px; background: var(--pn-card); overflow: hidden; }
+.remCard { border: 1px solid var(--pn-line); border-radius: 9px; background: var(--pn-card); }
 .remHeader {
   display: flex;
   justify-content: space-between;
@@ -656,7 +656,9 @@
   padding: 10px 14px;
   background: var(--pn-raised);
   border-bottom: 1px solid var(--pn-line);
+  border-radius: 8px 8px 0 0;
 }
+.remHeader:only-child { border-radius: 8px; border-bottom: 0; }
 .remHeaderInfo {
   display: flex;
   align-items: center;
@@ -674,7 +676,7 @@
   flex-shrink: 0;
 }
 .summaryMeta { font-size: var(--fs-meta); color: var(--pn-muted); font-weight: 500; }
-.remBody { display: grid; gap: 12px; padding: 14px; background: var(--pn-card); }
+.remBody { display: grid; gap: 12px; padding: 14px; background: var(--pn-card); border-radius: 0 0 8px 8px; }
 
 .inlineGroup { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .inlineRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }

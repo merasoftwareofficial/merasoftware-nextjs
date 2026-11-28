@@ -1,6 +1,7 @@
 "use client";
 
 import { CapsuleSelect } from "@/components/capsule-select";
+import { useUnsavedGuard } from "@/components/unsaved-guard";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { NumberInput } from "@/components/number-input";
@@ -3348,11 +3349,11 @@ function FormDialog({
         setConfirmRefreshOpen(false);
         return;
       }
-      onClose();
+      requestClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, previewItem, confirmRefreshOpen]);
+  }, [previewItem, confirmRefreshOpen]);
 
   const triggersCsv = useMemo(() => [...form.triggers].sort().join(","), [form.triggers]);
   useEffect(() => {
@@ -3822,6 +3823,28 @@ function FormDialog({
     onSave(trail);
   }
 
+  async function saveForGuard(): Promise<boolean> {
+    const { trail, error: valError, errorBoxId } = prepareTrailForSave(form, byKey, catalogConditions);
+    if (valError) {
+      setLocalError(valError);
+      if (errorBoxId) accordion.openOnly(errorBoxId);
+      return false;
+    }
+    setLocalError("");
+    const saved = await onSave(trail);
+    return Boolean(saved);
+  }
+
+  const { guard: guardUnsaved, dialog: unsavedDialog } = useUnsavedGuard({
+    dirty: hasPendingChanges,
+    busy: saving || refreshing,
+    saveLabel: "Save changes & close",
+    discardLabel: "Discard & close",
+    onSave: saveForGuard,
+    onDiscard: onClose,
+  });
+  const requestClose = () => guardUnsaved(onClose);
+
   const rootTrigLabel = triggersLabel(form.triggers, byKey);
   rootTrigLabelRef.current = rootTrigLabel;
   const lastStops = lastStopTriggers();
@@ -3852,7 +3875,7 @@ function FormDialog({
   }
 
   return <div className={s.overlay}>
-    <div className={s.backdrop} onClick={onClose} />
+    <div className={s.backdrop} onClick={requestClose} />
     <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="amsg-title">
       <header className={s.dialogHead}>
         <div>
@@ -3884,7 +3907,7 @@ function FormDialog({
             <span className={s.liveDot} aria-hidden="true" />
             {isLive ? "Live catalog" : "Preview catalog"}
           </span>
-          <button type="button" className={s.closeBtn} aria-label="Close" onClick={onClose}>✕</button>
+          <button type="button" className={s.closeBtn} aria-label="Close" onClick={requestClose}>✕</button>
         </div>
       </header>
 
@@ -4496,7 +4519,7 @@ function FormDialog({
         </small>
         <div className={s.footActions}>
           {statusNotice && <span className={s.tplSavedTag}>{statusNotice}</span>}
-          <button type="button" className={s.ghostBtn} disabled={saving || refreshing} onClick={onClose}>Cancel</button>
+          <button type="button" className={s.ghostBtn} disabled={saving || refreshing} onClick={requestClose}>Cancel</button>
           <button
             type="button"
             className={s.ghostBtn}
@@ -4519,6 +4542,7 @@ function FormDialog({
     {previewItem && (
       <MessagePreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />
     )}
+    {unsavedDialog}
   </div>;
 }
 

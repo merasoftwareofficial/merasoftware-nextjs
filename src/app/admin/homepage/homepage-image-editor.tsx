@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "@/components/link";
 import { useTask } from "@/components/loading/navigation";
 import { LinkPicker } from "@/components/link-picker";
+import { useUnsavedGuard } from "@/components/unsaved-guard";
 import type { LinkGroup } from "@/lib/link-options";
 import type { HomepageContent, MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
 
@@ -54,63 +55,56 @@ export function HomepageImageEditor({
   const [revision, setRevision] = useState(0);
   const [visualFocus, setVisualFocus] = useState<string>();
   const [activeSection, setActiveSection] = useState<CopyKey | null>(focusSlot ? (focusSlot === "hero" ? "hero" : "work") : initialSection ?? null);
-  const [pendingSection, setPendingSection] = useState<CopyKey | null | undefined>(undefined);
   const [activeService, setActiveService] = useState<number | null>(null);
   const [library, setLibrary] = useState(assets);
   const { busy, track } = useTask();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-
   const slots = activeSection ? sectionSlots("home", activeSection) : [];
   const activeVisuals = Object.fromEntries(Object.entries(visuals).filter(([id]) => slots.some(slot => slot.id === id)));
   const savedActiveVisuals = Object.fromEntries(Object.entries(savedVisuals).filter(([id]) => slots.some(slot => slot.id === id)));
   const dirty = activeSection !== null && (JSON.stringify(content[activeSection]) !== JSON.stringify(savedContent[activeSection]) || JSON.stringify(activeVisuals) !== JSON.stringify(savedActiveVisuals));
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
-    const guardLinks = (event: MouseEvent) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
-      if (!link || link.getAttribute("target") === "_blank") return;
-      event.preventDefault();
-      event.stopPropagation();
-      setError(embedded ? "Save or discard your changes before switching sections." : "Save this section first, or use Back to discard your changes.");
-    };
-    window.addEventListener("beforeunload", warn);
-    document.addEventListener("click", guardLinks, true);
-    return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guardLinks, true); };
-  }, [dirty, embedded]);
+  const sectionLabel = sections.find(item => item.key === activeSection)?.label ?? "section";
 
-  function openSection(section: CopyKey | null) {
-    if (busy) return;
-    if (dirty && section !== activeSection) { setPendingSection(section); return; }
-    setActiveSection(section);
+  function discardCurrent() {
+    if (activeSection) {
+      setContent(current => ({ ...current, [activeSection]: savedContent[activeSection] }));
+      setVisuals(savedVisuals); setRevision(current => current + 1);
+    }
+    setActiveSection(null);
     setActiveService(null);
     setError("");
     setMessage("");
   }
 
-  function discardAndOpen() {
-    if (activeSection) {
-      setContent(current => ({ ...current, [activeSection]: savedContent[activeSection] }));
-      setVisuals(savedVisuals); setRevision(current => current + 1);
-    }
-    const next = pendingSection ?? null;
-    setPendingSection(undefined);
-    setActiveSection(next);
-    setActiveService(null);
-    setError("");
-    setMessage("");
+  const { guard: guardUnsaved, dialog: unsavedDialog } = useUnsavedGuard({
+    dirty,
+    busy,
+    saveLabel: `Save ${sectionLabel}`,
+    discardLabel: "Discard changes",
+    keepLabel: "Continue editing",
+    onSave: () => saveSection(true),
+    onDiscard: discardCurrent,
+  });
+
+  function openSection(section: CopyKey | null) {
+    if (busy || section === activeSection) return;
+    guardUnsaved(() => {
+      setActiveSection(section);
+      setActiveService(null);
+      setError("");
+      setMessage("");
+    });
   }
 
   function updateSection<K extends CopyKey>(section: K, patch: Partial<HomepageContent[K]>) {
     setContent(current => ({ ...current, [section]: { ...current[section], ...patch } }));
   }
 
-  function saveSection(nextSection?: CopyKey | null) {
-    if (!activeSection || busy) return;
+  function saveSection(silent = false): Promise<boolean> {
+    if (!activeSection || busy) return Promise.resolve(false);
     const section = activeSection;
     const sectionContent = content[section];
     const sectionVisuals = activeVisuals;
@@ -131,16 +125,11 @@ export function HomepageImageEditor({
         setVisuals(current => ({ ...current, ...result.visuals }));
         setSavedVisuals(current => ({ ...current, ...result.visuals }));
         setRevision(current => current + 1);
-        if (nextSection !== undefined) {
-          setPendingSection(undefined);
-          setActiveSection(nextSection);
-          setActiveService(null);
-        } else {
-          setMessage(`${sections.find(item => item.key === section)?.label ?? "Section"} saved.`);
-        }
+        if (!silent) setMessage(`${sections.find(item => item.key === section)?.label ?? "Section"} saved.`);
+        return true;
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Could not save the section.");
-        setPendingSection(undefined);
+        return false;
       }
     });
   }
@@ -267,8 +256,8 @@ export function HomepageImageEditor({
     {slots.length ? <VisualsEditor key={activeSection + "-" + revision} initial={activeVisuals} slots={slots} assets={library} links={links} focusSlot={visualFocus} onSlotSelected={setVisualFocus} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(current => ({ ...current, ...next })); setMessage(""); }} /> : null}
     </fieldset>
 
-    <div className="homepage-save-bar">{embedded ? <button className="admin-action" type="button" disabled={busy || !dirty} onClick={() => { setContent(savedContent); setVisuals(savedVisuals); setRevision(current => current + 1); setError(""); setMessage(""); }}>Discard changes</button> : <button className="admin-action" type="button" disabled={busy} onClick={() => openSection(null)}>Back</button>}<button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void saveSection()}>{busy ? "Saving…" : `Save ${sections.find(item => item.key === activeSection)?.label ?? "section"}`}</button></div>
+    <div className="homepage-save-bar">{embedded ? <button className="admin-action" type="button" disabled={busy || !dirty} onClick={() => { setContent(savedContent); setVisuals(savedVisuals); setRevision(current => current + 1); setError(""); setMessage(""); }}>Discard changes</button> : <button className="admin-action" type="button" disabled={busy} onClick={() => openSection(null)}>Back</button>}<button className="admin-button" type="button" disabled={busy || !dirty} onClick={() => void saveSection()}>{busy ? "Saving…" : `Save ${sectionLabel}`}</button></div>
     </>}
-    {pendingSection !== undefined ? <div className="homepage-unsaved-backdrop" role="presentation"><div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="homepage-unsaved-title"><h2 id="homepage-unsaved-title">Unsaved changes</h2><p>Your changes to this section are not saved yet. What would you like to do?</p><div><button className="admin-button" type="button" disabled={busy} onClick={() => void saveSection(pendingSection)}>Save and continue</button><button className="admin-action" type="button" disabled={busy} onClick={discardAndOpen}>Discard changes</button><button className="admin-action" type="button" disabled={busy} onClick={() => setPendingSection(undefined)}>Continue editing</button></div></div></div> : null}
+    {unsavedDialog}
   </>;
 }

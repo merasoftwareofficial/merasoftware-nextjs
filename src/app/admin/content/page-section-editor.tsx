@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { VisualsEditor } from "@/app/admin/visuals/visuals-editor";
 import { LinkPicker } from "@/components/link-picker";
+import { useUnsavedGuard } from "@/components/unsaved-guard";
 import type { LinkGroup } from "@/lib/link-options";
 import { sectionSchema, sectionVisualOptions, memberSchema, projectSchema, serviceItemSchema, groupSchema, type ManagedPage } from "@/lib/page-content";
 import type { MediaAsset, SectionVisualConfig } from "@/lib/repo/types";
@@ -58,19 +59,7 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
   const slots = sectionVisualOptions(page, section, content);
   const activeVisuals = Object.fromEntries(Object.entries(visuals).filter(([slot]) => slots.some(item => item.id === slot)));
   const dirty = JSON.stringify({ content, visuals: activeVisuals }) !== saved;
-  useEffect(() => {
-    if (!dirty) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
-    const navigate = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
-      if (!anchor || anchor.getAttribute("target") === "_blank" || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (!window.confirm("Discard unsaved changes to this section?")) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener("beforeunload", unload);
-    document.addEventListener("click", navigate, true);
-    return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigate, true); };
-  }, [dirty]);
-  async function save() {
+  async function save(): Promise<boolean> {
     setBusy(true); setError(""); setMessage("");
     try {
       const parsed = sectionSchema(page, section)!.parse(content);
@@ -78,12 +67,26 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not save this section.");
       setContent(result.content); setVisuals(result.visuals); setSaved(JSON.stringify({ content: result.content, visuals: result.visuals })); setRevision(current => current + 1); setMessage("Section saved. Changes are live on the website.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save this section."); }
+      return true;
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save this section."); return false; }
     finally { setBusy(false); }
   }
+  function discardChanges() {
+    const previous = JSON.parse(saved);
+    setContent(previous.content); setVisuals(previous.visuals); setRevision(current => current + 1); setError(""); setMessage("");
+  }
+  const { dialog: unsavedDialog } = useUnsavedGuard({
+    dirty,
+    busy,
+    saveLabel: "Save changes",
+    discardLabel: "Discard changes",
+    onSave: save,
+    onDiscard: discardChanges,
+  });
   return <div className={s.root}>
     <fieldset disabled={busy} className={`admin-form ${s.fields}`}><legend>Section content</legend><Field name="section" value={content} links={links} onChange={next => { setContent(next as Fields); setMessage(""); }} /></fieldset>
     {slots.length ? <fieldset disabled={busy} className={s.visuals}><legend>Section visuals</legend><p>Choose media and frame settings below. Content and visuals save together.</p><VisualsEditor key={`${slots.map(slot => slot.id).join(",")}-${revision}`} initial={activeVisuals} slots={slots} assets={library} links={links} focusSlot={visualFocus} onSlotSelected={setVisualFocus} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(next); setMessage(""); }} /></fieldset> : null}
-    <div className={s.saveBar}>{error ? <p className="form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}<button type="button" className="admin-button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save changes"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { if (!window.confirm("Discard unsaved changes to this section?")) return; const previous = JSON.parse(saved); setContent(previous.content); setVisuals(previous.visuals); setRevision(current => current + 1); setError(""); setMessage(""); }}>Discard changes</button><span>{dirty ? "Unsaved changes" : "All changes saved"}</span></div>
+    <div className={s.saveBar}>{error ? <p className="form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}<button type="button" className="admin-button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save changes"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { if (!window.confirm("Discard unsaved changes to this section?")) return; discardChanges(); }}>Discard changes</button><span>{dirty ? "Unsaved changes" : "All changes saved"}</span></div>
+    {unsavedDialog}
   </div>;
 }

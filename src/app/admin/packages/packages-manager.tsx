@@ -21,6 +21,7 @@ import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { useUnsavedGuard } from "@/components/unsaved-guard";
 import s from "./packages-manager.module.css";
 
 // The one package form (src/docs/project.md, owner decisions 9 Nov 2026): 1. the project it sells (name, category,
@@ -322,16 +323,14 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     setOfferForm(form); setBaseline(snapshot(item, form));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per opened package when the clock is ready
   }, [item?.id, creating, now]);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    const guard = (e: MouseEvent) => {
-      const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
-      if (link && link.getAttribute("target") !== "_blank" && !window.confirm("Discard unsaved package changes?")) { e.preventDefault(); e.stopPropagation(); }
-    };
-    window.addEventListener("beforeunload", warn); document.addEventListener("click", guard, true);
-    return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", guard, true); };
-  }, [dirty]);
+  const { guard: guardUnsaved, dialog: unsavedDialog } = useUnsavedGuard({
+    dirty,
+    busy,
+    saveLabel: "Save draft",
+    discardLabel: "Discard changes",
+    onSave: () => saveDraft(),
+    onDiscard: () => show(null, null, false, 0),
+  });
 
   function show(config: Item | null, form: OfferForm | null, isNew: boolean, version: number, note = "") {
     loadedFor.current = config && config.id ? config.id : null;
@@ -348,13 +347,13 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     show(toItem(row, offerList), current ? formFromOffer(current) : null, false, 0);
   }
   function choose(next: SalesPackage | null, isNew = false) {
-    if (dirty && !window.confirm("Discard unsaved package changes?")) return;
-    if (next && !isNew) return open(next.id);
-    show(next ? toItem(next, []) : null, null, isNew, 0);
+    guardUnsaved(() => {
+      if (next && !isNew) return open(next.id);
+      show(next ? toItem(next, []) : null, null, isNew, 0);
+    });
   }
   function chooseDraft(draft: PackageDraft) {
-    if (dirty && !window.confirm("Discard unsaved package changes?")) return;
-    open(draft.packageId);
+    guardUnsaved(() => open(draft.packageId));
   }
   function update<K extends keyof Item>(key: K, value: Item[K]) {
     setItem(current => {
@@ -383,12 +382,12 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const defaultCategory = () => [...(catalogue.categories ?? [])].filter(row => row.status !== "archived")
     .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999))[0]?.category ?? "";
   const withTypedCategory = <T extends { category: string }>(row: T): T => row.category ? row : { ...row, category: defaultCategory() };
-  // Only a new package chooses how it is priced; a saved one keeps the way it was made (the portal refuses a switch).
+  // Any package (new or saved) can choose or switch how it is priced.
   function choosePriceMode(mode: PriceMode) {
     rememberPriceMode(mode);
     setItem(current => {
       if (!current) return current;
-      const next: Item = { ...current, repriceFromCurrent: undefined, services: mode === "automatic" ? [] : undefined, ...(mode === "automatic" ? { discountedPrice: current.regularPrice } : {}) };
+      const next: Item = { ...current, repriceFromCurrent: undefined, services: mode === "automatic" ? [] : undefined, ...(mode === "automatic" ? { discountedPrice: current.regularPrice } : { pricing: undefined }) };
       return mode === "manual" ? withTypedCategory(next) : next;
     });
   }
@@ -527,11 +526,11 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   }
 
   // Save draft: only the package name (and the offer name when an offer was added). Nothing goes live.
-  async function saveDraft() {
-    if (!item) return;
+  async function saveDraft(): Promise<boolean> {
+    if (!item) return false;
     setTried(false); setError(""); setMessage("");
-    if (!item.name.trim()) { setError("Enter the package name to save a draft."); return; }
-    if (offerForm && !offerForm.title.trim()) { setError("Enter the offer name to save the offer in the draft."); return; }
+    if (!item.name.trim()) { setError("Enter the package name to save a draft."); return false; }
+    if (offerForm && !offerForm.title.trim()) { setError("Enter the offer name to save the offer in the draft."); return false; }
     setBusy(true);
     try {
       const response = await fetch("/api/packages/drafts", { method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -544,7 +543,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       loadedFor.current = draft.packageId;
       setItem(next); setDraftVersion(draft.version); setBaseline(snapshot(next, offerForm));
       setMessage(creating ? `Draft saved. Its link /package/${draft.packageId} goes live when you publish.` : "Draft saved. The live page stays as it is until you publish the changes.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "The draft was not saved. Please try again."); }
+      return true;
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The draft was not saved. Please try again."); return false; }
     finally { setBusy(false); }
   }
   // Publish: everything is checked, then the package (portal) and its offer (website) are written, and the
@@ -767,9 +767,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             )}
           <div className={s.pricingHeader}>
           <h3 className={s.pricingTitle}>Price &amp; project scope</h3>
-          {item.billing && (creating
-            ? <div className="admin-field"><span>Price method *</span><CapsuleSelect ariaLabel="Price method" value={autoPriced ? "automatic" : "manual"} onChange={value => choosePriceMode(value as PriceMode)} options={[{ value: "automatic", label: "Automatic: category and add-ons" }, { value: "manual", label: "Manual: typed prices" }]} /><small>Automatic uses the category and add-ons; manual uses typed prices.</small></div>
-            : <div className="admin-field"><span>Price method</span><p className={s.methodValue}>{savedRow?.pricing ? "Automatic (from category and add-ons)" : "Manual (typed prices)"}</p><small>A saved package keeps its pricing method; duplicate it to use the other method.</small></div>)}
+          {item.billing && (
+            <div className="admin-field"><span>Price method *</span><CapsuleSelect ariaLabel="Price method" value={autoPriced ? "automatic" : "manual"} onChange={value => choosePriceMode(value as PriceMode)} options={[{ value: "automatic", label: "Automatic: category and add-ons" }, { value: "manual", label: "Manual: typed prices" }]} /><small>Automatic uses the category and add-ons; manual uses typed prices.</small></div>)}
           {/* Only an automatic package takes its base price and add-ons from its category, so only it shows the category. A typed
               package (manual) has no category field or buttons on screen; it still saves the default category. */}
           {autoPriced && <>
@@ -905,5 +904,6 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       <PublicInteraction offer={view} terms={showOffer ? resolvedTerms(view, universalTerms) : packageTerms} preview previewReservation={showOffer ? previewState : "normal"}
         pkg={{ id, name: item.name || "Package name", live: showOffer, back: { href: "#", label: "Packages" }, packageTerms, customize: item.billing ? "#" : undefined }} />
     </dialog>
+    {unsavedDialog}
   </>;
 }

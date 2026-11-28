@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { useUnsavedGuard } from "@/components/unsaved-guard";
 import {
   BILLING_CYCLES, DEPENDENCIES, LIMIT_SCOPES, TIMINGS, blankPlanForm, formFromPlan, planBody, planState, rangeText, rupees,
   type PlanCatalogue, type PlanForm, type StoredPlan,
@@ -34,12 +35,15 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
   const [notice, setNotice] = useState("");
   const dirty = !!form && JSON.stringify(form) !== baseline;
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  const savePlanRef = useRef<() => Promise<boolean>>(async () => false);
+  const { guard: guardUnsaved, dialog: unsavedDialog } = useUnsavedGuard({
+    dirty,
+    busy,
+    saveLabel: form?.planId ? "Save plan" : "Create plan",
+    discardLabel: "Discard changes",
+    onSave: () => savePlanRef.current(),
+    onDiscard: () => { setForm(null); setBaseline(""); setError(""); setNotice(""); },
+  });
 
   async function reload() {
     const response = await fetch("/api/plans", { cache: "no-store" });
@@ -47,8 +51,9 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
     setCatalogue(await response.json());
   }
   function open(next: PlanForm | null) {
-    if (dirty && !window.confirm("Discard unsaved plan changes?")) return;
-    setForm(next); setBaseline(JSON.stringify(next)); setError(""); setNotice("");
+    guardUnsaved(() => {
+      setForm(next); setBaseline(JSON.stringify(next)); setError(""); setNotice("");
+    });
   }
   async function act(plan: StoredPlan, action: "hide" | "unhide" | "retire" | "restore" | "purge", confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -61,10 +66,11 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
     finally { setBusy(false); }
   }
 
-  if (form) return <PlanEditor form={form} setForm={setForm} catalogue={catalogue} dirty={dirty}
+  if (form) return <><PlanEditor form={form} setForm={setForm} catalogue={catalogue} dirty={dirty}
     onBack={() => open(null)}
     onSaved={async (saved) => { setBaseline(JSON.stringify(saved)); await reload(); }}
-    onCategories={setCatalogue} />;
+    onCategories={setCatalogue}
+    saveRef={savePlanRef} />{unsavedDialog}</>;
 
   const known = new Set(catalogue.categories.map(category => category.key));
   const groups = [
@@ -117,9 +123,10 @@ function CategoriesPanel({ catalogue, onChange }: { catalogue: PlanCatalogue; on
   </section>;
 }
 
-function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCategories }: {
+function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCategories, saveRef }: {
   form: PlanForm; setForm: (next: PlanForm) => void; catalogue: PlanCatalogue; dirty: boolean;
   onBack: () => void; onSaved: (saved: PlanForm) => Promise<void>; onCategories: (next: PlanCatalogue) => void;
+  saveRef: React.MutableRefObject<() => Promise<boolean>>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -150,15 +157,23 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
   }, [request]);
   const shown = quote && quote.for === request ? quote : null;
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setError(""); setNotice("");
+  async function savePlan(): Promise<boolean> {
+    setBusy(true); setError(""); setNotice("");
     try {
       const saved = await send<StoredPlan & { formattedDescriptions?: { content: string }[] }>({ target: "plan", ...body });
       const next = { ...form, planId: String(saved._id), expectedUpdatedAt: saved.updatedAt ?? null, isHidden: Boolean(saved.isHidden) };
       setForm(next); await onSaved(next);
       setNotice("Plan saved. Clients who already bought it keep what they bought.");
-    } catch (cause) { setError(message(cause, "Could not save the plan.")); }
+      return true;
+    } catch (cause) { setError(message(cause, "Could not save the plan.")); return false; }
     finally { setBusy(false); }
+  }
+  useEffect(() => {
+    saveRef.current = savePlan;
+  });
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    void savePlan();
   }
   async function reloadSaved() {
     if (!form.planId || !window.confirm("Discard unsaved changes and reload the saved plan?")) return;
