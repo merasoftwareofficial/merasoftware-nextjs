@@ -16,9 +16,10 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   { items: [{ label: "Overview", href: "/admin", minimum: "moderator" }] },
   { title: "Business", items: [
     { label: "Leads", href: "/admin/leads", minimum: "editor" },
-    { label: "Packages", href: "/admin/packages", minimum: "admin", also: ["/admin/offers", "/admin/plans"], sub: [
+    { label: "Packages", href: "/admin/packages", minimum: "admin", also: ["/admin/offers", "/admin/plans", "/admin/add-ons"], sub: [
       { label: "Offers", href: "/admin/offers" },
       { label: "Plans", href: "/admin/plans" },
+      { label: "Add-ons", href: "/admin/add-ons" },
     ] },
     { label: "Communication", href: "/admin/communication", minimum: "admin", also: ["/admin/email-control", "/admin/whatsapp"], soft: true, sub: COMMUNICATION_SECTIONS.map(({ id, label, panel }) => ({ label, href: `/admin/communication?panel=${panel}`, section: id })) },
   ] },
@@ -39,7 +40,7 @@ const navigation: { title?: string; items: (AdminNavItem & { minimum: Role })[] 
   { title: "Settings", items: [{ label: "Site settings", href: "/admin/settings", minimum: "admin" }] },
 ];
 /** Pages that talk to the portal as its admin; shown only while the portal admin role is active. */
-const SALES_PAGES = ["/admin/offers", "/admin/plans", "/admin/packages"];
+const SALES_PAGES = ["/admin/offers", "/admin/plans", "/admin/packages", "/admin/add-ons"];
 
 /**
  * `role` comes from the signed-in user. The panel is staff-only; hiding what a
