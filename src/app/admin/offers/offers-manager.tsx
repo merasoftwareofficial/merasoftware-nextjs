@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { CapsuleSelect } from "@/components/capsule-select";
-import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { AdminModal, DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import Link from "@/components/link";
 import { PublicInteraction, type ReservationPreview } from "@/components/campaign/public-interaction/page-content";
@@ -52,7 +52,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const preview = useRef<HTMLDialogElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   // Which reservation state the unsaved preview shows (no request is made).
   const [previewState, setPreviewState] = useState<ReservationPreview>("normal");
   const dirty = section === "terms" ? JSON.stringify(terms) !== JSON.stringify(savedTerms)
@@ -155,7 +155,7 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
     submit({ ...saved, status: "archived" });
   }
   return <>
-    <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link>{selected.slug && <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(selected.slug)}`}>Target people →</Link>}<button className="admin-action" type="button" onClick={() => preview.current?.showModal()}>Preview changes ↗</button></div>
+    <div className={s.actions}><Link className="admin-action" href="/admin/offers">← All offers</Link>{selected.slug && <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(selected.slug)}`}>Target people →</Link>}<button className="admin-action" type="button" onClick={() => setPreviewOpen(true)}>Preview changes ↗</button></div>
     <form className="admin-form" onSubmit={event => { event.preventDefault(); submit({ ...selected, inclusions: cleanLines(selected.inclusions), terms: cleanLines(selected.terms) }); }}>
       <fieldset disabled={busy} className={s.fields}>
         <h3>Offer identity</h3><div className="form-columns">{field("Offer name", "title")}{field("URL slug", "slug")}</div>
@@ -201,7 +201,17 @@ export function OffersManager({ initialOffers, initialTerms, initialListing, sec
       <div className={s.actions}><button className="admin-button" disabled={busy || !dirty}>{busy ? "Saving…" : selected.status === "published" ? "Save & publish" : "Save offer"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { setSelected(JSON.parse(baseline)); setError(""); }}>Discard changes</button>{JSON.parse(baseline)?.status !== "archived" && <DangerButton disabled={busy || dirty} onClick={() => void remove()}>Delete offer</DangerButton>}</div>
     </form>
     <h3>Card preview</h3><OfferPreview offer={previewOffer} />
-    <dialog ref={preview} className={s.preview} aria-label="Offer preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}><div className={s.previewBar}><strong>Unsaved offer preview</strong><CapsuleSelect prefix="Show:" ariaLabel="Preview state" value={previewState} onChange={value => setPreviewState(value as ReservationPreview)} options={[{ value: "normal", label: "Normal" }, { value: "open", label: "Reserve open" }, { value: "reserved", label: "Reserved" }]} /><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div><PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview previewReservation={previewState} /></dialog>
+    <AdminModal
+      open={previewOpen}
+      title="Unsaved offer preview"
+      size="xl"
+      headerExtra={<CapsuleSelect prefix="Show:" ariaLabel="Preview state" value={previewState} onChange={value => setPreviewState(value as ReservationPreview)} options={[{ value: "normal", label: "Normal" }, { value: "open", label: "Reserve open" }, { value: "reserved", label: "Reserved" }]} />}
+      onClose={() => setPreviewOpen(false)}
+    >
+      <div style={{ background: "#041e31", color: "#fff", borderRadius: 10, overflow: "hidden" }}>
+        <PublicInteraction offer={previewOffer} terms={resolvedTerms(previewOffer, savedTerms)} preview previewReservation={previewState} />
+      </div>
+    </AdminModal>
     {unsavedDialog}
     {confirmDialog}
   </>;

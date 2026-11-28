@@ -1,7 +1,7 @@
 "use client";
 
 import { CapsuleSelect } from "@/components/capsule-select";
-import { ConfirmDialog, DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { ConfirmDialog, DeleteIconButton, ModalCloseButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
@@ -779,7 +779,7 @@ function MessagePreviewModal({
             <h3>Message preview — {item.title}</h3>
             <p>Sample values filled (Rahul Sharma · ₹4,999 · 15 Dec 2026 · Monthly Growth Plan)</p>
           </div>
-          <button type="button" className={s.closeBtn} aria-label="Close preview" onClick={onClose}>✕</button>
+          <ModalCloseButton ariaLabel="Close preview" onClick={onClose} />
         </header>
 
         {item.channel === "both" && (
@@ -3915,7 +3915,7 @@ function FormDialog({
             <span className={s.liveDot} aria-hidden="true" />
             {isLive ? "Live catalog" : "Preview catalog"}
           </span>
-          <button type="button" className={s.closeBtn} aria-label="Close" onClick={requestClose}>✕</button>
+          <ModalCloseButton onClick={requestClose} />
         </div>
       </header>
 

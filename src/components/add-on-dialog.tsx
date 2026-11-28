@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ConfirmDialog, DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { AdminModal, ConfirmDialog, DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { addOnInput, blankAddOn } from "@/lib/add-ons";
 import Link from "@/components/link";
 import type { AddOn } from "@/lib/sales-packages";
@@ -108,7 +107,7 @@ export function AddOnDeleteDialog({
       />
       <ConfirmDialog
         open={confirmPermanent}
-        zIndex={260}
+        zIndex={1250}
         title="Permanently delete add-on?"
         dangerTitle
         message={<>This will permanently delete <strong>&ldquo;{addOn.name}&rdquo;</strong> and remove it (along with its price &amp; terms) from all live packages. This cannot be undone.</>}
@@ -155,17 +154,10 @@ export function AddOnDialog({ edit, categories, usedInPackages, onCancel, onChan
   const heading = edit ? "Edit add-on service" : "New add-on service";
   // Active categories, plus any archived one this add-on is already tagged with so it stays visible.
   const choices = categories.filter(row => row.status !== "archived" || chosen.includes(row.category));
-  return createPortal(<div ref={ref} onKeyDown={event => {
-    event.stopPropagation();
-    if (event.key === "Escape" && !busy && !confirmDelete) { event.preventDefault(); onCancel(); }
-    if (event.key === "Tab") {
-      const controls = [...(ref.current?.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled), select:not(:disabled), textarea:not(:disabled)') || [])];
-      const first = controls[0], last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    }
-  }} role="dialog" aria-modal="true" aria-label={heading} style={{ position: "fixed", inset: 0, zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "#0f172a66" }}>
-    <form className="admin-panel" style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onSubmit={async event => {
+  return (
+    <AdminModal open title={heading} size="md" busy={busy || confirmDelete} onClose={onCancel}>
+      <div ref={ref}>
+        <form className="admin-panel" onSubmit={async event => {
       event.preventDefault(); event.stopPropagation(); if (busy) return;
       const unitPrice = Number(price);
       if (!name.trim()) { setError("Enter the add-on name."); return; }
@@ -185,7 +177,7 @@ export function AddOnDialog({ edit, categories, usedInPackages, onCancel, onChan
       } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save the add-on."); }
       finally { setBusy(false); }
     }}>
-      <h2>{heading}</h2><fieldset disabled={busy} style={{ border: 0, padding: 0 }}>
+      <fieldset disabled={busy} style={{ border: 0, padding: 0 }}>
         <label className="admin-field"><span>Add-on name *</span><input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label>
         <label className="admin-field"><span>Price (₹) *</span><input type="number" min={0} max={10000000} step="0.01" value={price} onChange={event => setPrice(event.target.value)} /><small>{perUnit ? "The price of one unit; the package counts how many." : "A fixed price, counted once."}</small></label>
         <label className="admin-field"><span>Description</span><textarea maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} /></label>
@@ -234,5 +226,7 @@ export function AddOnDialog({ edit, categories, usedInPackages, onCancel, onChan
         }}
       />
     )}
-  </div>, document.body);
+      </div>
+    </AdminModal>
+  );
 }

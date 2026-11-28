@@ -2,6 +2,7 @@
 /* eslint @next/next/no-img-element: off -- Cloudinary and outside URLs are not configured for next/image. */
 
 import { useEffect, useRef, useState } from "react";
+import { ModalCloseButton } from "@/components/admin-confirm-dialog";
 import { createPortal } from "react-dom";
 import { IMAGE_UPLOAD_ACCEPT, VIDEO_UPLOAD_ACCEPT } from "@/lib/cloudinary-types";
 import { imageFileProblem, uploadToLibrary, uploadVideoToLibrary } from "@/lib/media-upload";
@@ -69,7 +70,7 @@ export function ImageChooser({
       <div className="image-chooser" role="dialog" aria-modal="true" aria-labelledby="image-chooser-title" tabIndex={-1} ref={dialog}>
         <div className="image-chooser-head">
           <h2 id="image-chooser-title">Choose {allowVideo ? "image, GIF or video" : "image"}</h2>
-          <button className="admin-action" type="button" onClick={onClose}>Close</button>
+          <ModalCloseButton onClick={onClose} />
         </div>
         {tabs.length > 1 ? (
           <div className="homepage-editor-tabs" role="tablist">

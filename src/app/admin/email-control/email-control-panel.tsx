@@ -1,6 +1,6 @@
 "use client";
 import { CapsuleSelect } from "@/components/capsule-select";
-import { useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { AdminModal, ModalCloseButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { formatIndiaDateTime } from "@/lib/date-time";
@@ -81,12 +81,6 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     finally { if (current === generation.current) setLoading(false); }
   }, [request]);
   useCommunicationRefresh(signal => load(signal), active, 0, application);
-
-  useEffect(() => {
-    if (workspace) return;
-    if (editor || draft) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [editor, draft, workspace]);
   function changeTab(next: Application) {
     // The open tab again: nothing to change (clearing the data here would never reload it).
     if (busy || next === application || (next === "portal" && !canManagePortal)) return;
@@ -359,7 +353,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
         <div className={styles.actions}><button type="button" disabled={busy} onClick={() => void previewTemplate()}>Preview sample</button>{editor.system && editor._id && <button type="button" disabled={busy} onClick={() => void resetTemplate()}>Reset to original</button>}<button type="button" disabled={busy} onClick={cancelTemplate}>Cancel</button><button className="admin-button" disabled={busy} type="submit">{busy ? "Working…" : "Save template"}</button></div>
       </form>}
       {draft && <div className={styles.reviewLayout}>
-        <header className={styles.reviewHeader}><div><h2 id="email-dialog-title">Review &amp; send</h2><small>{data?.events.find(row => row.key === draft.event)?.label || draft.event}</small></div><button type="button" aria-label="Close review" disabled={busy} onClick={() => setPendingChoice("close")}>×</button></header>
+        <header className={styles.reviewHeader}><div><h2 id="email-dialog-title">Review &amp; send</h2><small>{data?.events.find(row => row.key === draft.event)?.label || draft.event}</small></div>{workspace && <ModalCloseButton ariaLabel="Close review" disabled={busy} onClick={() => setPendingChoice("close")} />}</header>
         <div className={styles.reviewBody}>
         <details><summary>To: {draft.to.join(", ") || "WhatsApp recipient"} · Details</summary><p>The request is saved. Choose whether to send this message.</p>
         {!!draft.attachments?.length && <p>Attachments: {draft.attachments.map(row => row.filename).join(", ")}</p>}</details>
@@ -500,7 +494,19 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
       </>}
     </section>}
     </div>
-    {workspace ? (editing && <section className={styles.workspaceEditor} aria-labelledby="email-dialog-title">{editorContent}</section>) : <dialog ref={dialog} className={`${styles.dialog} ${draft ? styles.reviewWindow : ""}`} aria-labelledby="email-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) { if (draft) setPendingChoice("close"); else void cancelTemplate(); } }}>{editorContent}</dialog>}
+    {workspace ? (editing && <section className={styles.workspaceEditor} aria-labelledby="email-dialog-title">{editorContent}</section>) : (
+      <AdminModal
+        open={Boolean(editor || draft)}
+        title={draft ? "Review & send" : (editor?._id ? "Edit template" : "New template")}
+        size={draft ? "md" : "xl"}
+        busy={busy}
+        onClose={() => { if (!busy) { if (draft) setPendingChoice("close"); else void cancelTemplate(); } }}
+      >
+        <div className={styles.dialog} style={{ border: 0, padding: 0, width: "100%", maxHeight: "none", overflow: "visible" }}>
+          {editorContent}
+        </div>
+      </AdminModal>
+    )}
     {confirmDialog}
   </div>;
 }

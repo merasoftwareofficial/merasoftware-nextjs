@@ -21,7 +21,7 @@ import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
 import { CapsuleSelect } from "@/components/capsule-select";
-import { ConfirmDialog, DangerButton, DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { AdminModal, ConfirmDialog, DangerButton, DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import s from "./packages-manager.module.css";
 
@@ -285,7 +285,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [categoryNote, setCategoryNote] = useState("");
   const [editCategory, setEditCategory] = useState(false);
   const [addOnDialog, setAddOnDialog] = useState<{ edit?: AddOn } | null>(null);
-  const preview = useRef<HTMLDialogElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const now = useServerTime();
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const snapshot = (next: Item | null, form: OfferForm | null) => JSON.stringify({ next, form });
@@ -931,14 +931,15 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <p className={s.cta}>{showOffer ? (previewState === "open" ? `Reserve price for ${hours(offerForm!.reservationHoldHours) || DEFAULT_HOLD_HOURS} hours${item.billing ? " · Get this package" : ""} · Arrange a callback` : previewState === "reserved" ? "Start my project · time left · Arrange a callback" : item.billing ? "Get this package · Arrange a callback" : "Arrange a callback") : item.billing ? "Get this package · Arrange a callback" : "Arrange a callback"} →</p>
         </div>
         <p className={s.note}>{showOffer ? "Offer mode: 3 prices and the countdown. When it ends the page shows 2 prices again without a reload." : "Package mode: 2 prices, no countdown. A package with purchase settings shows Get this package and Arrange a callback; any other shows Arrange a callback."}{offerForm?.status === "draft" && showOffer ? " This offer is a draft: customers still see package mode." : ""}</p>
-        <button type="button" className="admin-action" onClick={() => preview.current?.showModal()}>Preview full page ↗</button>
+        <button type="button" className="admin-action" onClick={() => setPreviewOpen(true)}>Preview full page ↗</button>
       </aside>
     </div>
-    <dialog ref={preview} className={s.preview} aria-label="Package page preview" onClick={e => { if (e.target === e.currentTarget) preview.current?.close(); }}>
-      <div className={s.previewBar}><strong>Unsaved page preview</strong><button type="button" className="admin-button" onClick={() => preview.current?.close()}>Close preview</button></div>
-      <PublicInteraction offer={view} terms={showOffer ? resolvedTerms(view, universalTerms) : packageTerms} preview previewReservation={showOffer ? previewState : "normal"}
-        pkg={{ id, name: item.name || "Package name", live: showOffer, back: { href: "#", label: "Packages" }, packageTerms, customize: item.billing ? "#" : undefined }} />
-    </dialog>
+    <AdminModal open={previewOpen} title="Unsaved page preview" size="xl" onClose={() => setPreviewOpen(false)}>
+      <div style={{ background: "#041e31", color: "#fff", borderRadius: 10, overflow: "hidden" }}>
+        <PublicInteraction offer={view} terms={showOffer ? resolvedTerms(view, universalTerms) : packageTerms} preview previewReservation={showOffer ? previewState : "normal"}
+          pkg={{ id, name: item.name || "Package name", live: showOffer, back: { href: "#", label: "Packages" }, packageTerms, customize: item.billing ? "#" : undefined }} />
+      </div>
+    </AdminModal>
     {unsavedDialog}
     {confirmDialog}
   </>;

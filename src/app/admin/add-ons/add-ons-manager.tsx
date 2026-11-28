@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "@/components/link";
 import { AddOnDeleteDialog, AddOnDialog, type AddOnChangeResult } from "@/components/add-on-dialog";
-import { DeleteIconButton } from "@/components/admin-confirm-dialog";
+import { ConfirmDialog, DeleteIconButton } from "@/components/admin-confirm-dialog";
 import { CapsuleSelect } from "@/components/capsule-select";
 import { addOnInput } from "@/lib/add-ons";
 import { categoryLabel, type AddOn, type SalesCatalogue } from "@/lib/sales-packages";
@@ -329,44 +329,43 @@ export function AddOnsManager({ initial }: { initial: SalesCatalogue }) {
         </div>
       )}
 
-      {usedInPopup && (
-        <div
-          className="homepage-unsaved-backdrop"
-          role="presentation"
-          onClick={event => { if (event.target === event.currentTarget) setUsedInPopup(null); }}
-        >
-          <div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="addon-used-in-title">
-            <h2 id="addon-used-in-title">{usedInPopup.name}</h2>
-            <p>Used in {popupPackages.length} {popupPackages.length === 1 ? "package" : "packages"}:</p>
-            <div style={{ display: "grid", gap: 8, maxHeight: "48vh", overflowY: "auto", margin: "12px 0" }}>
-              {popupPackages.map(pkg => (
-                <Link
-                  key={pkg.id}
-                  href={`/admin/packages?package=${encodeURIComponent(pkg.id)}`}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--pn-line)",
-                    background: "var(--pn-raised)",
-                    color: "var(--pn-text)",
-                    fontWeight: 600,
-                    fontSize: 14,
-                  }}
-                >
-                  <span>{pkg.name}</span>
-                  <span style={{ color: "var(--pn-accent)", fontSize: 13 }}>Open →</span>
-                </Link>
-              ))}
-            </div>
-            <div>
-              <button type="button" className="admin-button" onClick={() => setUsedInPopup(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(usedInPopup)}
+        title={usedInPopup?.name ?? ""}
+        variant="primary"
+        cancelLabel="Close"
+        onCancel={() => setUsedInPopup(null)}
+        message={
+          usedInPopup ? (
+            <>
+              <p style={{ margin: "0 0 10px" }}>Used in {popupPackages.length} {popupPackages.length === 1 ? "package" : "packages"}:</p>
+              <div style={{ display: "grid", gap: 8, maxHeight: "48vh", overflowY: "auto" }}>
+                {popupPackages.map(pkg => (
+                  <Link
+                    key={pkg.id}
+                    href={`/admin/packages?package=${encodeURIComponent(pkg.id)}`}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: "1px solid var(--pn-line)",
+                      background: "var(--pn-raised)",
+                      color: "var(--pn-text)",
+                      fontWeight: 600,
+                      fontSize: 14,
+                    }}
+                  >
+                    <span>{pkg.name}</span>
+                    <span style={{ color: "var(--pn-accent)", fontSize: 13 }}>Open →</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : ""
+        }
+      />
 
       {dialog && (
         <AddOnDialog

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { AdminModal, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory } from "@/lib/service-plans";
 
@@ -30,34 +30,38 @@ export function ProjectCategoryDialog({ nextSortOrder, edit, onCancel, onSaved, 
   const [archived, setArchived] = useState(edit?.status === "archived");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const heading = edit ? "Edit project category" : "New project category";
   const used = edit?.usage;
   const priceChanged = !!edit && (price === "" ? edit.basePrice !== null && edit.basePrice !== undefined : Number(price) !== edit.basePrice);
-  return createPortal(<div ref={ref} onKeyDown={event => {
-    event.stopPropagation();
-    if (event.key === "Escape" && !busy) { event.preventDefault(); onCancel(); }
-    if (event.key === "Tab") {
-      const controls = [...(ref.current?.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled), select:not(:disabled), textarea:not(:disabled)') || [])];
-      const first = controls[0], last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    }
-  }} role="dialog" aria-modal="true" aria-label={heading} style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "#0f172a66" }}>
-    <form className="admin-panel" style={{ maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onSubmit={async event => {
-      event.preventDefault(); event.stopPropagation(); if (busy) return;
-      if (priceChanged && !window.confirm("Change the base price? It changes the price of every new project and package made from this category. Packages already saved keep their price.")) return;
-      if (edit && archived && edit.status !== "archived" && used?.packages && !window.confirm(`${used.packages} package${used.packages === 1 ? " uses" : "s use"} this category. An archived category blocks editing their live versions until they are moved. Archive it anyway?`)) return;
-      setBusy(true); setError("");
-      try {
-        const category = await send<ProjectCategory>({ target: "category", action: "save_project_category", ...(edit ? {} : { creating: true }),
-          category: key, label: name.trim(), basePrice: price === "" ? null : Number(price), description,
-          terms: termsText.split("\n").map(line => line.trim()).filter(Boolean),
-          startingNodeTitle: node, sortOrder, customerSelectable, status: archived ? "archived" : "active" });
-        await onSaved(category);
-      } catch (cause) { setError(cause instanceof Error ? cause.message : edit ? "Could not save the category." : "Could not create category."); }
-      finally { setBusy(false); }
-    }}>
-      <h2>{heading}</h2><fieldset disabled={busy} style={{ border: 0, padding: 0 }}>
+  return (
+    <AdminModal open title={heading} size="md" busy={busy} onClose={onCancel}>
+      <div ref={ref}>
+        <form className="admin-panel" onSubmit={async event => {
+          event.preventDefault(); event.stopPropagation(); if (busy) return;
+          if (priceChanged && !(await confirm({
+            title: "Change base price?",
+            message: "It changes the price of every new project and package made from this category. Packages already saved keep their price.",
+            confirmLabel: "Change price",
+            variant: "primary",
+          }))) return;
+          if (edit && archived && edit.status !== "archived" && used?.packages && !(await confirm({
+            title: "Archive category?",
+            message: `${used.packages} package${used.packages === 1 ? " uses" : "s use"} this category. An archived category blocks editing their live versions until they are moved. Archive it anyway?`,
+            confirmLabel: "Archive category",
+            variant: "primary",
+          }))) return;
+          setBusy(true); setError("");
+          try {
+            const category = await send<ProjectCategory>({ target: "category", action: "save_project_category", ...(edit ? {} : { creating: true }),
+              category: key, label: name.trim(), basePrice: price === "" ? null : Number(price), description,
+              terms: termsText.split("\n").map(line => line.trim()).filter(Boolean),
+              startingNodeTitle: node, sortOrder, customerSelectable, status: archived ? "archived" : "active" });
+            await onSaved(category);
+          } catch (cause) { setError(cause instanceof Error ? cause.message : edit ? "Could not save the category." : "Could not create category."); }
+          finally { setBusy(false); }
+        }}>
+          <fieldset disabled={busy} style={{ border: 0, padding: 0 }}>
         <label className="admin-field"><span>Category name</span><input required maxLength={60} value={name} onChange={event => {
           setName(event.target.value); if (!edit && !keyEdited) setKey(event.target.value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^[^a-z]+|_+$/g, "").slice(0, 40));
         }} /></label>
@@ -76,5 +80,8 @@ export function ProjectCategoryDialog({ nextSortOrder, edit, onCancel, onSaved, 
         <div className="form-actions"><button type="button" className="admin-action" onClick={onCancel}>Cancel</button><button type="submit" className="admin-button">{busy ? "Saving…" : edit ? "Save category" : "Create category"}</button></div>
       </fieldset>
     </form>
-  </div>, document.body);
+      </div>
+      {confirmDialog}
+    </AdminModal>
+  );
 }

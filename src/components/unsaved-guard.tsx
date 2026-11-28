@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useNavigate } from "@/components/loading/navigation";
 
 export type UnsavedGuardOptions = {
@@ -197,25 +198,25 @@ export function useUnsavedGuard({
   }
 
   const disabled = working || busy;
-  const dialog = open ? (
-    <div className="homepage-unsaved-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) handleKeep(); }}>
-      <div className="homepage-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="unsaved-guard-title">
-        <h2 id="unsaved-guard-title">{title}</h2>
-        <p>{message}</p>
-        <div>
-          <button className="admin-button" type="button" disabled={disabled} onClick={() => void handleSave()}>
-            {working ? "Saving…" : saveLabel}
-          </button>
-          <button className="admin-action" type="button" disabled={disabled} onClick={handleDiscard}>
-            {discardLabel}
-          </button>
-          <button className="admin-action" type="button" disabled={disabled} onClick={handleKeep}>
-            {keepLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
+  const dialog = (
+    <ConfirmDialog
+      open={open}
+      title={title}
+      message={message}
+      variant="primary"
+      confirmLabel={saveLabel}
+      busyLabel="Saving…"
+      cancelLabel={keepLabel}
+      busy={disabled}
+      onCancel={handleKeep}
+      onConfirm={handleSave}
+      extraActions={
+        <button className="admin-dialog-btn" type="button" disabled={disabled} onClick={handleDiscard}>
+          {discardLabel}
+        </button>
+      }
+    />
+  );
 
   return { guard, dialog };
 }

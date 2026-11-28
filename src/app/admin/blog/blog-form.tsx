@@ -1,6 +1,6 @@
 "use client";
 import { CapsuleSelect } from "@/components/capsule-select";
-import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { DangerButton, ModalCloseButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 
 import { formatIndiaDateTime, indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import { useNavigate, useTask } from "@/components/loading/navigation";
@@ -697,14 +697,12 @@ export function BlogForm({
           <div className="blog-preview-bar">
             <h2 id="blog-preview-title">{reviewAction ? "Review before publishing" : "Article preview"}</h2>
             <div className="blog-preview-buttons">
-              <button className="admin-button secondary" type="button" data-autofocus disabled={busy} onClick={closePreview}>
-                Close preview
-              </button>
               {reviewAction ? (
                 <button className="admin-button" type="button" disabled={busy} onClick={() => runAction(reviewAction.action, reviewAction.extra, true)}>
                   {busy ? "Working…" : `${reviewAction.action === "schedule" ? "Confirm schedule" : reviewAction.action === "save-draft" ? "Confirm update" : "Confirm publish"}${seoProblems.length ? " anyway" : ""}`}
                 </button>
               ) : null}
+              <ModalCloseButton disabled={busy} onClick={closePreview} ariaLabel="Close preview" title="Close preview" />
             </div>
             {error ? <p className="form-error" role="alert">{error}</p> : null}
           </div>
