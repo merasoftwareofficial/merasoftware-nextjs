@@ -675,12 +675,59 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       : "Package published. The offer is not live: customers see 2 prices.";
     void send(item, sending, creating, done, { version: draftVersion, ...(keep ? { keepOffer: keep } : {}) });
   }
-  // End offer = archive, at once: it leaves the website, the package is back to 2 prices, reservations keep their
-  // price. The live package is sent as it is; a working copy keeps its other changes.
-  function endOffer() {
-    const live = item && catalogue.packages.find(row => row.id === item.id);
-    if (!live || !offerForm?.base) return;
-    void send(toItem(live, offers), { ...formFromOffer(offerForm.base), status: "archived" as never }, false, "Offer ended. The package page shows 2 prices again.", undefined, true);
+  // End / delete offer = archive + unlink at once via DELETE /api/offers, preserving any unsaved package edits.
+  async function archiveOffer(target: Offer) {
+    if (!item) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/offers", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: target.slug }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The offer could not be deleted. Please try again.");
+      const archived = result.offer as Offer;
+      setOffers(current => [...current.filter(row => row.slug !== archived.slug), archived]);
+      if (offerForm?.base?.slug === archived.slug) setOfferForm(null);
+      setItem(current => current && current.offerSlug === archived.slug ? { ...current, offerSlug: "" } : current);
+      setCatalogue(current => ({ ...current, packages: current.packages.map(row => row.id === item.id && row.offerSlug === archived.slug ? { ...row, offerSlug: "" } : row) }));
+      setBaseline(current => {
+        if (!current) return current;
+        const saved = JSON.parse(current) as { next: Item | null; form: OfferForm | null };
+        const nextItem = saved.next && saved.next.offerSlug === archived.slug ? { ...saved.next, offerSlug: "" } : saved.next;
+        const nextForm = saved.form?.base?.slug === archived.slug ? null : saved.form;
+        return JSON.stringify({ next: nextItem, form: nextForm });
+      });
+      if (result.draftCleared) {
+        setDraftVersion(v => (v > 0 ? v + 1 : v));
+        setDrafts(current => current.map(row => row.packageId === item.id ? { ...row, version: row.version + 1, data: { ...row.data, offer: null } } : row));
+      }
+      setConfirmEnd(false);
+      setMessage(now !== null && offerRunning(target, now) ? "Offer ended. The package page shows 2 prices again." : `"${target.title}" was deleted.`);
+      if (result.linkError) setError(result.linkError);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The offer could not be deleted. Please try again."); }
+    finally { setBusy(false); }
+  }
+  async function unlinkLegacyOffer(target: Offer) {
+    if (!item?.id) return;
+    if (!(await confirm({
+      title: "Remove legacy offer from package?",
+      message: `Remove "${target.title}" from "${item.name}"? This package will no longer use that offer; the offer itself stays untouched for any other packages.`,
+      confirmLabel: "Remove from package",
+    }))) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/offers", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: target.slug, packageId: item.id }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The offer could not be removed. Please try again.");
+      setItem(current => current && current.offerSlug === target.slug ? { ...current, offerSlug: "" } : current);
+      setCatalogue(current => ({ ...current, packages: current.packages.map(row => row.id === item.id && row.offerSlug === target.slug ? { ...row, offerSlug: "" } : row) }));
+      setBaseline(current => {
+        if (!current) return current;
+        const saved = JSON.parse(current) as { next: Item | null; form: OfferForm | null };
+        const nextItem = saved.next && saved.next.offerSlug === target.slug ? { ...saved.next, offerSlug: "" } : saved.next;
+        return JSON.stringify({ ...saved, next: nextItem });
+      });
+      setMessage(`"${target.title}" was removed from this package.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The offer could not be removed. Please try again."); }
+    finally { setBusy(false); }
   }
   // Discard draft: a published package goes back to what is live; a never-published one is deleted.
   async function discardDraft() {
@@ -788,6 +835,8 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const field = (key: keyof PackageDesign, label: string, max: number, required = true, hint?: string) => <label className={`admin-field ${bad(`design.${key}`) ?? ""}`}><span>{label}{required && " *"}</span><input aria-label={label} maxLength={max} value={item.design[key]} onChange={e => design(key, e.target.value)} />{hint && <small>{hint}</small>}{err(`design.${key}`)}</label>;
   const savedOffer = offerForm?.base;
   const running = !!savedOffer && now !== null && offerRunning(savedOffer, now);
+  const isExpiredOffer = !!savedOffer && !running && savedOffer.status === "published";
+  const legacyLinkedOffer = !offerForm && item.offerSlug ? offers.find(offer => !offer.packageId && offer.slug === item.offerSlug) : undefined;
   const past = item.id ? ownOffers(item.id).filter(offer => offer.slug !== savedOffer?.slug).sort((a, b) => Date.parse(b.endsAt) - Date.parse(a.endsAt)) : [];
   const lastEnded = !offerForm ? past[0] : undefined;
   const id = creating ? item.id || idFromName(item.name) : item.id;
@@ -880,14 +929,32 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         </section>
 
         {/* 2. Offer */}
-        <section className={s.sec}><div className={s.sechead}><h2>2. Offer</h2><span className={running ? s.tagRun : lastEnded ? s.tagEnd : s.tagOpt}>{running ? "Running" : offerForm ? (savedOffer ? "Draft" : "Being added") : lastEnded ? "Ended" : "Optional"}</span></div>
-          {!offerForm && !lastEnded && <div className={s.emptyOffer}><p><b>No offer on this package.</b> The package page shows 2 prices (main crossed out + normal price) and no countdown. You can save the package without touching anything here.</p><button type="button" className="admin-action" onClick={() => setOfferForm(blankOffer())}>+ Add offer</button></div>}
-          {!offerForm && lastEnded && <>
+        <section className={s.sec}><div className={s.sechead}><h2>2. Offer</h2><span className={running ? s.tagRun : isExpiredOffer || lastEnded || legacyLinkedOffer ? s.tagEnd : s.tagOpt}>{running ? "Running" : offerForm ? (savedOffer ? (isExpiredOffer ? "Expired" : "Draft") : "Being added") : legacyLinkedOffer ? "Legacy offer" : lastEnded ? "Ended" : "Optional"}</span></div>
+          {!offerForm && legacyLinkedOffer && <div className={s.emptyOffer}>
+            <p className={s.warnNote}>Legacy offer <strong>&ldquo;{legacyLinkedOffer.title}&rdquo;</strong> ({rupee(legacyLinkedOffer.offerPrice)} · {now !== null && offerRunning(legacyLinkedOffer, now) ? `runs until ${formatIndiaDateTime(legacyLinkedOffer.endsAt)}` : legacyLinkedOffer.status === "archived" ? "archived" : `ended ${formatIndiaDateTime(legacyLinkedOffer.endsAt)}`}) is linked to this package.</p>
+            <div className={s.row}>
+              <Link className="admin-action" href={`/admin/offers?section=settings&offer=${encodeURIComponent(legacyLinkedOffer.slug)}`}>Edit in Offers →</Link>
+              <DangerButton disabled={busy} onClick={() => void unlinkLegacyOffer(legacyLinkedOffer)}>Remove from package</DangerButton>
+            </div>
+          </div>}
+          {!offerForm && !legacyLinkedOffer && !lastEnded && <div className={s.emptyOffer}><p><b>No offer on this package.</b> The package page shows 2 prices (main crossed out + normal price) and no countdown. You can save the package without touching anything here.</p><button type="button" className="admin-action" onClick={() => setOfferForm(blankOffer())}>+ Add offer</button></div>}
+          {!offerForm && !legacyLinkedOffer && lastEnded && <>
             <p className={s.warnNote}>The last offer &quot;{lastEnded.title}&quot; {lastEnded.status === "archived" ? "was ended" : `ended on ${formatIndiaDateTime(lastEnded.endsAt)}`}. The page is back to 2 prices. Customers who reserved keep their price until their hold ends.</p>
-            <div><button type="button" className="admin-action" onClick={() => setOfferForm(blankOffer())}>+ Start new offer</button></div>
+            <div className={s.row}>
+              <button type="button" className="admin-action" onClick={() => setOfferForm(blankOffer())}>+ Start new offer</button>
+              {lastEnded.status !== "archived" && <button type="button" className="admin-action" onClick={() => setOfferForm(formFromOffer(lastEnded))}>Edit offer</button>}
+              {lastEnded.status !== "archived" && <DangerButton disabled={busy} onClick={async () => {
+                if (await confirm({
+                  title: "Delete offer?",
+                  message: `Delete "${lastEnded.title}"? It leaves the website and is unlinked from this package. People who already reserved keep their saved price.`,
+                  confirmLabel: "Delete offer",
+                })) void archiveOffer(lastEnded);
+              }}>Delete offer</DangerButton>}
+            </div>
           </>}
           {offerForm && <div className={s.offerBox}>
             {running && <p className={s.idline}><span className={s.tagRun}>Running</span> Ends in <b>{Math.floor(leftMs / 86400000)}d {Math.floor(leftMs / 3600000) % 24}h</b>. Edit and save to update the live page. <Link className="admin-action" href={`/admin/offers/targets/${encodeURIComponent(savedOffer!.slug)}`}>Target people →</Link></p>}
+            {isExpiredOffer && <p className={s.warnNote}>Editing ended offer &ldquo;{savedOffer!.title}&rdquo;. Set a future expiry date to run it again, or delete it to remove it from this package. Existing reservations keep their frozen price.</p>}
             <div className="form-columns">
               <label className={`admin-field ${bad("offerTitle") ?? ""}`}><span>Offer name *</span><input aria-label="Offer name" maxLength={120} placeholder="e.g. Diwali Launch Offer" value={offerForm.title} onChange={e => offerField("title", e.target.value)} /><small>Shown on the card, sticky bar, emails and My offers.</small>{err("offerTitle")}</label>
               <div className={`admin-field ${bad("offerStatus") ?? ""}`}><span>Offer status *</span><CapsuleSelect ariaLabel="Offer status" value={offerForm.status} onChange={value => offerField("status", value as OfferForm["status"])} options={[{ value: "draft", label: savedOffer ? "Draft (not on the website)" : "Draft (kept in the package draft)" }, { value: "published", label: "Published" }]} />{!savedOffer && offerForm.status === "draft" && <small>Publish keeps this offer in the draft. Choose Published to make it live with the package.</small>}{err("offerStatus")}</div>
@@ -916,20 +983,27 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             </fieldset>
             <div className={s.row}>
               {!savedOffer && <button type="button" className="admin-action" onClick={() => setOfferForm(null)}>Remove offer</button>}
-              {savedOffer && <DangerButton disabled={dirty} title={dirty ? "Save or discard your changes first." : undefined} onClick={() => setConfirmEnd(true)}>{running ? "End offer" : "Delete draft offer"}</DangerButton>}
+              {isExpiredOffer && <button type="button" className="admin-action" onClick={() => setOfferForm(null)}>Cancel edit</button>}
+              {savedOffer && <DangerButton disabled={busy} onClick={() => setConfirmEnd(true)}>{running ? "End offer" : isExpiredOffer ? "Delete offer" : "Delete draft offer"}</DangerButton>}
             </div>
             <ConfirmDialog
               open={confirmEnd && Boolean(savedOffer)}
-              title={running ? "End offer now?" : "Delete draft offer?"}
-              message={savedOffer ? (running ? `End "${savedOffer.title}" now? It leaves the website and the package goes back to 2 prices. People who reserved keep their price.` : `Delete the draft "${savedOffer.title}"? It stays under past offers.`) : ""}
-              confirmLabel={running ? "End offer" : "Delete draft"}
+              title={running ? "End offer now?" : isExpiredOffer ? "Delete offer?" : "Delete draft offer?"}
+              message={savedOffer ? (running ? `End "${savedOffer.title}" now? It leaves the website and the package goes back to 2 prices. People who reserved keep their price.` : isExpiredOffer ? `Delete "${savedOffer.title}"? It leaves the website and is unlinked from this package. People who already reserved keep their saved price.` : `Delete the draft "${savedOffer.title}"? It stays under past offers.`) : ""}
+              confirmLabel={running ? "End offer" : isExpiredOffer ? "Delete offer" : "Delete draft"}
               cancelLabel="Keep it"
               busy={busy}
               onCancel={() => setConfirmEnd(false)}
-              onConfirm={endOffer}
+              onConfirm={() => { if (savedOffer) void archiveOffer(savedOffer); }}
             />
           </div>}
-          {past.length > 0 && <div className={s.past}><span>Past offers (read only)</span>{past.map(offer => <div key={offer.slug}><b>{offer.title}</b><small>{rupee(offer.offerPrice)} · {offer.status === "archived" ? "ended (archived)" : offer.status === "draft" ? "draft" : `ended ${formatIndiaDateTime(offer.endsAt)}`}</small></div>)}</div>}
+          {past.length > 0 && <div className={s.past}><span>Past offers</span>{past.map(offer => <div key={offer.slug}><span><b>{offer.title}</b> <small>{rupee(offer.offerPrice)} · {offer.status === "archived" ? "ended (archived)" : offer.status === "draft" ? "draft" : `ended ${formatIndiaDateTime(offer.endsAt)}`}</small></span>{offer.status !== "archived" && <span className={s.row}>{!offerForm && <button type="button" className="admin-action" disabled={busy} onClick={() => setOfferForm(formFromOffer(offer))}>Edit</button>}<DangerButton disabled={busy} onClick={async () => {
+            if (await confirm({
+              title: "Delete offer?",
+              message: `Delete "${offer.title}"? It leaves the website and is unlinked from this package. People who already reserved keep their saved price.`,
+              confirmLabel: "Delete offer",
+            })) void archiveOffer(offer);
+          }}>Delete</DangerButton></span>}</div>)}</div>}
         </section>
 
         {/* 3. Website display: where the package is shown. It never changes a client project. */}

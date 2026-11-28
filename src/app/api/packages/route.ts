@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse } from "@/lib/api";
 import { requireSameOrigin } from "@/lib/portfolio/integration-auth";
-import { readSalesCatalogue, requireSalesAdmin, salesBackend } from "@/lib/sales-catalogue-server";
+import { invalidateBackendOffersCache, readSalesCatalogue, requireSalesAdmin, salesBackend } from "@/lib/sales-catalogue-server";
 import { invalidatePublicPages } from "@/lib/public-cache";
 import { settingsRepo } from "@/lib/repo";
 import { offerSchema, resolvedOffers, type Offer } from "@/lib/offers";
@@ -103,11 +103,28 @@ export async function PATCH(request: Request) {
     // A package offer is linked only from its own package form.
     const target = item.offerSlug ? offers.find(offer => offer.slug === item.offerSlug) : undefined;
     if (target?.packageId && target.packageId !== item.id) return NextResponse.json({ error: `"${target.title}" is the offer of another package. Create a new offer for this package instead.` }, { status: 400 });
-    const saved = await salesBackend(true, { item, creating: !!body.creating }) as PackageSource;
-    // Drafts follow their package too, so they open with current values; one that no longer fits (e.g. its
-    // offer price is now above the package price) keeps its values until it is edited.
+    if (endingRunning) item.offerSlug = "";
+    // If editing the currently running offer alongside package changes, write the validated offer first so
+    // the portal's checkOfferFits validates against the new offer values; roll back if portal save fails.
+    const updatingRunning = !!running && !!offerInput && !part!.data.creating && offerInput.slug === running.slug && offerRunning(offerInput, now);
+    if (updatingRunning) {
+      await settingsRepo.saveOffer(offerInput!, false);
+      await invalidateBackendOffersCache();
+    }
+    let saved: PackageSource;
+    try {
+      saved = await salesBackend(true, { item, creating: !!body.creating }) as PackageSource;
+    } catch (error) {
+      if (updatingRunning) {
+        await settingsRepo.saveOffer(running!, false);
+        await invalidateBackendOffersCache();
+      }
+      throw error;
+    }
+    // Drafts and running offers follow their package, so they stay in sync; historical expired/archived
+    // offers keep their snapshot untouched and never trigger false unsynced warnings.
     const failed: string[] = [];
-    for (const offer of offers.filter(row => row.packageId === saved.id && row.slug !== offerInput?.slug && offerOutOfSync(row, saved))) {
+    for (const offer of offers.filter(row => row.packageId === saved.id && (row.status === "draft" || offerRunning(row, now)) && row.slug !== offerInput?.slug && offerOutOfSync(row, saved))) {
       if (packageOfferProblem(offer, saved)) { failed.push(offer.title); continue; }
       try { await settingsRepo.saveOffer(syncOfferWithPackage(offer, saved), false); }
       catch { failed.push(offer.title); }

@@ -26,18 +26,21 @@ export async function saveOfferRecord(input: Offer, creating: boolean, catalogue
   let offer = input;
   let source: QuotedPackage | undefined;
   const now = Date.now();
+  const archiving = !creating && offer.status === "archived";
   if (offer.packageId) {
     source = (await loadCatalogue()).packages.find(item => item.id === offer.packageId);
-    if (!source) return refuse("This offer's package no longer exists in the portal.");
-    const problem = packageOfferProblem(offer, source);
-    if (problem) return refuse(problem);
-    if (source.billing === "monthly" && offer.paymentPolicy?.minimumAdvance) return refuse("Advance token payment is only available for one-time project packages.");
-    // The package's current values, not whatever an open form last loaded.
-    offer = syncOfferWithPackage(offer, source);
-    // A new offer on a package stores no page design: the package owns it (lib/package-design.ts).
-    if (creating) for (const key of OFFER_DESIGN_KEYS) delete offer[key];
-    const busy = offerRunning(offer, now) && runningOfferForPackage(source, savedOffers, now, offer.slug);
-    if (busy) return refuse(busyPackageMessage(source, busy), 409);
+    if (!archiving) {
+      if (!source) return refuse("This offer's package no longer exists in the portal.");
+      const problem = packageOfferProblem(offer, source);
+      if (problem) return refuse(problem);
+      if (source.billing === "monthly" && offer.paymentPolicy?.minimumAdvance) return refuse("Advance token payment is only available for one-time project packages.");
+      // The package's current values, not whatever an open form last loaded.
+      offer = syncOfferWithPackage(offer, source);
+      // A new offer on a package stores no page design: the package owns it (lib/package-design.ts).
+      if (creating) for (const key of OFFER_DESIGN_KEYS) delete offer[key];
+      const busy = offerRunning(offer, now) && runningOfferForPackage(source, savedOffers, now, offer.slug);
+      if (busy) return refuse(busyPackageMessage(source, busy), 409);
+    }
   }
   const targets = offer.targets || ["projects"];
   if (offer.paymentPolicy?.minimumAdvance && !targets.includes("projects")) return refuse("Minimum advance payment applies only to project offers.");
@@ -64,7 +67,7 @@ export async function saveOfferRecord(input: Offer, creating: boolean, catalogue
   if (!await settingsRepo.saveOffer(offer, creating)) return refuse("An offer already uses this URL slug.", 409);
   invalidateSalesCatalogueCache();
   invalidatePublicPages(`/offer/${offer.slug}`, `/offers/${offer.slug}`);
-  void invalidateBackendOffersCache();
+  await invalidateBackendOffersCache();
   // The backend prices a package from its link (package.offerSlug), through the existing offer-links route.
   // A running offer holds the link; a draft or deleted (archived) offer releases it. An expired offer leaves
   // it alone, so it can never take a package back.
