@@ -138,3 +138,38 @@ These also break pop-up consistency by using native browser `window.confirm()` i
 1. **Always take backup first** in `E:\Allprojects\backup\merasoftware\workNN\` before editing files.
 2. **Never break existing backend API contracts or business rules** (e.g., `AddOnDeleteDialog`'s 3-option delete, `packages-manager.tsx`'s force delete/draft rules, `plans-manager.tsx`'s retire vs purge).
 3. **Keep it clean & SSOT:** No per-page duplicate modal markup or hardcoded inline `#dc2626` button styles once the SSOT components exist.
+
+---
+
+## 6. Reusable Visual Text Formatting System & Package Description (Pending Next Phase)
+
+> **Owner's Requirement:**
+> - Any formatted text field in the Control Panel (starting with **Package `description`** and **Automated Message System**) must use a **proper visual (WYSIWYG) formatting system** — **not** raw `*bold*` / `_italic_` stars in a plain `<textarea>`.
+> - Pressing `Enter` for line gaps / paragraphs must preserve real spacing on the live website & previews.
+> - Build/extract one **reusable SSOT Visual Formatting Component** so every text field that needs formatting reuses the exact same editor & renderer.
+> - **Packages Form (`4. Page design`):** Remove the `Supporting line` (`supportingLine`) input from the Package form because rich formatting in `description` replaces its purpose. (Keep `supportingLine` in backend `DESIGN_FIELDS` as optional for backward-compatibility with older saved packages.)
+
+### Current Codebase Findings (Verified)
+1. **Existing Lightweight Formatting in Automated Message System (`automated-message-panel.tsx` L731–760, L1423–1438):**
+   - Currently uses local `applyFormat()` + `renderFormattedLines()` inside `automated-message-panel.tsx` which inserts `*bold*` / `_italic_` / `• ` into a `<textarea>`.
+   - **Known issues reported by owner:** Raw `*` stars are visible while typing, and pressing `Enter` for blank line gaps does not render proper paragraph spacing.
+2. **Existing Tiptap Stack in Repo:**
+   - The repo already has `@tiptap/react`, `@tiptap/core`, `@tiptap/starter-kit`, and `@tiptap/static-renderer` (used in `src/components/editor/tiptap-editor.tsx` and `src/app/admin/email-control/email-editor.tsx`).
+   - Reusing Tiptap in a lightweight, compact **SSOT Visual Text Editor** (`src/components/visual-text-editor.tsx` or similar) + **SSOT Visual Text Renderer** (`<FormattedRichText />`) gives true WYSIWYG **Bold**, **Italic**, **Bullet List**, and **real Enter line/paragraph gaps** without raw `*` stars.
+3. **Package `description` & `supportingLine` Contracts:**
+   - `packages-manager.tsx` L770 & `backend/helpers/salesPackages.js` L150 currently enforce `maxLength: 500` on `description` (plain text). Rich HTML/formatted storage will require syncing a higher safe limit (or clean sanitized HTML limit) on both frontend and `backend/helpers/salesPackages.js`.
+   - **Render sites to update together (Website + SEO + Admin):**
+     - `src/components/campaign/package-card.tsx` (L49: `item.description`)
+     - `src/components/campaign/public-interaction/page-content.tsx` (L134: `offer.description`)
+     - `src/components/campaign/offer-preview.tsx` (L9: `offer.description`)
+     - `src/app/admin/packages/packages-manager.tsx` (form + live preview)
+     - `src/lib/page-seo.ts` (L91, L94: strip formatting to plain text so HTML/markup tags never leak into `<meta name="description">`)
+   - **Multi-Channel Delivery Contract (Website + Email + WhatsApp):**
+     - **Website:** Renders clean HTML (`<strong>`, `<em>`, `<u>`, `<ul>`, `<ol>`, `<p>` paragraph gaps).
+     - **Email:** Uses clean HTML (`backend/helpers/emailMarkup.js` already supports `**bold**`, `_italic_`, `- list`, `\n\n` paragraphs → branded Email HTML).
+     - **WhatsApp:** Converts visual formatting to WhatsApp native syntax (`*bold*`, `_italic_`, `• list`, `\n\n` line breaks) before queuing.
+     - **Backward-compatibility:** Existing plain-text / `*bold*` / `_italic_` templates load directly into the visual editor as formatted text (no raw stars shown to admin).
+   - **`supportingLine` (Content Preservation Rule — CRITICAL):**
+     - Remove the `Supporting line` input from `packages-manager.tsx` L908 (`4. Page design`).
+     - **Never delete existing `supportingLine` content:** Any existing non-empty `supportingLine` across saved packages (and drafts) must be **appended into `description` on a new line** (e.g., `description + "\n" + supportingLine`) and `supportingLine` cleared to `""` — so zero written content is lost when the UI field is removed.
+     - Keep `backend/helpers/salesPackages.js` L35 `DESIGN_FIELDS.supportingLine: [200, false]` intact for backward-compatibility with any un-migrated/legacy records.

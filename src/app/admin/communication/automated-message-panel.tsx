@@ -2,6 +2,7 @@
 
 import { CapsuleSelect } from "@/components/capsule-select";
 import { ConfirmDialog, DeleteIconButton, ModalCloseButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { VisualText, VisualTextEditor, type VisualTextEditorHandle } from "@/components/visual-text-editor";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
@@ -728,37 +729,6 @@ function smartPreviewSubject(subject: string, text: string, fallback = "Automate
   return { value: fallback, isFallback: true };
 }
 
-function renderFormattedLines(text: string) {
-  const lines = text.split(/\r?\n/);
-  return lines.map((line, lineIdx) => {
-    const tokens: (string | { kind: "bold" | "italic"; val: string })[] = [];
-    const regex = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|_[^_\n]+_)/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = regex.exec(line)) !== null) {
-      if (m.index > last) tokens.push(line.slice(last, m.index));
-      const raw = m[0];
-      if (raw.startsWith("**") && raw.endsWith("**")) tokens.push({ kind: "bold", val: raw.slice(2, -2) });
-      else if (raw.startsWith("*") && raw.endsWith("*")) tokens.push({ kind: "bold", val: raw.slice(1, -1) });
-      else if (raw.startsWith("_") && raw.endsWith("_")) tokens.push({ kind: "italic", val: raw.slice(1, -1) });
-      last = m.index + raw.length;
-    }
-    if (last < line.length) tokens.push(line.slice(last));
-    return (
-      <span key={lineIdx}>
-        {lineIdx > 0 && "\n"}
-        {tokens.map((tok, i) => (
-          typeof tok === "string"
-            ? tok
-            : tok.kind === "bold"
-              ? <strong key={i}>{tok.val}</strong>
-              : <em key={i}>{tok.val}</em>
-        ))}
-      </span>
-    );
-  });
-}
-
 function MessagePreviewModal({
   item,
   onClose,
@@ -812,7 +782,7 @@ function MessagePreviewModal({
             <>
               <div className={s.waCanvas}>
                 <div className={s.waBubble}>
-                  {filledText.trim() ? renderFormattedLines(filledText) : <em>(Message box is empty)</em>}
+                  {filledText.trim() ? <VisualText value={filledText} /> : <em>(Message box is empty)</em>}
                 </div>
               </div>
               <p className={s.waMetaNote}>
@@ -829,7 +799,7 @@ function MessagePreviewModal({
               <div className={s.emailShell}>
                 <div className={s.emailBrandHead}>Mera Software</div>
                 <div className={s.emailBrandBody}>
-                  {filledText.trim() ? renderFormattedLines(filledText) : <em>(Message box is empty)</em>}
+                  {filledText.trim() ? <VisualText value={filledText} /> : <em>(Message box is empty)</em>}
                 </div>
                 <div className={s.emailBrandFoot}>© {new Date().getFullYear()} Mera Software. All rights reserved.</div>
               </div>
@@ -1420,23 +1390,6 @@ function MultiTriggerSelect({
   </>;
 }
 
-function applyFormat(
-  textarea: HTMLTextAreaElement | null,
-  current: string,
-  kind: "bold" | "italic" | "list",
-  onChange: (next: string) => void,
-) {
-  if (!textarea) return;
-  const start = textarea.selectionStart ?? current.length;
-  const end = textarea.selectionEnd ?? current.length;
-  const selected = current.slice(start, end);
-  let insert = selected;
-  if (kind === "bold") insert = `*${selected || "bold text"}*`;
-  else if (kind === "italic") insert = `_${selected || "italic text"}_`;
-  else insert = selected ? selected.split("\n").map(line => line.startsWith("• ") ? line : `• ${line}`).join("\n") : "• ";
-  onChange(current.slice(0, start) + insert + current.slice(end));
-}
-
 function MessageEditor({
   title,
   step,
@@ -1466,22 +1419,15 @@ function MessageEditor({
   onChange: (patch: Partial<MessageStep>) => void;
   onRemove?: () => void;
 }) {
-  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<VisualTextEditorHandle | null>(null);
   const effectivePos = baseDate === "trigger_date" && step.pos === "before" ? "after" : step.pos;
 
   function insertPlaceholder(token: string) {
-    const el = ref.current;
-    const start = el?.selectionStart ?? step.text.length;
-    const end = el?.selectionEnd ?? step.text.length;
-    const nextText = step.text.slice(0, start) + token + step.text.slice(end);
-    onChange({ text: nextText });
-    const caret = start + token.length;
-    if (el) {
-      requestAnimationFrame(() => {
-        el.focus();
-        el.setSelectionRange(caret, caret);
-      });
+    if (editorRef.current) {
+      editorRef.current.insertText(token);
+      return;
     }
+    onChange({ text: `${step.text}${token}` });
   }
 
   return <div className={flat ? s.docFlatGroup : s.msgCard}>
@@ -1579,39 +1525,31 @@ function MessageEditor({
     </div>
 
     <div className={s.stackField}>
-      <div className={s.msgTop}>
-        <label className={s.stackLabel}>Message text</label>
-        <div className={s.toolbarRow}>
-          <div className={s.formatBtns} role="toolbar" aria-label="Text formatting">
-            <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "bold", text => onChange({ text }))}><strong>B</strong></button>
-            <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "italic", text => onChange({ text }))}><em>I</em></button>
-            <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => applyFormat(ref.current, step.text, "list", text => onChange({ text }))}>• List</button>
-          </div>
-          {onPreview && (
-            <button
-              type="button"
-              className={s.miniBtn}
-              onClick={() => onPreview({
-                title,
-                channel: step.channel,
-                subject: step.subject,
-                text: step.text,
-              })}
-            >
-              Preview
-            </button>
-          )}
-        </div>
-      </div>
+      <label className={s.stackLabel}>Message text</label>
 
-      <textarea
-        ref={ref}
-        rows={3}
-        className={s.textarea}
-        placeholder="Write your message here…"
-        maxLength={10000}
+      <VisualTextEditor
+        ariaLabel="Message text"
+        mode="message"
         value={step.text}
-        onChange={e => onChange({ text: e.target.value })}
+        onChange={text => onChange({ text })}
+        placeholder="Write your message here…"
+        minHeight={96}
+        showUnderline={false}
+        handleRef={editorRef}
+        extraToolbar={onPreview ? (
+          <button
+            type="button"
+            className={s.miniBtn}
+            onClick={() => onPreview({
+              title,
+              channel: step.channel,
+              subject: step.subject,
+              text: step.text,
+            })}
+          >
+            Preview
+          </button>
+        ) : null}
       />
 
       <div className={s.varPillList}>

@@ -4,6 +4,7 @@ import Link from "@/components/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { PackageBuilder } from "@/components/packages/package-builder";
+import { VisualText } from "@/components/visual-text-editor";
 import { getSessionUser } from "@/lib/auth";
 import { portalAddresses } from "@/lib/portal";
 import { pageMetadata } from "@/lib/page-seo";
@@ -51,7 +52,7 @@ export default async function Page({ params, searchParams }: Props) {
               <h1>{item.name}</h1>
             </div>
             <p className={s.fine}>{billingLabel(item)} package</p>
-            {item.description && <p className={s.lead}>{item.description}</p>}
+            {item.description && <VisualText value={item.description} className={s.lead} />}
           </header>
           {initial
             ? <PackageBuilder item={{ id: item.id, name: item.name, billing: item.billing, portalUploads: item.portalUploads, paymentOptions: item.paymentOptions, monthly: item.monthly, inclusions: item.inclusions }}

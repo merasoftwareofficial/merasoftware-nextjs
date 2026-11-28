@@ -10,6 +10,8 @@ import { PhoneField } from "@/components/phone-field";
 import { Arrow, PackageCallbackDialog, callbackLabel } from "./callback-dialog";
 import type { OfferReservation } from "@/lib/offer-reservations";
 import { heldPrice, reservationHoldHours, reserveCta, type ReservationPhase, type ReserveCta } from "@/lib/offer-reservation-rules";
+import { VisualText } from "@/components/visual-text-editor";
+import { mergeSupportingLineIntoDescription } from "@/lib/visual-text";
 import s from "./variant.module.css";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -131,7 +133,7 @@ export function PublicInteraction({ offer, terms, preview = false, reservation, 
         <div className={s.pitch}>
           <span className={s.local}><i /> {offer.eyebrow}</span>
           <h1>{offer.heading}{offer.headingHighlight && <><br /><em>{offer.headingHighlight}</em></>}</h1>
-          <p>{offer.description}{offer.supportingLine && <><br />{offer.supportingLine}</>}</p>
+          <VisualText value={mergeSupportingLineIntoDescription(offer.description, offer.supportingLine)} />
           <h2 className={s.benefitsHeading}>{offer.subheading}</h2>
           <ul className={s.benefits}>{offer.inclusions.map(item => <li key={item}>{item}</li>)}</ul>
         </div>

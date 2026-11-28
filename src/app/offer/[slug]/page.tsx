@@ -8,13 +8,14 @@ import { getSessionUser } from "@/lib/auth";
 import { offerWithQuote } from "@/lib/offer-quote";
 import { phoneCountries } from "@/lib/phone-countries";
 import { offerView } from "@/lib/package-design";
+import { visualHtmlToPlainText } from "@/lib/visual-text";
 import { packagePath, packagesHref, readPublicPackagesOrNone } from "@/lib/package-pages-server";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const offer = publishedOffers((await settingsRepo.get()).offers).find(item => item.slug === slug);
-  return { title: offer?.title ?? "Offer not found", description: offer?.description, robots: { index: false, follow: false } };
+  return { title: offer?.title ?? "Offer not found", description: visualHtmlToPlainText(offer?.description), robots: { index: false, follow: false } };
 }
 export default async function Page({ params }: Props) {
   const { slug } = await params;

@@ -4,6 +4,7 @@ import { offerDiscountPercent } from "@/lib/offers";
 import { formatIndiaDate } from "@/lib/date-time";
 import type { EndedOffer } from "@/lib/offers-page";
 import Link from "@/components/link";
+import { VisualText } from "@/components/visual-text-editor";
 import s from "./campaign.module.css";
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -46,7 +47,7 @@ export function PackageCard({ item, now, ended }: { item: QuotedPackage; now: nu
     {expired && <div className={s.pkgBand}><b><small>Offer ended</small>{expired.title}</b><span className={s.pkgPercent}>Expired</span></div>}
     {/* Every package has its own page, with its offer when one runs (app/package/[id]). */}
     <h3 className={s.pkgName}><Link href={href}>{item.name}</Link></h3>
-    <p className={s.pkgDesc}>{item.description}</p>
+    <VisualText value={item.description} className={s.pkgDesc} />
     <div className={s.pkgPrice}>
       <div className={s.pkgAmount}>{money(price)} <small>{priceUnit(item)}</small></div>
       {offer

@@ -22,6 +22,8 @@ import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
 import { CapsuleSelect } from "@/components/capsule-select";
 import { AdminModal, ConfirmDialog, DangerButton, DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
+import { VisualTextEditor } from "@/components/visual-text-editor";
+import { mergeSupportingLineIntoDescription, visualHtmlToPlainText } from "@/lib/visual-text";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import s from "./packages-manager.module.css";
 
@@ -81,9 +83,13 @@ function toItem(row: SalesPackage, offers: Offer[] = []): Item {
   // The form holds only the admin's own terms; the automatic ones (category and add-ons) come from the selection and are shown read-only.
   config.terms = typedTermsOf(row.terms ?? [], row.pricing);
   const design = inheritedDesign(row, offers.filter(offer => offer.packageId === row.id)) ?? defaultPackageDesign(row);
+  // Preserve any legacy supportingLine by appending it onto a new line in description before clearing it.
+  if (design.supportingLine?.trim()) {
+    config.description = mergeSupportingLineIntoDescription(config.description, design.supportingLine);
+  }
   // Live packages are published or archived; an older hidden package goes live when it is published.
   if (config.status === "draft") config.status = "published";
-  return { ...config, design: { ...design } };
+  return { ...config, design: { ...design, supportingLine: "" } };
 }
 // A new offer still marked draft is not published with the package; it stays in the working copy.
 const keptOffer = (form: OfferForm | null) => form && !form.base && form.status === "draft" ? form : null;
@@ -101,6 +107,10 @@ function fromDraft(draft: PackageDraft, offers: Offer[]): { item: Item; form: Of
     // A copy made before add-on pricing has no services and keeps its typed price; nothing is filled in for it.
     services: Array.isArray(raw.services) ? raw.services : undefined, pricing: raw.pricing, repriceFromCurrent: raw.repriceFromCurrent === true ? true : undefined,
     design: { ...defaultPackageDesign({ name: String(raw.name ?? draft.name) }), ...(raw.design ?? {}) } };
+  if (item.design.supportingLine?.trim()) {
+    item.description = mergeSupportingLineIntoDescription(item.description, item.design.supportingLine);
+    item.design = { ...item.design, supportingLine: "" };
+  }
   const saved = draft.data.offer as OfferForm | null | undefined;
   if (!saved) return { item, form: null, dropped: false };
   if (!saved.base) return { item, form: { ...blankOffer(), ...saved }, dropped: false };
@@ -141,7 +151,8 @@ function check(item: Item, offer: OfferForm | null, now: number, extra: Errors =
   const errors: Errors = {};
   if (!item.name.trim()) errors.name = "Enter the package name.";
   if (!item.category) errors.category = "Choose a project category.";
-  if (!item.description.trim()) errors.description = "Enter a description.";
+  if (!visualHtmlToPlainText(item.description).trim()) errors.description = "Enter a description.";
+  else if (item.description.length > 3000) errors.description = "Description is too long.";
   if (!lines(item.inclusions).length) errors.inclusions = "List at least one item.";
   if (!(item.regularPrice > 0)) errors.regularPrice = item.services !== undefined ? "The main price must be above ₹0: set the category's base price or tick an add-on." : "Enter a main price above ₹0.";
   if (!(item.discountedPrice >= 0) || item.discountedPrice > item.regularPrice) errors.discountedPrice = "Must not be more than the main price.";
@@ -767,7 +778,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
               <div className={`admin-field ${bad("billing") ?? ""}`}><span>Billing *</span><CapsuleSelect ariaLabel="Billing" value={item.billing ?? ""} onChange={value => chooseBilling((value || undefined) as SalesPackage["billing"])} options={[...(!item.billing ? [{ value: "", label: "Not chosen yet" }] : []), { value: "one_time", label: "One-time" }, { value: "monthly", label: "Monthly" }]} />{err("billing")}</div>
               <div className={`admin-field ${bad("portalUploads") ?? ""}`}><span>Portal uploads *</span><CapsuleSelect ariaLabel="Portal uploads" value={item.portalUploads === undefined ? "" : item.portalUploads ? "yes" : "no"} onChange={value => update("portalUploads", value === "" ? undefined : value === "yes")} options={[{ value: "", label: "Choose portal access", disabled: true }, { value: "yes", label: "Yes: the client sends files in the portal" }, { value: "no", label: "No: progress updates only" }]} />{err("portalUploads")}</div>
             </div>
-            <label className={`admin-field ${s.introDescription} ${bad("description") ?? ""}`}><span>Description *</span><textarea aria-label="Description" maxLength={500} value={item.description} onChange={e => update("description", e.target.value)} /><small>Shown on the package card and under the page heading.</small>{err("description")}</label>
+            <div className={`admin-field ${s.introDescription} ${bad("description") ?? ""}`}><span>Description *</span><VisualTextEditor ariaLabel="Description" value={item.description} onChange={value => update("description", value)} placeholder="Describe what the client gets…" minHeight={120} /><small>Shown on the package card and under the page heading. Formatting and Enter line gaps show live.</small>{err("description")}</div>
           </div>
           <fieldset className={s.pages}><legend>How customers buy this package</legend>
             {!item.billing && item.portalUploads === undefined && !item.paymentOptions?.length && <p><span className={s.warn}>Older settings</span> This package works as before. Choose these options to turn on its customize page.</p>}
@@ -905,7 +916,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <p className={s.note}>The design of this package&apos;s page, with or without an offer. Pre-filled for a new package, so you only change what you want.</p>
           <div className="form-columns">{field("eyebrow", "Eyebrow text", 100)}{field("badge", "Card badge", 60, true, "While an offer runs, a % OFF badge is added by itself.")}</div>
           <div className="form-columns">{field("heading", "Main heading", 160)}{field("headingHighlight", "Highlighted heading text", 120, false)}</div>
-          <div className="form-columns">{field("supportingLine", "Supporting line", 200, false)}{field("subheading", "Benefits subheading", 160)}</div>
+          <div className="form-columns">{field("subheading", "Benefits subheading", 160)}</div>
           <div className="form-columns">{field("tagline", "Price-card tagline", 100)}{field("priceDescription", "Short price description", 200)}</div>
           <div className="form-columns">{field("ctaLabel", "Enquiry button text", 80)}{field("contactHref", "Contact link", 500, true, "mailto:, tel: or an https link.")}</div>
         </section>

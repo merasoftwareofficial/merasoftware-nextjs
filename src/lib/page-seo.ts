@@ -13,6 +13,7 @@
  */
 
 import "server-only";
+import { visualHtmlToPlainText } from "@/lib/visual-text";
 
 import type { Metadata } from "next";
 import { cache } from "react";
@@ -88,10 +89,10 @@ export const allPageSeoPages = cache(async (): Promise<SeoPage[]> => {
     ...PAGE_SEO_PAGES,
     ...packagePages.map(page => ({ key: `packages-${page.slug}`, label: `Packages: ${page.title}`, path: packagePagePath(page.slug), title: page.title, description: page.intro })),
     // Each published package has its own page (app/package/[id]); its key is its permanent ID.
-    ...packages.map(item => ({ key: `package-${item.id}`, label: `Package: ${item.name}`, path: packagePath(item.id), title: item.name, description: item.description })),
+    ...packages.map(item => ({ key: `package-${item.id}`, label: `Package: ${item.name}`, path: packagePath(item.id), title: item.name, description: visualHtmlToPlainText(item.description) })),
     // Its customize page (app/package/[id]/customize), while package requests are on.
     ...customizable.map(item => ({ key: `package-${item.id}-customize`, label: `Package: ${item.name} · customize`, path: packageCustomizePath(item.id),
-      title: `Customize ${item.name}`, description: `Choose how to buy ${item.name} and see the price. ${item.description}`.slice(0, 300) })),
+      title: `Customize ${item.name}`, description: `Choose how to buy ${item.name} and see the price. ${visualHtmlToPlainText(item.description)}`.slice(0, 300) })),
     ...plans.map(plan => ({ key: `plans-${plan._id}`, label: `Plans: ${plan.serviceName}`, path: planPagePath(plan), title: plan.serviceName, description: planSeoDescription(plan) })),
   ];
 });
