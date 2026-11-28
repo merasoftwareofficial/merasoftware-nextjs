@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import styles from "../email-control/email-control.module.css";
@@ -191,9 +192,15 @@ export function TemplatesPanel({
     }
   }
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function removeRule(rule: ActionRuleRecord) {
     const id = rule._id || rule.id;
-    if (!id || !window.confirm("Delete this automatic message permanently?")) return;
+    if (!id || !(await confirm({
+      title: "Delete automatic message?",
+      message: "Delete this automatic message permanently?",
+      confirmLabel: "Delete permanently",
+    }))) return;
     setDeletingId(id);
     setError("");
     try {
@@ -226,7 +233,12 @@ export function TemplatesPanel({
         setNotice(`All supported built-in templates are already migrated (${Number(p.skipped || 0)} skipped).`);
         return;
       }
-      if (!window.confirm(`Migrate ${count} built-in item(s) to Action rules? (${Number(p.skipped || 0)} already migrated will be skipped.)`)) return;
+      if (!(await confirm({
+        title: "Migrate built-in items?",
+        message: `Migrate ${count} built-in item(s) to Action rules? (${Number(p.skipped || 0)} already migrated will be skipped.)`,
+        confirmLabel: "Migrate",
+        variant: "primary",
+      }))) return;
       const applyRes = await fetch("/api/auto-reply/action-rules/migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -435,6 +447,7 @@ export function TemplatesPanel({
           )}
         </>
       )}
+      {confirmDialog}
     </section>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { VisualsEditor } from "@/app/admin/visuals/visuals-editor";
 import { LinkPicker } from "@/components/link-picker";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
@@ -23,6 +24,7 @@ function newItem(key: string): Value {
 }
 
 function Field({ name, value, onChange, links }: { name: string; value: Value; onChange: (value: Value) => void; links: LinkGroup[] }) {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   if (typeof value === "boolean") return <label className={s.check}><input type="checkbox" checked={value} onChange={event => onChange(event.target.checked)} />{label(name)}</label>;
   if (typeof value === "string") {
     if (/href$/i.test(name)) return <LinkPicker label={label(name)} value={value} onChange={onChange} groups={links} />;
@@ -37,11 +39,17 @@ function Field({ name, value, onChange, links }: { name: string; value: Value; o
         <div className={s.entryBar}><strong>{object?.name as string || object?.title as string || object?.brand as string || `${label(name)} ${index + 1}`}</strong><div>
           <button type="button" aria-label={`Move ${label(name)} ${index + 1} up`} disabled={index === 0} onClick={() => { const next = [...value]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onChange(next); }}>↑</button>
           <button type="button" aria-label={`Move ${label(name)} ${index + 1} down`} disabled={index === value.length - 1} onClick={() => { const next = [...value]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; onChange(next); }}>↓</button>
-          <button type="button" onClick={() => { if (window.confirm("Remove this entry from the section?")) onChange(value.filter((_, itemIndex) => itemIndex !== index)); }}>Remove</button>
+          <DangerButton onClick={async () => {
+            if (await confirm({
+              title: "Remove entry?",
+              message: "Remove this entry from the section?",
+              confirmLabel: "Remove",
+            })) onChange(value.filter((_, itemIndex) => itemIndex !== index));
+          }}>Remove</DangerButton>
         </div></div>
         <Field name={typeof entry === "string" ? name === "paragraphs" ? "paragraph" : "inclusion" : name} value={entry} links={links} onChange={next => onChange(value.map((item, itemIndex) => itemIndex === index ? next : item))} />
       </div>;
-    })}<button type="button" className="admin-action" disabled={value.length >= limit} onClick={() => onChange([...value, newItem(name)])}>Add {name === "items" ? "service" : name === "groups" ? "group" : name === "members" ? "team member" : name === "projects" ? "project" : name === "paragraphs" ? "paragraph" : "inclusion"} +</button></fieldset>;
+    })}<button type="button" className="admin-action" disabled={value.length >= limit} onClick={() => onChange([...value, newItem(name)])}>Add {name === "items" ? "service" : name === "groups" ? "group" : name === "members" ? "team member" : name === "projects" ? "project" : name === "paragraphs" ? "paragraph" : "inclusion"} +</button>{confirmDialog}</fieldset>;
   }
   return <div>{Object.entries(value).filter(([key]) => !["id", "imageUrl", "alt", "previewImageUrl", "previewAlt", "previewLabel", "previewHref"].includes(key)).map(([key, child]) => <Field key={key} name={key} value={child} links={links} onChange={next => onChange({ ...value, [key]: next })} />)}</div>;
 }
@@ -52,6 +60,7 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
   const [library, setLibrary] = useState(assets);
   const [saved, setSaved] = useState(JSON.stringify({ content: initial, visuals: initialVisuals }));
   const [busy, setBusy] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -86,7 +95,8 @@ export function PageSectionEditor({ page, section, initial, initialVisuals, asse
   return <div className={s.root}>
     <fieldset disabled={busy} className={`admin-form ${s.fields}`}><legend>Section content</legend><Field name="section" value={content} links={links} onChange={next => { setContent(next as Fields); setMessage(""); }} /></fieldset>
     {slots.length ? <fieldset disabled={busy} className={s.visuals}><legend>Section visuals</legend><p>Choose media and frame settings below. Content and visuals save together.</p><VisualsEditor key={`${slots.map(slot => slot.id).join(",")}-${revision}`} initial={activeVisuals} slots={slots} assets={library} links={links} focusSlot={visualFocus} onSlotSelected={setVisualFocus} onAssetSelected={asset => setLibrary(current => [asset, ...current.filter(item => item._id !== asset._id)])} onChange={next => { setVisuals(next); setMessage(""); }} /></fieldset> : null}
-    <div className={s.saveBar}>{error ? <p className="form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}<button type="button" className="admin-button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save changes"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { if (!window.confirm("Discard unsaved changes to this section?")) return; discardChanges(); }}>Discard changes</button><span>{dirty ? "Unsaved changes" : "All changes saved"}</span></div>
+    <div className={s.saveBar}>{error ? <p className="form-error" role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}<button type="button" className="admin-button" disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save changes"}</button><button type="button" className="admin-action" disabled={busy || !dirty} onClick={async () => { if (!(await confirm({ title: "Discard unsaved changes?", message: "Discard unsaved changes to this section?", confirmLabel: "Discard changes" }))) return; discardChanges(); }}>Discard changes</button><span>{dirty ? "Unsaved changes" : "All changes saved"}</span></div>
     {unsavedDialog}
+    {confirmDialog}
   </div>;
 }

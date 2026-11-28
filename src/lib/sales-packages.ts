@@ -36,7 +36,7 @@ export type PricingSnapshot = { categoryBasePrice: number; categoryTerms?: strin
 /** An add-on service of the portal catalogue (Additional Features / Upgrades) a package can be priced from. */
 export type AddOn = { id: string; name: string; unitPrice: number; description: string; isHidden: boolean; isQuantityBased: boolean; compatibleWith: string[];
   /** Terms & conditions of the add-on, one line each: a package that includes it gets them automatically. */
-  terms: string[] };
+  terms: string[]; createdAt?: string; updatedAt?: string };
 export type PackageBilling = "one_time" | "monthly";
 export type PackagePaymentOption = "full" | "installments_2" | "installments_3";
 export type PackageCycle = import("./public-plans").BillingCycle;

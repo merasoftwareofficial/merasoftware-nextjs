@@ -5,6 +5,7 @@ import { CapsuleSelect } from "@/components/capsule-select";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { ImageChooser } from "@/components/image-chooser";
 import type { MediaAsset } from "@/lib/repo/types";
 import type { JSONContent } from "@tiptap/core";
@@ -108,9 +109,15 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
     setTemplateId(saved?._id || ""); setName(saved?.name || ""); setDoc(saved?.doc || emptyDoc); setPreview(null); setError(""); setNotice("");
   }
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function removeTemplate(row: Template) {
+    if (!(await confirm({
+      title: "Delete broadcast template?",
+      message: <>Delete <strong>&ldquo;{row.name}&rdquo;</strong>? Sent history will remain.</>,
+      confirmLabel: "Delete permanently",
+    }))) return;
     await action(async () => {
-      if (!window.confirm(`Delete "${row.name}"? Sent history will remain.`)) return;
       await api(`templates/${row._id}`, "DELETE");
       if (templateId === row._id) choose("");
       await loadTemplates();
@@ -295,6 +302,7 @@ export function BroadcastPanel({ active = true }: { active?: boolean }) {
         </table>
       </div>}
     </details>
+    {confirmDialog}
   </section>;
 }
 

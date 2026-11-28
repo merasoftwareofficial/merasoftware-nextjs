@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import {
   BILLING_CYCLES, DEPENDENCIES, LIMIT_SCOPES, TIMINGS, blankPlanForm, formFromPlan, planBody, planState, rangeText, rupees,
@@ -33,6 +34,7 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const dirty = !!form && JSON.stringify(form) !== baseline;
 
   const savePlanRef = useRef<() => Promise<boolean>>(async () => false);
@@ -55,8 +57,13 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
       setForm(next); setBaseline(JSON.stringify(next)); setError(""); setNotice("");
     });
   }
-  async function act(plan: StoredPlan, action: "hide" | "unhide" | "retire" | "restore" | "purge", confirmText?: string) {
-    if (confirmText && !window.confirm(confirmText)) return;
+  async function act(plan: StoredPlan, action: "hide" | "unhide" | "retire" | "restore" | "purge", confirmTitle?: string, confirmText?: string) {
+    if (confirmText && !(await confirm({
+      title: confirmTitle ?? "Confirm action",
+      message: confirmText,
+      confirmLabel: action === "purge" ? "Delete forever" : action === "retire" ? "Remove" : "Confirm",
+      variant: action === "purge" || action === "retire" ? "danger" : "primary",
+    }))) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await send({ target: "plan", action, planId: plan._id, expectedUpdatedAt: plan.updatedAt ?? null });
@@ -94,13 +101,14 @@ export function PlansManager({ initial }: { initial: PlanCatalogue }) {
           {!plan.retired && (plan.isHidden
             ? <button className="admin-action" disabled={busy || !plan.canBeOnSale} onClick={() => act(plan, "unhide")}>Show to clients</button>
             : <button className="admin-action" disabled={busy} onClick={() => act(plan, "hide")}>Hide from clients</button>)}
-          {!plan.retired && <button className="admin-action" disabled={busy} onClick={() => act(plan, "retire", `Remove "${plan.serviceName}"? If nobody bought it, it is deleted. If clients bought it, it moves to Retired and their purchases stay unchanged.`)}>Remove</button>}
-          {plan.retired && <button className="admin-action" disabled={busy} onClick={() => act(plan, "restore")}>Restore</button>}
-          {plan.retired && <button className="admin-action" disabled={busy} onClick={() => act(plan, "purge", `Delete "${plan.serviceName}" for good? It leaves every list. Clients' purchases, bills and payments stay.`)}>Delete forever</button>}
+          {!plan.retired && <DangerButton disabled={busy} onClick={() => void act(plan, "retire", "Remove plan?", `Remove "${plan.serviceName}"? If nobody bought it, it is deleted. If clients bought it, it moves to Retired and their purchases stay unchanged.`)}>Remove</DangerButton>}
+          {plan.retired && <button className="admin-action" disabled={busy} onClick={() => void act(plan, "restore")}>Restore</button>}
+          {plan.retired && <DangerButton disabled={busy} onClick={() => void act(plan, "purge", "Delete plan forever?", `Delete "${plan.serviceName}" for good? It leaves every list. Clients' purchases, bills and payments stay.`)}>Delete forever</DangerButton>}
         </div>
       </article>)}
     </section>)}
     <CategoriesPanel catalogue={catalogue} onChange={setCatalogue} />
+    {confirmDialog}
   </div>;
 }
 
@@ -131,6 +139,7 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const update = <K extends keyof PlanForm>(key: K, value: PlanForm[K]) => setForm({ ...form, [key]: value });
   const isUpload = form.capability === "upload_data";
   const flexible = isUpload && form.pricingMode === "flexible";
@@ -176,7 +185,11 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     void savePlan();
   }
   async function reloadSaved() {
-    if (!form.planId || !window.confirm("Discard unsaved changes and reload the saved plan?")) return;
+    if (!form.planId || !(await confirm({
+      title: "Discard unsaved changes?",
+      message: "Discard unsaved changes and reload the saved plan?",
+      confirmLabel: "Discard & reload",
+    }))) return;
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/plans", { cache: "no-store" });
@@ -305,5 +318,6 @@ function PlanEditor({ form, setForm, catalogue, dirty, onBack, onSaved, onCatego
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     <button className="admin-button" disabled={busy || (!dirty && !!form.planId)}>{busy ? "Saving…" : form.planId ? "Save plan" : "Create plan"}</button>
     </form>
+    {confirmDialog}
   </>;
 }

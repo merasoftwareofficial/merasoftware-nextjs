@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { CapsuleSelect } from "@/components/capsule-select";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import type { WhatsappMessage, WhatsappQueuePage, WhatsappQueueStatus, WhatsappStatus } from "@/lib/whatsapp-types";
@@ -89,13 +90,24 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
     } catch (error) { setActionError(message(error, "That did not work. Please try again.")); }
     finally { setBusy(false); }
   }
-  function unlink() {
-    if (window.confirm("Unlink this WhatsApp number? Messages stop until a number is linked again by scanning the new QR code.")) {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
+  async function unlink() {
+    if (await confirm({
+      title: "Unlink WhatsApp number?",
+      message: "Unlink this WhatsApp number? Messages stop until a number is linked again by scanning the new QR code.",
+      confirmLabel: "Unlink number",
+    })) {
       void act("unlink", "Unlink requested. A new QR code appears here in a few seconds.");
     }
   }
-  function sendAgain(row: WhatsappMessage) {
-    if (MAYBE_ARRIVED.test(row.lastError || "") && !window.confirm("This message may already have reached the customer. Sending it again can deliver it twice. Send again?")) return;
+  async function sendAgain(row: WhatsappMessage) {
+    if (MAYBE_ARRIVED.test(row.lastError || "") && !(await confirm({
+      title: "Send message again?",
+      message: "This message may already have reached the customer. Sending it again can deliver it twice. Send again?",
+      confirmLabel: "Send again",
+      variant: "primary",
+    }))) return;
     void act(`queue/${row._id}/retry`, `Back in the queue. It goes out in its turn, at least ${status?.minGapSec ?? 30} seconds after the previous message.`);
   }
 
@@ -179,5 +191,6 @@ export function WhatsappPanel({ view = "all", active = true, show = "sent" }: { 
         <button className="admin-action" disabled={page >= queue.pages} onClick={() => setPage(page + 1)}>Next</button>
       </div>}
     </section>}
+    {confirmDialog}
   </div>;
 }

@@ -8,6 +8,7 @@
  */
 
 import { useNavigate, useTask } from "@/components/loading/navigation";
+import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useState } from "react";
 
 export function CommentActions({
@@ -22,6 +23,7 @@ export function CommentActions({
   const router = useNavigate();
   const { busy, track } = useTask();
   const [error, setError] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const run = (request: () => Promise<Response>) =>
     track(async () => {
@@ -64,21 +66,24 @@ export function CommentActions({
       )}
 
       {canDelete ? (
-        <button
-          className="admin-action is-danger"
-          type="button"
+        <DangerButton
           disabled={busy}
-          onClick={() => {
+          onClick={async () => {
             // Deleting is permanent (hiding is the undoable choice), so it asks first, like every other delete in the panel.
-            if (!window.confirm("Delete this comment permanently? This cannot be undone.")) return;
+            if (!(await confirm({
+              title: "Delete comment?",
+              message: "Delete this comment permanently? This cannot be undone.",
+              confirmLabel: "Delete permanently",
+            }))) return;
             run(() => fetch(`/api/comments/${id}`, { method: "DELETE" }));
           }}
         >
           Delete
-        </button>
+        </DangerButton>
       ) : null}
 
       {error ? <span className="form-error">{error}</span> : null}
+      {confirmDialog}
     </span>
   );
 }
@@ -87,6 +92,7 @@ export function ReportActions({ id, resolved }: { id: string; resolved: boolean 
   const router = useNavigate();
   const { busy, track } = useTask();
   const [error, setError] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const toggle = () =>
     track(async () => {

@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { CapsuleSelect } from "@/components/capsule-select";
 import { useNavigate, useTask } from "@/components/loading/navigation";
 
@@ -29,12 +30,18 @@ function MoveControl({ from, count, targets, removes, onDone }: { from: string; 
   const { busy, track } = useTask();
   const [into, setInto] = useState("");
   const [error, setError] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
-  const move = () => {
+  const move = async () => {
     const target = targets.find(item => item.id === into);
     if (!target) return setError("Choose a category.");
     const question = `Move ${postsLabel(count)} from "${from}" to "${target.name}"?${removes ? ` "${from}" will then be removed, and its address will open "${target.name}".` : ""}`;
-    if (!window.confirm(question)) return;
+    if (!(await confirm({
+      title: removes ? "Move posts & remove category?" : "Move posts?",
+      message: question,
+      confirmLabel: removes ? "Move & remove" : "Move posts",
+      variant: removes ? "danger" : "primary",
+    }))) return;
     return track(async () => {
       setError("");
       const result = await send("/api/categories/merge", "POST", { from, into });
@@ -55,10 +62,11 @@ function MoveControl({ from, count, targets, removes, onDone }: { from: string; 
         onChange={setInto}
         options={[{ value: "", label: "Move posts to…" }, ...targets.map(target => ({ value: target.id, label: target.name }))]}
       />
-      <button className="admin-action" type="button" disabled={busy || !into} onClick={move}>
+      <button className="admin-action" type="button" disabled={busy || !into} onClick={() => void move()}>
         {busy ? "Moving…" : "Move"}
       </button>
       {error ? <span className="form-error">{error}</span> : null}
+      {confirmDialog}
     </span>
   );
 }
@@ -135,8 +143,14 @@ export function CategoryActions({
       router.refresh();
     });
 
-  const remove = () => {
-    if (!window.confirm(`Delete "${name}"? No post uses it.`)) return;
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
+  const remove = async () => {
+    if (!(await confirm({
+      title: "Delete category?",
+      message: <>Delete <strong>&ldquo;{name}&rdquo;</strong>? No post uses it.</>,
+      confirmLabel: "Delete permanently",
+    }))) return;
     return track(async () => {
       setError("");
       const result = await send(`/api/categories/${id}`, "DELETE");
@@ -193,10 +207,11 @@ export function CategoryActions({
         Move posts &amp; remove
       </button>
       {count ? null : (
-        <button className="admin-action is-danger" type="button" disabled={busy} onClick={remove}>
+        <DangerButton disabled={busy} onClick={() => void remove()}>
           Delete
-        </button>
+        </DangerButton>
       )}
+      {confirmDialog}
       {error ? <span className="form-error">{error}</span> : null}
     </span>
   );

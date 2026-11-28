@@ -21,6 +21,7 @@ import { ProjectCategoryDialog } from "@/components/project-category-dialog";
 import { NumberInput } from "@/components/number-input";
 import type { ProjectCategory as SavedCategory } from "@/lib/service-plans";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { ConfirmDialog, DangerButton, DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import s from "./packages-manager.module.css";
 
@@ -286,6 +287,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   const [addOnDialog, setAddOnDialog] = useState<{ edit?: AddOn } | null>(null);
   const preview = useRef<HTMLDialogElement>(null);
   const now = useServerTime();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const snapshot = (next: Item | null, form: OfferForm | null) => JSON.stringify({ next, form });
   const dirty = !!item && snapshot(item, offerForm) !== baseline;
 
@@ -441,7 +443,12 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   async function deletePackage(row: SalesPackage, hasDraft: boolean) {
     const stateNote = row.status === "published" ? " It is live and will disappear from the website." : "";
     const draftNote = hasDraft ? " Its draft in progress will be deleted too." : "";
-    if (!window.confirm(`Force delete "${row.name}" permanently? It will be removed from the package catalogue.${stateNote}${draftNote} Existing customer projects, orders, invoices and payments will stay safe.`)) return;
+    if (!(await confirm({
+      title: "Force delete package?",
+      dangerTitle: true,
+      message: <>Force delete <strong>&ldquo;{row.name}&rdquo;</strong> permanently? It will be removed from the package catalogue.{stateNote}{draftNote} Existing customer projects, orders, invoices and payments will stay safe.</>,
+      confirmLabel: "Delete permanently",
+    }))) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/packages", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId: row.id }) });
@@ -457,7 +464,12 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   }
   async function changePackageStatus(row: SalesPackage, action: "published" | "archived") {
     const publishing = action === "published";
-    if (!window.confirm(`${publishing ? "Publish" : "Archive"} "${row.name}"?${publishing ? " It will be available on the website." : " It will be hidden from new customers."}`)) return;
+    if (!(await confirm({
+      title: `${publishing ? "Publish" : "Archive"} package?`,
+      message: `${publishing ? "Publish" : "Archive"} "${row.name}"?${publishing ? " It will be available on the website." : " It will be hidden from new customers."}`,
+      confirmLabel: publishing ? "Publish" : "Archive",
+      variant: "primary",
+    }))) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/packages/lifecycle", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageId: row.id, action }) });
@@ -509,7 +521,11 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   }
   async function deletePage(page: PackagePage) {
     const count = catalogue.packages.filter(row => row.pages?.includes(page.slug)).length;
-    if (!window.confirm(`Delete the page "${page.title}"? It leaves the Pricing & Packages menu and its link stops working.${count ? ` It is removed from ${count} package(s); the packages themselves stay.` : ""}`)) return;
+    if (!(await confirm({
+      title: "Delete package page?",
+      message: <>Delete the page <strong>&ldquo;{page.title}&rdquo;</strong>? It leaves the Pricing &amp; Packages menu and its link stops working.{count ? ` It is removed from ${count} package(s); the packages themselves stay.` : ""}</>,
+      confirmLabel: "Delete page",
+    }))) return;
     setPageBusy(true); setPageError("");
     try {
       const response = await fetch(`/api/package-pages?slug=${encodeURIComponent(page.slug)}`, { method: "DELETE" });
@@ -588,14 +604,19 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nothing was published. Please try again."); }
     finally { setBusy(false); }
   }
-  function save(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault(); if (!item || now === null) return;
     setTried(true); setError(""); setMessage("");
     const keep = keptOffer(offerForm);
     const sending = keep ? null : offerForm;
     if (Object.keys(check(item, sending, now, autoErrors)).length) return;
     const running = sending?.base && offerRunning(sending.base, now);
-    if (running && !window.confirm(`This updates the live page of "${sending!.base!.title}" at once. People who already reserved keep their saved price. Publish?`)) return;
+    if (running && !(await confirm({
+      title: "Update live offer page?",
+      message: `This updates the live page of "${sending!.base!.title}" at once. People who already reserved keep their saved price. Publish?`,
+      confirmLabel: "Publish",
+      variant: "primary",
+    }))) return;
     const done = !sending ? (keep ? "Package published. The offer stays in the draft until you publish it." : creating ? "Package published. Its page is {link}. No offer: customers see 2 prices." : "Changes published. Existing client agreements stay unchanged.")
       : sending.status === "published" ? "Package and offer published. The offer is live on {link} with 3 prices and the countdown."
       : "Package published. The offer is not live: customers see 2 prices.";
@@ -611,7 +632,11 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
   // Discard draft: a published package goes back to what is live; a never-published one is deleted.
   async function discardDraft() {
     if (!item || !draftVersion) return;
-    if (!window.confirm(creating ? `Delete the draft "${item.name}"? It was never published, so nothing on the website changes.` : "Discard the draft? The form goes back to what is live now.")) return;
+    if (!(await confirm({
+      title: creating ? "Delete draft?" : "Discard draft?",
+      message: creating ? `Delete the draft "${item.name}"? It was never published, so nothing on the website changes.` : "Discard the draft? The form goes back to what is live now.",
+      confirmLabel: creating ? "Delete draft" : "Discard draft",
+    }))) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const response = await fetch("/api/packages/drafts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", packageId: item.id, version: draftVersion }) });
@@ -661,7 +686,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         {!copyLine && <button className="admin-action" onClick={() => choose({ ...row, id: "", name: `${row.name} copy`, status: "published", order: catalogue.packages.length, offerSlug: "" }, true)}>Duplicate</button>}
         {!copyLine && row.status !== "published" && <button type="button" className="admin-action" disabled={busy || draftLocked} title={lockedTitle} onClick={() => void changePackageStatus(row, "published")}>Publish</button>}
         {!copyLine && row.status !== "archived" && <button type="button" className="admin-action" disabled={archiveDisabled} title={running ? `Archive package and end "${running.title}".` : lockedTitle} onClick={() => void changePackageStatus(row, "archived")}>Archive</button>}
-        {!copyLine && <button type="button" className="admin-action is-danger" disabled={busy} aria-label={`Force delete ${row.name} permanently`} title="Force delete permanently" onClick={() => void deletePackage(row, draftLocked)}><svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg></button>}
+        {!copyLine && <DeleteIconButton disabled={busy} ariaLabel={`Force delete ${row.name} permanently`} title="Force delete permanently" onClick={() => void deletePackage(row, draftLocked)} />}
         {!copyLine && row.status === "published" && <Link className="admin-action" href={`/package/${encodeURIComponent(row.id)}`} target="_blank" rel="noreferrer">View ↗</Link>}</span>
     </li>;
   };
@@ -700,6 +725,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       {!tabLines.length && <li className={s.empty}>{listTab === "live" ? "No package is live." : listTab === "drafts" ? "No drafts." : "No archived packages."}</li>}
       {tabLines.length > 0 && !shownLines.length && <li className={s.empty}>No packages match this filter. <button type="button" className="admin-action" onClick={() => setListPage("all")}>Show all</button></li>}
     </ul>
+    {confirmDialog}
   </div>;
 
   const errors: Errors = tried && now !== null ? check(item, keptOffer(offerForm) ? null : offerForm, now, autoErrors) : {};
@@ -734,7 +760,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         {draftVersion > 0 && <p className={s.warnNote}>{creating ? "Draft: not published yet. Save draft keeps your work; Publish checks every field and makes it live." : "You are editing the draft of a published package. The live page stays as it is until you press Publish changes."}</p>}
         <section className={s.sec}><div className={s.sechead}><h2>1. Package details</h2><span className={s.tag}>Required to publish</span></div>
           <p className={s.note}>What the client gets. Every project made from this package starts with these settings; its starting step and project description come from the category.</p>
-          {addOnDialog && <AddOnDialog edit={addOnDialog.edit} categories={catalogue.categories ?? []} onCancel={() => setAddOnDialog(null)} onChanged={addOnChanged} />}
+          {addOnDialog && <AddOnDialog edit={addOnDialog.edit} categories={catalogue.categories ?? []} usedInPackages={addOnDialog.edit ? catalogue.packages.filter(pkg => pkg.pricing?.services.some(row => row.featureId === addOnDialog.edit!.id)).map(pkg => ({ id: pkg.id, name: pkg.name })) : undefined} onCancel={() => setAddOnDialog(null)} onChanged={addOnChanged} />}
           <div className={s.packageIntro}>
             <div className={s.introFields}>
               <label className={`admin-field ${bad("name") ?? ""}`}><span>Package name * <small>(needed to save a draft)</small></span><input aria-label="Package name" maxLength={120} value={item.name} onChange={e => update("name", e.target.value)} />{err("name")}</label>
@@ -837,9 +863,18 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
             </fieldset>
             <div className={s.row}>
               {!savedOffer && <button type="button" className="admin-action" onClick={() => setOfferForm(null)}>Remove offer</button>}
-              {savedOffer && !confirmEnd && <button type="button" className="admin-action is-danger" disabled={dirty} title={dirty ? "Save or discard your changes first." : undefined} onClick={() => setConfirmEnd(true)}>{running ? "End offer" : "Delete draft offer"}</button>}
+              {savedOffer && <DangerButton disabled={dirty} title={dirty ? "Save or discard your changes first." : undefined} onClick={() => setConfirmEnd(true)}>{running ? "End offer" : "Delete draft offer"}</DangerButton>}
             </div>
-            {confirmEnd && savedOffer && <p className={s.warnNote}>{running ? `End "${savedOffer.title}" now? It leaves the website and the package goes back to 2 prices. People who reserved keep their price.` : `Delete the draft "${savedOffer.title}"? It stays under past offers.`} <button type="button" className="admin-button danger" onClick={endOffer}>{running ? "End offer" : "Delete draft"}</button> <button type="button" className="admin-action" onClick={() => setConfirmEnd(false)}>Keep it</button></p>}
+            <ConfirmDialog
+              open={confirmEnd && Boolean(savedOffer)}
+              title={running ? "End offer now?" : "Delete draft offer?"}
+              message={savedOffer ? (running ? `End "${savedOffer.title}" now? It leaves the website and the package goes back to 2 prices. People who reserved keep their price.` : `Delete the draft "${savedOffer.title}"? It stays under past offers.`) : ""}
+              confirmLabel={running ? "End offer" : "Delete draft"}
+              cancelLabel="Keep it"
+              busy={busy}
+              onCancel={() => setConfirmEnd(false)}
+              onConfirm={endOffer}
+            />
           </div>}
           {past.length > 0 && <div className={s.past}><span>Past offers (read only)</span>{past.map(offer => <div key={offer.slug}><b>{offer.title}</b><small>{rupee(offer.offerPrice)} · {offer.status === "archived" ? "ended (archived)" : offer.status === "draft" ? "draft" : `ended ${formatIndiaDateTime(offer.endsAt)}`}</small></div>)}</div>}
         </section>
@@ -855,7 +890,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
           <fieldset className={s.pages} disabled={pageBusy}><legend>Show on pages</legend>
             {!shownOn(item).length && <p><span className={s.warn}>No page assigned</span> This package is not listed on a Pricing &amp; Packages page until you tick one. Its own page still works.</p>}
             {!pages.length && <p>No pages yet. Create one below; it appears under Pricing &amp; Packages in the website menu.</p>}
-            {pages.length > 0 && <div className={s.pageGrid}>{pages.map(page => <div className={s.pageRow} key={page.slug}><label><input type="checkbox" checked={!!item.pages?.includes(page.slug)} onChange={e => update("pages", e.target.checked ? [...(item.pages || []), page.slug] : (item.pages || []).filter(slug => slug !== page.slug))} /><span>{page.title} <small>{packagePagePath(page.slug)}</small></span></label><button type="button" className="admin-action" aria-label={`Delete page ${page.title}`} onClick={() => deletePage(page)}>Delete page</button></div>)}</div>}
+            {pages.length > 0 && <div className={s.pageGrid}>{pages.map(page => <div className={s.pageRow} key={page.slug}><label><input type="checkbox" checked={!!item.pages?.includes(page.slug)} onChange={e => update("pages", e.target.checked ? [...(item.pages || []), page.slug] : (item.pages || []).filter(slug => slug !== page.slug))} /><span>{page.title} <small>{packagePagePath(page.slug)}</small></span></label><DeleteIconButton ariaLabel={`Delete page ${page.title}`} title={`Delete page ${page.title}`} onClick={() => void deletePage(page)} /></div>)}</div>}
             {pageDraft ? <div className={s.newPage}>
               <label className="admin-field"><span>New page name</span><input aria-label="New page name" maxLength={80} value={pageDraft.title} onChange={e => setPageDraft({ ...pageDraft, title: e.target.value })} /><small>Becomes the menu entry and the link, e.g. Monthly Packages → /packages/monthly-packages. The link cannot be changed later.</small></label>
               <label className="admin-field"><span>Page introduction</span><textarea aria-label="Page introduction" maxLength={500} rows={3} value={pageDraft.intro} onChange={e => setPageDraft({ ...pageDraft, intro: e.target.value })} /><small>Shown under the page heading and used as its search description.</small></label>
@@ -877,7 +912,7 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
       </fieldset>
       <div className={s.savebar}>
         <div className={s.result}>{Object.keys(errors).length > 0 && <p className="form-error" role="alert">Not published. Fix the marked fields first, or press Save draft to keep your work.</p>}{error && <p className="form-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}</div>
-        <div className={s.row}><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { const saved = JSON.parse(baseline); setItem(saved.next); setOfferForm(saved.form); setTried(false); setError(""); }}>Discard changes</button>{draftVersion > 0 && <button type="button" className="admin-action is-danger" disabled={busy} onClick={discardDraft}>{creating ? "Delete draft" : "Discard draft"}</button>}<button type="button" className="admin-action" disabled={busy || (!dirty && (draftVersion > 0 || !creating))} onClick={saveDraft}>Save draft</button><button className="admin-button" disabled={busy || (!dirty && !creating && !draftVersion)}>{busy ? "Working…" : creating ? "Publish" : "Publish changes"}</button></div>
+        <div className={s.row}><button type="button" className="admin-action" disabled={busy || !dirty} onClick={() => { const saved = JSON.parse(baseline); setItem(saved.next); setOfferForm(saved.form); setTried(false); setError(""); }}>Discard changes</button>{draftVersion > 0 && <DangerButton disabled={busy} onClick={() => void discardDraft()}>{creating ? "Delete draft" : "Discard draft"}</DangerButton>}<button type="button" className="admin-action" disabled={busy || (!dirty && (draftVersion > 0 || !creating))} onClick={saveDraft}>Save draft</button><button className="admin-button" disabled={busy || (!dirty && !creating && !draftVersion)}>{busy ? "Working…" : creating ? "Publish" : "Publish changes"}</button></div>
       </div>
       </form>
 
@@ -905,5 +940,6 @@ export function PackagesManager({ initial, initialPages, initialOffers, universa
         pkg={{ id, name: item.name || "Package name", live: showOffer, back: { href: "#", label: "Packages" }, packageTerms, customize: item.billing ? "#" : undefined }} />
     </dialog>
     {unsavedDialog}
+    {confirmDialog}
   </>;
 }

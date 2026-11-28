@@ -3,6 +3,7 @@
 import { CapsuleSelect } from "@/components/capsule-select";
 
 import { Fragment, useCallback, useMemo, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { Loader } from "@/app/admin/email-control/loader";
 import { phoneLabel } from "@/app/admin/whatsapp/whatsapp-panel";
@@ -142,9 +143,16 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
     finally { setBusyId(null); }
   }
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function reconcilePaidProject(row: Running) {
     if (!paidPreview || !paidOrder || !paidReason.trim() || paidSlug !== paidPreview.offerSlug) return;
-    if (!window.confirm("Link this paid project to this reservation? This records an administrative reconciliation. The project's price, invoice and payment will not be changed.")) return;
+    if (!(await confirm({
+      title: "Link paid project?",
+      message: "Link this paid project to this reservation? This records an administrative reconciliation. The project's price, invoice and payment will not be changed.",
+      confirmLabel: "Link project",
+      variant: "primary",
+    }))) return;
     setBusyId(row.id); setError("");
     try {
       const response = await fetch(`/api/auto-reply/reservations/${row.id}/reconcile-paid-project`, {
@@ -161,7 +169,11 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
   }
 
   async function closePackageRequest(row: PackageStart) {
-    if (!window.confirm("Close this package request? Future team reminders for this request will stop. This does not cancel a project or payment.")) return;
+    if (!(await confirm({
+      title: "Close package request?",
+      message: "Close this package request? Future team reminders for this request will stop. This does not cancel a project or payment.",
+      confirmLabel: "Close request",
+    }))) return;
     setBusyId(row.id); setError("");
     try {
       const response = await fetch(`/api/auto-reply/package-starts/${row.id}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -528,6 +540,7 @@ export function ReservationPanel({ active = true, portalUrl = "", openAction }: 
           )}
         </>
       )}
+      {confirmDialog}
     </section>
   );
 }

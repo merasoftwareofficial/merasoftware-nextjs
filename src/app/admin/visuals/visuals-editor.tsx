@@ -1,5 +1,6 @@
 "use client";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 
 import { useState } from "react";
 import { ImageChooser, imageSourcesFor } from "@/components/image-chooser";
@@ -36,10 +37,15 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
     setMessage("");
   }
 
-  function select(next: VisualSlotId) {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  async function select(next: VisualSlotId) {
     if (next === selected) return;
     if (onChange) { setSelected(next); onSlotSelected?.(next); setError(""); setMessage(""); return; }
-    if (dirty && !window.confirm("Discard unsaved changes to this visual?")) return;
+    if (dirty && !(await confirm({
+      title: "Discard unsaved changes?",
+      message: "Discard unsaved changes to this visual?",
+      confirmLabel: "Discard changes",
+    }))) return;
     setConfigs(current => ({ ...current, [selected]: saved[selected] ?? defaultVisual(selected) }));
     setSelected(next);
     setError("");
@@ -111,5 +117,6 @@ export function VisualsEditor({ initial, assets, focusSlot, slots = [...VISUAL_S
       setLibrary(current => [choice.asset, ...current.filter(item => item._id !== choice.asset._id)]);
       update({ assetId: choice.asset._id, externalMedia: undefined, legacyLayout: undefined, alt: choice.asset.altText, mode: "media", fit: "cover", focalX: 50, focalY: 50, frame: config.frame ?? (config.frameShape === "source" ? recommendedFrame(selected) : resolveFrame(config, selected)), frameShape: "slot", crop: { ...DEFAULT_CROP } });
     }} /> : null}
+    {confirmDialog}
   </div>;
 }

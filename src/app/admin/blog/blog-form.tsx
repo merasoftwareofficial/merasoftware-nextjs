@@ -1,5 +1,6 @@
 "use client";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 
 import { formatIndiaDateTime, indiaInputToUtc, toIndiaInput } from "@/lib/date-time";
 import { useNavigate, useTask } from "@/components/loading/navigation";
@@ -369,8 +370,14 @@ export function BlogForm({
     });
   }
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function remove() {
-    if (!postId || !window.confirm("Delete this post permanently?")) return;
+    if (!postId || !(await confirm({
+      title: "Delete post?",
+      message: "Delete this post permanently?",
+      confirmLabel: "Delete permanently",
+    }))) return;
     await track(async () => {
       const response = await fetch(`/api/blogs/${postId}`, { method: "DELETE" });
       if (response.ok) router.push("/admin/blog");
@@ -747,10 +754,11 @@ export function BlogForm({
         {message ? <p className="form-message blog-actions-note" role="status">{message}</p> : null}
 
         {postId ? (
-          <button className="admin-button danger" type="button" onClick={remove} disabled={busy}>
+          <DangerButton onClick={() => void remove()} disabled={busy}>
             Delete
-          </button>
+          </DangerButton>
         ) : null}
+        {confirmDialog}
 
         <button className="admin-button secondary" type="button" onClick={() => openPreview(null)} disabled={busy}>
           Preview article

@@ -1,5 +1,6 @@
 "use client";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useEffect, useState } from "react";
 import type { WhatsappNumberSetting, WhatsappSettings, WhatsappSettingsReply } from "@/lib/whatsapp-types";
 import styles from "../email-control/email-control.module.css";
@@ -63,8 +64,15 @@ export function WhatsappSettingsSection({ onSaved }: { onSaved: () => void }) {
     } catch (failure) { setError(message(failure, "Could not save. Please try again.")); }
     finally { setBusy(false); }
   }
-  function reset() {
-    if (window.confirm("Put every sending rule back to the recommended value?")) void send("settings/reset", undefined, "Recommended rules restored. They apply from the next message.");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
+  async function reset() {
+    if (await confirm({
+      title: "Reset sending rules?",
+      message: "Put every sending rule back to the recommended value?",
+      confirmLabel: "Reset rules",
+      variant: "primary",
+    })) void send("settings/reset", undefined, "Recommended rules restored. They apply from the next message.");
   }
 
   return <section className={styles.section} aria-labelledby="rules-title">
@@ -118,5 +126,6 @@ export function WhatsappSettingsSection({ onSaved }: { onSaved: () => void }) {
       {notice && <p className={styles.notice} role="status">{notice}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}
     </form>}
+    {confirmDialog}
   </section>;
 }

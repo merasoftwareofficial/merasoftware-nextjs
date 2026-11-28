@@ -58,7 +58,7 @@ export async function readSalesCatalogue(admin = false) { return await salesBack
 // The portal's add-on service (Additional Features / Upgrades) routes are plain POST / DELETE on /api, not PATCH under
 // /api/admin, so they need their own forwarder. Only these three fixed routes can be called; the portal owns every rule
 // (admin check, "cannot delete a bought service") and the admin's own cookie is the credential, as everywhere else here.
-const ADD_ON_ROUTES = { create: ["POST", "upload-product"], update: ["POST", "update-product"], remove: ["DELETE", "delete-product"] } as const;
+const ADD_ON_ROUTES = { create: ["POST", "upload-product"], update: ["POST", "update-product"], remove: ["DELETE", "delete-product"], removeEverywhere: ["PATCH", "admin/sales-packages/addon-remove"] } as const;
 export async function portalAddOnRequest(action: keyof typeof ADD_ON_ROUTES, body: Record<string, unknown>): Promise<unknown> {
   const origin = process.env.PORTAL_API_URL;
   if (!origin) throw new AuthError("Portal API is not configured.", 503);

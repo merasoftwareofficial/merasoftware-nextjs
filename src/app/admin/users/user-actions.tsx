@@ -6,6 +6,7 @@
  */
 
 import { useNavigate, useTask } from "@/components/loading/navigation";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useState } from "react";
 import { CapsuleSelect } from "@/components/capsule-select";
 import type { Role } from "@/lib/repo/types";
@@ -16,6 +17,7 @@ export function UserActions({ id, role, banned }: { id: string; role: Role; bann
   const router = useNavigate();
   const { busy, track } = useTask();
   const [error, setError] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const patch = (body: { role?: Role; banned?: boolean }) =>
     track(async () => {
@@ -48,9 +50,13 @@ export function UserActions({ id, role, banned }: { id: string; role: Role; bann
         className={banned ? "admin-action" : "admin-action is-danger"}
         type="button"
         disabled={busy}
-        onClick={() => {
+        onClick={async () => {
           // Banning signs the person out of the website at once; unbanning needs no second thought.
-          if (!banned && !window.confirm("Ban this user? They are signed out of the website until you unban them.")) return;
+          if (!banned && !(await confirm({
+            title: "Ban user?",
+            message: "Ban this user? They are signed out of the website until you unban them.",
+            confirmLabel: "Ban user",
+          }))) return;
           patch({ banned: !banned });
         }}
       >
@@ -58,6 +64,7 @@ export function UserActions({ id, role, banned }: { id: string; role: Role; bann
       </button>
 
       {error ? <span className="form-error">{error}</span> : null}
+      {confirmDialog}
     </span>
   );
 }

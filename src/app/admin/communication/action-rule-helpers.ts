@@ -250,7 +250,14 @@ export function removeActionRuleFromData(data: ActionsData | null, id: string): 
   return mapActionRules(data, rules => rules.filter(r => (r._id || r.id) !== id));
 }
 
-export async function enrollPendingActionRule(id: string): Promise<string> {
+export type EnrollConfirmFn = (options: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  variant: "primary";
+}) => Promise<boolean>;
+
+export async function enrollPendingActionRule(id: string, confirmFn?: EnrollConfirmFn): Promise<string> {
   const previewRes = await fetch(`/api/auto-reply/action-rules/${id}/enroll-pending`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -265,7 +272,15 @@ export async function enrollPendingActionRule(id: string): Promise<string> {
   const sampleText = Array.isArray(preview.samples) && preview.samples.length
     ? `\nExamples:\n${preview.samples.map((s: { customer: string; amount: number }) => `• ${s.customer} (₹${Number(s.amount || 0).toLocaleString("en-IN")})`).join("\n")}`
     : "";
-  if (!window.confirm(`Enroll ${count} pending unpaid invoice(s) into this reminder rule?${sampleText}\n\nOnly the latest due/overdue reminder will be sent (no burst of older steps).`)) {
+  const ok = confirmFn
+    ? await confirmFn({
+        title: "Enroll pending invoices?",
+        message: `Enroll ${count} pending unpaid invoice(s) into this reminder rule?${sampleText}\n\nOnly the latest due/overdue reminder will be sent (no burst of older steps).`,
+        confirmLabel: "Enroll invoices",
+        variant: "primary",
+      })
+    : true;
+  if (!ok) {
     return "";
   }
   const applyRes = await fetch(`/api/auto-reply/action-rules/${id}/enroll-pending`, {

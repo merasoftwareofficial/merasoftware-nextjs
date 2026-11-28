@@ -2,6 +2,7 @@
 
 import { formatIndiaDate } from "@/lib/date-time";
 import { useEffect, useRef, useState } from "react";
+import { DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import Link from "@/components/link";
 import { SeoHint, focusSeoField } from "@/components/seo-checks";
 import { useNavigate, useTask } from "@/components/loading/navigation";
@@ -147,8 +148,14 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
     });
   }
 
-  function remove() {
-    if (!window.confirm("Delete this file from the Media Library and Cloudinary? This cannot be undone.")) return;
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
+  async function remove() {
+    if (!(await confirm({
+      title: "Delete media file?",
+      message: "Delete this file from the Media Library and Cloudinary? This cannot be undone.",
+      confirmLabel: "Delete permanently",
+    }))) return;
     setError("");
     return track(async () => {
       try {
@@ -160,7 +167,13 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
           throw new Error(result.error);
         }
         if (!response.ok) throw new Error(result.error || "Could not delete the file.");
-        if (result.cloudinaryRemoved === false) window.alert("Removed from the library. The Cloudinary file could not be deleted and was left there; it is no longer shown anywhere.");
+        if (result.cloudinaryRemoved === false) {
+          await confirm({
+            title: "Removed from library",
+            message: "Removed from the library. The Cloudinary file could not be deleted and was left there; it is no longer shown anywhere.",
+            alertOnly: true,
+          });
+        }
         navigation.refresh();
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Could not delete the file.");
@@ -202,13 +215,14 @@ function MediaCard({ item: { asset, uses }, canDelete, focused = false }: { item
             <button className="admin-action" type="button" onClick={() => void copyUrl()}>Copy URL</button>
             <button className="admin-action" type="button" onClick={() => { setEditing(true); setNote(""); }}>Edit alt</button>
             {canDelete ? (
-              <button className="admin-action is-danger" type="button" disabled={busy || places.length > 0} title={places.length ? "Remove it from the places listed first" : undefined} onClick={() => void remove()}>
+              <DangerButton disabled={busy || places.length > 0} title={places.length ? "Remove it from the places listed first" : undefined} onClick={() => void remove()}>
                 {busy ? "Deleting…" : "Delete"}
-              </button>
+              </DangerButton>
             ) : null}
           </div>
         )}
         {note ? <p className="field-hint" role="status">{note}</p> : null}
+        {confirmDialog}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
       </div>
     </article>

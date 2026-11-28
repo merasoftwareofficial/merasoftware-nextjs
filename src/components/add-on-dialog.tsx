@@ -1,15 +1,137 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ConfirmDialog, DangerButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { addOnInput, blankAddOn } from "@/lib/add-ons";
+import Link from "@/components/link";
 import type { AddOn } from "@/lib/sales-packages";
 import type { ProjectCategory } from "@/lib/service-plans";
+
+export type AddOnChangeResult = {
+  id: string;
+  removed?: boolean;
+  hidden?: boolean;
+  updatedPackages?: string[];
+};
+
+async function callAddOnApi(method: "POST" | "DELETE", body: Record<string, unknown>) {
+  const response = await fetch("/api/add-ons", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "The portal did not accept this. Please try again.");
+  return result as { id: string; updatedPackages?: string[] };
+}
+
+/**
+ * Shared 3-option Delete confirmation popup for an add-on.
+ * Used both from the Add-ons table and from inside AddOnDialog.
+ */
+export function AddOnDeleteDialog({
+  addOn,
+  onCancel,
+  onDone,
+}: {
+  addOn: AddOn;
+  onCancel: () => void;
+  onDone: (result: AddOnChangeResult) => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [confirmPermanent, setConfirmPermanent] = useState(false);
+  const [error, setError] = useState("");
+
+  async function runAction(action: () => Promise<AddOnChangeResult>, fallback: string) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await action();
+      await onDone(res);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : fallback);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <ConfirmDialog
+        open
+        title="Delete add-on?"
+        message={<>Remove <strong>&ldquo;{addOn.name}&rdquo;</strong>? Existing customer orders and paid invoices always stay safe.</>}
+        infoContent={
+          <>
+            <span><strong>Hide:</strong> Hides from new packages; keeps live packages safe.</span>
+            <span><strong>List only:</strong> Deletes from add-ons list; live packages keep their saved copy.</span>
+            <span><strong>Delete permanently:</strong> Removes add-on, price &amp; terms from all live packages too.</span>
+          </>
+        }
+        alertOnly
+        busy={busy}
+        error={error}
+        onCancel={onCancel}
+        extraActions={
+          <>
+            <button
+              type="button"
+              className="admin-dialog-btn"
+              disabled={busy}
+              onClick={() => void runAction(async () => {
+                await callAddOnApi("POST", { ...addOnInput(addOn), isHidden: true });
+                return { id: addOn.id, hidden: true };
+              }, "Could not hide the add-on.")}
+            >
+              Hide
+            </button>
+            <button
+              type="button"
+              className="admin-dialog-btn"
+              disabled={busy}
+              onClick={() => void runAction(async () => {
+                await callAddOnApi("DELETE", { id: addOn.id, mode: "catalog_only" });
+                return { id: addOn.id, removed: true };
+              }, "Could not delete the add-on.")}
+            >
+              List only
+            </button>
+            <DangerButton
+              disabled={busy}
+              onClick={() => { setError(""); setConfirmPermanent(true); }}
+            >
+              Delete permanently
+            </DangerButton>
+          </>
+        }
+      />
+      <ConfirmDialog
+        open={confirmPermanent}
+        zIndex={260}
+        title="Permanently delete add-on?"
+        dangerTitle
+        message={<>This will permanently delete <strong>&ldquo;{addOn.name}&rdquo;</strong> and remove it (along with its price &amp; terms) from all live packages. This cannot be undone.</>}
+        cancelLabel="Back"
+        confirmLabel="Delete permanently"
+        busyLabel="Deleting…"
+        busy={busy}
+        error={error}
+        onCancel={() => { setError(""); setConfirmPermanent(false); }}
+        onConfirm={() => runAction(async () => {
+          const res = await callAddOnApi("DELETE", { id: addOn.id, mode: "remove_from_packages" });
+          return { id: addOn.id, removed: true, updatedPackages: res.updatedPackages };
+        }, "Could not permanently delete the add-on.")}
+      />
+    </>
+  );
+}
 
 // Makes, changes or deletes an add-on service (Additional Features / Upgrades) from the package form. The portal backend
 // owns every rule: a service customers already bought cannot be deleted (hide it instead). A change of price reaches new
 // projects and packages made from now on; packages already saved keep the prices they were saved with.
-type Props = { edit?: AddOn; categories: ProjectCategory[]; onCancel: () => void; onChanged: (result: { id: string; removed?: boolean }) => void | Promise<void> };
-export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
+type Props = { edit?: AddOn; categories: ProjectCategory[]; usedInPackages?: { id: string; name: string }[]; onCancel: () => void; onChanged: (result: AddOnChangeResult) => void | Promise<void> };
+export function AddOnDialog({ edit, categories, usedInPackages, onCancel, onChanged }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -26,20 +148,16 @@ export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
   const [chosen, setChosen] = useState<string[]>(start.compatibleWith);
   // Terms & conditions, one per line: the package that includes this add-on shows them automatically.
   const [termsText, setTermsText] = useState(start.terms.join("\n"));
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const heading = edit ? "Edit add-on service" : "New add-on service";
   // Active categories, plus any archived one this add-on is already tagged with so it stays visible.
   const choices = categories.filter(row => row.status !== "archived" || chosen.includes(row.category));
-  async function call(method: "POST" | "DELETE", body: Record<string, unknown>) {
-    const response = await fetch("/api/add-ons", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "The portal did not accept this. Please try again.");
-    return result as { id: string };
-  }
   return createPortal(<div ref={ref} onKeyDown={event => {
     event.stopPropagation();
-    if (event.key === "Escape" && !busy) { event.preventDefault(); onCancel(); }
+    if (event.key === "Escape" && !busy && !confirmDelete) { event.preventDefault(); onCancel(); }
     if (event.key === "Tab") {
       const controls = [...(ref.current?.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled), select:not(:disabled), textarea:not(:disabled)') || [])];
       const first = controls[0], last = controls[controls.length - 1];
@@ -53,11 +171,16 @@ export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
       if (!name.trim()) { setError("Enter the add-on name."); return; }
       if (price === "" || !Number.isFinite(unitPrice) || unitPrice < 0) { setError("Enter a price of ₹0 or more."); return; }
       if (scoped && !chosen.length) { setError("Choose at least one category, or choose all categories."); return; }
-      if (edit && unitPrice !== edit.unitPrice && !window.confirm("Change the price? New projects and packages use the new price. Packages already saved keep their saved price.")) return;
+      if (edit && unitPrice !== edit.unitPrice && !(await confirm({
+        title: "Change add-on price?",
+        message: "New projects and packages use the new price. Packages already saved keep their saved price.",
+        confirmLabel: "Change price",
+        variant: "primary",
+      }))) return;
       setBusy(true); setError("");
       try {
         const terms = termsText.split("\n").map(line => line.trim()).filter(Boolean);
-        const saved = await call("POST", { ...(edit ? { id: edit.id } : {}), name: name.trim(), unitPrice, description: description.trim(), isHidden: hidden, isQuantityBased: perUnit, compatibleWith: scoped ? chosen : [], terms });
+        const saved = await callAddOnApi("POST", { ...(edit ? { id: edit.id } : {}), name: name.trim(), unitPrice, description: description.trim(), isHidden: hidden, isQuantityBased: perUnit, compatibleWith: scoped ? chosen : [], terms });
         await onChanged({ id: saved.id });
       } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save the add-on."); }
       finally { setBusy(false); }
@@ -74,19 +197,42 @@ export function AddOnDialog({ edit, categories, onCancel, onChanged }: Props) {
           <label><input type="radio" name="addon-scope" checked={scoped} onChange={() => setScoped(true)} /> Only the categories I choose</label>
           {scoped && choices.map(row => <label key={row.category} style={{ display: "block" }}><input type="checkbox" checked={chosen.includes(row.category)} onChange={event => setChosen(current => event.target.checked ? [...current, row.category] : current.filter(key => key !== row.category))} /> {row.label}{row.status === "archived" ? " (archived)" : ""}</label>)}
         </fieldset>
+        {edit && usedInPackages !== undefined && (
+          <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--pn-line)", background: "var(--pn-raised)", fontSize: 13 }}>
+            <strong style={{ display: "block", marginBottom: 4, color: "var(--pn-text)" }}>
+              Used in packages ({usedInPackages.length})
+            </strong>
+            {usedInPackages.length ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", maxHeight: 110, overflowY: "auto" }}>
+                {usedInPackages.map(pkg => (
+                  <Link key={pkg.id} href={`/admin/packages?package=${encodeURIComponent(pkg.id)}`} style={{ color: "var(--pn-accent)", fontWeight: 600 }}>
+                    {pkg.name} →
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <span style={{ color: "var(--pn-muted)" }}>Not used in any saved package yet.</span>
+            )}
+          </div>
+        )}
         {error && <p role="alert">{error}</p>}
         <div className="form-actions">
-          {edit && <button type="button" className="admin-action" onClick={async () => {
-            if (!window.confirm(`Delete "${edit.name}"? Packages already saved keep it as they were saved. A service customers already bought cannot be deleted; hide it instead.`)) return;
-            setBusy(true); setError("");
-            try { await call("DELETE", { id: edit.id }); await onChanged({ id: edit.id, removed: true }); }
-            catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete the add-on."); }
-            finally { setBusy(false); }
-          }}>Delete add-on</button>}
+          {edit && <DangerButton onClick={() => setConfirmDelete(true)}>Delete add-on</DangerButton>}
           <button type="button" className="admin-action" onClick={onCancel}>Cancel</button>
           <button type="submit" className="admin-button">{busy ? "Saving…" : edit ? "Save add-on" : "Create add-on"}</button>
         </div>
       </fieldset>
     </form>
+    {confirmDialog}
+    {edit && confirmDelete && (
+      <AddOnDeleteDialog
+        addOn={edit}
+        onCancel={() => setConfirmDelete(false)}
+        onDone={async res => {
+          setConfirmDelete(false);
+          await onChanged(res);
+        }}
+      />
+    )}
   </div>, document.body);
 }

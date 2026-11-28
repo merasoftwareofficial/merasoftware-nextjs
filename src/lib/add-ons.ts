@@ -17,7 +17,10 @@ export const addOnSchema = z.object({
   terms: z.array(z.string().trim().max(1500, "At most 1500 characters per line.")).max(50, "At most 50 lines.").default([]).transform(lines => lines.filter(Boolean)),
 }).strict();
 export type AddOnInput = z.infer<typeof addOnSchema>;
-export const addOnRemoveSchema = z.object({ id: z.string().regex(/^[a-f\d]{24}$/i) }).strict();
+export const addOnRemoveSchema = z.object({
+  id: z.string().regex(/^[a-f\d]{24}$/i),
+  mode: z.enum(["catalog_only", "remove_from_packages"]).optional().default("catalog_only"),
+}).strict();
 
 /** The portal's product body for an add-on. Price and selling price are one price, as the portal form saves them. */
 export function portalAddOnBody(input: AddOnInput): Record<string, unknown> {
@@ -42,9 +45,9 @@ export const addOnInput = (row: AddOn): AddOnInput => ({ id: row.id, name: row.n
 // asked is only ever the fixed shape above, only for a service that really is in the add-on list, and with known categories.
 export type AddOnDeps = {
   catalogue: () => Promise<{ categories?: { category: string }[]; addOns?: { id: string }[] }>;
-  forward: (action: "create" | "update" | "remove", body: Record<string, unknown>) => Promise<unknown>;
+  forward: (action: "create" | "update" | "remove" | "removeEverywhere", body: Record<string, unknown>) => Promise<unknown>;
 };
-export type AddOnResult = { status: number; body: { id: string } | { error: string } };
+export type AddOnResult = { status: number; body: { id: string; updatedPackages?: string[] } | { error: string } };
 export async function saveAddOn(raw: unknown, deps: AddOnDeps): Promise<AddOnResult> {
   const parsed = addOnSchema.safeParse(raw);
   if (!parsed.success) return { status: 400, body: { error: parsed.error.issues[0]?.message ?? "Check the add-on fields." } };
@@ -59,6 +62,10 @@ export async function removeAddOn(raw: unknown, deps: AddOnDeps): Promise<AddOnR
   const parsed = addOnRemoveSchema.safeParse(raw);
   if (!parsed.success) return { status: 400, body: { error: "Choose an add-on to delete." } };
   if (!((await deps.catalogue()).addOns ?? []).some(row => row.id === parsed.data.id)) return { status: 404, body: { error: "This add-on was not found. Refresh and try again." } };
+  if (parsed.data.mode === "remove_from_packages") {
+    const res = await deps.forward("removeEverywhere", { addOnId: parsed.data.id }) as { updatedPackages?: string[] } | null;
+    return { status: 200, body: { id: parsed.data.id, updatedPackages: Array.isArray(res?.updatedPackages) ? res.updatedPackages : [] } };
+  }
   // The portal refuses a service customers have already bought; its message is shown as it is.
   await deps.forward("remove", { _id: parsed.data.id });
   return { status: 200, body: { id: parsed.data.id } };

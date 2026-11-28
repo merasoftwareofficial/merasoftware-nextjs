@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { Loader } from "@/app/admin/email-control/loader";
 import { formatIndiaDate, indiaDayKey } from "@/lib/date-time";
 import s from "./communication.module.css";
@@ -104,8 +105,14 @@ export function BandwidthPanel({ active }: { active: boolean }) {
     return () => controller.abort();
   }, [active, windowOpt, load]);
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function handleReset() {
-    if (!window.confirm("Reset in-memory bandwidth counters? New consumption will be tracked from now.")) return;
+    if (!(await confirm({
+      title: "Reset bandwidth counters?",
+      message: "Reset in-memory bandwidth counters? New consumption will be tracked from now.",
+      confirmLabel: "Reset counters",
+    }))) return;
     setResetting(true);
     setError(null);
     try {
@@ -229,6 +236,7 @@ export function BandwidthPanel({ active }: { active: boolean }) {
           </p>
         </>
       ) : null}
+      {confirmDialog}
     </section>
   );
 }

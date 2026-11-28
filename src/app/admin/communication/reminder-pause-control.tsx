@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import styles from "../email-control/email-control.module.css";
 import c from "./actions-panel.module.css";
 
@@ -9,9 +10,17 @@ export function ReminderPauseControl({ source, entityId, paused, label, onChange
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   async function change() {
     if (pending.current) return;
-    if (!window.confirm(paused ? `Resume ${label} for this record? Only eligible milestones will send; previously handled messages are not replayed.` : `Pause ${label} for this record? Messages already being sent cannot be recalled.`)) return;
+    if (!(await confirm({
+      title: paused ? `Resume ${label}?` : `Pause ${label}?`,
+      message: paused
+        ? `Resume ${label} for this record? Only eligible milestones will send; previously handled messages are not replayed.`
+        : `Pause ${label} for this record? Messages already being sent cannot be recalled.`,
+      confirmLabel: paused ? "Resume" : "Pause",
+      variant: "primary",
+    }))) return;
     pending.current = true; setBusy(true); setError("");
     try {
       const response = await fetch("/api/auto-reply/reminder-controls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source, entityId, paused: !paused, expectedPaused: paused }) });
@@ -27,10 +36,12 @@ export function ReminderPauseControl({ source, entityId, paused, label, onChange
         {busy ? "Saving…" : paused ? "Resume" : "Pause"}
       </button>
       {error && <span className={styles.error} role="alert">{error}</span>}
+      {confirmDialog}
     </>;
   }
   return <div>
     <div className={styles.actions}><span>{label.charAt(0).toUpperCase() + label.slice(1)}: {paused ? "Paused" : "On"}</span><button type="button" disabled={busy} onClick={() => void change()}>{busy ? "Saving…" : `${paused ? "Resume" : "Pause"} ${label}`}</button></div>
     {error && <p className={styles.error} role="alert">{error} <button type="button" disabled={busy} onClick={() => void onChanged().catch(() => {})}>Refresh state</button></p>}
+    {confirmDialog}
   </div>;
 }

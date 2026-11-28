@@ -1,6 +1,7 @@
 "use client";
 
 import { CapsuleSelect } from "@/components/capsule-select";
+import { ConfirmDialog, DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useUnsavedGuard } from "@/components/unsaved-guard";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCommunicationRefresh } from "@/lib/communication-live";
@@ -1793,9 +1794,15 @@ function TemplateEditorBlock({
     void runQuickSave(nextMsg, "Saved ✓", "Default updated in form");
   }
 
-  function deleteActive() {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
+  async function deleteActive() {
     if (list.length <= 1 || busy) return;
-    if (typeof window !== "undefined" && !window.confirm(`Delete template "${activeTpl.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({
+      title: "Delete template?",
+      message: <>Delete template <strong>&ldquo;{activeTpl.name}&rdquo;</strong>? This cannot be undone.</>,
+      confirmLabel: "Delete permanently",
+    }))) return;
     const remaining = list.filter(t => t.id !== activeTpl.id);
     const next = syncSingleMsg(remaining);
     onChange(next);
@@ -1856,9 +1863,10 @@ function TemplateEditorBlock({
           )}
           <button type="button" className={s.miniBtn} disabled={busy} onClick={() => openPrompt("rename")}>Rename</button>
           {list.length > 1 && (
-            <button type="button" className={s.miniDangerBtn} disabled={busy} onClick={deleteActive}>Delete</button>
+            <button type="button" className={s.miniDangerBtn} disabled={busy} onClick={() => void deleteActive()}>Delete</button>
           )}
           {savedNotice && <span className={s.tplSavedTag}>{savedNotice}</span>}
+          {confirmDialog}
         </div>
 
         {promptMode && (
@@ -5119,23 +5127,12 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
                   <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => { setSaveError(""); setEditing({ trail, focus: { mode: "full" } }); }}>
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    className={`${s.iconBtn} ${s.miniDangerBtn}`}
-                    style={{ color: "#ffffff", borderColor: "#dc2626", background: "#dc2626", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                  <DeleteIconButton
                     disabled={busy}
                     title={`Delete ${title}`}
-                    aria-label={`Delete ${title}`}
+                    ariaLabel={`Delete ${title}`}
                     onClick={() => setPendingDeleteTrail({ trail, title })}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                  </button>
+                  />
                 </div>
               </article>
             );
@@ -5342,54 +5339,21 @@ export function AutomatedMessagesPanel({ active }: { active: boolean }) {
       )
     )}
 
-    {pendingDeleteTrail && (
-      <div
-        className={s.previewOverlay}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Confirm delete trail"
-      >
-        <div
-          className={s.previewBackdrop}
-          onClick={() => { if (!busyId) setPendingDeleteTrail(null); }}
-        />
-        <div
-          className={s.previewDialog}
-          style={{ width: "min(460px, 100%)", maxHeight: "none" }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <strong style={{ fontSize: 16 }}>Delete trail?</strong>
-            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, opacity: 0.9 }}>
-              Are you sure you want to permanently delete <strong>“{pendingDeleteTrail.title}”</strong>? All its templates, reminders, stages, and scheduled runs will be removed and cannot be undone.
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 6 }}>
-              <button
-                type="button"
-                className={s.ghostBtn}
-                disabled={Boolean(busyId)}
-                onClick={() => setPendingDeleteTrail(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={s.miniDangerBtn}
-                style={{ color: "#ffffff", background: "#dc2626", borderColor: "#dc2626" }}
-                disabled={Boolean(busyId)}
-                onClick={async () => {
-                  const target = pendingDeleteTrail.trail;
-                  await removeTrail(target);
-                  setPendingDeleteTrail(null);
-                }}
-              >
-                {busyId === pendingDeleteTrail.trail._id ? "Deleting…" : "Delete permanently"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
+    <ConfirmDialog
+      open={Boolean(pendingDeleteTrail)}
+      title="Delete trail?"
+      message={pendingDeleteTrail ? <>Are you sure you want to permanently delete <strong>&ldquo;{pendingDeleteTrail.title}&rdquo;</strong>? All its templates, reminders, stages, and scheduled runs will be removed and cannot be undone.</> : ""}
+      confirmLabel="Delete permanently"
+      busyLabel="Deleting…"
+      busy={Boolean(busyId)}
+      onCancel={() => setPendingDeleteTrail(null)}
+      onConfirm={async () => {
+        if (!pendingDeleteTrail) return;
+        const target = pendingDeleteTrail.trail;
+        await removeTrail(target);
+        setPendingDeleteTrail(null);
+      }}
+    />
 
     {editing && (
       <FormDialog

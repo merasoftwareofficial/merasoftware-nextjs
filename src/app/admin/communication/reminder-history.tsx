@@ -2,6 +2,7 @@
 
 import { CapsuleSelect } from "@/components/capsule-select";
 import { useCallback, useMemo, useState } from "react";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
 import { Loader } from "@/app/admin/email-control/loader";
@@ -49,8 +50,14 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
     finally { setRetrying(""); }
   }
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function cancelRun(id: string) {
-    if (!window.confirm("Cancel this scheduled reminder step?")) return;
+    if (!(await confirm({
+      title: "Cancel reminder step?",
+      message: "Cancel this scheduled reminder step?",
+      confirmLabel: "Cancel step",
+    }))) return;
     setCancelling(id); setError("");
     try {
       const response = await fetch(`/api/auto-reply/action-rules/runs/${id}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -111,5 +118,6 @@ export function ReminderHistory({ active, source, compact = false }: { active: b
       )}
       <div className={styles.actions}><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page} · {data.total} steps</span><button type="button" disabled={page * data.pageSize >= data.total} onClick={() => setPage(value => value + 1)}>Next</button></div>
     </>}
+    {confirmDialog}
   </section>;
 }

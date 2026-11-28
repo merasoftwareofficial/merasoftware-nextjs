@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DeleteIconButton, useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { CapsuleSelect } from "@/components/capsule-select";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 import { formatIndiaDateTime } from "@/lib/date-time";
@@ -196,9 +197,15 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     }
   }
 
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+
   async function deleteRule(rule: ActionRuleRecord) {
     const id = rule._id || rule.id;
-    if (!id || !window.confirm("Delete this rule permanently?")) return;
+    if (!id || !(await confirm({
+      title: "Delete rule?",
+      message: "Delete this rule permanently?",
+      confirmLabel: "Delete permanently",
+    }))) return;
     setDeletingId(id);
     setError("");
     try {
@@ -219,7 +226,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
     setError("");
     setNotice("");
     try {
-      const msg = await enrollPendingActionRule(id);
+      const msg = await enrollPendingActionRule(id, confirm);
       if (msg) setNotice(msg);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not enroll pending invoices.");
@@ -291,6 +298,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           onBack={() => setShowScheduled(false)}
           onEditRule={rule => { setShowScheduled(false); setEditingRule(rule); }}
         />
+        {confirmDialog}
       </section>
     );
   }
@@ -338,6 +346,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
           onOpenTemplate={onOpenTemplate}
           onOpenPanel={onOpenPanel}
         />
+        {confirmDialog}
       </section>
     );
   }
@@ -495,6 +504,7 @@ export function ActionsPanel({ active, onOpenTemplate, onOpenPanel }: {
         </table>
       </div>}
     </>}
+    {confirmDialog}
   </section>;
 }
 
@@ -659,9 +669,7 @@ function ActionDetailView({ row, origins, togglingId, deletingId, enrollingId, n
                                   {enrollingId === rid ? "Checking…" : "Enroll pending"}
                                 </button>
                               )}
-                              <button type="button" className={c.manage} disabled={deletingId === rid} onClick={() => onDelete(rule)}>
-                                {deletingId === rid ? "Deleting…" : "Delete"}
-                              </button>
+                              <DeleteIconButton disabled={deletingId === rid} title="Delete rule" ariaLabel="Delete rule" onClick={() => onDelete(rule)} />
                             </div>
                           );
                         })}

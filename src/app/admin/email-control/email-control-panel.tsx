@@ -1,5 +1,6 @@
 "use client";
 import { CapsuleSelect } from "@/components/capsule-select";
+import { useConfirmDialog } from "@/components/admin-confirm-dialog";
 import { useCommunicationRefresh } from "@/lib/communication-live";
 
 import { formatIndiaDateTime } from "@/lib/date-time";
@@ -98,8 +99,9 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     catch (err) { setError(reason(err)); }
     finally { setBusy(false); }
   }
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   function editTemplate(value: TemplateEditor) { editorInitial.current = JSON.stringify(value); setupInitial.current = "null"; setSetup(null); setSample(null); setDialogError(""); setEditor(value); }
-  function cancelTemplate() { if (editor && (JSON.stringify(editor) !== editorInitial.current || JSON.stringify(setup) !== setupInitial.current) && !window.confirm("Discard unsaved template changes?")) return; setEditor(null); }
+  async function cancelTemplate() { if (editor && (JSON.stringify(editor) !== editorInitial.current || JSON.stringify(setup) !== setupInitial.current) && !(await confirm({ title: "Discard unsaved changes?", message: "Discard unsaved template changes?", confirmLabel: "Discard changes" }))) return; setEditor(null); }
   // A new template starts from the action's built-in wording when it has one.
   function newTemplate(event: string) {
     const system = data?.templates.find(row => row.event === event && row.system);
@@ -145,7 +147,12 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
     finally { setBusy(false); }
   }
   async function resetTemplate() {
-    if (!editor?._id || busy || !window.confirm("Replace this built-in template with its original wording?")) return;
+    if (!editor?._id || busy || !(await confirm({
+      title: "Reset built-in template?",
+      message: "Replace this built-in template with its original wording?",
+      confirmLabel: "Reset template",
+      variant: "primary",
+    }))) return;
     setBusy(true); setDialogError("");
     try { setEditor(toEditor(await request<EmailTemplate>(`/templates/${editor._id}/reset`, "POST", {}))); setSample(null); await load(); setNotice("Built-in template restored to its original wording."); }
     catch (err) { setDialogError(reason(err)); }
@@ -493,6 +500,7 @@ export function EmailControlPanel({ initialApplication, canManagePortal, active 
       </>}
     </section>}
     </div>
-    {workspace ? (editing && <section className={styles.workspaceEditor} aria-labelledby="email-dialog-title">{editorContent}</section>) : <dialog ref={dialog} className={`${styles.dialog} ${draft ? styles.reviewWindow : ""}`} aria-labelledby="email-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) { if (draft) setPendingChoice("close"); else cancelTemplate(); } }}>{editorContent}</dialog>}
+    {workspace ? (editing && <section className={styles.workspaceEditor} aria-labelledby="email-dialog-title">{editorContent}</section>) : <dialog ref={dialog} className={`${styles.dialog} ${draft ? styles.reviewWindow : ""}`} aria-labelledby="email-dialog-title" onCancel={event => { event.preventDefault(); if (!busy) { if (draft) setPendingChoice("close"); else void cancelTemplate(); } }}>{editorContent}</dialog>}
+    {confirmDialog}
   </div>;
 }
